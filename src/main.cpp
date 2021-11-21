@@ -6,7 +6,7 @@
 // Global variables
 static TCHAR szWindowClass[] = _T("Celeritas"); // The main window class name.
 static TCHAR szTitle[] = _T("Celeritas Engine"); // The string that appears in the application's title bar.
-HINSTANCE hInst;
+HINSTANCE hInst; // This is a handle that windows uses to recognize the actual instance.
 
 // Forward declarations of functions included in this code module:
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -34,11 +34,9 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 
 		return 1;
 	}
-
-	// Store instance handle in our global variable. This is a handle that windows uses to recognize the actual instance.
 	hInst = hInstance;
 
-	//Info: https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-createwindowexa
+	//Create the window. For more info: https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-createwindowexa
 	HWND hWnd = CreateWindowEx(WS_EX_OVERLAPPEDWINDOW, szWindowClass, szTitle, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 500, 100, NULL, NULL, hInstance, NULL);
 
 	if (!hWnd) {
@@ -62,7 +60,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	PAINTSTRUCT ps;
 	HDC hdc;
-	TCHAR greeting[] = _T("Hello, Windows desktop!");
+	TCHAR greeting[] = _T("Hello, I am Celeritas Engine, an engine built on performance and optimization.");
 
 	switch (message) {
 	case WM_PAINT:
