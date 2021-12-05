@@ -80,7 +80,6 @@ int main() {
 	uint32_t presentQueueFamilyIndex = 0;
 	for (int i = 0; i < queueFamilies.size(); ++i) {
 		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-			std::cout << "found the graphics bit queue family" << std::endl;
 			graphicsQueueFamilyIndex = i; break;
 		}
 		VkBool32 presentSupport = false;
@@ -171,7 +170,6 @@ int main() {
 	//Create an image view. An image view describes how to access an image and which 
 	//part of the image to access in the swap chain. For example if it should be treated 
 	//as a 2D texture depth texture without any mipmapping levels.
-	g_swapChainImageViews.resize(g_swapChainImages.size());
 	for (int i = 0; i < g_swapChainImages.size(); ++i) {
 		VkImageViewCreateInfo imageViewCreateInfo{};
 		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -188,6 +186,7 @@ int main() {
 		imageViewCreateInfo.subresourceRange.levelCount = 1;
 		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 		imageViewCreateInfo.subresourceRange.layerCount = 1;
+		g_swapChainImageViews.resize(g_swapChainImages.size());
 		if (vkCreateImageView(g_logicalDevice, &imageViewCreateInfo, nullptr, &g_swapChainImageViews[i]) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create image views!");
 		}
