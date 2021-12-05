@@ -16,6 +16,8 @@ VkQueue g_graphicsQueue; //The queue used to send graphics commands to the GPU (
 VkQueue g_presentQueue; //The queue used to send presentation commands to the GPU (commands to interface with the window)
 VkSurfaceKHR g_surface; //The window surface used by vulkan to communicate with the glfw window
 VkSwapchainKHR g_swapChain; //The swapchain object. A swapchain is a queue of images waiting to be presented to the screen via framebuffer
+std::vector<VkImageView> g_swapChainImageViews; //Image views for the swap chain images. Image views describe how to access images in the swap chain
+std::vector<VkImage> g_swapChainImages; //Container for the images in the swap chain queue
 
 int main() {
 	//Initialize the window with GLFW API
@@ -59,15 +61,12 @@ int main() {
 	uint32_t deviceCount = 0;
 	vkEnumeratePhysicalDevices(g_vkInstance, &deviceCount, nullptr);
 	if (deviceCount == 0) {
-		std::cout << "failed to find GPUs with Vulkan support!" << std::endl;
+		std::cout << "failed to find GPUs with vulkan support!" << std::endl;
 	}
 	std::vector<VkPhysicalDevice> devices(deviceCount);
 	vkEnumeratePhysicalDevices(g_vkInstance, &deviceCount, devices.data());
 	for (auto device : devices) {
 		g_physicalDevice = device;
-	}
-	if (nullptr != g_physicalDevice) {
-		std::cout << "found your graphics card" << std::endl;
 	}
 
 	//Find what queue families are supported by the graphics card.
@@ -165,6 +164,34 @@ int main() {
 	if (vkCreateSwapchainKHR(g_logicalDevice, &swapChainCreateInfo, nullptr, &g_swapChain) != VK_SUCCESS) {
 		std::cout << "failed to create swapchain" << std::endl;
 	}
+	vkGetSwapchainImagesKHR(g_logicalDevice, g_swapChain, &imageCount, nullptr);
+	g_swapChainImages.resize(imageCount);
+	vkGetSwapchainImagesKHR(g_logicalDevice, g_swapChain, &imageCount, g_swapChainImages.data());
+
+	//Create an image view. An image view describes how to access an image and which 
+	//part of the image to access in the swap chain. For example if it should be treated 
+	//as a 2D texture depth texture without any mipmapping levels.
+	g_swapChainImageViews.resize(g_swapChainImages.size());
+	for (int i = 0; i < g_swapChainImages.size(); ++i) {
+		VkImageViewCreateInfo imageViewCreateInfo{};
+		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		std::vector<VkImageView> g_swapChainImageViews;
+		imageViewCreateInfo.image = g_swapChainImages[i];
+		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		imageViewCreateInfo.format = formats[0].format;
+		imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+		imageViewCreateInfo.subresourceRange.levelCount = 1;
+		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+		imageViewCreateInfo.subresourceRange.layerCount = 1;
+		if (vkCreateImageView(g_logicalDevice, &imageViewCreateInfo, nullptr, &g_swapChainImageViews[i]) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create image views!");
+		}
+	}
 
 	//Main loop
 	while (!glfwWindowShouldClose(g_window)) {
@@ -173,6 +200,9 @@ int main() {
 	}
 
 	//Shutdown operations (cleanup)
+	for (auto imageView : g_swapChainImageViews) {
+		vkDestroyImageView(g_logicalDevice, imageView, nullptr);
+	}
 	vkDestroyDevice(g_logicalDevice, nullptr);
 	vkDestroySurfaceKHR(g_vkInstance, g_surface, nullptr);
 	vkDestroyInstance(g_vkInstance, nullptr);

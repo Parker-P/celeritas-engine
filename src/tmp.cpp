@@ -29,17 +29,16 @@
 //#endif
 //
 //VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
-//    auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+//    auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
 //    if (func != nullptr) {
 //        return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
-//    }
-//    else {
+//    } else {
 //        return VK_ERROR_EXTENSION_NOT_PRESENT;
 //    }
 //}
 //
 //void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
-//    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+//    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
 //    if (func != nullptr) {
 //        func(instance, debugMessenger, pAllocator);
 //    }
@@ -86,6 +85,7 @@
 //    std::vector<VkImage> swapChainImages;
 //    VkFormat swapChainImageFormat;
 //    VkExtent2D swapChainExtent;
+//    std::vector<VkImageView> swapChainImageViews;
 //
 //    void initWindow() {
 //        glfwInit();
@@ -103,6 +103,7 @@
 //        pickPhysicalDevice();
 //        createLogicalDevice();
 //        createSwapChain();
+//        createImageViews();
 //    }
 //
 //    void mainLoop() {
@@ -112,6 +113,10 @@
 //    }
 //
 //    void cleanup() {
+//        for (auto imageView : swapChainImageViews) {
+//            vkDestroyImageView(device, imageView, nullptr);
+//        }
+//
 //        vkDestroySwapchainKHR(device, swapChain, nullptr);
 //        vkDestroyDevice(device, nullptr);
 //
@@ -154,9 +159,8 @@
 //            createInfo.ppEnabledLayerNames = validationLayers.data();
 //
 //            populateDebugMessengerCreateInfo(debugCreateInfo);
-//            createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
-//        }
-//        else {
+//            createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*) &debugCreateInfo;
+//        } else {
 //            createInfo.enabledLayerCount = 0;
 //
 //            createInfo.pNext = nullptr;
@@ -219,7 +223,7 @@
 //        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 //
 //        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-//        std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+//        std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 //
 //        float queuePriority = 1.0f;
 //        for (uint32_t queueFamily : uniqueQueueFamilies) {
@@ -247,8 +251,7 @@
 //        if (enableValidationLayers) {
 //            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
 //            createInfo.ppEnabledLayerNames = validationLayers.data();
-//        }
-//        else {
+//        } else {
 //            createInfo.enabledLayerCount = 0;
 //        }
 //
@@ -284,14 +287,13 @@
 //        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 //
 //        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
-//        uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+//        uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 //
 //        if (indices.graphicsFamily != indices.presentFamily) {
 //            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
 //            createInfo.queueFamilyIndexCount = 2;
 //            createInfo.pQueueFamilyIndices = queueFamilyIndices;
-//        }
-//        else {
+//        } else {
 //            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 //        }
 //
@@ -312,6 +314,31 @@
 //
 //        swapChainImageFormat = surfaceFormat.format;
 //        swapChainExtent = extent;
+//    }
+//
+//    void createImageViews() {
+//        swapChainImageViews.resize(swapChainImages.size());
+//
+//        for (size_t i = 0; i < swapChainImages.size(); i++) {
+//            VkImageViewCreateInfo createInfo{};
+//            createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+//            createInfo.image = swapChainImages[i];
+//            createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+//            createInfo.format = swapChainImageFormat;
+//            createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+//            createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+//            createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+//            createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+//            createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+//            createInfo.subresourceRange.baseMipLevel = 0;
+//            createInfo.subresourceRange.levelCount = 1;
+//            createInfo.subresourceRange.baseArrayLayer = 0;
+//            createInfo.subresourceRange.layerCount = 1;
+//
+//            if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
+//                throw std::runtime_error("failed to create image views!");
+//            }
+//        }
 //    }
 //
 //    VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
@@ -337,8 +364,7 @@
 //    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
 //        if (capabilities.currentExtent.width != UINT32_MAX) {
 //            return capabilities.currentExtent;
-//        }
-//        else {
+//        } else {
 //            int width, height;
 //            glfwGetFramebufferSize(window, &width, &height);
 //
@@ -491,8 +517,7 @@
 //
 //    try {
 //        app.run();
-//    }
-//    catch (const std::exception& e) {
+//    } catch (const std::exception& e) {
 //        std::cerr << e.what() << std::endl;
 //        return EXIT_FAILURE;
 //    }
