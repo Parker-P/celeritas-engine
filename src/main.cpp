@@ -3,6 +3,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <iostream>
 #include <algorithm>
+#include <fstream>
 #include <vector>
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
@@ -18,7 +19,31 @@ VkSurfaceKHR g_surface; //The window surface used by vulkan to communicate with 
 VkSwapchainKHR g_swapChain; //The swapchain object. A swapchain is a queue of images waiting to be presented to the screen via framebuffer
 std::vector<VkImageView> g_swapChainImageViews; //Image views for the swap chain images. Image views describe how to access images in the swap chain
 std::vector<VkImage> g_swapChainImages; //Container for the images in the swap chain queue
+VkShaderModule vertexShaderModule; //Vulkan container object for the vertex shader
+VkShaderModule fragmentShaderModule; //Vulkan container object for the fragment shader
 
+//Reads text from a file and returns the content of it
+static std::vector<char> readFile(const std::wstring& path) {
+	//Open the file and check if it was open
+	std::ifstream file(path, std::ios::ate | std::ios::binary);
+	if (file.is_open()) {
+		//Get file length
+		size_t fileSize = (size_t)file.tellg();
+		std::vector<char> buffer(fileSize);
+		file.seekg(0);
+
+		//Read contents and return
+		file.read(buffer.data(), fileSize);
+		file.close();
+		return buffer;
+	}
+	else {
+		std::wcout << "error opening file " << path << std::endl;
+		return std::vector<char>();
+	}
+}
+
+//Main function. This is the entry point.
 int main() {
 	//Initialize the window with GLFW API
 	glfwInit();
@@ -52,7 +77,6 @@ int main() {
 	windowSurfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 	windowSurfaceCreateInfo.hwnd = glfwGetWin32Window(g_window);
 	windowSurfaceCreateInfo.hinstance = GetModuleHandle(nullptr);
-	//std::cout << vkCreateWin32SurfaceKHR(g_vkInstance, &windowSurfaceCreateInfo, nullptr, &g_surface) << std::endl;
 	if(glfwCreateWindowSurface(g_vkInstance, g_window, nullptr, &g_surface) != VK_SUCCESS) {
 		std::cout << "failed to create vulkan window surface" << std::endl;
 	};
@@ -169,7 +193,8 @@ int main() {
 
 	//Create an image view. An image view describes how to access an image and which 
 	//part of the image to access in the swap chain. For example if it should be treated 
-	//as a 2D texture depth texture without any mipmapping levels.
+	//as a 2D texture depth texture without any mipmapping levels. Here we are creating
+	//an image view for each image in the swap chain queue.
 	for (int i = 0; i < g_swapChainImages.size(); ++i) {
 		VkImageViewCreateInfo imageViewCreateInfo{};
 		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -188,13 +213,43 @@ int main() {
 		imageViewCreateInfo.subresourceRange.layerCount = 1;
 		g_swapChainImageViews.resize(g_swapChainImages.size());
 		if (vkCreateImageView(g_logicalDevice, &imageViewCreateInfo, nullptr, &g_swapChainImageViews[i]) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create image views!");
+			throw std::runtime_error("failed to create image view");
 		}
 	}
 
+	//LCompile and load the vertex and fragment shaders
+	system(".\\src\\shaderCompiler.bat");
+	std::vector<char> vertexShaderCode = readFile(L".\\src\\vertexShader.spv");
+	std::vector<char> fragmentShaderCode = readFile(L".\\src\\fragmentShader.spv");
+
+	//Initialize shader modules. A shader module is a vulkan container for all shaders.
+	VkShaderModuleCreateInfo vertexShaderModuleCreateInfo{};
+	vertexShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	vertexShaderModuleCreateInfo.codeSize = vertexShaderCode.size();
+	vertexShaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(vertexShaderCode.data());
+	vkCreateShaderModule(g_logicalDevice, &vertexShaderModuleCreateInfo, nullptr, &vertexShaderModule);
+	VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo{};
+	fragmentShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	fragmentShaderModuleCreateInfo.codeSize = fragmentShaderCode.size();
+	fragmentShaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(fragmentShaderCode.data());
+	vkCreateShaderModule(g_logicalDevice, &fragmentShaderModuleCreateInfo, nullptr, &fragmentShaderModule);
+
+	//Add the vertex and fragment shaders to the shader pipeline.
+	VkPipelineShaderStageCreateInfo vertexShaderStageInfo{};
+	vertexShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertexShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertexShaderStageInfo.module = vertexShaderModule;
+	vertexShaderStageInfo.pName = "main";
+	VkPipelineShaderStageCreateInfo fragmentShaderStageInfo{};
+	fragmentShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragmentShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragmentShaderStageInfo.module = fragmentShaderModule;
+	fragmentShaderStageInfo.pName = "main";
+	VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderStageInfo, fragmentShaderStageInfo };
+
 	//Main loop
 	while (!glfwWindowShouldClose(g_window)) {
-		std::cout << "Main loop" << std::endl;
+		//std::cout << "Main loop" << std::endl;
 		glfwPollEvents();
 	}
 
