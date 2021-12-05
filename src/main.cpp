@@ -111,12 +111,20 @@ int main() {
 	VkSwapchainCreateInfoKHR swapChainCreateInfo{};
 	swapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	swapChainCreateInfo.surface = g_surface;
-	swapChainCreateInfo.minImageCount = imageCount;
-	swapChainCreateInfo.imageFormat = surfaceFormat.format;
-	swapChainCreateInfo.imageColorSpace = surfaceFormat.colorSpace;
-	swapChainCreateInfo.imageExtent = extent;
+	swapChainCreateInfo.minImageCount = surfaceCapabilities.minImageCount;
+	swapChainCreateInfo.imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
+	swapChainCreateInfo.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+	swapChainCreateInfo.imageExtent = surfaceCapabilities.maxImageExtent;
 	swapChainCreateInfo.imageArrayLayers = 1;
 	swapChainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+	swapChainCreateInfo.queueFamilyIndexCount = 2;
+	const uint32_t queueFamilyIndices[] = {static_cast<uint32_t>(graphicsQueueFamilyIndex), static_cast<uint32_t>(presentQueueFamilyIndex)};
+	swapChainCreateInfo.pQueueFamilyIndices = &queueFamilyIndices;
+	swapChainCreateInfo.preTransform = swapChainSupport.capabilities.currentTransform;
+	swapChainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	swapChainCreateInfo.presentMode = presentMode;
+	swapChainCreateInfo.clipped = VK_TRUE;
 	vkCreateSwapchainKHR(g_logicalDevice, &swapChainCreateInfo, nullptr, &g_swapChain);
 
 	//Main loop
