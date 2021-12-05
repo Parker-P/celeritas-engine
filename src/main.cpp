@@ -2,6 +2,7 @@
 #define GLFW_EXPOSE_NATIVE_WIN32
 #define GLFW_INCLUDE_VULKAN
 #include <iostream>
+#include <algorithm>
 #include <vector>
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
@@ -19,6 +20,7 @@ VkSwapchainKHR g_swapChain; //The swapchain object. A swapchain is a queue of im
 int main() {
 	//Initialize the window with GLFW API
 	glfwInit();
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	g_window = glfwCreateWindow(1024, 768, "Celeritas engine", nullptr, nullptr);
 
 	//Initialize Vulkan
@@ -32,7 +34,15 @@ int main() {
 	VkInstanceCreateInfo instanceCreateInfo{};
 	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	instanceCreateInfo.pApplicationInfo = &vkAppInfo;
-	vkCreateInstance(&instanceCreateInfo, nullptr, &g_vkInstance);
+	uint32_t glfwExtensionCount = 0;
+	const char** glfwExtensions;
+	glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+	std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+	instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+	instanceCreateInfo.ppEnabledExtensionNames = extensions.data();
+	if (vkCreateInstance(&instanceCreateInfo, nullptr, &g_vkInstance) != VK_SUCCESS) {
+		std::cout << "failed to create vulkan instance" << std::endl;
+	}
 
 	//Create a window surface. A window surface is a way that vulkan uses to communicate with
 	//the window where it's going to render things
@@ -40,8 +50,10 @@ int main() {
 	windowSurfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 	windowSurfaceCreateInfo.hwnd = glfwGetWin32Window(g_window);
 	windowSurfaceCreateInfo.hinstance = GetModuleHandle(nullptr);
-	vkCreateWin32SurfaceKHR(g_vkInstance, &windowSurfaceCreateInfo, nullptr, &g_surface);
-	glfwCreateWindowSurface(g_vkInstance, g_window, nullptr, &g_surface);
+	//std::cout << vkCreateWin32SurfaceKHR(g_vkInstance, &windowSurfaceCreateInfo, nullptr, &g_surface) << std::endl;
+	if(glfwCreateWindowSurface(g_vkInstance, g_window, nullptr, &g_surface) != VK_SUCCESS) {
+		std::cout << "failed to create vulkan window surface" << std::endl;
+	};
 
 	//Check for graphics card support and if found assign it to g_physicalDevice
 	uint32_t deviceCount = 0;
@@ -65,8 +77,8 @@ int main() {
 	vkGetPhysicalDeviceQueueFamilyProperties(g_physicalDevice, &queueFamilyCount, nullptr);
 	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(g_physicalDevice, &queueFamilyCount, queueFamilies.data());
-	int graphicsQueueFamilyIndex = 0;
-	int presentQueueFamilyIndex = 0;
+	uint32_t graphicsQueueFamilyIndex = 0;
+	uint32_t presentQueueFamilyIndex = 0;
 	for (int i = 0; i < queueFamilies.size(); ++i) {
 		if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 			std::cout << "found the graphics bit queue family" << std::endl;
@@ -106,26 +118,53 @@ int main() {
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_physicalDevice, g_surface, &surfaceCapabilities);
 	uint32_t formatCount;
 	vkGetPhysicalDeviceSurfaceFormatsKHR(g_physicalDevice, g_surface, &formatCount, nullptr);
+	std::vector<VkSurfaceFormatKHR> formats;
+	if (formatCount != 0) {
+		formats.resize(formatCount);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(g_physicalDevice, g_surface, &formatCount, formats.data());
+	}
 	uint32_t presentModeCount;
 	vkGetPhysicalDeviceSurfacePresentModesKHR(g_physicalDevice, g_surface, &presentModeCount, nullptr);
+	std::vector<VkPresentModeKHR> presentModes;
+	if (presentModeCount != 0) {
+		presentModes.resize(presentModeCount);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(g_physicalDevice, g_surface, &presentModeCount, presentModes.data());
+	}
 	VkSwapchainCreateInfoKHR swapChainCreateInfo{};
 	swapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	swapChainCreateInfo.surface = g_surface;
-	swapChainCreateInfo.minImageCount = surfaceCapabilities.minImageCount;
-	swapChainCreateInfo.imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
-	swapChainCreateInfo.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-	swapChainCreateInfo.imageExtent = surfaceCapabilities.maxImageExtent;
+	uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
+	if (surfaceCapabilities.maxImageCount > 0 && imageCount > surfaceCapabilities.maxImageCount) {
+		imageCount = surfaceCapabilities.maxImageCount;
+	}
+	swapChainCreateInfo.minImageCount = imageCount;
+	swapChainCreateInfo.imageFormat = formats[0].format;
+	swapChainCreateInfo.imageColorSpace = formats[0].colorSpace;
+	int width, height;
+	glfwGetFramebufferSize(g_window, &width, &height);
+	VkExtent2D actualExtent;
+	actualExtent.width = std::clamp(static_cast<uint32_t>(width), surfaceCapabilities.minImageExtent.width, surfaceCapabilities.maxImageExtent.width);
+	actualExtent.height = std::clamp(static_cast<uint32_t>(height), surfaceCapabilities.minImageExtent.height, surfaceCapabilities.maxImageExtent.height);
+	swapChainCreateInfo.imageExtent = actualExtent;
 	swapChainCreateInfo.imageArrayLayers = 1;
 	swapChainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-	swapChainCreateInfo.queueFamilyIndexCount = 2;
-	const uint32_t queueFamilyIndices[] = {static_cast<uint32_t>(graphicsQueueFamilyIndex), static_cast<uint32_t>(presentQueueFamilyIndex)};
-	swapChainCreateInfo.pQueueFamilyIndices = &queueFamilyIndices;
-	swapChainCreateInfo.preTransform = swapChainSupport.capabilities.currentTransform;
+	uint32_t queueFamilyIndices[] = { graphicsQueueFamilyIndex, presentQueueFamilyIndex };
+	if (graphicsQueueFamilyIndex != presentQueueFamilyIndex) {
+		swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		swapChainCreateInfo.queueFamilyIndexCount = 2;
+		swapChainCreateInfo.pQueueFamilyIndices = queueFamilyIndices;
+	}
+	else {
+		swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	}
+	swapChainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
 	swapChainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	swapChainCreateInfo.presentMode = presentMode;
+	swapChainCreateInfo.presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
 	swapChainCreateInfo.clipped = VK_TRUE;
-	vkCreateSwapchainKHR(g_logicalDevice, &swapChainCreateInfo, nullptr, &g_swapChain);
+	swapChainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+	if (vkCreateSwapchainKHR(g_logicalDevice, &swapChainCreateInfo, nullptr, &g_swapChain) != VK_SUCCESS) {
+		std::cout << "failed to create swapchain" << std::endl;
+	}
 
 	//Main loop
 	while (!glfwWindowShouldClose(g_window)) {
