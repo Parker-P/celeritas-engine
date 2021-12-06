@@ -19,8 +19,8 @@ VkSurfaceKHR g_surface; //The window surface used by vulkan to communicate with 
 VkSwapchainKHR g_swapChain; //The swapchain object. A swapchain is a queue of images waiting to be presented to the screen via framebuffer
 std::vector<VkImageView> g_swapChainImageViews; //Image views for the swap chain images. Image views describe how to access images in the swap chain
 std::vector<VkImage> g_swapChainImages; //Container for the images in the swap chain queue
-VkShaderModule vertexShaderModule; //Vulkan container object for the vertex shader
-VkShaderModule fragmentShaderModule; //Vulkan container object for the fragment shader
+VkShaderModule g_vertexShaderModule; //Vulkan container object for the vertex shader
+VkShaderModule g_fragmentShaderModule; //Vulkan container object for the fragment shader
 
 //Reads text from a file and returns the content of it
 static std::vector<char> readFile(const std::wstring& path) {
@@ -194,7 +194,7 @@ int main() {
 	//Create an image view. An image view describes how to access an image and which 
 	//part of the image to access in the swap chain. For example if it should be treated 
 	//as a 2D texture depth texture without any mipmapping levels. Here we are creating
-	//an image view for each image in the swap chain queue.
+	//an image view for each image in the swap chain queue
 	for (int i = 0; i < g_swapChainImages.size(); ++i) {
 		VkImageViewCreateInfo imageViewCreateInfo{};
 		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -217,33 +217,33 @@ int main() {
 		}
 	}
 
-	//LCompile and load the vertex and fragment shaders
+	//Compile and load the vertex and fragment shaders
 	system(".\\src\\shaderCompiler.bat");
 	std::vector<char> vertexShaderCode = readFile(L".\\src\\vertexShader.spv");
 	std::vector<char> fragmentShaderCode = readFile(L".\\src\\fragmentShader.spv");
 
-	//Initialize shader modules. A shader module is a vulkan container for all shaders.
+	//Initialize shader modules. A shader module is a vulkan container for all shaders
 	VkShaderModuleCreateInfo vertexShaderModuleCreateInfo{};
 	vertexShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	vertexShaderModuleCreateInfo.codeSize = vertexShaderCode.size();
 	vertexShaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(vertexShaderCode.data());
-	vkCreateShaderModule(g_logicalDevice, &vertexShaderModuleCreateInfo, nullptr, &vertexShaderModule);
+	vkCreateShaderModule(g_logicalDevice, &vertexShaderModuleCreateInfo, nullptr, &g_vertexShaderModule);
 	VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo{};
 	fragmentShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	fragmentShaderModuleCreateInfo.codeSize = fragmentShaderCode.size();
 	fragmentShaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(fragmentShaderCode.data());
-	vkCreateShaderModule(g_logicalDevice, &fragmentShaderModuleCreateInfo, nullptr, &fragmentShaderModule);
+	vkCreateShaderModule(g_logicalDevice, &fragmentShaderModuleCreateInfo, nullptr, &g_fragmentShaderModule);
 
-	//Add the vertex and fragment shaders to the shader pipeline.
+	//Add the vertex and fragment shaders to the shader pipeline
 	VkPipelineShaderStageCreateInfo vertexShaderStageInfo{};
 	vertexShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	vertexShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertexShaderStageInfo.module = vertexShaderModule;
+	vertexShaderStageInfo.module = g_vertexShaderModule;
 	vertexShaderStageInfo.pName = "main";
 	VkPipelineShaderStageCreateInfo fragmentShaderStageInfo{};
 	fragmentShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	fragmentShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragmentShaderStageInfo.module = fragmentShaderModule;
+	fragmentShaderStageInfo.module = g_fragmentShaderModule;
 	fragmentShaderStageInfo.pName = "main";
 	VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderStageInfo, fragmentShaderStageInfo };
 
