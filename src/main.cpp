@@ -1,3 +1,6 @@
+//All boilerplate code from https://vulkan-tutorial.com/Introduction
+//Great explanation of vulkan: https://www.youtube.com/watch?v=Y9U9IE0gVHA&list=PL8327DO66nu9qYVKLDmdLW_84-yE4auCR
+
 #define VK_USE_PLATFORM_WIN32_KHR
 #define GLFW_EXPOSE_NATIVE_WIN32
 #define GLFW_INCLUDE_VULKAN
@@ -21,6 +24,8 @@ std::vector<VkImageView> g_swapChainImageViews; //Image views for the swap chain
 std::vector<VkImage> g_swapChainImages; //Container for the images in the swap chain queue
 VkShaderModule g_vertexShaderModule; //Vulkan container object for the vertex shader
 VkShaderModule g_fragmentShaderModule; //Vulkan container object for the fragment shader
+VkRenderPass g_renderPass; //Contains information about the render pass
+VkPipelineLayout g_pipelineLayout;
 
 //Reads text from a file and returns the content of it
 static std::vector<char> readFile(const std::wstring& path) {
@@ -134,8 +139,7 @@ int main() {
 	vkGetDeviceQueue(g_logicalDevice, presentQueueFamilyIndex, 0, &g_presentQueue);
 
 	//Create the swapchain. The swapchain is a queue of images that are waiting
-	//to end up in the frame buffer to then be shown on screen
-	//Gather info about what swapchain is supported
+	//to end up in the frame buffer to then be shown on screen.
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_physicalDevice, g_surface, &surfaceCapabilities);
 	uint32_t formatCount;
@@ -255,7 +259,7 @@ int main() {
 	vertexInputInfo.vertexAttributeDescriptionCount = 0;
 	vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
 
-	//Tell vulkan how we are going to draw geometry
+	//Tell vulkan how we are going to draw geometry (triangles)
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
 	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -296,6 +300,92 @@ int main() {
 	rasterizer.depthBiasClamp = 0.0f; // Optional
 	rasterizer.depthBiasSlopeFactor = 0.0f; // Optional
 
+	//Configure multisampling
+	VkPipelineMultisampleStateCreateInfo multisampling{};
+	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampling.sampleShadingEnable = VK_FALSE;
+	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampling.minSampleShading = 1.0f; // Optional
+	multisampling.pSampleMask = nullptr; // Optional
+	multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
+	multisampling.alphaToOneEnable = VK_FALSE; // Optional
+
+	//Configure color blending. After a fragment shader has returned a color, it needs to be combined with the color that 
+	//is already in the framebuffer. This transformation is known as color blending.
+	VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	colorBlendAttachment.blendEnable = VK_TRUE;
+	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+	//Configure dynamic states. Dynamic states are used for when you want to change the render pipeline parameters
+	//such as the viewport width and height without recreating the entire pipeline.
+	VkDynamicState dynamicStates[] = {
+	VK_DYNAMIC_STATE_VIEWPORT,
+	VK_DYNAMIC_STATE_LINE_WIDTH
+	};
+	VkPipelineDynamicStateCreateInfo dynamicState{};
+	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicState.dynamicStateCount = 2;
+	dynamicState.pDynamicStates = dynamicStates;
+
+	//Create the pipeline layout
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutInfo.setLayoutCount = 0; // Optional
+	pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
+	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
+	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+	if (vkCreatePipelineLayout(g_logicalDevice, &pipelineLayoutInfo, nullptr, &g_pipelineLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create pipeline layout!");
+	}
+
+	//Before we can finish creating the pipeline, we need to tell Vulkan about the framebuffer 
+	//attachments that will be used while rendering.We need to specify how many colorand depth 
+	//buffers there will be, how many samples to use for each of themand how their contents should 
+	//be handled throughout the rendering operations.All of this information is wrapped in a render 
+	//pass object, for which we'll create a new createRenderPass function. Call this function from 
+	//initVulkan before createGraphicsPipeline.
+	VkAttachmentDescription colorAttachment{};
+	colorAttachment.format = ;
+	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+	//A single render pass can consist of multiple subpasses. Subpasses are subsequent rendering 
+	//operations that depend on the contents of framebuffers in previous passes, for example a 
+	//sequence of post-processing effects that are applied one after another. If you group these 
+	//rendering operations into one render pass, then Vulkan is able to reorder the operations and 
+	//conserve memory bandwidth for possibly better performance. For our very first triangle, however, 
+	//we'll stick to a single subpass.
+	//Every subpass references one or more of the attachments that we've described using the structure 
+	//in the previous sections. These references are themselves VkAttachmentReference structs that look like this:
+	VkAttachmentReference colorAttachmentRef{};
+	colorAttachmentRef.attachment = 0;
+	colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	VkSubpassDescription subpass{};
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = &colorAttachmentRef;
+
+	//Create the renderpass object
+	VkRenderPassCreateInfo renderPassInfo{};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	renderPassInfo.attachmentCount = 1;
+	renderPassInfo.pAttachments = &colorAttachment;
+	renderPassInfo.subpassCount = 1;
+	renderPassInfo.pSubpasses = &subpass;
+
+	if (vkCreateRenderPass(g_logicalDevice, &renderPassInfo, nullptr, &g_renderPass) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create render pass!");
+	}
+
 	//Main loop
 	while (!glfwWindowShouldClose(g_window)) {
 		//std::cout << "Main loop" << std::endl;
@@ -303,9 +393,11 @@ int main() {
 	}
 
 	//Shutdown operations (cleanup)
+	vkDestroyPipelineLayout(g_logicalDevice, g_pipelineLayout, nullptr);
 	for (auto imageView : g_swapChainImageViews) {
 		vkDestroyImageView(g_logicalDevice, imageView, nullptr);
 	}
+	vkDestroyRenderPass(g_logicalDevice, g_renderPass, nullptr);
 	vkDestroyDevice(g_logicalDevice, nullptr);
 	vkDestroySurfaceKHR(g_vkInstance, g_surface, nullptr);
 	vkDestroyInstance(g_vkInstance, nullptr);
