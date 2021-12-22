@@ -14,8 +14,8 @@
 using namespace std::placeholders;
 
 // Configuration
-const uint32_t WIDTH = 640;
-const uint32_t HEIGHT = 480;
+const uint32_t WIDTH = 1024;
+const uint32_t HEIGHT = 768;
 
 const bool ENABLE_DEBUGGING = false;
 
@@ -45,9 +45,9 @@ bool windowResized = false;
 
 // Note: support swap chain recreation (not only required for resized windows!)
 // Note: window resize may not result in Vulkan telling that the swap chain should be recreated, should be handled explicitly!
-class TriangleApplication {
+class SolarSystemExplorer {
 public:
-	TriangleApplication() {
+	SolarSystemExplorer() {
 		timeStart = std::chrono::high_resolution_clock::now();
 	}
 
@@ -59,9 +59,9 @@ public:
 
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-		window = glfwCreateWindow(WIDTH, HEIGHT, "The spinning triangle that took 1397 lines of code", nullptr, nullptr);
+		window = glfwCreateWindow(WIDTH, HEIGHT, "Solar System Explorer", nullptr, nullptr);
 
-		glfwSetWindowSizeCallback(window, TriangleApplication::onWindowResized);
+		glfwSetWindowSizeCallback(window, SolarSystemExplorer::onWindowResized);
 
 		// Use Vulkan
 		setupVulkan();
@@ -86,8 +86,8 @@ private:
 	VkSemaphore renderingFinishedSemaphore;
 
 	VkBuffer vertexBuffer;
-	VkDeviceMemory vertexBufferMemory;
 	VkBuffer indexBuffer;
+	VkDeviceMemory vertexBufferMemory;
 	VkDeviceMemory indexBufferMemory;
 	VkVertexInputBindingDescription vertexBindingDescription;
 	std::vector<VkVertexInputAttributeDescription> vertexAttributeDescriptions;
@@ -149,7 +149,6 @@ private:
 		while (!glfwWindowShouldClose(window)) {
 			updateUniformData();
 			draw();
-
 			glfwPollEvents();
 		}
 	}
@@ -223,9 +222,9 @@ private:
 	void createInstance() {
 		VkApplicationInfo appInfo = {};
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-		appInfo.pApplicationName = "VulkanClear";
+		appInfo.pApplicationName = "Solar System Explorer";
 		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.pEngineName = "ClearScreenEngine";
+		appInfo.pEngineName = "Celeritas Engine";
 		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
 		appInfo.apiVersion = VK_API_VERSION_1_0;
 
@@ -691,16 +690,15 @@ private:
 		long long millis = std::chrono::duration_cast<std::chrono::milliseconds>(timeStart - timeNow).count();
 		float angle = (millis % 4000) / 4000.0f * glm::radians(360.f);
 
+		// Set up model transformation matrix
 		glm::mat4 modelMatrix;
 		modelMatrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 0, 1));
-		modelMatrix = glm::translate(modelMatrix, glm::vec3(0.5f / 3.0f, -0.5f / 3.0f, 0.0f));
 
-		// Set up view
+		// Set up view transformation matrix
 		auto viewMatrix = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
 
-		// Set up projection
+		// Set up projection transformation matrix
 		auto projMatrix = glm::perspective(glm::radians(70.f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
-
 		uniformBufferData.transformationMatrix = projMatrix * viewMatrix * modelMatrix;
 
 		void* data;
@@ -996,7 +994,7 @@ private:
 	}
 
 	void createGraphicsPipeline() {
-		system("start \"C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\shaderCompiler.bat\"");
+		system("start \"\" \"C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\shaderCompiler.bat\"");
 ;		VkShaderModule vertexShaderModule = createShaderModule("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\vertexShader.spv");
 		VkShaderModule fragmentShaderModule = createShaderModule("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\fragmentShader.spv");
 
@@ -1352,20 +1350,16 @@ private:
 		// Wait for image to be available and draw
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
 		submitInfo.waitSemaphoreCount = 1;
 		submitInfo.pWaitSemaphores = &imageAvailableSemaphore;
-
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = &renderingFinishedSemaphore;
 
 		// This is the stage where the queue should wait on the semaphore
 		VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		submitInfo.pWaitDstStageMask = &waitDstStageMask;
-
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &graphicsCommandBuffers[imageIndex];
-
 		if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
 			std::cerr << "failed to submit draw command buffer" << std::endl;
 			exit(1);
@@ -1377,13 +1371,10 @@ private:
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.waitSemaphoreCount = 1;
 		presentInfo.pWaitSemaphores = &renderingFinishedSemaphore;
-
 		presentInfo.swapchainCount = 1;
 		presentInfo.pSwapchains = &swapChain;
 		presentInfo.pImageIndices = &imageIndex;
-
 		res = vkQueuePresentKHR(presentQueue, &presentInfo);
-
 		if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
 			onWindowSizeChanged();
 		}
@@ -1395,8 +1386,7 @@ private:
 };
 
 int main() {
-	TriangleApplication app;
+	SolarSystemExplorer app;
 	app.run();
-
 	return 0;
 }
