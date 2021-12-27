@@ -15,15 +15,38 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\main.cpp">
+    <ClCompile Include="src\game\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\vulkan_application.cpp">
+    <ClCompile Include="src\engine\vulkan_application.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\vulkan_factory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\vulkan_application.h">
+    <None Include="src\engine\fragment_shader.frag">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="src\engine\fragment_shader.spv">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="src\engine\shader_compiler.bat">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="src\engine\vertex_shader.spv">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="src\engine\vertex_shader.vert">
+      <Filter>Source Files</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\engine\vulkan_application.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\vulkan_factory.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

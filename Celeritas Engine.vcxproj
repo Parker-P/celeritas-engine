@@ -18,6 +18,22 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\engine\vulkan_application.cpp" />
+    <ClCompile Include="src\engine\vulkan_factory.cpp" />
+    <ClCompile Include="src\game\main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\engine\fragment_shader.frag" />
+    <None Include="src\engine\fragment_shader.spv" />
+    <None Include="src\engine\shader_compiler.bat" />
+    <None Include="src\engine\vertex_shader.spv" />
+    <None Include="src\engine\vertex_shader.vert" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\engine\vulkan_application.h" />
+    <ClInclude Include="src\engine\vulkan_factory.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -143,13 +159,6 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\vulkan_application.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="src\vulkan_application.h" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
