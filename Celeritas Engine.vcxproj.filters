@@ -26,23 +26,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\engine\fragment_shader.frag">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="src\engine\fragment_shader.spv">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="src\engine\shader_compiler.bat">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="src\engine\vertex_shader.spv">
-      <Filter>Source Files</Filter>
-    </None>
-    <None Include="src\engine\vertex_shader.vert">
-      <Filter>Source Files</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="src\engine\vulkan_application.h">
       <Filter>Source Files</Filter>
     </ClInclude>

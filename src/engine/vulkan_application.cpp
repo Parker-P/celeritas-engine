@@ -9,6 +9,7 @@
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include "vulkan_application.h"
+#include "vulkan_factory.h"
 
 VkBool32 DebugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData) {
 	if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
@@ -30,17 +31,17 @@ VulkanApplication::VulkanApplication() {
 	time_start_ = std::chrono::high_resolution_clock::now();
 }
 
-void VulkanApplication::Run(const char* app_name) {
-	WindowInit(app_name);
+void VulkanApplication::Run() {
+	WindowInit();
 	SetupVulkan();
 	MainLoop();
 	Cleanup(true);
 }
 
-void VulkanApplication::WindowInit(const char* window_name) {
+void VulkanApplication::WindowInit() {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	window_ = glfwCreateWindow(width_, height_, window_name, nullptr, nullptr);
+	window_ = glfwCreateWindow(width_, height_, name_, nullptr, nullptr);
 	glfwSetWindowSizeCallback(window_, VulkanApplication::OnWindowResized);
 }
 
@@ -75,8 +76,8 @@ void VulkanApplication::MainLoop() {
 	}
 }
 
-void VulkanApplication::OnWindowResized(GLFWwindow* Window_, int width, int height) {
-	window_resized_ = true;
+void VulkanApplication::OnWindowResized(GLFWwindow* window, int width, int height) {
+	VulkanFactory::GetInstance().GetApplicationByGlfwWindow(window)->window_resized_ = true;
 }
 
 void VulkanApplication::OnWindowSizeChanged() {
@@ -95,23 +96,17 @@ void VulkanApplication::OnWindowSizeChanged() {
 
 void VulkanApplication::Cleanup(bool fullClean) {
 	vkDeviceWaitIdle(logical_device_);
-
 	vkFreeCommandBuffers(logical_device_, command_pool_, (uint32_t)graphics_command_buffers_.size(), graphics_command_buffers_.data());
-
 	vkDestroyPipeline(logical_device_, graphics_pipeline_, nullptr);
 	vkDestroyRenderPass(logical_device_, render_pass_, nullptr);
-
 	for (size_t i = 0; i < swap_chain_images_.size(); i++) {
 		vkDestroyFramebuffer(logical_device_, swap_chain_frame_buffers_[i], nullptr);
 		vkDestroyImageView(logical_device_, swap_chain_image_views_[i], nullptr);
 	}
-
 	vkDestroyDescriptorSetLayout(logical_device_, descriptor_set_layout_, nullptr);
-
 	if (fullClean) {
 		vkDestroySemaphore(logical_device_, image_available_semaphore_, nullptr);
 		vkDestroySemaphore(logical_device_, rendering_finished_semaphore_, nullptr);
-
 		vkDestroyCommandPool(logical_device_, command_pool_, nullptr);
 
 		// Clean up uniform buffer related objects
@@ -127,16 +122,12 @@ void VulkanApplication::Cleanup(bool fullClean) {
 
 		// Note: implicitly destroys images (in fact, we're not allowed to do that explicitly)
 		vkDestroySwapchainKHR(logical_device_, swap_chain_, nullptr);
-
 		vkDestroyDevice(logical_device_, nullptr);
-
 		vkDestroySurfaceKHR(instance_, window_surface_, nullptr);
-
 		if (kEnableDebugging_) {
 			PFN_vkDestroyDebugReportCallbackEXT DestroyDebugReportCallback = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(instance_, "vkDestroyDebugReportCallbackEXT");
 			DestroyDebugReportCallback(instance_, callback_, nullptr);
 		}
-
 		vkDestroyInstance(instance_, nullptr);
 	}
 }

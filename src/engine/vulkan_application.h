@@ -5,7 +5,6 @@ class VulkanApplication {
 	const bool kEnableDebugging_ = false;
 	const char* kDebugLayer_ = "VK_LAYER_LUNARG_standard_validation";
 	bool window_resized_ = false;
-	GLFWwindow* window_;
 	VkInstance instance_;
 	VkSurfaceKHR window_surface_;
 	VkPhysicalDevice physical_device_;
@@ -47,7 +46,7 @@ class VulkanApplication {
 	std::chrono::high_resolution_clock::time_point time_start_;
 
 	//Private member functions
-	void WindowInit(const char* window_name);
+	void WindowInit();
 	void SetupVulkan();
 	void MainLoop();
 	static void OnWindowResized(GLFWwindow* window, int width, int height);
@@ -82,12 +81,13 @@ class VulkanApplication {
 
 public:
 	//Public member variables
-	unsigned int id_;
-	uint32_t width_;
-	uint32_t height_;
-	const char* name_;
+	unsigned int id_; //The id of the vulkan application
+	uint32_t width_; //The width of the window
+	uint32_t height_; //The height of the window
+	const char* name_; //The name of the application
+	GLFWwindow* window_; //The window the application is running in
 
 	//Public member functions
 	VulkanApplication();
-	void Run(const char* app_name);
+	void Run();
 };
