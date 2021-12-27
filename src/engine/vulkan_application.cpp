@@ -40,7 +40,7 @@ void VulkanApplication::Run(const char* app_name) {
 void VulkanApplication::WindowInit(const char* window_name) {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	window_ = glfwCreateWindow(kWidth_, kHeight_, window_name, nullptr, nullptr);
+	window_ = glfwCreateWindow(width_, height_, window_name, nullptr, nullptr);
 	glfwSetWindowSizeCallback(window_, VulkanApplication::OnWindowResized);
 }
 
@@ -777,8 +777,8 @@ VkExtent2D VulkanApplication::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& s
 	if (surfaceCapabilities.currentExtent.width == -1) {
 		VkExtent2D swapChainExtent = {};
 
-		swapChainExtent.width = std::min(std::max(kWidth_, surfaceCapabilities.minImageExtent.width), surfaceCapabilities.maxImageExtent.width);
-		swapChainExtent.height = std::min(std::max(kHeight_, surfaceCapabilities.minImageExtent.height), surfaceCapabilities.maxImageExtent.height);
+		swapChainExtent.width = std::min(std::max(width_, surfaceCapabilities.minImageExtent.width), surfaceCapabilities.maxImageExtent.width);
+		swapChainExtent.height = std::min(std::max(height_, surfaceCapabilities.minImageExtent.height), surfaceCapabilities.maxImageExtent.height);
 
 		return swapChainExtent;
 	}

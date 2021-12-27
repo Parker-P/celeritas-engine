@@ -1,0 +1,30 @@
+#include <vector>
+#include "vulkan_application.h"
+#include "vulkan_factory.h"
+
+unsigned int VulkanFactory::GenerateAppId(){
+	//Simply use the smallest available number as id
+	unsigned int min = 0;
+	for (int i = 0; i < apps_.size(); ++i) {
+		if (min < apps_[i].id_) {
+			min = apps_[i].id_;
+		}
+	}
+	return min;
+}
+
+VulkanFactory& VulkanFactory::GetInstance(){
+	static VulkanFactory instance;
+	return instance;
+}
+
+VulkanApplication VulkanFactory::CreateApplication(const char* name, unsigned int width, unsigned int height){
+	VulkanApplication app;
+	app.id_ = GenerateAppId();
+	app.name_ = name;
+	app.width_ = width;
+	app.height_ = height;
+	return app;
+}
+
+

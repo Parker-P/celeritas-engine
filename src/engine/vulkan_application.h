@@ -1,8 +1,7 @@
 #pragma once
 
 class VulkanApplication {
-	const uint32_t kWidth_ = 1024;
-	const uint32_t kHeight_ = 768;
+	//Private member variables
 	const bool kEnableDebugging_ = false;
 	const char* kDebugLayer_ = "VK_LAYER_LUNARG_standard_validation";
 	bool window_resized_ = false;
@@ -47,9 +46,7 @@ class VulkanApplication {
 	uint32_t present_queue_family_;
 	std::chrono::high_resolution_clock::time_point time_start_;
 
-public:
-	VulkanApplication();
-	void Run(const char* app_name);
+	//Private member functions
 	void WindowInit(const char* window_name);
 	void SetupVulkan();
 	void MainLoop();
@@ -82,4 +79,15 @@ public:
 	void CreateDescriptorSet();
 	void CreateCommandBuffers();
 	void Draw();
+
+public:
+	//Public member variables
+	unsigned int id_;
+	uint32_t width_;
+	uint32_t height_;
+	const char* name_;
+
+	//Public member functions
+	VulkanApplication();
+	void Run(const char* app_name);
 };
