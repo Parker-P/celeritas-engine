@@ -16,5 +16,5 @@ public:
 	static VulkanFactory& GetInstance();
 
 	//Create an application specifying its name and window width and height
-	VulkanApplication CreateApplication(const char* name, unsigned int width, unsigned int height);
+	VulkanApplication CreateApplication(const char* name, unsigned int& width, unsigned int& height);
 };

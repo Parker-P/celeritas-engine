@@ -18,7 +18,7 @@ VulkanFactory& VulkanFactory::GetInstance(){
 	return instance;
 }
 
-VulkanApplication VulkanFactory::CreateApplication(const char* name, unsigned int width, unsigned int height){
+VulkanApplication VulkanFactory::CreateApplication(const char* name, unsigned int& width, unsigned int& height){
 	VulkanApplication app;
 	app.id_ = GenerateAppId();
 	app.name_ = name;
