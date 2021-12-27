@@ -2,6 +2,7 @@
 
 class VulkanApplication {
 	//Private member variables
+	const std::string kShaderPath_ = "\"C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\engine\\";
 	const bool kEnableDebugging_ = false;
 	const char* kDebugLayer_ = "VK_LAYER_LUNARG_standard_validation";
 	bool window_resized_ = false;
@@ -88,6 +89,5 @@ public:
 	GLFWwindow* window_; //The window the application is running in
 
 	//Public member functions
-	VulkanApplication();
 	void Run();
 };

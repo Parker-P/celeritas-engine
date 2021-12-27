@@ -33,6 +33,7 @@ VulkanApplication VulkanFactory::CreateApplication(const char* name, const unsig
 	app.name_ = name;
 	app.width_ = width;
 	app.height_ = height;
+	apps_.push_back(app);
 	return app;
 }
 

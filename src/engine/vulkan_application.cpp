@@ -27,11 +27,8 @@ struct Vertex {
 	float color[3];
 };
 
-VulkanApplication::VulkanApplication() {
-	time_start_ = std::chrono::high_resolution_clock::now();
-}
-
 void VulkanApplication::Run() {
+	time_start_ = std::chrono::high_resolution_clock::now();
 	WindowInit();
 	SetupVulkan();
 	MainLoop();
@@ -907,9 +904,10 @@ VkShaderModule VulkanApplication::CreateShaderModule(const std::string& filename
 }
 
 void VulkanApplication::CreateGraphicsPipeline() {
-	system("start \"\" \"C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\shaderCompiler.bat\"");
-	;		VkShaderModule vertexShaderModule = CreateShaderModule("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\vertexShader.spv");
-	VkShaderModule fragmentShaderModule = CreateShaderModule("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\fragmentShader.spv");
+	//Compile and load the shaders
+	system((std::string("start \"\" ") + kShaderPath_ + std::string("shader_compiler.bat\"")).c_str());
+	VkShaderModule vertexShaderModule = CreateShaderModule(kShaderPath_ + std::string("vertex_shader.spv\""));
+	VkShaderModule fragmentShaderModule = CreateShaderModule(kShaderPath_ + std::string("fragment_shader.spv\""));
 
 	// Set up shader stage info
 	VkPipelineShaderStageCreateInfo vertexShaderCreateInfo = {};
