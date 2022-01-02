@@ -1,27 +1,29 @@
 #pragma once
 
+//For all the technical information you need in order to understand vulkan, go to:
+//https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html
+//Styleguide used for this project: https://google.github.io/styleguide/cppguide.html
+
+//This is a class for a generic vulkan application
 class VulkanApplication {
 	//Private member variables
-	const std::string kShaderPath_ = "\"C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\engine\\";
-	const bool kEnableDebugging_ = false;
-	const char* kDebugLayer_ = "VK_LAYER_LUNARG_standard_validation";
-	bool window_resized_ = false;
-	VkInstance instance_;
-	VkSurfaceKHR window_surface_;
-	VkPhysicalDevice physical_device_;
-	VkDevice logical_device_;
-	VkDebugReportCallbackEXT callback_;
-	VkQueue graphics_queue_;
-	VkQueue present_queue_;
+	const std::string kShaderPath_ = "C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\engine\\"; //Path to the folder where the shader files to be compiled to SPIR-V are
+	const bool kEnableDebugging_ = false; //Enable debugging?
+	const char* kDebugLayer_ = "VK_LAYER_LUNARG_standard_validation"; //Debug layer constant
+	bool window_resized_ = false; //Was the window resized?
+	VkInstance instance_; //The instance is our gateway to the vulkan API. The instance is what allows us to use vulkan commands.
+	VkPhysicalDevice physical_device_; //This is the handle to the actual physical graphics card
+	VkDevice logical_device_; //The logical device is an interface that we use to communicate to the physical device
+	VkDebugReportCallbackEXT callback_; //Extension callback used for debugging purposes with validation layers
 	VkPhysicalDeviceMemoryProperties device_memory_properties_;
-	VkSemaphore image_available_semaphore_;
-	VkSemaphore rendering_finished_semaphore_;
-	VkBuffer vertex_buffer_;
-	VkBuffer index_buffer_;
-	VkDeviceMemory vertex_buffer_memory_;
-	VkDeviceMemory index_buffer_memory_;
-	VkVertexInputBindingDescription vertex_binding_description_;
-	std::vector<VkVertexInputAttributeDescription> vertex_attribute_descriptions_;
+	VkSemaphore image_available_semaphore_; //Semaphore used to know when an image is available
+	VkSemaphore rendering_finished_semaphore_; //Semaphore used to know when an image has finished rendering
+	VkBuffer vertex_buffer_; //The CPU side vertex information of an object
+	VkBuffer index_buffer_; //The CPU side face information of an object. An index buffer contains integers that are the corresponding array indices in the vertex buffer. For example if we had 4 vertices and 2 triangles (a quad), the index buffer would look something like {0, 1, 2, 2, 1, 3} where the first and last 3 triplets represent a face. Each integer points to the vertex buffer so the GPU knows which vertex to choose from the vertex buffer
+	VkDeviceMemory vertex_buffer_memory_; //The GPU side vertex info of an object. This object is filled using the vertex_buffer_ variable
+	VkDeviceMemory index_buffer_memory_; //The GPU side face info of an object. This object is filled using the index_buffer_ variable
+	VkVertexInputBindingDescription vertex_binding_description_; //This variable is used to tell Vulkan (thus the GPU) how to read the vertex buffer.
+	std::vector<VkVertexInputAttributeDescription> vertex_attribute_descriptions_; //This variable is used to tell vulkan what vertex information we have in our vertex buffer (if it's just vertex positions or also uv coordinates, vertex colors and so on)
 	struct {
 		glm::mat4 transformation_matrix;
 	} UniformBufferData;
@@ -30,20 +32,22 @@ class VulkanApplication {
 	VkDescriptorSetLayout descriptor_set_layout_;
 	VkDescriptorPool descriptor_pool_;
 	VkDescriptorSet descriptor_set_;
-	VkExtent2D swap_chain_extent_;
-	VkFormat swap_chain_format_;
-	VkSwapchainKHR old_swap_chain_;
-	VkSwapchainKHR swap_chain_;
-	std::vector<VkImage> swap_chain_images_;
-	std::vector<VkImageView> swap_chain_image_views_;
-	std::vector<VkFramebuffer> swap_chain_frame_buffers_;
+	VkExtent2D swap_chain_extent_; //The size of the swapchain images
+	VkFormat swap_chain_format_; //The format of the images in the swapchain's queue
+	VkSwapchainKHR swap_chain_; //This is the object that handles retrieving and updating the images to be displayed. The swapchain decides when to swap the buffers and contains a queue of images to be drawn
+	VkSurfaceKHR window_surface_; //This is the object that acts as an interface between the glfw window (in our case) and the swapchain
+	std::vector<VkImage> swap_chain_images_; //The images in the swapchain's queue
+	std::vector<VkImageView> swap_chain_image_views_; //The interfaces that allow us to know certain information about the images in the swapchain. This information allows us to know how to use the images, it's just metadata
+	std::vector<VkFramebuffer> swap_chain_frame_buffers_; //The frame buffers used by the swapchain. A frame buffer is a connection between a render pass and an image.
 	VkRenderPass render_pass_;
-	VkPipeline graphics_pipeline_;
+	VkPipeline graphics_pipeline_; //The graphics pipeline is the entire process of generating an image from the information we are given. It's the process of going fron vertex positions and face information to an actual triangle drawn on screen. This object contains all the information needed to do that
 	VkPipelineLayout pipeline_layout_;
-	VkCommandPool command_pool_;
-	std::vector<VkCommandBuffer> graphics_command_buffers_;
+	VkCommandPool command_pool_; //The command pool is a space of memory that is divided into equally sized blocks and is used to allocate memory for the command buffers. The command buffers contain vulkan commands such as to allocate buffer memory, begin a render pass or draw an image
+	std::vector<VkCommandBuffer> graphics_command_buffers_; //A command buffer contains pre recorded vulkan commands. These commands are recorded in this object then put onto a logical device queue. Vulkan will then tell the GPU to execute them in order.
 	uint32_t graphics_queue_family_;
 	uint32_t present_queue_family_;
+	VkQueue graphics_queue_;
+	VkQueue present_queue_;
 	std::chrono::high_resolution_clock::time_point time_start_;
 
 	//Private member functions
