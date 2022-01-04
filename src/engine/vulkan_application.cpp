@@ -78,10 +78,8 @@ void VulkanApplication::OnWindowResized(GLFWwindow* window, int width, int heigh
 
 void VulkanApplication::OnWindowSizeChanged() {
 	window_resized_ = false;
-
 	// Only recreate objects that are affected by framebuffer size changes
 	Cleanup(false);
-
 	CreateSwapChain();
 	CreateRenderPass();
 	CreateImageViews();
@@ -129,15 +127,18 @@ void VulkanApplication::Cleanup(bool fullClean) {
 }
 
 void VulkanApplication::CreateInstance() {
-	VkApplicationInfo appInfo = {};
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pApplicationName = "Solar System Explorer";
-	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.pEngineName = "Celeritas Engine";
-	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.apiVersion = VK_API_VERSION_1_0;
+	//Add meta information to the vulkan application
+	VkApplicationInfo app_info = {};
+	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	app_info.pApplicationName = "Solar System Explorer";
+	app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+	app_info.pEngineName = "Celeritas Engine";
+	app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+	app_info.apiVersion = VK_API_VERSION_1_0;
 
-	// Get instance extensions required by GLFW to draw to window
+	//Get instance extensions required by GLFW to draw to window. Extensions are just features (pieces of code)
+	//that the instance (in this case) provides. For example the VK_KHR_surface extension enables us to use
+	//surfaces. If you recall, surfaces are just a connection between the swapchain and glfw (in this case)
 	unsigned int glfw_extension_count;
 	const char** glfw_extensions;
 	glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
@@ -149,31 +150,31 @@ void VulkanApplication::CreateInstance() {
 		extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 	}
 
-	// Check for extensions
-	uint32_t extensionCount = 0;
-	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-	if (extensionCount == 0) {
+	//Check for extensions
+	uint32_t extension_count = 0;
+	vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, nullptr);
+	if (extension_count == 0) {
 		std::cerr << "no extensions supported!" << std::endl;
 		exit(1);
 	}
-	std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, availableExtensions.data());
+	std::vector<VkExtensionProperties> available_extensions(extension_count);
+	vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, available_extensions.data());
 	std::cout << "supported extensions:" << std::endl;
-	for (const auto& extension : availableExtensions) {
+	for (const auto& extension : available_extensions) {
 		std::cout << "\t" << extension.extensionName << std::endl;
 	}
-	VkInstanceCreateInfo createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	createInfo.pApplicationInfo = &appInfo;
-	createInfo.enabledExtensionCount = (uint32_t)extensions.size();
-	createInfo.ppEnabledExtensionNames = extensions.data();
-	if (kEnableDebugging_) {
-		createInfo.enabledLayerCount = 1;
-		createInfo.ppEnabledLayerNames = &kDebugLayer_;
-	}
 
-	// Initialize Vulkan instance
-	if (vkCreateInstance(&createInfo, nullptr, &instance_) != VK_SUCCESS) {
+	//Create the vulkan instance and declare which extensions we want to use
+	VkInstanceCreateInfo create_info = {};
+	create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	create_info.pApplicationInfo = &app_info;
+	create_info.enabledExtensionCount = (uint32_t)extensions.size();
+	create_info.ppEnabledExtensionNames = extensions.data();
+	if (kEnableDebugging_) {
+		create_info.enabledLayerCount = 1;
+		create_info.ppEnabledLayerNames = &kDebugLayer_;
+	}
+	if (vkCreateInstance(&create_info, nullptr, &instance_) != VK_SUCCESS) {
 		std::cerr << "failed to create instance!" << std::endl;
 		exit(1);
 	}
@@ -191,105 +192,103 @@ void VulkanApplication::CreateWindowSurface() {
 }
 
 void VulkanApplication::FindPhysicalDevice() {
-	// Try to find 1 Vulkan supported device
-	// Note: perhaps refactor to loop through devices and find first one that supports all required features and extensions
-	uint32_t deviceCount = 0;
-	if (vkEnumeratePhysicalDevices(instance_, &deviceCount, nullptr) != VK_SUCCESS || deviceCount == 0) {
+	//Try to find 1 Vulkan supported device
+	uint32_t device_count = 0;
+	if (vkEnumeratePhysicalDevices(instance_, &device_count, nullptr) != VK_SUCCESS || device_count == 0) {
 		std::cerr << "failed to get number of physical devices" << std::endl;
 		exit(1);
 	}
 
-	deviceCount = 1;
-	VkResult res = vkEnumeratePhysicalDevices(instance_, &deviceCount, &physical_device_);
+	//Set device count to 1 to force Vulkan to use the first device we found
+	device_count = 1;
+
+	//Get the list of GPUs
+	VkResult res = vkEnumeratePhysicalDevices(instance_, &device_count, &physical_device_);
 	if (res != VK_SUCCESS && res != VK_INCOMPLETE) {
 		std::cerr << "enumerating physical devices failed!" << std::endl;
 		exit(1);
 	}
-
-	if (deviceCount == 0) {
+	if (device_count == 0) {
 		std::cerr << "no physical devices that support vulkan!" << std::endl;
 		exit(1);
 	}
-
 	std::cout << "physical device with vulkan support found" << std::endl;
 
-	// Check device features
-	// Note: will apiVersion >= appInfo.apiVersion? Probably yes, but spec is unclear.
-	VkPhysicalDeviceProperties deviceProperties;
-	VkPhysicalDeviceFeatures deviceFeatures;
-	vkGetPhysicalDeviceProperties(physical_device_, &deviceProperties);
-	vkGetPhysicalDeviceFeatures(physical_device_, &deviceFeatures);
-
-	uint32_t supportedVersion[] = {
-		VK_VERSION_MAJOR(deviceProperties.apiVersion),
-		VK_VERSION_MINOR(deviceProperties.apiVersion),
-		VK_VERSION_PATCH(deviceProperties.apiVersion)
+	//Check device features and properties
+	VkPhysicalDeviceProperties device_properties;
+	VkPhysicalDeviceFeatures device_features;
+	vkGetPhysicalDeviceProperties(physical_device_, &device_properties);
+	vkGetPhysicalDeviceFeatures(physical_device_, &device_features);
+	uint32_t supported_version[] = {
+		VK_VERSION_MAJOR(device_properties.apiVersion),
+		VK_VERSION_MINOR(device_properties.apiVersion),
+		VK_VERSION_PATCH(device_properties.apiVersion)
 	};
-
-	std::cout << "physical device supports version " << supportedVersion[0] << "." << supportedVersion[1] << "." << supportedVersion[2] << std::endl;
+	std::cout << "physical device supports version " << supported_version[0] << "." << supported_version[1] << "." << supported_version[2] << std::endl;
 }
 
 void VulkanApplication::CheckSwapChainSupport() {
-	uint32_t extensionCount = 0;
-	vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &extensionCount, nullptr);
-
-	if (extensionCount == 0) {
+	//Check how many extensions the physical device supports. An extension is simply a feature, a piece of code, that the graphics driver provides.
+	//There are device extensions which are extensions (code features) that pertain to the behaviour of a device and there are
+	//instance extensions which pertain to the behaviour of the instance. For example the VK_KHR_surface extension that enables us
+	//to connect the swapchain to the glfw window is an instance extension, whereas the swapchain is a concept that is tightly related
+	//to the graphics pipeline so it is a device extension.
+	uint32_t extension_count = 0;
+	vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &extension_count, nullptr);
+	if (extension_count == 0) {
 		std::cerr << "physical device doesn't support any extensions" << std::endl;
 		exit(1);
 	}
 
-	std::vector<VkExtensionProperties> deviceExtensions(extensionCount);
-	vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &extensionCount, deviceExtensions.data());
-
-	for (const auto& extension : deviceExtensions) {
+	//Check if the physical device supports swap chains
+	std::vector<VkExtensionProperties> device_extensions(extension_count);
+	vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &extension_count, device_extensions.data());
+	for (const auto& extension : device_extensions) {
 		if (strcmp(extension.extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0) {
 			std::cout << "physical device supports swap chains" << std::endl;
 			return;
 		}
 	}
-
 	std::cerr << "physical device doesn't support swap chains" << std::endl;
 	exit(1);
 }
 
 void VulkanApplication::FindQueueFamilies() {
 	// Check queue families
-	uint32_t queueFamilyCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queueFamilyCount, nullptr);
-	if (queueFamilyCount == 0) {
+	uint32_t queue_family_count = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_family_count, nullptr);
+	if (queue_family_count == 0) {
 		std::cout << "physical device has no queue families!" << std::endl;
 		exit(1);
 	}
 
 	// Find queue family with graphics support
-	// Note: is a transfer queue necessary to copy vertices to the gpu or can a graphics queue handle that?
-	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-	vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queueFamilyCount, queueFamilies.data());
-	std::cout << "physical device has " << queueFamilyCount << " queue families" << std::endl;
-	bool foundGraphicsQueueFamily = false;
-	bool foundPresentQueueFamily = false;
-	for (int i = 0; i < queueFamilyCount; ++i) {
+	std::vector<VkQueueFamilyProperties> queue_families(queue_family_count);
+	vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_family_count, queue_families.data());
+	std::cout << "physical device has " << queue_family_count << " queue families" << std::endl;
+	bool found_graphics_queue_family = false;
+	bool found_present_queue_family = false;
+	for (int i = 0; i < queue_family_count; ++i) {
 		VkBool32 present_support = false;
 		vkGetPhysicalDeviceSurfaceSupportKHR(physical_device_, i, window_surface_, &present_support);
-		if (queueFamilies[i].queueCount > 0 && queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+		if (queue_families[i].queueCount > 0 && queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 			graphics_queue_family_ = i;
-			foundGraphicsQueueFamily = true;
+			found_graphics_queue_family = true;
 			if (present_support) {
 				present_queue_family_ = i;
-				foundPresentQueueFamily = true;
+				found_present_queue_family = true;
 				break;
 			}
 		}
-		if (!foundPresentQueueFamily && present_support) {
+		if (!found_present_queue_family && present_support) {
 			present_queue_family_ = i;
-			foundPresentQueueFamily = true;
+			found_present_queue_family = true;
 		}
 	}
-
-	if (foundGraphicsQueueFamily) {
+	if (found_graphics_queue_family) {
 		std::cout << "queue family #" << graphics_queue_family_ << " supports graphics" << std::endl;
 
-		if (foundPresentQueueFamily) {
+		if (found_present_queue_family) {
 			std::cout << "queue family #" << present_queue_family_ << " supports presentation" << std::endl;
 		}
 		else {
@@ -304,58 +303,56 @@ void VulkanApplication::FindQueueFamilies() {
 }
 
 void VulkanApplication::CreateLogicalDevice() {
-	// Greate one graphics queue and optionally a separate presentation queue
+	//Prepare the info for queue creation
 	float queuePriority = 1.0f;
-	VkDeviceQueueCreateInfo queueCreateInfo[2] = {};
-	queueCreateInfo[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueCreateInfo[0].queueFamilyIndex = graphics_queue_family_;
-	queueCreateInfo[0].queueCount = 1;
-	queueCreateInfo[0].pQueuePriorities = &queuePriority;
-	queueCreateInfo[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueCreateInfo[0].queueFamilyIndex = present_queue_family_;
-	queueCreateInfo[0].queueCount = 1;
-	queueCreateInfo[0].pQueuePriorities = &queuePriority;
+	VkDeviceQueueCreateInfo queue_create_info[2] = {};
+	queue_create_info[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queue_create_info[0].queueFamilyIndex = graphics_queue_family_;
+	queue_create_info[0].queueCount = 1;
+	queue_create_info[0].pQueuePriorities = &queuePriority;
+	queue_create_info[1].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queue_create_info[1].queueFamilyIndex = present_queue_family_;
+	queue_create_info[1].queueCount = 1;
+	queue_create_info[1].pQueuePriorities = &queuePriority;
 
-	// Create logical device from physical device
-	// Note: there are separate instance and device extensions!
-	VkDeviceCreateInfo deviceCreateInfo = {};
-	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	deviceCreateInfo.pQueueCreateInfos = queueCreateInfo;
+	// Create logical device from physical device using the two queues defined above
+	VkDeviceCreateInfo device_create_info = {};
+	device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	device_create_info.pQueueCreateInfos = queue_create_info;
 	if (graphics_queue_family_ == present_queue_family_) {
-		deviceCreateInfo.queueCreateInfoCount = 1;
+		device_create_info.queueCreateInfoCount = 1;
 	}
 	else {
-		deviceCreateInfo.queueCreateInfoCount = 2;
+		device_create_info.queueCreateInfoCount = 2;
 	}
 
-	// Necessary for shader (for some reason)
-	VkPhysicalDeviceFeatures enabledFeatures = {};
-	enabledFeatures.shaderClipDistance = VK_TRUE;
-	enabledFeatures.shaderCullDistance = VK_TRUE;
-
-	const char* deviceExtensions = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
-	deviceCreateInfo.enabledExtensionCount = 1;
-	deviceCreateInfo.ppEnabledExtensionNames = &deviceExtensions;
-	deviceCreateInfo.pEnabledFeatures = &enabledFeatures;
-
+	//Declare which device extensions we want enabled
+	VkPhysicalDeviceFeatures enabled_features = {};
+	enabled_features.shaderClipDistance = VK_TRUE;
+	enabled_features.shaderCullDistance = VK_TRUE;
+	const char* device_extensions = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+	device_create_info.enabledExtensionCount = 1;
+	device_create_info.ppEnabledExtensionNames = &device_extensions;
+	device_create_info.pEnabledFeatures = &enabled_features;
 	if (kEnableDebugging_) {
-		deviceCreateInfo.enabledLayerCount = 1;
-		deviceCreateInfo.ppEnabledLayerNames = &kDebugLayer_;
+		device_create_info.enabledLayerCount = 1;
+		device_create_info.ppEnabledLayerNames = &kDebugLayer_;
 	}
 
-	if (vkCreateDevice(physical_device_, &deviceCreateInfo, nullptr, &logical_device_) != VK_SUCCESS) {
+	//Create the device
+	if (vkCreateDevice(physical_device_, &device_create_info, nullptr, &logical_device_) != VK_SUCCESS) {
 		std::cerr << "failed to create logical device" << std::endl;
 		exit(1);
 	}
-
 	std::cout << "created logical device" << std::endl;
 
-	// Get graphics and presentation queues (which may be the same)
+	//Get graphics and presentation queues (which may be the same because they could belong to the same family since 
+	//graphics_queue_family_ isn't necessarily different from present_queue_family_)
 	vkGetDeviceQueue(logical_device_, graphics_queue_family_, 0, &graphics_queue_);
 	vkGetDeviceQueue(logical_device_, present_queue_family_, 0, &present_queue_);
-
 	std::cout << "acquired graphics and presentation queues" << std::endl;
 
+	//Get physical device memory properties (VRAM) so we have the information to do memory management
 	vkGetPhysicalDeviceMemoryProperties(physical_device_, &device_memory_properties_);
 }
 
@@ -382,7 +379,6 @@ void VulkanApplication::CreateDebugCallback() {
 void VulkanApplication::CreateSemaphores() {
 	VkSemaphoreCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
 	if (vkCreateSemaphore(logical_device_, &createInfo, nullptr, &image_available_semaphore_) != VK_SUCCESS ||
 		vkCreateSemaphore(logical_device_, &createInfo, nullptr, &rendering_finished_semaphore_) != VK_SUCCESS) {
 		std::cerr << "failed to create semaphores" << std::endl;

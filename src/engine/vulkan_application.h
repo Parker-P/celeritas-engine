@@ -16,7 +16,7 @@ class VulkanApplication {
 	VkDevice logical_device_; //The logical device is an interface that we use to communicate to the physical device
 	VkDebugReportCallbackEXT callback_; //Extension callback used for debugging purposes with validation layers
 	VkPhysicalDeviceMemoryProperties device_memory_properties_;
-	VkSemaphore image_available_semaphore_; //Semaphore used to know when an image is available
+	VkSemaphore image_available_semaphore_; //Semaphore used to know when an image is available. Semaphores synchronize 
 	VkSemaphore rendering_finished_semaphore_; //Semaphore used to know when an image has finished rendering
 	VkBuffer vertex_buffer_; //The CPU side vertex information of an object
 	VkBuffer index_buffer_; //The CPU side face information of an object. An index buffer contains integers that are the corresponding array indices in the vertex buffer. For example if we had 4 vertices and 2 triangles (a quad), the index buffer would look something like {0, 1, 2, 2, 1, 3} where the first and last 3 triplets represent a face. Each integer points to the vertex buffer so the GPU knows which vertex to choose from the vertex buffer
@@ -34,21 +34,21 @@ class VulkanApplication {
 	VkDescriptorSet descriptor_set_;
 	VkExtent2D swap_chain_extent_; //The size of the swapchain images
 	VkFormat swap_chain_format_; //The format of the images in the swapchain's queue
-	VkSwapchainKHR swap_chain_; //This is the object that handles retrieving and updating the images to be displayed. The swapchain decides when to swap the buffers and contains a queue of images to be drawn
-	VkSurfaceKHR window_surface_; //This is the object that acts as an interface between the glfw window (in our case) and the swapchain
+	VkSwapchainKHR swap_chain_; //This is the object that handles retrieving and updating the images to be displayed. The swapchain decides when to swap the buffers and contains a queue of images to be drawn. The type has the KHR suffix because it is an extension, meaning that it's an optional object that contains pieces of code that enable you to do something that is not native to Vulkan. In this case this extension is provided by Khronos, which also created Vulkan in the first place.
+	VkSurfaceKHR window_surface_; //This is the object that acts as an interface between the glfw window (in our case) and the swapchain. The type has the KHR suffix because it is an extension, meaning that it's an optional object that contains pieces of code that enable you to do something that is not native to Vulkan. In this case this extension is provided by Khronos, which also created Vulkan in the first place.
 	std::vector<VkImage> swap_chain_images_; //The images in the swapchain's queue
 	std::vector<VkImageView> swap_chain_image_views_; //The interfaces that allow us to know certain information about the images in the swapchain. This information allows us to know how to use the images, it's just metadata
 	std::vector<VkFramebuffer> swap_chain_frame_buffers_; //The frame buffers used by the swapchain. A frame buffer is a connection between a render pass and an image.
 	VkRenderPass render_pass_;
-	VkPipeline graphics_pipeline_; //The graphics pipeline is the entire process of generating an image from the information we are given. It's the process of going fron vertex positions and face information to an actual triangle drawn on screen. This object contains all the information needed to do that
+	VkPipeline graphics_pipeline_; //The graphics pipeline is the entire process of generating an image from the information we are given. It's the process of going fron vertex positions and face information to actual triangles drawn on screen. This object contains all the information needed to do that
 	VkPipelineLayout pipeline_layout_;
 	VkCommandPool command_pool_; //The command pool is a space of memory that is divided into equally sized blocks and is used to allocate memory for the command buffers. The command buffers contain vulkan commands such as to allocate buffer memory, begin a render pass or draw an image
 	std::vector<VkCommandBuffer> graphics_command_buffers_; //A command buffer contains pre recorded vulkan commands. These commands are recorded in this object then put onto a logical device queue. Vulkan will then tell the GPU to execute them in order.
-	uint32_t graphics_queue_family_;
-	uint32_t present_queue_family_;
-	VkQueue graphics_queue_;
-	VkQueue present_queue_;
-	std::chrono::high_resolution_clock::time_point time_start_;
+	uint32_t graphics_queue_family_; //A queue family is a category of queue. Queues within a single family are considered compatible with one another, and work produced for a family of queues can be executed on any queue within that family
+	uint32_t present_queue_family_; //A queue family is a category of queue. Queues within a single family are considered compatible with one another, and work produced for a family of queues can be executed on any queue within that family
+	VkQueue graphics_queue_; //This is the actual queue to process graphics commands
+	VkQueue present_queue_; //This is the actual queue to process present commands
+	std::chrono::high_resolution_clock::time_point time_start_; //A simple time variable to know when the app was started
 
 	//Private member functions
 	void WindowInit();
