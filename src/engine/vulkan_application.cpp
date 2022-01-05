@@ -315,7 +315,7 @@ void VulkanApplication::CreateLogicalDevice() {
 	queue_create_info[1].queueCount = 1;
 	queue_create_info[1].pQueuePriorities = &queuePriority;
 
-	// Create logical device from physical device using the two queues defined above
+	//Create logical device from physical device using the two queues defined above
 	VkDeviceCreateInfo device_create_info = {};
 	device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	device_create_info.pQueueCreateInfos = queue_create_info;
@@ -377,10 +377,10 @@ void VulkanApplication::CreateDebugCallback() {
 }
 
 void VulkanApplication::CreateSemaphores() {
-	VkSemaphoreCreateInfo createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-	if (vkCreateSemaphore(logical_device_, &createInfo, nullptr, &image_available_semaphore_) != VK_SUCCESS ||
-		vkCreateSemaphore(logical_device_, &createInfo, nullptr, &rendering_finished_semaphore_) != VK_SUCCESS) {
+	VkSemaphoreCreateInfo create_info = {};
+	create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	if (vkCreateSemaphore(logical_device_, &create_info, nullptr, &image_available_semaphore_) != VK_SUCCESS ||
+		vkCreateSemaphore(logical_device_, &create_info, nullptr, &rendering_finished_semaphore_) != VK_SUCCESS) {
 		std::cerr << "failed to create semaphores" << std::endl;
 		exit(1);
 	}
@@ -404,21 +404,21 @@ void VulkanApplication::CreateCommandPool() {
 }
 
 void VulkanApplication::CreateVertexBuffer() {
-	// Setup vertices
+	//Setup vertices
 	std::vector<Vertex> vertices = {
 		{ { -0.5f, -0.5f,  0.0f }, { 1.0f, 0.0f, 0.0f } },
 		{ { -0.5f,  0.5f,  0.0f }, { 0.0f, 1.0f, 0.0f } },
 		{ {  0.5f,  0.5f,  0.0f }, { 0.0f, 0.0f, 1.0f } }
 	};
-	uint32_t verticesSize = (uint32_t)(vertices.size() * sizeof(vertices[0]));
+	uint32_t vertices_size = (uint32_t)(vertices.size() * sizeof(vertices[0]));
 
-	// Setup indices
+	//Setup indices
 	std::vector<uint32_t> indices = { 0, 1, 2 };
-	uint32_t indicesSize = (uint32_t)(indices.size() * sizeof(indices[0]));
+	uint32_t indices_size = (uint32_t)(indices.size() * sizeof(indices[0]));
 
-	VkMemoryAllocateInfo memAlloc = {};
-	memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	VkMemoryRequirements memReqs;
+	VkMemoryAllocateInfo mem_alloc = {};
+	mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	VkMemoryRequirements mem_reqs;
 	void* data;
 
 	struct StagingBuffer {
@@ -431,66 +431,66 @@ void VulkanApplication::CreateVertexBuffer() {
 		StagingBuffer indices;
 	} stagingBuffers;
 
-	// Allocate command buffer for copy operation
-	VkCommandBufferAllocateInfo cmdBufInfo = {};
-	cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	cmdBufInfo.commandPool = command_pool_;
-	cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	cmdBufInfo.commandBufferCount = 1;
+	//Allocate command buffer for copy operation
+	VkCommandBufferAllocateInfo cmd_buf_info = {};
+	cmd_buf_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cmd_buf_info.commandPool = command_pool_;
+	cmd_buf_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	cmd_buf_info.commandBufferCount = 1;
 
 	VkCommandBuffer copyCommandBuffer;
-	vkAllocateCommandBuffers(logical_device_, &cmdBufInfo, &copyCommandBuffer);
+	vkAllocateCommandBuffers(logical_device_, &cmd_buf_info, &copyCommandBuffer);
 
-	// First copy vertices to host accessible vertex buffer memory
-	VkBufferCreateInfo vertexBufferInfo = {};
-	vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	vertexBufferInfo.size = verticesSize;
-	vertexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-	vkCreateBuffer(logical_device_, &vertexBufferInfo, nullptr, &stagingBuffers.vertices.buffer);
-	vkGetBufferMemoryRequirements(logical_device_, stagingBuffers.vertices.buffer, &memReqs);
-	memAlloc.allocationSize = memReqs.size;
-	GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
-	vkAllocateMemory(logical_device_, &memAlloc, nullptr, &stagingBuffers.vertices.memory);
-	vkMapMemory(logical_device_, stagingBuffers.vertices.memory, 0, verticesSize, 0, &data);
-	memcpy(data, vertices.data(), verticesSize);
+	//First copy vertices to host accessible vertex buffer memory
+	VkBufferCreateInfo vertex_buffer_info = {};
+	vertex_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	vertex_buffer_info.size = vertices_size;
+	vertex_buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	vkCreateBuffer(logical_device_, &vertex_buffer_info, nullptr, &stagingBuffers.vertices.buffer);
+	vkGetBufferMemoryRequirements(logical_device_, stagingBuffers.vertices.buffer, &mem_reqs);
+	mem_alloc.allocationSize = mem_reqs.size;
+	GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &mem_alloc.memoryTypeIndex);
+	vkAllocateMemory(logical_device_, &mem_alloc, nullptr, &stagingBuffers.vertices.memory);
+	vkMapMemory(logical_device_, stagingBuffers.vertices.memory, 0, vertices_size, 0, &data);
+	memcpy(data, vertices.data(), vertices_size);
 	vkUnmapMemory(logical_device_, stagingBuffers.vertices.memory);
 	vkBindBufferMemory(logical_device_, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0);
 
-	// Then allocate a gpu only buffer for vertices
-	vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-	vkCreateBuffer(logical_device_, &vertexBufferInfo, nullptr, &vertex_buffer_);
-	vkGetBufferMemoryRequirements(logical_device_, vertex_buffer_, &memReqs);
-	memAlloc.allocationSize = memReqs.size;
-	GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memAlloc.memoryTypeIndex);
-	vkAllocateMemory(logical_device_, &memAlloc, nullptr, &vertex_buffer_memory_);
+	//Then allocate a gpu only buffer for vertices
+	vertex_buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	vkCreateBuffer(logical_device_, &vertex_buffer_info, nullptr, &vertex_buffer_);
+	vkGetBufferMemoryRequirements(logical_device_, vertex_buffer_, &mem_reqs);
+	mem_alloc.allocationSize = mem_reqs.size;
+	GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &mem_alloc.memoryTypeIndex);
+	vkAllocateMemory(logical_device_, &mem_alloc, nullptr, &vertex_buffer_memory_);
 	vkBindBufferMemory(logical_device_, vertex_buffer_, vertex_buffer_memory_, 0);
 
 	//Next copy indices to host accessible index buffer memory
 	VkBufferCreateInfo indexBufferInfo = {};
 	indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	indexBufferInfo.size = indicesSize;
+	indexBufferInfo.size = indices_size;
 	indexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
 	vkCreateBuffer(logical_device_, &indexBufferInfo, nullptr, &stagingBuffers.indices.buffer);
-	vkGetBufferMemoryRequirements(logical_device_, stagingBuffers.indices.buffer, &memReqs);
-	memAlloc.allocationSize = memReqs.size;
-	GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
-	vkAllocateMemory(logical_device_, &memAlloc, nullptr, &stagingBuffers.indices.memory);
-	vkMapMemory(logical_device_, stagingBuffers.indices.memory, 0, indicesSize, 0, &data);
-	memcpy(data, indices.data(), indicesSize);
+	vkGetBufferMemoryRequirements(logical_device_, stagingBuffers.indices.buffer, &mem_reqs);
+	mem_alloc.allocationSize = mem_reqs.size;
+	GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &mem_alloc.memoryTypeIndex);
+	vkAllocateMemory(logical_device_, &mem_alloc, nullptr, &stagingBuffers.indices.memory);
+	vkMapMemory(logical_device_, stagingBuffers.indices.memory, 0, indices_size, 0, &data);
+	memcpy(data, indices.data(), indices_size);
 	vkUnmapMemory(logical_device_, stagingBuffers.indices.memory);
 	vkBindBufferMemory(logical_device_, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0);
 
 	//And allocate another gpu only buffer for indices
 	indexBufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	vkCreateBuffer(logical_device_, &indexBufferInfo, nullptr, &index_buffer_);
-	vkGetBufferMemoryRequirements(logical_device_, index_buffer_, &memReqs);
-	memAlloc.allocationSize = memReqs.size;
-	GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memAlloc.memoryTypeIndex);
-	vkAllocateMemory(logical_device_, &memAlloc, nullptr, &index_buffer_memory_);
+	vkGetBufferMemoryRequirements(logical_device_, index_buffer_, &mem_reqs);
+	mem_alloc.allocationSize = mem_reqs.size;
+	GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &mem_alloc.memoryTypeIndex);
+	vkAllocateMemory(logical_device_, &mem_alloc, nullptr, &index_buffer_memory_);
 	vkBindBufferMemory(logical_device_, index_buffer_, index_buffer_memory_, 0);
 
-	// Now copy data from host visible buffer to gpu only buffer
+	//Now copy data from host visible buffer to gpu only buffer
 	VkCommandBufferBeginInfo bufferBeginInfo = {};
 	bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	bufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -498,14 +498,14 @@ void VulkanApplication::CreateVertexBuffer() {
 	vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
 
 	VkBufferCopy copyRegion = {};
-	copyRegion.size = verticesSize;
+	copyRegion.size = vertices_size;
 	vkCmdCopyBuffer(copyCommandBuffer, stagingBuffers.vertices.buffer, vertex_buffer_, 1, &copyRegion);
-	copyRegion.size = indicesSize;
+	copyRegion.size = indices_size;
 	vkCmdCopyBuffer(copyCommandBuffer, stagingBuffers.indices.buffer, index_buffer_, 1, &copyRegion);
 
 	vkEndCommandBuffer(copyCommandBuffer);
 
-	// Submit to queue
+	//Submit to queue
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.commandBufferCount = 1;
@@ -523,18 +523,18 @@ void VulkanApplication::CreateVertexBuffer() {
 
 	std::cout << "set up vertex and index buffers" << std::endl;
 
-	// Binding and attribute descriptions
+	//Binding and attribute descriptions
 	vertex_binding_description_.binding = 0;
 	vertex_binding_description_.stride = sizeof(vertices[0]);
 	vertex_binding_description_.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-	// vec2 position
+	//vec2 position
 	vertex_attribute_descriptions_.resize(2);
 	vertex_attribute_descriptions_[0].binding = 0;
 	vertex_attribute_descriptions_[0].location = 0;
 	vertex_attribute_descriptions_[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 
-	// vec3 color
+	//vec3 color
 	vertex_attribute_descriptions_[1].binding = 0;
 	vertex_attribute_descriptions_[1].location = 1;
 	vertex_attribute_descriptions_[1].format = VK_FORMAT_R32G32B32_SFLOAT;

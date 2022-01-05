@@ -42,8 +42,8 @@ class VulkanApplication {
 	VkRenderPass render_pass_;
 	VkPipeline graphics_pipeline_; //The graphics pipeline is the entire process of generating an image from the information we are given. It's the process of going fron vertex positions and face information to actual triangles drawn on screen. This object contains all the information needed to do that
 	VkPipelineLayout pipeline_layout_;
-	VkCommandPool command_pool_; //The command pool is a space of memory that is divided into equally sized blocks and is used to allocate memory for the command buffers. The command buffers contain vulkan commands such as to allocate buffer memory, begin a render pass or draw an image
-	std::vector<VkCommandBuffer> graphics_command_buffers_; //A command buffer contains pre recorded vulkan commands. These commands are recorded in this object then put onto a logical device queue. Vulkan will then tell the GPU to execute them in order.
+	VkCommandPool command_pool_; //The command pool is a space of memory that is divided into equally sized blocks and is used to allocate memory for the command buffers. From the Vulkan spec: command pools are opaque objects that command buffer memory is allocated from, and which allow the implementation to amortize the cost of resource creation across multiple command buffers
+	std::vector<VkCommandBuffer> graphics_command_buffers_; //A command buffer contains pre recorded Vulkan commands. These commands are recorded in this object then put onto a logical device queue so that Vulkan will then tell the GPU to execute them in order
 	uint32_t graphics_queue_family_; //A queue family is a category of queue. Queues within a single family are considered compatible with one another, and work produced for a family of queues can be executed on any queue within that family
 	uint32_t present_queue_family_; //A queue family is a category of queue. Queues within a single family are considered compatible with one another, and work produced for a family of queues can be executed on any queue within that family
 	VkQueue graphics_queue_; //This is the actual queue to process graphics commands
