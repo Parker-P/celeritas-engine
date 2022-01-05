@@ -390,11 +390,10 @@ void VulkanApplication::CreateSemaphores() {
 }
 
 void VulkanApplication::CreateCommandPool() {
-	// Create graphics command pool
+	//Create graphics command pool for the graphics queue family since we want to send commands on that queue
 	VkCommandPoolCreateInfo pool_create_info = {};
 	pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	pool_create_info.queueFamilyIndex = graphics_queue_family_;
-
 	if (vkCreateCommandPool(logical_device_, &pool_create_info, nullptr, &command_pool_) != VK_SUCCESS) {
 		std::cerr << "failed to create command queue for graphics queue family" << std::endl;
 		exit(1);

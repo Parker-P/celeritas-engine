@@ -11,13 +11,13 @@ class VulkanApplication {
 	const bool kEnableDebugging_ = false; //Enable debugging?
 	const char* kDebugLayer_ = "VK_LAYER_LUNARG_standard_validation"; //Debug layer constant
 	bool window_resized_ = false; //Was the window resized?
-	VkInstance instance_; //The instance is our gateway to the vulkan API. The instance is what allows us to use vulkan commands.
+	VkInstance instance_; //The instance is our gateway to the vulkan API. The instance is what allows us to use vulkan commands and is the root of the entire Vulkan application context
 	VkPhysicalDevice physical_device_; //This is the handle to the actual physical graphics card
 	VkDevice logical_device_; //The logical device is an interface that we use to communicate to the physical device
 	VkDebugReportCallbackEXT callback_; //Extension callback used for debugging purposes with validation layers
 	VkPhysicalDeviceMemoryProperties device_memory_properties_;
-	VkSemaphore image_available_semaphore_; //Semaphore used to know when an image is available. Semaphores synchronize 
-	VkSemaphore rendering_finished_semaphore_; //Semaphore used to know when an image has finished rendering
+	VkSemaphore image_available_semaphore_; //Semaphore used to know when an image is available. Semaphores are a synchronization primitive that can be used to insert a dependency between queue operations or between a queue operation and the host (from the Vulkan spec)
+	VkSemaphore rendering_finished_semaphore_; //Semaphore used to know when an image has finished rendering. Semaphores are a synchronization primitive that can be used to insert a dependency between queue operations or between a queue operation and the host (from the Vulkan spec)
 	VkBuffer vertex_buffer_; //The CPU side vertex information of an object
 	VkBuffer index_buffer_; //The CPU side face information of an object. An index buffer contains integers that are the corresponding array indices in the vertex buffer. For example if we had 4 vertices and 2 triangles (a quad), the index buffer would look something like {0, 1, 2, 2, 1, 3} where the first and last 3 triplets represent a face. Each integer points to the vertex buffer so the GPU knows which vertex to choose from the vertex buffer
 	VkDeviceMemory vertex_buffer_memory_; //The GPU side vertex info of an object. This object is filled using the vertex_buffer_ variable
@@ -34,8 +34,8 @@ class VulkanApplication {
 	VkDescriptorSet descriptor_set_;
 	VkExtent2D swap_chain_extent_; //The size of the swapchain images
 	VkFormat swap_chain_format_; //The format of the images in the swapchain's queue
-	VkSwapchainKHR swap_chain_; //This is the object that handles retrieving and updating the images to be displayed. The swapchain decides when to swap the buffers and contains a queue of images to be drawn. The type has the KHR suffix because it is an extension, meaning that it's an optional object that contains pieces of code that enable you to do something that is not native to Vulkan. In this case this extension is provided by Khronos, which also created Vulkan in the first place.
-	VkSurfaceKHR window_surface_; //This is the object that acts as an interface between the glfw window (in our case) and the swapchain. The type has the KHR suffix because it is an extension, meaning that it's an optional object that contains pieces of code that enable you to do something that is not native to Vulkan. In this case this extension is provided by Khronos, which also created Vulkan in the first place.
+	VkSwapchainKHR swap_chain_; //This is the object that handles retrieving and updating the images to be displayed. The swapchain decides when to swap the buffers and contains a queue of images to be drawn. The type has the KHR suffix because it is an extension, meaning that it's an optional object that contains pieces of code that enable you to do something that is not native to Vulkan. In this case this extension is provided by Khronos, which also created Vulkan in the first place
+	VkSurfaceKHR window_surface_; //This is the object that acts as an interface between the glfw window (in our case) and the swapchain. The type has the KHR suffix because it is an extension, meaning that it's an optional object that contains pieces of code that enable you to do something that is not native to Vulkan. In this case this extension is provided by Khronos, which also created Vulkan in the first place
 	std::vector<VkImage> swap_chain_images_; //The images in the swapchain's queue
 	std::vector<VkImageView> swap_chain_image_views_; //The interfaces that allow us to know certain information about the images in the swapchain. This information allows us to know how to use the images, it's just metadata
 	std::vector<VkFramebuffer> swap_chain_frame_buffers_; //The frame buffers used by the swapchain. A frame buffer is a connection between a render pass and an image.
