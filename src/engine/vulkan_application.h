@@ -12,16 +12,16 @@ class VulkanApplication {
 	const char* kDebugLayer_ = "VK_LAYER_LUNARG_standard_validation"; //Debug layer constant
 	bool window_resized_ = false; //Was the window resized?
 	VkInstance instance_; //The instance is our gateway to the vulkan API. The instance is what allows us to use vulkan commands and is the root of the entire Vulkan application context
-	VkPhysicalDevice physical_device_; //This is the handle to the actual physical graphics card
+	VkPhysicalDevice physical_device_; //This is the handle to the actual physical graphics card. The physical device handles the queues and GPU-local memory (VRAM)
 	VkDevice logical_device_; //The logical device is an interface that we use to communicate to the physical device
 	VkDebugReportCallbackEXT callback_; //Extension callback used for debugging purposes with validation layers
-	VkPhysicalDeviceMemoryProperties device_memory_properties_;
+	VkPhysicalDeviceMemoryProperties device_memory_properties_; //Stores information for us to do memory management. This information is acquired when creating the logical device
 	VkSemaphore image_available_semaphore_; //Semaphore used to know when an image is available. Semaphores are a synchronization primitive that can be used to insert a dependency between queue operations or between a queue operation and the host (from the Vulkan spec)
 	VkSemaphore rendering_finished_semaphore_; //Semaphore used to know when an image has finished rendering. Semaphores are a synchronization primitive that can be used to insert a dependency between queue operations or between a queue operation and the host (from the Vulkan spec)
 	VkBuffer vertex_buffer_; //The CPU side vertex information of an object
 	VkBuffer index_buffer_; //The CPU side face information of an object. An index buffer contains integers that are the corresponding array indices in the vertex buffer. For example if we had 4 vertices and 2 triangles (a quad), the index buffer would look something like {0, 1, 2, 2, 1, 3} where the first and last 3 triplets represent a face. Each integer points to the vertex buffer so the GPU knows which vertex to choose from the vertex buffer
-	VkDeviceMemory vertex_buffer_memory_; //The GPU side vertex info of an object. This object is filled using the vertex_buffer_ variable
-	VkDeviceMemory index_buffer_memory_; //The GPU side face info of an object. This object is filled using the index_buffer_ variable
+	VkDeviceMemory vertex_buffer_memory_; //The GPU side memory allocated for vertex info of an object. This object is filled using the vertex_buffer_ variable
+	VkDeviceMemory index_buffer_memory_; //The GPU side memory allocated face info of an object. This object is filled using the index_buffer_ variable
 	VkVertexInputBindingDescription vertex_binding_description_; //This variable is used to tell Vulkan (thus the GPU) how to read the vertex buffer.
 	std::vector<VkVertexInputAttributeDescription> vertex_attribute_descriptions_; //This variable is used to tell vulkan what vertex information we have in our vertex buffer (if it's just vertex positions or also uv coordinates, vertex colors and so on)
 	struct {

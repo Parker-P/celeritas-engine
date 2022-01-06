@@ -103,18 +103,18 @@ void VulkanApplication::Cleanup(bool fullClean) {
 		vkDestroySemaphore(logical_device_, rendering_finished_semaphore_, nullptr);
 		vkDestroyCommandPool(logical_device_, command_pool_, nullptr);
 
-		// Clean up uniform buffer related objects
+		//Clean up uniform buffer related objects
 		vkDestroyDescriptorPool(logical_device_, descriptor_pool_, nullptr);
 		vkDestroyBuffer(logical_device_, uniform_buffer_, nullptr);
 		vkFreeMemory(logical_device_, uniform_buffer_memory_, nullptr);
 
-		// Buffers must be destroyed after no command buffers are referring to them anymore
+		//Buffers must be destroyed after no command buffers are referring to them anymore
 		vkDestroyBuffer(logical_device_, vertex_buffer_, nullptr);
 		vkFreeMemory(logical_device_, vertex_buffer_memory_, nullptr);
 		vkDestroyBuffer(logical_device_, index_buffer_, nullptr);
 		vkFreeMemory(logical_device_, index_buffer_memory_, nullptr);
 
-		// Note: implicitly destroys images (in fact, we're not allowed to do that explicitly)
+		//Note: implicitly destroys images (in fact, we're not allowed to do that explicitly)
 		vkDestroySwapchainKHR(logical_device_, swap_chain_, nullptr);
 		vkDestroyDevice(logical_device_, nullptr);
 		vkDestroySurfaceKHR(instance_, window_surface_, nullptr);
@@ -138,7 +138,8 @@ void VulkanApplication::CreateInstance() {
 
 	//Get instance extensions required by GLFW to draw to window. Extensions are just features (pieces of code)
 	//that the instance (in this case) provides. For example the VK_KHR_surface extension enables us to use
-	//surfaces. If you recall, surfaces are just a connection between the swapchain and glfw (in this case)
+	//surfaces. If you recall, surfaces are just a connection between the swapchain and glfw (in this case) and
+	//we need it in order to send images from the swapchain to the glfw window.
 	unsigned int glfw_extension_count;
 	const char** glfw_extensions;
 	glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
@@ -404,6 +405,7 @@ void VulkanApplication::CreateCommandPool() {
 }
 
 void VulkanApplication::CreateVertexBuffer() {
+	//This function copies vertex and face information from RAM to VRAM
 	//Setup vertices
 	std::vector<Vertex> vertices = {
 		{ { -0.5f, -0.5f,  0.0f }, { 1.0f, 0.0f, 0.0f } },
@@ -412,49 +414,67 @@ void VulkanApplication::CreateVertexBuffer() {
 	};
 	uint32_t vertices_size = (uint32_t)(vertices.size() * sizeof(vertices[0]));
 
-	//Setup indices
+	//Setup indices (faces)
 	std::vector<uint32_t> indices = { 0, 1, 2 };
 	uint32_t indices_size = (uint32_t)(indices.size() * sizeof(indices[0]));
 
+	//Get memory related variables ready
 	VkMemoryAllocateInfo mem_alloc = {};
 	mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	VkMemoryRequirements mem_reqs;
 	void* data;
 
+	//Prepare the staging buffer data structure/layout. We use staging buffers as a temporary memory location
+	//located in the RAM dedicated solely to transfer data from RAM to VRAM. The data contained in this memory 
+	//location will then be passed to the GPU and after that the staging buffers will be destroyed
 	struct StagingBuffer {
 		VkDeviceMemory memory;
 		VkBuffer buffer;
 	};
-
 	struct {
 		StagingBuffer vertices;
 		StagingBuffer indices;
-	} stagingBuffers;
+	} staging_buffers;
 
-	//Allocate command buffer for copy operation
+	//Allocate command buffer for copy operation. This command buffer will contain a series of instructions for the GPU
+	//to copy the data we want to send to the VRAM
 	VkCommandBufferAllocateInfo cmd_buf_info = {};
 	cmd_buf_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	cmd_buf_info.commandPool = command_pool_;
 	cmd_buf_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	cmd_buf_info.commandBufferCount = 1;
+	VkCommandBuffer copy_command_buffer;
+	vkAllocateCommandBuffers(logical_device_, &cmd_buf_info, &copy_command_buffer);
 
-	VkCommandBuffer copyCommandBuffer;
-	vkAllocateCommandBuffers(logical_device_, &cmd_buf_info, &copyCommandBuffer);
-
-	//First copy vertices to host accessible vertex buffer memory
+	//First copy vertices to the RAM and tell the GPU where it is. To do that we:
+	//1) Create buffer creation information for Vulkan
 	VkBufferCreateInfo vertex_buffer_info = {};
 	vertex_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	vertex_buffer_info.size = vertices_size;
 	vertex_buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-	vkCreateBuffer(logical_device_, &vertex_buffer_info, nullptr, &stagingBuffers.vertices.buffer);
-	vkGetBufferMemoryRequirements(logical_device_, stagingBuffers.vertices.buffer, &mem_reqs);
+
+	//2) Create the staging buffer for vertices in the RAM
+	vkCreateBuffer(logical_device_, &vertex_buffer_info, nullptr, &staging_buffers.vertices.buffer);
+	
+	//3) Get the requirements for creating the buffer
+	vkGetBufferMemoryRequirements(logical_device_, staging_buffers.vertices.buffer, &mem_reqs);
 	mem_alloc.allocationSize = mem_reqs.size;
+
+	//4) Get the index of where the HOST_VISIBLE memory is in device_memory_properties_ and store it in mem_alloc.memoryTypeIndex
 	GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &mem_alloc.memoryTypeIndex);
-	vkAllocateMemory(logical_device_, &mem_alloc, nullptr, &stagingBuffers.vertices.memory);
-	vkMapMemory(logical_device_, stagingBuffers.vertices.memory, 0, vertices_size, 0, &data);
+	
+	//5) Allocate VRAM for the vertex staging buffer
+	vkAllocateMemory(logical_device_, &mem_alloc, nullptr, &staging_buffers.vertices.memory);
+
+	//6) Tell the GPU where our staging buffer is in RAM (at the address pointed to by the data variable)
+	vkMapMemory(logical_device_, staging_buffers.vertices.memory, 0, vertices_size, 0, &data);
+
+	//7) Actually copy the vertex imformation to that memory location (in the RAM). Now the GPU knows where the vertex information is in RAM and we actually copied the data to that location
 	memcpy(data, vertices.data(), vertices_size);
-	vkUnmapMemory(logical_device_, stagingBuffers.vertices.memory);
-	vkBindBufferMemory(logical_device_, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0);
+
+
+	vkUnmapMemory(logical_device_, staging_buffers.vertices.memory);
+	vkBindBufferMemory(logical_device_, staging_buffers.vertices.buffer, staging_buffers.vertices.memory, 0);
 
 	//Then allocate a gpu only buffer for vertices
 	vertex_buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
@@ -471,15 +491,15 @@ void VulkanApplication::CreateVertexBuffer() {
 	indexBufferInfo.size = indices_size;
 	indexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
-	vkCreateBuffer(logical_device_, &indexBufferInfo, nullptr, &stagingBuffers.indices.buffer);
-	vkGetBufferMemoryRequirements(logical_device_, stagingBuffers.indices.buffer, &mem_reqs);
+	vkCreateBuffer(logical_device_, &indexBufferInfo, nullptr, &staging_buffers.indices.buffer);
+	vkGetBufferMemoryRequirements(logical_device_, staging_buffers.indices.buffer, &mem_reqs);
 	mem_alloc.allocationSize = mem_reqs.size;
 	GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &mem_alloc.memoryTypeIndex);
-	vkAllocateMemory(logical_device_, &mem_alloc, nullptr, &stagingBuffers.indices.memory);
-	vkMapMemory(logical_device_, stagingBuffers.indices.memory, 0, indices_size, 0, &data);
+	vkAllocateMemory(logical_device_, &mem_alloc, nullptr, &staging_buffers.indices.memory);
+	vkMapMemory(logical_device_, staging_buffers.indices.memory, 0, indices_size, 0, &data);
 	memcpy(data, indices.data(), indices_size);
-	vkUnmapMemory(logical_device_, stagingBuffers.indices.memory);
-	vkBindBufferMemory(logical_device_, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0);
+	vkUnmapMemory(logical_device_, staging_buffers.indices.memory);
+	vkBindBufferMemory(logical_device_, staging_buffers.indices.buffer, staging_buffers.indices.memory, 0);
 
 	//And allocate another gpu only buffer for indices
 	indexBufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
@@ -491,35 +511,31 @@ void VulkanApplication::CreateVertexBuffer() {
 	vkBindBufferMemory(logical_device_, index_buffer_, index_buffer_memory_, 0);
 
 	//Now copy data from host visible buffer to gpu only buffer
-	VkCommandBufferBeginInfo bufferBeginInfo = {};
-	bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	bufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
-
+	VkCommandBufferBeginInfo buffer_begin_info = {};
+	buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	vkBeginCommandBuffer(copy_command_buffer, &buffer_begin_info);
 	VkBufferCopy copyRegion = {};
 	copyRegion.size = vertices_size;
-	vkCmdCopyBuffer(copyCommandBuffer, stagingBuffers.vertices.buffer, vertex_buffer_, 1, &copyRegion);
+	vkCmdCopyBuffer(copy_command_buffer, staging_buffers.vertices.buffer, vertex_buffer_, 1, &copyRegion);
 	copyRegion.size = indices_size;
-	vkCmdCopyBuffer(copyCommandBuffer, stagingBuffers.indices.buffer, index_buffer_, 1, &copyRegion);
+	vkCmdCopyBuffer(copy_command_buffer, staging_buffers.indices.buffer, index_buffer_, 1, &copyRegion);
+	vkEndCommandBuffer(copy_command_buffer);
 
-	vkEndCommandBuffer(copyCommandBuffer);
-
-	//Submit to queue
+	//Submit to queue so the GPU can process it
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &copyCommandBuffer;
-
+	submitInfo.pCommandBuffers = &copy_command_buffer;
 	vkQueueSubmit(graphics_queue_, 1, &submitInfo, VK_NULL_HANDLE);
 	vkQueueWaitIdle(graphics_queue_);
+	vkFreeCommandBuffers(logical_device_, command_pool_, 1, &copy_command_buffer);
 
-	vkFreeCommandBuffers(logical_device_, command_pool_, 1, &copyCommandBuffer);
-
-	vkDestroyBuffer(logical_device_, stagingBuffers.vertices.buffer, nullptr);
-	vkFreeMemory(logical_device_, stagingBuffers.vertices.memory, nullptr);
-	vkDestroyBuffer(logical_device_, stagingBuffers.indices.buffer, nullptr);
-	vkFreeMemory(logical_device_, stagingBuffers.indices.memory, nullptr);
+	//Destroy the temporary staging buffers
+	vkDestroyBuffer(logical_device_, staging_buffers.vertices.buffer, nullptr);
+	vkFreeMemory(logical_device_, staging_buffers.vertices.memory, nullptr);
+	vkDestroyBuffer(logical_device_, staging_buffers.indices.buffer, nullptr);
+	vkFreeMemory(logical_device_, staging_buffers.indices.memory, nullptr);
 
 	std::cout << "set up vertex and index buffers" << std::endl;
 
@@ -586,7 +602,7 @@ void VulkanApplication::UpdateUniformData() {
 	vkUnmapMemory(logical_device_, uniform_buffer_memory_);
 }
 
-// Find device memory that is supported by the requirements (typeBits) and meets the desired properties
+//Find device memory that is supported by the requirements (typeBits) and meets the desired properties
 VkBool32 VulkanApplication::GetMemoryType(uint32_t typeBits, VkFlags properties, uint32_t* typeIndex) {
 	for (uint32_t i = 0; i < 32; i++) {
 		if ((typeBits & 1) == 1) {
@@ -713,9 +729,9 @@ VkSurfaceFormatKHR VulkanApplication::ChooseSurfaceFormat(const std::vector<VkSu
 	}
 
 	// Or go with the standard format - if available
-	for (const auto& availableSurfaceFormat : availableFormats) {
-		if (availableSurfaceFormat.format == VK_FORMAT_R8G8B8A8_UNORM) {
-			return availableSurfaceFormat;
+	for (const auto& available_surface_format : availableFormats) {
+		if (available_surface_format.format == VK_FORMAT_R8G8B8A8_UNORM) {
+			return available_surface_format;
 		}
 	}
 
@@ -790,31 +806,28 @@ void VulkanApplication::CreateRenderPass() {
 }
 
 void VulkanApplication::CreateImageViews() {
+	//Create an image view for every image in the swap chain. An image view is an image descriptor, it's just metadata
 	swap_chain_image_views_.resize(swap_chain_images_.size());
-
-	// Create an image view for every image in the swap chain
 	for (size_t i = 0; i < swap_chain_images_.size(); i++) {
-		VkImageViewCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		createInfo.image = swap_chain_images_[i];
-		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		createInfo.format = swap_chain_format_;
-		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		createInfo.subresourceRange.baseMipLevel = 0;
-		createInfo.subresourceRange.levelCount = 1;
-		createInfo.subresourceRange.baseArrayLayer = 0;
-		createInfo.subresourceRange.layerCount = 1;
-
-		if (vkCreateImageView(logical_device_, &createInfo, nullptr, &swap_chain_image_views_[i]) != VK_SUCCESS) {
+		VkImageViewCreateInfo create_info = {};
+		create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		create_info.image = swap_chain_images_[i];
+		create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		create_info.format = swap_chain_format_;
+		create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		create_info.subresourceRange.baseMipLevel = 0;
+		create_info.subresourceRange.levelCount = 1;
+		create_info.subresourceRange.baseArrayLayer = 0;
+		create_info.subresourceRange.layerCount = 1;
+		if (vkCreateImageView(logical_device_, &create_info, nullptr, &swap_chain_image_views_[i]) != VK_SUCCESS) {
 			std::cerr << "failed to create image view for swap chain image #" << i << std::endl;
 			exit(1);
 		}
 	}
-
 	std::cout << "created image views for swap chain images" << std::endl;
 }
 
@@ -845,32 +858,29 @@ void VulkanApplication::CreateFramebuffers() {
 VkShaderModule VulkanApplication::CreateShaderModule(const std::string& filename) {
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
 	if (file) {
-		std::vector<char> fileBytes(file.tellg());
+		std::vector<char> file_bytes(file.tellg());
 		file.seekg(0, std::ios::beg);
-		file.read(fileBytes.data(), fileBytes.size());
+		file.read(file_bytes.data(), file_bytes.size());
 		file.close();
 
 		VkShaderModuleCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		createInfo.codeSize = fileBytes.size();
-		createInfo.pCode = (uint32_t*)fileBytes.data();
+		createInfo.codeSize = file_bytes.size();
+		createInfo.pCode = (uint32_t*)file_bytes.data();
 
-		VkShaderModule shaderModule;
-		if (vkCreateShaderModule(logical_device_, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+		VkShaderModule shader_module;
+		if (vkCreateShaderModule(logical_device_, &createInfo, nullptr, &shader_module) != VK_SUCCESS) {
 			std::cerr << "failed to create shader module for " << filename << std::endl;
 			exit(1);
 		}
 
 		std::cout << "created shader module for " << filename << std::endl;
-		return shaderModule;
+		return shader_module;
 	}
 	else {
 		std::cout << "could not open file " << filename << std::endl;
 	}
 }
-	
-
-	
 
 void VulkanApplication::CreateGraphicsPipeline() {
 	//Compile and load the shaders
