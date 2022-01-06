@@ -1,5 +1,8 @@
 ﻿  vulkan_application.cpp
-C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(272,20): warning C4018: '<': signed/unsigned mismatch
-C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(882): warning C4715: 'VulkanApplication::CreateShaderModule': not all control paths return a value
+C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(271,20): warning C4018: '<': signed/unsigned mismatch
+  vulkan_factory.cpp
+  main.cpp
+  Generating Code...
+C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(877): warning C4715: 'VulkanApplication::CreateShaderModule': not all control paths return a value
 LINK : warning LNK4098: defaultlib 'MSVCRT' conflicts with use of other libs; use /NODEFAULTLIB:library
   Celeritas Engine.vcxproj -> C:\Users\Paolo Parker\source\repos\Celeritas Engine\bin\Debug\Celeritas Engine.exe

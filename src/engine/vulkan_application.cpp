@@ -24,7 +24,6 @@ VkBool32 DebugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT o
 // Vertex layout
 struct Vertex {
 	float pos[3];
-	float color[3];
 };
 
 void VulkanApplication::Run() {
@@ -52,7 +51,7 @@ void VulkanApplication::SetupVulkan() {
 	CreateLogicalDevice();
 	CreateSemaphores();
 	CreateCommandPool();
-	CreateVertexBuffer();
+	CopyShapeInfoToGPU();
 	CreateUniformBuffer();
 	CreateSwapChain();
 	CreateRenderPass();
@@ -404,13 +403,27 @@ void VulkanApplication::CreateCommandPool() {
 	}
 }
 
-void VulkanApplication::CreateVertexBuffer() {
-	//This function copies vertex and face information from RAM to VRAM
+void VulkanApplication::CopyShapeInfoToGPU() {
+	//With a GPU we have two types of memory: RAM (on the motherboard) and VRAM (on the GPU).
+	//The memory the program uses to allocate variables is the RAM because the instructions are processed by the CPU
+	//which uses the RAM. Our goal is to have the GPU read vertex information, but for it to be as fast as possible
+	//we want it to be reading from the VRAM because it sits inside the GPU and would be much quicker to read, so our goal 
+	//is to transfer the vertex information from here (the RAM) to the VRAM once so it's much quicker to read multiple times.
+	//In Vulkan the RAM is identified with VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT whereas the VRAM is identified with 
+	//VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT. The procedure to copy data to the VRAM is quite
+	//complicated because of the nature of how the GPU works. What we need to do is:
+	//1) Allocate some memory on the RAM that is visible to both the CPU and the GPU. This will be what we call the staging buffer
+	//This staging buffer is a temporary location that we use to expose to the GPU the data we want to send it
+	//2) Copy the vertex information to the allocated memory (to the staging buffer)
+	//3) Allocate memory on the VRAM that is only visible to the GPU. This is the memory location that will be used by the shaders
+	//4) Create a command buffer and fill it with instructions to copy data from the staging buffers to the VRAM
+	//5) Submit the command buffer to a queue for it to be processed by the GPU
+
 	//Setup vertices
 	std::vector<Vertex> vertices = {
-		{ { -0.5f, -0.5f,  0.0f }, { 1.0f, 0.0f, 0.0f } },
-		{ { -0.5f,  0.5f,  0.0f }, { 0.0f, 1.0f, 0.0f } },
-		{ {  0.5f,  0.5f,  0.0f }, { 0.0f, 0.0f, 1.0f } }
+		{ -0.5f, -0.5f,  0.0f },
+		{ -0.5f,  0.5f,  0.0f },
+		{  0.5f,  0.5f,  0.0f }
 	};
 	uint32_t vertices_size = (uint32_t)(vertices.size() * sizeof(vertices[0]));
 
@@ -418,15 +431,24 @@ void VulkanApplication::CreateVertexBuffer() {
 	std::vector<uint32_t> indices = { 0, 1, 2 };
 	uint32_t indices_size = (uint32_t)(indices.size() * sizeof(indices[0]));
 
+	//This tells the GPU how to read vertex data
+	vertex_binding_description_.binding = 0;
+	vertex_binding_description_.stride = sizeof(vertices[0]);
+	vertex_binding_description_.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	//This tells the GPU how to connect shader variables and vertex data
+	vertex_attribute_descriptions_.resize(1);
+	vertex_attribute_descriptions_[0].binding = 0;
+	vertex_attribute_descriptions_[0].location = 0;
+	vertex_attribute_descriptions_[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+
 	//Get memory related variables ready
 	VkMemoryAllocateInfo mem_alloc = {};
 	mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	mem_alloc.memoryTypeIndex = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 	VkMemoryRequirements mem_reqs;
-	void* data;
 
-	//Prepare the staging buffer data structure/layout. We use staging buffers as a temporary memory location
-	//located in the RAM dedicated solely to transfer data from RAM to VRAM. The data contained in this memory 
-	//location will then be passed to the GPU and after that the staging buffers will be destroyed
+	//Prepare the staging buffer data structure/layout.
 	struct StagingBuffer {
 		VkDeviceMemory memory;
 		VkBuffer buffer;
@@ -436,47 +458,25 @@ void VulkanApplication::CreateVertexBuffer() {
 		StagingBuffer indices;
 	} staging_buffers;
 
-	//Allocate command buffer for copy operation. This command buffer will contain a series of instructions for the GPU
-	//to copy the data we want to send to the VRAM
-	VkCommandBufferAllocateInfo cmd_buf_info = {};
-	cmd_buf_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	cmd_buf_info.commandPool = command_pool_;
-	cmd_buf_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	cmd_buf_info.commandBufferCount = 1;
-	VkCommandBuffer copy_command_buffer;
-	vkAllocateCommandBuffers(logical_device_, &cmd_buf_info, &copy_command_buffer);
-
-	//First copy vertices to the RAM and tell the GPU where it is. To do that we:
-	//1) Create buffer creation information for Vulkan
+	//1) Allocate some memory on the RAM that is visible to both the CPU and the GPU. This will be what we call the staging buffer
 	VkBufferCreateInfo vertex_buffer_info = {};
 	vertex_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	vertex_buffer_info.size = vertices_size;
 	vertex_buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-	//2) Create the staging buffer for vertices in the RAM
 	vkCreateBuffer(logical_device_, &vertex_buffer_info, nullptr, &staging_buffers.vertices.buffer);
-	
-	//3) Get the requirements for creating the buffer
 	vkGetBufferMemoryRequirements(logical_device_, staging_buffers.vertices.buffer, &mem_reqs);
 	mem_alloc.allocationSize = mem_reqs.size;
-
-	//4) Get the index of where the HOST_VISIBLE memory is in device_memory_properties_ and store it in mem_alloc.memoryTypeIndex
 	GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &mem_alloc.memoryTypeIndex);
-	
-	//5) Allocate VRAM for the vertex staging buffer
 	vkAllocateMemory(logical_device_, &mem_alloc, nullptr, &staging_buffers.vertices.memory);
 
-	//6) Tell the GPU where our staging buffer is in RAM (at the address pointed to by the data variable)
+	//2) Copy the vertex information to the allocated memory (to the staging buffer)
+	void* data;
 	vkMapMemory(logical_device_, staging_buffers.vertices.memory, 0, vertices_size, 0, &data);
-
-	//7) Actually copy the vertex imformation to that memory location (in the RAM). Now the GPU knows where the vertex information is in RAM and we actually copied the data to that location
 	memcpy(data, vertices.data(), vertices_size);
-
-
 	vkUnmapMemory(logical_device_, staging_buffers.vertices.memory);
 	vkBindBufferMemory(logical_device_, staging_buffers.vertices.buffer, staging_buffers.vertices.memory, 0);
 
-	//Then allocate a gpu only buffer for vertices
+	//3) Allocate memory on the VRAM that is only visible to the GPU. This is the memory location that will be used by the shaders
 	vertex_buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	vkCreateBuffer(logical_device_, &vertex_buffer_info, nullptr, &vertex_buffer_);
 	vkGetBufferMemoryRequirements(logical_device_, vertex_buffer_, &mem_reqs);
@@ -485,23 +485,25 @@ void VulkanApplication::CreateVertexBuffer() {
 	vkAllocateMemory(logical_device_, &mem_alloc, nullptr, &vertex_buffer_memory_);
 	vkBindBufferMemory(logical_device_, vertex_buffer_, vertex_buffer_memory_, 0);
 
-	//Next copy indices to host accessible index buffer memory
+	//Now we repeat the same steps for the index buffer (face information)
+	//1) Allocate some memory on the RAM that is visible to both the CPU and the GPU. This will be what we call the staging buffer
 	VkBufferCreateInfo indexBufferInfo = {};
 	indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	indexBufferInfo.size = indices_size;
 	indexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
 	vkCreateBuffer(logical_device_, &indexBufferInfo, nullptr, &staging_buffers.indices.buffer);
 	vkGetBufferMemoryRequirements(logical_device_, staging_buffers.indices.buffer, &mem_reqs);
 	mem_alloc.allocationSize = mem_reqs.size;
 	GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &mem_alloc.memoryTypeIndex);
 	vkAllocateMemory(logical_device_, &mem_alloc, nullptr, &staging_buffers.indices.memory);
+
+	//2) Copy the vertex information to the allocated memory (to the staging buffer)
 	vkMapMemory(logical_device_, staging_buffers.indices.memory, 0, indices_size, 0, &data);
 	memcpy(data, indices.data(), indices_size);
 	vkUnmapMemory(logical_device_, staging_buffers.indices.memory);
 	vkBindBufferMemory(logical_device_, staging_buffers.indices.buffer, staging_buffers.indices.memory, 0);
 
-	//And allocate another gpu only buffer for indices
+	//3) Allocate memory on the VRAM that is only visible to the GPU. This is the memory location that will be used by the shaders
 	indexBufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	vkCreateBuffer(logical_device_, &indexBufferInfo, nullptr, &index_buffer_);
 	vkGetBufferMemoryRequirements(logical_device_, index_buffer_, &mem_reqs);
@@ -510,7 +512,16 @@ void VulkanApplication::CreateVertexBuffer() {
 	vkAllocateMemory(logical_device_, &mem_alloc, nullptr, &index_buffer_memory_);
 	vkBindBufferMemory(logical_device_, index_buffer_, index_buffer_memory_, 0);
 
-	//Now copy data from host visible buffer to gpu only buffer
+	//We are done with passing information to the staging buffers, now we need to actually copy the buffers to the VRAM
+
+	//4) Create a command buffer and fill it with instructions to copy data from the staging buffers to the VRAM
+	VkCommandBufferAllocateInfo cmd_buf_info = {};
+	cmd_buf_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cmd_buf_info.commandPool = command_pool_;
+	cmd_buf_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	cmd_buf_info.commandBufferCount = 1;
+	VkCommandBuffer copy_command_buffer;
+	vkAllocateCommandBuffers(logical_device_, &cmd_buf_info, &copy_command_buffer);
 	VkCommandBufferBeginInfo buffer_begin_info = {};
 	buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -522,7 +533,7 @@ void VulkanApplication::CreateVertexBuffer() {
 	vkCmdCopyBuffer(copy_command_buffer, staging_buffers.indices.buffer, index_buffer_, 1, &copyRegion);
 	vkEndCommandBuffer(copy_command_buffer);
 
-	//Submit to queue so the GPU can process it
+	//5) Submit the command buffer to a queue for it to be processed by the GPU
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.commandBufferCount = 1;
@@ -531,30 +542,13 @@ void VulkanApplication::CreateVertexBuffer() {
 	vkQueueWaitIdle(graphics_queue_);
 	vkFreeCommandBuffers(logical_device_, command_pool_, 1, &copy_command_buffer);
 
-	//Destroy the temporary staging buffers
+	//Destroy the temporary staging buffers to free VRAM
 	vkDestroyBuffer(logical_device_, staging_buffers.vertices.buffer, nullptr);
 	vkFreeMemory(logical_device_, staging_buffers.vertices.memory, nullptr);
 	vkDestroyBuffer(logical_device_, staging_buffers.indices.buffer, nullptr);
 	vkFreeMemory(logical_device_, staging_buffers.indices.memory, nullptr);
 
 	std::cout << "set up vertex and index buffers" << std::endl;
-
-	//Binding and attribute descriptions
-	vertex_binding_description_.binding = 0;
-	vertex_binding_description_.stride = sizeof(vertices[0]);
-	vertex_binding_description_.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-	//vec2 position
-	vertex_attribute_descriptions_.resize(2);
-	vertex_attribute_descriptions_[0].binding = 0;
-	vertex_attribute_descriptions_[0].location = 0;
-	vertex_attribute_descriptions_[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-
-	//vec3 color
-	vertex_attribute_descriptions_[1].binding = 0;
-	vertex_attribute_descriptions_[1].location = 1;
-	vertex_attribute_descriptions_[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertex_attribute_descriptions_[1].offset = sizeof(float) * 3;
 }
 
 void VulkanApplication::CreateUniformBuffer() {
@@ -906,7 +900,7 @@ void VulkanApplication::CreateGraphicsPipeline() {
 	vertex_input_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertex_input_create_info.vertexBindingDescriptionCount = 1;
 	vertex_input_create_info.pVertexBindingDescriptions = &vertex_binding_description_;
-	vertex_input_create_info.vertexAttributeDescriptionCount = 2;
+	vertex_input_create_info.vertexAttributeDescriptionCount = 1;
 	vertex_input_create_info.pVertexAttributeDescriptions = vertex_attribute_descriptions_.data();
 
 	//Describe input assembly
