@@ -25,13 +25,15 @@ class VulkanApplication {
 	VkVertexInputBindingDescription vertex_binding_description_; //This variable is used to tell Vulkan (thus the GPU) how to read the vertex buffer.
 	std::vector<VkVertexInputAttributeDescription> vertex_attribute_descriptions_; //This variable is used to tell vulkan what vertex information we have in our vertex buffer (if it's just vertex positions or also uv coordinates, vertex colors and so on)
 	struct {
-		glm::mat4 transformation_matrix;
-	} UniformBufferData;
-	VkBuffer uniform_buffer_;
-	VkDeviceMemory uniform_buffer_memory_;
-	VkDescriptorSetLayout descriptor_set_layout_;
-	VkDescriptorPool descriptor_pool_;
-	VkDescriptorSet descriptor_set_;
+		glm::mat4 model_matrix;;
+		glm::mat4 view_matrix;;
+		glm::mat4 projection_matrix;;
+	} uniform_buffer_data_; //The data to be passed in the uniform buffer. The uniform buffer
+	VkBuffer uniform_buffer_; //This is the buffer that contains the above data structure
+	VkDeviceMemory uniform_buffer_memory_; //Provides memory allocation info to vulkan when creating the uniform buffer
+	VkDescriptorSetLayout descriptor_set_layout_; //This is used to describe the data contained in the descriptor sets
+	VkDescriptorPool descriptor_pool_; //This is used to allocate memory for the descriptor sets
+	VkDescriptorSet descriptor_set_; //A descriptor set is a collection of descriptors or uniforms. A uniform is a variable that can be used in a shader
 	VkExtent2D swap_chain_extent_; //The size of the swapchain images
 	VkFormat swap_chain_format_; //The format of the images in the swapchain's queue
 	VkSwapchainKHR swap_chain_; //This is the object that handles retrieving and updating the images to be displayed. The swapchain decides when to swap the buffers and contains a queue of images to be drawn. The type has the KHR suffix because it is an extension, meaning that it's an optional object that contains pieces of code that enable you to do something that is not native to Vulkan. In this case this extension is provided by Khronos, which also created Vulkan in the first place

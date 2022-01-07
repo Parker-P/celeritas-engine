@@ -404,8 +404,9 @@ void VulkanApplication::CreateCommandPool() {
 }
 
 void VulkanApplication::CopyShapeInfoToGPU() {
+	//In this function we copy vertex and face information to the GPU.
 	//With a GPU we have two types of memory: RAM (on the motherboard) and VRAM (on the GPU).
-	//The memory the program uses to allocate variables is the RAM because the instructions are processed by the CPU
+	//The memory this program uses to allocate variables is the RAM because the instructions are processed by the CPU
 	//which uses the RAM. Our goal is to have the GPU read vertex information, but for it to be as fast as possible
 	//we want it to be reading from the VRAM because it sits inside the GPU and would be much quicker to read, so our goal 
 	//is to transfer the vertex information from here (the RAM) to the VRAM once so it's much quicker to read multiple times.
@@ -416,7 +417,8 @@ void VulkanApplication::CopyShapeInfoToGPU() {
 	//This staging buffer is a temporary location that we use to expose to the GPU the data we want to send it
 	//2) Copy the vertex information to the allocated memory (to the staging buffer)
 	//3) Allocate memory on the VRAM that is only visible to the GPU. This is the memory location that will be used by the shaders
-	//4) Create a command buffer and fill it with instructions to copy data from the staging buffers to the VRAM
+	//and the destination to where we will copy the data we previously copied to the staging buffer
+	//4) Create a command buffer and fill it with instructions to copy data from the staging buffer to the VRAM
 	//5) Submit the command buffer to a queue for it to be processed by the GPU
 
 	//Setup vertices
@@ -552,47 +554,46 @@ void VulkanApplication::CopyShapeInfoToGPU() {
 }
 
 void VulkanApplication::CreateUniformBuffer() {
-	VkBufferCreateInfo bufferInfo = {};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.size = sizeof(UniformBufferData);
-	bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+	VkBufferCreateInfo buffer_info = {};
+	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	buffer_info.size = sizeof(uniform_buffer_data_);
+	buffer_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 
-	vkCreateBuffer(logical_device_, &bufferInfo, nullptr, &uniform_buffer_);
+	vkCreateBuffer(logical_device_, &buffer_info, nullptr, &uniform_buffer_);
 
-	VkMemoryRequirements memReqs;
-	vkGetBufferMemoryRequirements(logical_device_, uniform_buffer_, &memReqs);
+	VkMemoryRequirements mem_reqs;
+	vkGetBufferMemoryRequirements(logical_device_, uniform_buffer_, &mem_reqs);
 
-	VkMemoryAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = memReqs.size;
-	GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &allocInfo.memoryTypeIndex);
+	VkMemoryAllocateInfo alloc_info = {};
+	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	alloc_info.allocationSize = mem_reqs.size;
+	GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &alloc_info.memoryTypeIndex);
 
-	vkAllocateMemory(logical_device_, &allocInfo, nullptr, &uniform_buffer_memory_);
+	vkAllocateMemory(logical_device_, &alloc_info, nullptr, &uniform_buffer_memory_);
 	vkBindBufferMemory(logical_device_, uniform_buffer_, uniform_buffer_memory_, 0);
 
 	UpdateUniformData();
 }
 
 void VulkanApplication::UpdateUniformData() {
-	// Rotate based on time
+	//Rotate based on time
 	auto timeNow = std::chrono::high_resolution_clock::now();
 	long long millis = std::chrono::duration_cast<std::chrono::milliseconds>(time_start_ - timeNow).count();
 	float angle = (millis % 4000) / 4000.0f * glm::radians(360.f);
 
-	// Set up model transformation matrix
+	//Set up model transformation matrix
 	glm::mat4 modelMatrix;
-	modelMatrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 0, 1));
+	uniform_buffer_data_.model_matrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 0, 1));
 
-	// Set up view transformation matrix
-	auto viewMatrix = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
+	//Set up view transformation matrix
+	uniform_buffer_data_.view_matrix = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
 
-	// Set up projection transformation matrix
-	auto projMatrix = glm::perspective(glm::radians(70.f), (float)swap_chain_extent_.width / (float)swap_chain_extent_.height, 0.1f, 10.0f);
-	UniformBufferData.transformation_matrix = projMatrix * viewMatrix * modelMatrix;
+	//Set up projection transformation matrix
+	uniform_buffer_data_.projection_matrix = glm::perspective(glm::radians(70.f), (float)swap_chain_extent_.width / (float)swap_chain_extent_.height, 0.1f, 10.0f);
 
 	void* data;
-	vkMapMemory(logical_device_, uniform_buffer_memory_, 0, sizeof(UniformBufferData), 0, &data);
-	memcpy(data, &UniformBufferData, sizeof(UniformBufferData));
+	vkMapMemory(logical_device_, uniform_buffer_memory_, 0, sizeof(uniform_buffer_data_), 0, &data);
+	memcpy(data, &uniform_buffer_data_, sizeof(uniform_buffer_data_));
 	vkUnmapMemory(logical_device_, uniform_buffer_memory_);
 }
 
@@ -1064,13 +1065,13 @@ void VulkanApplication::CreateDescriptorPool() {
 
 void VulkanApplication::CreateDescriptorSet() {
 	// There needs to be one descriptor set per binding point in the shader
-	VkDescriptorSetAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = descriptor_pool_;
-	allocInfo.descriptorSetCount = 1;
-	allocInfo.pSetLayouts = &descriptor_set_layout_;
+	VkDescriptorSetAllocateInfo alloc_info = {};
+	alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	alloc_info.descriptorPool = descriptor_pool_;
+	alloc_info.descriptorSetCount = 1;
+	alloc_info.pSetLayouts = &descriptor_set_layout_;
 
-	if (vkAllocateDescriptorSets(logical_device_, &allocInfo, &descriptor_set_) != VK_SUCCESS) {
+	if (vkAllocateDescriptorSets(logical_device_, &alloc_info, &descriptor_set_) != VK_SUCCESS) {
 		std::cerr << "failed to create descriptor set" << std::endl;
 		exit(1);
 	}
@@ -1079,20 +1080,20 @@ void VulkanApplication::CreateDescriptorSet() {
 	}
 
 	// Update descriptor set with uniform binding
-	VkDescriptorBufferInfo descriptorBufferInfo = {};
-	descriptorBufferInfo.buffer = uniform_buffer_;
-	descriptorBufferInfo.offset = 0;
-	descriptorBufferInfo.range = sizeof(UniformBufferData);
+	VkDescriptorBufferInfo descriptor_buffer_info = {};
+	descriptor_buffer_info.buffer = uniform_buffer_;
+	descriptor_buffer_info.offset = 0;
+	descriptor_buffer_info.range = sizeof(uniform_buffer_data_);
 
-	VkWriteDescriptorSet writeDescriptorSet = {};
-	writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeDescriptorSet.dstSet = descriptor_set_;
-	writeDescriptorSet.descriptorCount = 1;
-	writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	writeDescriptorSet.pBufferInfo = &descriptorBufferInfo;
-	writeDescriptorSet.dstBinding = 0;
+	VkWriteDescriptorSet write_descriptor_set = {};
+	write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	write_descriptor_set.dstSet = descriptor_set_;
+	write_descriptor_set.descriptorCount = 1;
+	write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
+	write_descriptor_set.dstBinding = 0;
 
-	vkUpdateDescriptorSets(logical_device_, 1, &writeDescriptorSet, 0, nullptr);
+	vkUpdateDescriptorSets(logical_device_, 1, &write_descriptor_set, 0, nullptr);
 }
 
 void VulkanApplication::CreateCommandBuffers() {
