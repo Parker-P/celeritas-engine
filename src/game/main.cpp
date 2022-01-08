@@ -12,6 +12,6 @@
 #include "../engine/vulkan_factory.h"
 
 int main() {
-	VulkanApplication game = VulkanFactory::GetInstance().CreateApplication("Solar System Explorer", 1024, 768);
+	VulkanApplication game = VulkanFactory::GetInstance().CreateApplication("Solar System Explorer", 800, 600);
 	game.Run();
 }

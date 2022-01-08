@@ -53,13 +53,15 @@ void VulkanApplication::SetupVulkan() {
 	CreateCommandPool();
 	CopyShapeInfoToGPU();
 	CreateUniformBuffer();
+
 	CreateSwapChain();
 	CreateRenderPass();
 	CreateImageViews();
 	CreateFramebuffers();
 	CreateGraphicsPipeline();
+
 	CreateDescriptorPool();
-	CreateDescriptorSet();
+	CreateDescriptorSets();
 	CreateCommandBuffers();
 }
 
@@ -129,7 +131,7 @@ void VulkanApplication::CreateInstance() {
 	//Add meta information to the vulkan application
 	VkApplicationInfo app_info = {};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	app_info.pApplicationName = "Solar System Explorer";
+	app_info.pApplicationName = name_;
 	app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
 	app_info.pEngineName = "Celeritas Engine";
 	app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -410,10 +412,9 @@ void VulkanApplication::CopyShapeInfoToGPU() {
 	//which uses the RAM. Our goal is to have the GPU read vertex information, but for it to be as fast as possible
 	//we want it to be reading from the VRAM because it sits inside the GPU and would be much quicker to read, so our goal 
 	//is to transfer the vertex information from here (the RAM) to the VRAM once so it's much quicker to read multiple times.
-	//In Vulkan the RAM is identified with VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT whereas the VRAM is identified with 
-	//VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT. The procedure to copy data to the VRAM is quite
+	//The procedure to copy data to the VRAM is quite
 	//complicated because of the nature of how the GPU works. What we need to do is:
-	//1) Allocate some memory on the RAM that is visible to both the CPU and the GPU. This will be what we call the staging buffer
+	//1) Allocate some memory on the VRAM that is visible to both the CPU and the GPU. This will be what we call the staging buffer
 	//This staging buffer is a temporary location that we use to expose to the GPU the data we want to send it
 	//2) Copy the vertex information to the allocated memory (to the staging buffer)
 	//3) Allocate memory on the VRAM that is only visible to the GPU. This is the memory location that will be used by the shaders
@@ -460,7 +461,7 @@ void VulkanApplication::CopyShapeInfoToGPU() {
 		StagingBuffer indices;
 	} staging_buffers;
 
-	//1) Allocate some memory on the RAM that is visible to both the CPU and the GPU. This will be what we call the staging buffer
+	//1) Allocate some memory on the VRAM that is visible to both the CPU and the GPU. This will be what we call the staging buffer
 	VkBufferCreateInfo vertex_buffer_info = {};
 	vertex_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	vertex_buffer_info.size = vertices_size;
@@ -489,11 +490,11 @@ void VulkanApplication::CopyShapeInfoToGPU() {
 
 	//Now we repeat the same steps for the index buffer (face information)
 	//1) Allocate some memory on the RAM that is visible to both the CPU and the GPU. This will be what we call the staging buffer
-	VkBufferCreateInfo indexBufferInfo = {};
-	indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	indexBufferInfo.size = indices_size;
-	indexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-	vkCreateBuffer(logical_device_, &indexBufferInfo, nullptr, &staging_buffers.indices.buffer);
+	VkBufferCreateInfo index_buffer_info = {};
+	index_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	index_buffer_info.size = indices_size;
+	index_buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	vkCreateBuffer(logical_device_, &index_buffer_info, nullptr, &staging_buffers.indices.buffer);
 	vkGetBufferMemoryRequirements(logical_device_, staging_buffers.indices.buffer, &mem_reqs);
 	mem_alloc.allocationSize = mem_reqs.size;
 	GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &mem_alloc.memoryTypeIndex);
@@ -506,8 +507,8 @@ void VulkanApplication::CopyShapeInfoToGPU() {
 	vkBindBufferMemory(logical_device_, staging_buffers.indices.buffer, staging_buffers.indices.memory, 0);
 
 	//3) Allocate memory on the VRAM that is only visible to the GPU. This is the memory location that will be used by the shaders
-	indexBufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-	vkCreateBuffer(logical_device_, &indexBufferInfo, nullptr, &index_buffer_);
+	index_buffer_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	vkCreateBuffer(logical_device_, &index_buffer_info, nullptr, &index_buffer_);
 	vkGetBufferMemoryRequirements(logical_device_, index_buffer_, &mem_reqs);
 	mem_alloc.allocationSize = mem_reqs.size;
 	GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &mem_alloc.memoryTypeIndex);
@@ -536,11 +537,11 @@ void VulkanApplication::CopyShapeInfoToGPU() {
 	vkEndCommandBuffer(copy_command_buffer);
 
 	//5) Submit the command buffer to a queue for it to be processed by the GPU
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &copy_command_buffer;
-	vkQueueSubmit(graphics_queue_, 1, &submitInfo, VK_NULL_HANDLE);
+	VkSubmitInfo submit_info = {};
+	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submit_info.commandBufferCount = 1;
+	submit_info.pCommandBuffers = &copy_command_buffer;
+	vkQueueSubmit(graphics_queue_, 1, &submit_info, VK_NULL_HANDLE);
 	vkQueueWaitIdle(graphics_queue_);
 	vkFreeCommandBuffers(logical_device_, command_pool_, 1, &copy_command_buffer);
 
@@ -554,24 +555,26 @@ void VulkanApplication::CopyShapeInfoToGPU() {
 }
 
 void VulkanApplication::CreateUniformBuffer() {
+	//Configure the uniform buffer creation
 	VkBufferCreateInfo buffer_info = {};
 	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	buffer_info.size = sizeof(uniform_buffer_data_);
 	buffer_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-
 	vkCreateBuffer(logical_device_, &buffer_info, nullptr, &uniform_buffer_);
 
+	//Get memory requirements for the uniform buffer
 	VkMemoryRequirements mem_reqs;
 	vkGetBufferMemoryRequirements(logical_device_, uniform_buffer_, &mem_reqs);
 
+	//Allocate memory for the uniform buffer on the VRAM (using the HOST_VISIBLE_BIT flag) and make it CPU accessible (using the vkMapMemory call)
 	VkMemoryAllocateInfo alloc_info = {};
 	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	alloc_info.allocationSize = mem_reqs.size;
 	GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &alloc_info.memoryTypeIndex);
-
 	vkAllocateMemory(logical_device_, &alloc_info, nullptr, &uniform_buffer_memory_);
 	vkBindBufferMemory(logical_device_, uniform_buffer_, uniform_buffer_memory_, 0);
 
+	//Copy the buffer to the VRAM
 	UpdateUniformData();
 }
 
@@ -581,16 +584,13 @@ void VulkanApplication::UpdateUniformData() {
 	long long millis = std::chrono::duration_cast<std::chrono::milliseconds>(time_start_ - timeNow).count();
 	float angle = (millis % 4000) / 4000.0f * glm::radians(360.f);
 
-	//Set up model transformation matrix
+	//Set up transformation matrices
 	glm::mat4 modelMatrix;
 	uniform_buffer_data_.model_matrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 0, 1));
-
-	//Set up view transformation matrix
 	uniform_buffer_data_.view_matrix = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
-
-	//Set up projection transformation matrix
 	uniform_buffer_data_.projection_matrix = glm::perspective(glm::radians(70.f), (float)swap_chain_extent_.width / (float)swap_chain_extent_.height, 0.1f, 10.0f);
 
+	//Copy the data to the VRAM (this procedure is similar to what we do when creating the vertex and index buffers)
 	void* data;
 	vkMapMemory(logical_device_, uniform_buffer_memory_, 0, sizeof(uniform_buffer_data_), 0, &data);
 	memcpy(data, &uniform_buffer_data_, sizeof(uniform_buffer_data_));
@@ -879,7 +879,7 @@ VkShaderModule VulkanApplication::CreateShaderModule(const std::string& filename
 
 void VulkanApplication::CreateGraphicsPipeline() {
 	//Compile and load the shaders
-	system((std::string("start \"\" \"") + kShaderPath_ + std::string("shader_compiler.bat\"")).c_str());
+	//system((std::string("start \"\" \"") + kShaderPath_ + std::string("shader_compiler.bat\"")).c_str());
 	VkShaderModule vertex_shader_module = CreateShaderModule(kShaderPath_ + std::string("vertex_shader.spv"));
 	VkShaderModule fragment_shader_module = CreateShaderModule(kShaderPath_ + std::string("fragment_shader.spv"));
 
@@ -989,11 +989,11 @@ void VulkanApplication::CreateGraphicsPipeline() {
 	layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	layout_binding.descriptorCount = 1;
 	layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	VkDescriptorSetLayoutCreateInfo descriptor_layout_create_info = {};
-	descriptor_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptor_layout_create_info.bindingCount = 1;
-	descriptor_layout_create_info.pBindings = &layout_binding;
-	if (vkCreateDescriptorSetLayout(logical_device_, &descriptor_layout_create_info, nullptr, &descriptor_set_layout_) != VK_SUCCESS) {
+	VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {};
+	descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptor_set_layout_create_info.bindingCount = 1;
+	descriptor_set_layout_create_info.pBindings = &layout_binding;
+	if (vkCreateDescriptorSetLayout(logical_device_, &descriptor_set_layout_create_info, nullptr, &descriptor_set_layout_) != VK_SUCCESS) {
 		std::cerr << "failed to create descriptor layout" << std::endl;
 		exit(1);
 	}
@@ -1012,7 +1012,7 @@ void VulkanApplication::CreateGraphicsPipeline() {
 		std::cout << "created pipeline layout" << std::endl;
 	}
 
-	//Create the graphics pipeline
+	//Configure the creation of the graphics pipeline
 	VkGraphicsPipelineCreateInfo pipeline_create_info = {};
 	pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipeline_create_info.stageCount = 2;
@@ -1029,6 +1029,7 @@ void VulkanApplication::CreateGraphicsPipeline() {
 	pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
 	pipeline_create_info.basePipelineIndex = -1;
 
+	//Create the pipeline
 	if (vkCreateGraphicsPipelines(logical_device_, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr, &graphics_pipeline_) != VK_SUCCESS) {
 		std::cerr << "failed to create graphics pipeline" << std::endl;
 		exit(1);
@@ -1037,34 +1038,42 @@ void VulkanApplication::CreateGraphicsPipeline() {
 		std::cout << "created graphics pipeline" << std::endl;
 	}
 
-	//No longer necessary
+	//Delete the unused shader modules as they have been transferred to the VRAM now
 	vkDestroyShaderModule(logical_device_, vertex_shader_module, nullptr);
 	vkDestroyShaderModule(logical_device_, fragment_shader_module, nullptr);
 }
 
 void VulkanApplication::CreateDescriptorPool() {
-	// This describes how many descriptor sets we'll create from this pool for each type
-	VkDescriptorPoolSize typeCount;
-	typeCount.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	typeCount.descriptorCount = 1;
+	//This describes how many descriptor sets we'll create from this pool for each type
+	VkDescriptorPoolSize type_count;
+	type_count.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	type_count.descriptorCount = 1;
 
-	VkDescriptorPoolCreateInfo createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	createInfo.poolSizeCount = 1;
-	createInfo.pPoolSizes = &typeCount;
-	createInfo.maxSets = 1;
+	//Configure the pool creation
+	VkDescriptorPoolCreateInfo create_info = {};
+	create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	create_info.poolSizeCount = 1;
+	create_info.pPoolSizes = &type_count;
+	create_info.maxSets = 1;
 
-	if (vkCreateDescriptorPool(logical_device_, &createInfo, nullptr, &descriptor_pool_) != VK_SUCCESS) {
+	//Create the pool with the specified config
+	if (vkCreateDescriptorPool(logical_device_, &create_info, nullptr, &descriptor_pool_) != VK_SUCCESS) {
 		std::cerr << "failed to create descriptor pool" << std::endl;
 		exit(1);
 	}
 	else {
-		std::cout << "created descriptor pool" << std::endl;
+		std::cout << "descriptor pool created" << std::endl;
 	}
 }
 
-void VulkanApplication::CreateDescriptorSet() {
-	// There needs to be one descriptor set per binding point in the shader
+void VulkanApplication::CreateDescriptorSets() {
+	//With descriptor sets there are three levels. You have the descriptor set that contains descriptors
+	//Descriptors are buffers (pieces of memory) that point to uniform buffers and also contain other
+	//information such as the size and the type of the uniform buffer they point to
+	//The uniform buffer is the last in the chain: the uniform buffer contains the actual data we want
+	//to pass to the shaders.
+
+	//There needs to be one descriptor set per binding point in the shader
 	VkDescriptorSetAllocateInfo alloc_info = {};
 	alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	alloc_info.descriptorPool = descriptor_pool_;
@@ -1079,12 +1088,14 @@ void VulkanApplication::CreateDescriptorSet() {
 		std::cout << "created descriptor set" << std::endl;
 	}
 
-	// Update descriptor set with uniform binding
+	//Bind the uniform buffer to the descriptor. This descriptor will then be used bound to a descriptor set and then that descriptor
+	//set will be uploaded to the VRAM
 	VkDescriptorBufferInfo descriptor_buffer_info = {};
 	descriptor_buffer_info.buffer = uniform_buffer_;
 	descriptor_buffer_info.offset = 0;
 	descriptor_buffer_info.range = sizeof(uniform_buffer_data_);
 
+	//Bind the descriptor to the descriptor set
 	VkWriteDescriptorSet write_descriptor_set = {};
 	write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	write_descriptor_set.dstSet = descriptor_set_;
@@ -1093,20 +1104,19 @@ void VulkanApplication::CreateDescriptorSet() {
 	write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
 	write_descriptor_set.dstBinding = 0;
 
+	//Send the descriptor set to the GPU
 	vkUpdateDescriptorSets(logical_device_, 1, &write_descriptor_set, 0, nullptr);
 }
 
 void VulkanApplication::CreateCommandBuffers() {
-	// Allocate graphics command buffers
+	//Configure and allocate command buffers from the command pool
 	graphics_command_buffers_.resize(swap_chain_images_.size());
-
-	VkCommandBufferAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.commandPool = command_pool_;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandBufferCount = (uint32_t)swap_chain_images_.size();
-
-	if (vkAllocateCommandBuffers(logical_device_, &allocInfo, graphics_command_buffers_.data()) != VK_SUCCESS) {
+	VkCommandBufferAllocateInfo alloc_info = {};
+	alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	alloc_info.commandPool = command_pool_;
+	alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	alloc_info.commandBufferCount = (uint32_t)graphics_command_buffers_.size();
+	if (vkAllocateCommandBuffers(logical_device_, &alloc_info, graphics_command_buffers_.data()) != VK_SUCCESS) {
 		std::cerr << "failed to allocate graphics command buffers" << std::endl;
 		exit(1);
 	}
@@ -1114,28 +1124,28 @@ void VulkanApplication::CreateCommandBuffers() {
 		std::cout << "allocated graphics command buffers" << std::endl;
 	}
 
-	// Prepare data for recording command buffers
-	VkCommandBufferBeginInfo beginInfo = {};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+	//Prepare data for recording command buffers
+	VkCommandBufferBeginInfo begin_info = {};
+	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
-	VkImageSubresourceRange subResourceRange = {};
-	subResourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	subResourceRange.baseMipLevel = 0;
-	subResourceRange.levelCount = 1;
-	subResourceRange.baseArrayLayer = 0;
-	subResourceRange.layerCount = 1;
+	VkImageSubresourceRange sub_resource_range = {};
+	sub_resource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	sub_resource_range.baseMipLevel = 0;
+	sub_resource_range.levelCount = 1;
+	sub_resource_range.baseArrayLayer = 0;
+	sub_resource_range.layerCount = 1;
 
 	VkClearValue clearColor = {
 		{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A
 	};
 
-	// Record command buffer for each swap image
+	//Record command buffer for each swapchain image
 	for (size_t i = 0; i < swap_chain_images_.size(); i++) {
-		vkBeginCommandBuffer(graphics_command_buffers_[i], &beginInfo);
+		vkBeginCommandBuffer(graphics_command_buffers_[i], &begin_info);
 
-		// If present queue family and graphics queue family are different, then a barrier is necessary
-		// The barrier is also needed initially to transition the image to the present layout
+		//If present queue family and graphics queue family are different, then a barrier is necessary
+		//The barrier is also needed initially to transition the image to the present layout
 		VkImageMemoryBarrier presentToDrawBarrier = {};
 		presentToDrawBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		presentToDrawBarrier.srcAccessMask = 0;
@@ -1153,7 +1163,7 @@ void VulkanApplication::CreateCommandBuffers() {
 		}
 
 		presentToDrawBarrier.image = swap_chain_images_[i];
-		presentToDrawBarrier.subresourceRange = subResourceRange;
+		presentToDrawBarrier.subresourceRange = sub_resource_range;
 
 		vkCmdPipelineBarrier(graphics_command_buffers_[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
 
@@ -1170,14 +1180,10 @@ void VulkanApplication::CreateCommandBuffers() {
 		vkCmdBeginRenderPass(graphics_command_buffers_[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 		vkCmdBindDescriptorSets(graphics_command_buffers_[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &descriptor_set_, 0, nullptr);
-
 		vkCmdBindPipeline(graphics_command_buffers_[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
-
 		VkDeviceSize offset = 0;
 		vkCmdBindVertexBuffers(graphics_command_buffers_[i], 0, 1, &vertex_buffer_, &offset);
-
 		vkCmdBindIndexBuffer(graphics_command_buffers_[i], index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-
 		vkCmdDrawIndexed(graphics_command_buffers_[i], 3, 1, 0, 0, 0);
 
 		vkCmdEndRenderPass(graphics_command_buffers_[i]);
@@ -1193,7 +1199,7 @@ void VulkanApplication::CreateCommandBuffers() {
 			drawToPresentBarrier.srcQueueFamilyIndex = graphics_queue_family_;
 			drawToPresentBarrier.dstQueueFamilyIndex = present_queue_family_;
 			drawToPresentBarrier.image = swap_chain_images_[i];
-			drawToPresentBarrier.subresourceRange = subResourceRange;
+			drawToPresentBarrier.subresourceRange = sub_resource_range;
 
 			vkCmdPipelineBarrier(graphics_command_buffers_[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &drawToPresentBarrier);
 		}
@@ -1206,16 +1212,16 @@ void VulkanApplication::CreateCommandBuffers() {
 
 	std::cout << "recorded command buffers" << std::endl;
 
-	// No longer needed
+	//No longer needed
 	vkDestroyPipelineLayout(logical_device_, pipeline_layout_, nullptr);
 }
 
 void VulkanApplication::Draw() {
-	// Acquire image
+	//Acquire image
 	uint32_t imageIndex;
 	VkResult res = vkAcquireNextImageKHR(logical_device_, swap_chain_, UINT64_MAX, image_available_semaphore_, VK_NULL_HANDLE, &imageIndex);
 
-	// Unless surface is out of date right now, defer swap chain recreation until end of this frame
+	//Unless surface is out of date right now, defer swap chain recreation until end of this frame
 	if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
 		OnWindowSizeChanged();
 		return;
@@ -1225,7 +1231,7 @@ void VulkanApplication::Draw() {
 		exit(1);
 	}
 
-	// Wait for image to be available and draw
+	//Wait for image to be available and draw
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.waitSemaphoreCount = 1;
@@ -1233,7 +1239,7 @@ void VulkanApplication::Draw() {
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = &rendering_finished_semaphore_;
 
-	// This is the stage where the queue should wait on the semaphore
+	//This is the stage where the queue should wait on the semaphore
 	VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 	submitInfo.pWaitDstStageMask = &waitDstStageMask;
 	submitInfo.commandBufferCount = 1;
@@ -1243,8 +1249,8 @@ void VulkanApplication::Draw() {
 		exit(1);
 	}
 
-	// Present drawn image
-	// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue
+	//Present drawn image
+	//Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.waitSemaphoreCount = 1;

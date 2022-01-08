@@ -1,6 +1,7 @@
 #pragma once
 
-//For all the technical information you need in order to understand vulkan, go to:
+//For a high level understaning of Vulkan and how it interacts with the GPU go to: https://vkguide.dev/
+//For all the in depth technical information about the Vulkan API, go to:
 //https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html
 //Styleguide used for this project: https://google.github.io/styleguide/cppguide.html
 
@@ -25,15 +26,15 @@ class VulkanApplication {
 	VkVertexInputBindingDescription vertex_binding_description_; //This variable is used to tell Vulkan (thus the GPU) how to read the vertex buffer.
 	std::vector<VkVertexInputAttributeDescription> vertex_attribute_descriptions_; //This variable is used to tell vulkan what vertex information we have in our vertex buffer (if it's just vertex positions or also uv coordinates, vertex colors and so on)
 	struct {
-		glm::mat4 model_matrix;;
-		glm::mat4 view_matrix;;
-		glm::mat4 projection_matrix;;
-	} uniform_buffer_data_; //The data to be passed in the uniform buffer. The uniform buffer
-	VkBuffer uniform_buffer_; //This is the buffer that contains the above data structure
+		glm::mat4 model_matrix; //The model matrix. This transformation matrix is responsible for translating the vertices of a model to the correct world space coordinates
+		glm::mat4 view_matrix; //The camera matrix. This transformation matrix is responsible for translating the vertices of a model so that it looks like we are viewing it from a world space camera. In reality there is no camera, it's all the models moving around the logical space
+		glm::mat4 projection_matrix; //The projection matrix. This transformation matrix is responsible for the 3D look of the models. This matrix makes sure that perspective is taken into account when the shaders calculate vertex positions on the screen. This will make objects that are further away appear smaller
+	} uniform_buffer_data_; //The data to be passed in the uniform buffer. A uniform buffer is just a regular buffer containing the variables we want to pass to our shaders. They are called uniform buffers because it comes from OpenGL where variables we wanted to pass to the shaders were called uniforms
+	VkBuffer uniform_buffer_; //This is the buffer that contains the uniform_buffer_data_ struct
 	VkDeviceMemory uniform_buffer_memory_; //Provides memory allocation info to vulkan when creating the uniform buffer
-	VkDescriptorSetLayout descriptor_set_layout_; //This is used to describe the data contained in the descriptor sets
-	VkDescriptorPool descriptor_pool_; //This is used to allocate memory for the descriptor sets
-	VkDescriptorSet descriptor_set_; //A descriptor set is a collection of descriptors or uniforms. A uniform is a variable that can be used in a shader
+	VkDescriptorSetLayout descriptor_set_layout_; //This is used to describe the layout of a descriptor set
+	VkDescriptorPool descriptor_pool_; //This is used to allocate memory for the descriptor sets. The memory allocation done by the pool is handled by the Vulkan drivers
+	VkDescriptorSet descriptor_set_; //A descriptor set is a collection of descriptors. A descriptor is a shader resource. Each descriptor contains a pointer to a buffer or image and a description of what that pointed-to data represents. We use sets of descriptors so that we can group descriptors by how they are used in the rendering process. For example: the  Descriptors are the main way to pass variables to the GPU's shaders and that's why they are also called shader resources. Another way to pass data to shaders is by using push constants, but their use is more limited
 	VkExtent2D swap_chain_extent_; //The size of the swapchain images
 	VkFormat swap_chain_format_; //The format of the images in the swapchain's queue
 	VkSwapchainKHR swap_chain_; //This is the object that handles retrieving and updating the images to be displayed. The swapchain decides when to swap the buffers and contains a queue of images to be drawn. The type has the KHR suffix because it is an extension, meaning that it's an optional object that contains pieces of code that enable you to do something that is not native to Vulkan. In this case this extension is provided by Khronos, which also created Vulkan in the first place
@@ -82,7 +83,7 @@ class VulkanApplication {
 	VkShaderModule CreateShaderModule(const std::string& filename);
 	void CreateGraphicsPipeline();
 	void CreateDescriptorPool();
-	void CreateDescriptorSet();
+	void CreateDescriptorSets();
 	void CreateCommandBuffers();
 	void Draw();
 
