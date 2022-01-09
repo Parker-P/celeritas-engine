@@ -1067,11 +1067,13 @@ void VulkanApplication::CreateDescriptorPool() {
 }
 
 void VulkanApplication::CreateDescriptorSets() {
-	//With descriptor sets there are three levels. You have the descriptor set that contains descriptors
+	//With descriptor sets there are three levels. You have the descriptor set that contains descriptors.
 	//Descriptors are buffers (pieces of memory) that point to uniform buffers and also contain other
-	//information such as the size and the type of the uniform buffer they point to
+	//information such as the size and the type of the uniform buffer they point to.
 	//The uniform buffer is the last in the chain: the uniform buffer contains the actual data we want
 	//to pass to the shaders.
+	//Desciptor sets are allocated using a descriptor pool, but the behaviour of the pool is handled by
+	//the Vulkan drivers so we don't need to worry about how it works.
 
 	//There needs to be one descriptor set per binding point in the shader
 	VkDescriptorSetAllocateInfo alloc_info = {};
@@ -1080,6 +1082,7 @@ void VulkanApplication::CreateDescriptorSets() {
 	alloc_info.descriptorSetCount = 1;
 	alloc_info.pSetLayouts = &descriptor_set_layout_;
 
+	//Create the descriptor set
 	if (vkAllocateDescriptorSets(logical_device_, &alloc_info, &descriptor_set_) != VK_SUCCESS) {
 		std::cerr << "failed to create descriptor set" << std::endl;
 		exit(1);
@@ -1088,7 +1091,7 @@ void VulkanApplication::CreateDescriptorSets() {
 		std::cout << "created descriptor set" << std::endl;
 	}
 
-	//Bind the uniform buffer to the descriptor. This descriptor will then be used bound to a descriptor set and then that descriptor
+	//Bind the uniform buffer to the descriptor. This descriptor will then be bound to a descriptor set and then that descriptor
 	//set will be uploaded to the VRAM
 	VkDescriptorBufferInfo descriptor_buffer_info = {};
 	descriptor_buffer_info.buffer = uniform_buffer_;
@@ -1104,7 +1107,7 @@ void VulkanApplication::CreateDescriptorSets() {
 	write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
 	write_descriptor_set.dstBinding = 0;
 
-	//Send the descriptor set to the GPU
+	//Send the descriptor set to the VRAM
 	vkUpdateDescriptorSets(logical_device_, 1, &write_descriptor_set, 0, nullptr);
 }
 
