@@ -51,15 +51,13 @@ void VulkanApplication::SetupVulkan() {
 	CreateLogicalDevice();
 	CreateSemaphores();
 	CreateCommandPool();
-	CopyShapeInfoToGPU();
+	CreateVertexAndIndexBuffers();
 	CreateUniformBuffer();
-
 	CreateSwapChain();
 	CreateRenderPass();
 	CreateImageViews();
 	CreateFramebuffers();
 	CreateGraphicsPipeline();
-
 	CreateDescriptorPool();
 	CreateDescriptorSets();
 	CreateCommandBuffers();
@@ -194,6 +192,13 @@ void VulkanApplication::CreateWindowSurface() {
 }
 
 void VulkanApplication::FindPhysicalDevice() {
+	//After creating an instance, the application needs to select a physical device.
+	//A physical device represents a piece of hardware installed in the system, most commonly a single GPU.
+	//The application can retrieve a list of the available physical devicesand select the one which has the 
+	//properties and features which most closely matches the application's requirements. 
+	//These properties and features can be simply things like whether the device is integrated or discrete, 
+	//or something more complex like the maximum size of the pool of push constant memory.
+
 	//Try to find 1 Vulkan supported device
 	uint32_t device_count = 0;
 	if (vkEnumeratePhysicalDevices(instance_, &device_count, nullptr) != VK_SUCCESS || device_count == 0) {
@@ -256,6 +261,14 @@ void VulkanApplication::CheckSwapChainSupport() {
 }
 
 void VulkanApplication::FindQueueFamilies() {
+	//Once a physical device has been selected, the device needs to be queried for available queues.
+	//In Vulkan, all commands need to be executed on queues. Each device makes a set of queues available 
+	//which can execute certain operations such as compute, rendering, presenting, and so on.
+	//Queues that share certain properties, for instance those used to execute the same type of operation,
+	//are grouped together into queue families. In order to use queues, a queue family which supports the desired 
+	//operations of the application needs to be selected. For example, if the application needs to render anything, 
+	//a queue family which supports rendering operations should be selected.
+
 	// Check queue families
 	uint32_t queue_family_count = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_family_count, nullptr);
@@ -305,6 +318,11 @@ void VulkanApplication::FindQueueFamilies() {
 }
 
 void VulkanApplication::CreateLogicalDevice() {
+	//After the physical deviceand queue family have been selected, they can be used to generate a logical device handle.
+	//A logical device is the main interface between the GPU(physical device) and the application and is required for the 
+	//creation of most objects. It can be used to create the queues that will be used to render and present images.
+	//A logical device is often referenced when calling the creation function of many objects.
+
 	//Prepare the info for queue creation
 	float queuePriority = 1.0f;
 	VkDeviceQueueCreateInfo queue_create_info[2] = {};
@@ -405,7 +423,7 @@ void VulkanApplication::CreateCommandPool() {
 	}
 }
 
-void VulkanApplication::CopyShapeInfoToGPU() {
+void VulkanApplication::CreateVertexAndIndexBuffers() {
 	//In this function we copy vertex and face information to the GPU.
 	//With a GPU we have two types of memory: RAM (on the motherboard) and VRAM (on the GPU).
 	//The memory this program uses to allocate variables is the RAM because the instructions are processed by the CPU
@@ -612,14 +630,14 @@ VkBool32 VulkanApplication::GetMemoryType(uint32_t typeBits, VkFlags properties,
 }
 
 void VulkanApplication::CreateSwapChain() {
-	// Find surface capabilities
+	//Find surface capabilities
 	VkSurfaceCapabilitiesKHR surface_capabilities;
 	if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device_, window_surface_, &surface_capabilities) != VK_SUCCESS) {
 		std::cerr << "failed to acquire presentation surface capabilities" << std::endl;
 		exit(1);
 	}
 
-	// Find supported surface formats
+	//Find supported surface formats for the swapchain's images
 	uint32_t format_count;
 	if (vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device_, window_surface_, &format_count, nullptr) != VK_SUCCESS || format_count == 0) {
 		std::cerr << "failed to get number of supported surface formats" << std::endl;
@@ -631,63 +649,60 @@ void VulkanApplication::CreateSwapChain() {
 		exit(1);
 	}
 
-	// Find supported present modes
+	//Find supported present modes
 	uint32_t present_mode_count;
 	if (vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device_, window_surface_, &present_mode_count, nullptr) != VK_SUCCESS || present_mode_count == 0) {
 		std::cerr << "failed to get number of supported presentation modes" << std::endl;
 		exit(1);
 	}
-
 	std::vector<VkPresentModeKHR> present_modes(present_mode_count);
 	if (vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device_, window_surface_, &present_mode_count, present_modes.data()) != VK_SUCCESS) {
 		std::cerr << "failed to get supported presentation modes" << std::endl;
 		exit(1);
 	}
 
-	// Determine number of images for swap chain
-	uint32_t imageCount = surface_capabilities.minImageCount + 1;
-	if (surface_capabilities.maxImageCount != 0 && imageCount > surface_capabilities.maxImageCount) {
-		imageCount = surface_capabilities.maxImageCount;
+	//Determine number of images for swap chain
+	uint32_t image_count = surface_capabilities.minImageCount + 1;
+	if (surface_capabilities.maxImageCount != 0 && image_count > surface_capabilities.maxImageCount) {
+		image_count = surface_capabilities.maxImageCount;
 	}
+	std::cout << "using " << image_count << " images for swap chain" << std::endl;
 
-	std::cout << "using " << imageCount << " images for swap chain" << std::endl;
+	//Select a surface format
+	VkSurfaceFormatKHR surface_format = ChooseSurfaceFormat(surface_formats);
 
-	// Select a surface format
-	VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat(surface_formats);
-
-	// Select swap chain size
+	//Select swap chain size
 	swap_chain_extent_ = ChooseSwapExtent(surface_capabilities);
 
-	// Determine transformation to use (preferring no transform)
-	VkSurfaceTransformFlagBitsKHR surfaceTransform;
+	//Determine transformation to use (preferring no transform)
+	VkSurfaceTransformFlagBitsKHR surface_transform;
 	if (surface_capabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
-		surfaceTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+		surface_transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	}
 	else {
-		surfaceTransform = surface_capabilities.currentTransform;
+		surface_transform = surface_capabilities.currentTransform;
 	}
 
-	// Choose presentation mode (preferring MAILBOX ~= triple buffering)
-	VkPresentModeKHR presentMode = ChoosePresentMode(present_modes);
+	//Choose presentation mode (preferring MAILBOX ~= triple buffering)
+	VkPresentModeKHR present_mode = ChoosePresentMode(present_modes);
 
-	// Finally, create the swap chain
+	//Finally, create the swap chain
 	VkSwapchainCreateInfoKHR createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	createInfo.surface = window_surface_;
-	createInfo.minImageCount = imageCount;
-	createInfo.imageFormat = surfaceFormat.format;
-	createInfo.imageColorSpace = surfaceFormat.colorSpace;
+	createInfo.minImageCount = image_count;
+	createInfo.imageFormat = surface_format.format;
+	createInfo.imageColorSpace = surface_format.colorSpace;
 	createInfo.imageExtent = swap_chain_extent_;
 	createInfo.imageArrayLayers = 1;
 	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 	createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	createInfo.queueFamilyIndexCount = 0;
 	createInfo.pQueueFamilyIndices = nullptr;
-	createInfo.preTransform = surfaceTransform;
+	createInfo.preTransform = surface_transform;
 	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	createInfo.presentMode = presentMode;
+	createInfo.presentMode = present_mode;
 	createInfo.clipped = VK_TRUE;
-
 	if (vkCreateSwapchainKHR(logical_device_, &createInfo, nullptr, &swap_chain_) != VK_SUCCESS) {
 		std::cerr << "failed to create swap chain" << std::endl;
 		exit(1);
@@ -695,25 +710,21 @@ void VulkanApplication::CreateSwapChain() {
 	else {
 		std::cout << "created swap chain" << std::endl;
 	}
+	swap_chain_format_ = surface_format.format;
 
-	swap_chain_format_ = surfaceFormat.format;
-
-	// Store the images used by the swap chain
-	// Note: these are the images that swap chain image indices refer to
-	// Note: actual number of images may differ from requested number, since it's a lower bound
-	uint32_t actualImageCount = 0;
-	if (vkGetSwapchainImagesKHR(logical_device_, swap_chain_, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
+	//Store the images used by the swap chain
+	//Note: these are the images that swap chain image indices refer to
+	//Note: actual number of images may differ from requested number, since it's a lower bound
+	uint32_t actual_image_count = 0;
+	if (vkGetSwapchainImagesKHR(logical_device_, swap_chain_, &actual_image_count, nullptr) != VK_SUCCESS || actual_image_count == 0) {
 		std::cerr << "failed to acquire number of swap chain images" << std::endl;
 		exit(1);
 	}
-
-	swap_chain_images_.resize(actualImageCount);
-
-	if (vkGetSwapchainImagesKHR(logical_device_, swap_chain_, &actualImageCount, swap_chain_images_.data()) != VK_SUCCESS) {
+	swap_chain_images_.resize(actual_image_count);
+	if (vkGetSwapchainImagesKHR(logical_device_, swap_chain_, &actual_image_count, swap_chain_images_.data()) != VK_SUCCESS) {
 		std::cerr << "failed to acquire swap chain images" << std::endl;
 		exit(1);
 	}
-
 	std::cout << "acquired swap chain images" << std::endl;
 }
 
@@ -735,13 +746,12 @@ VkSurfaceFormatKHR VulkanApplication::ChooseSurfaceFormat(const std::vector<VkSu
 }
 
 VkExtent2D VulkanApplication::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities) {
+	//Choose the size of the images in the swapchain based on viewport width and size, and device output image capabilities
 	if (surfaceCapabilities.currentExtent.width == -1) {
-		VkExtent2D swapChainExtent = {};
-
-		swapChainExtent.width = std::min(std::max(width_, surfaceCapabilities.minImageExtent.width), surfaceCapabilities.maxImageExtent.width);
-		swapChainExtent.height = std::min(std::max(height_, surfaceCapabilities.minImageExtent.height), surfaceCapabilities.maxImageExtent.height);
-
-		return swapChainExtent;
+		VkExtent2D swapchain_extent = {};
+		swapchain_extent.width = std::min(std::max(width_, surfaceCapabilities.minImageExtent.width), surfaceCapabilities.maxImageExtent.width);
+		swapchain_extent.height = std::min(std::max(height_, surfaceCapabilities.minImageExtent.height), surfaceCapabilities.maxImageExtent.height);
+		return swapchain_extent;
 	}
 	else {
 		return surfaceCapabilities.currentExtent;
@@ -760,6 +770,41 @@ VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresen
 }
 
 void VulkanApplication::CreateRenderPass() {
+	//It all starts from the swapchain. The swapchain defines how many images to use to show to the window (the
+	//glfw window in our case). Remember that to do that vulkan uses surfaces. In the case of triple buffering, 
+	//there will be three images in use at once: one for rendering to, one to present and the other one to present 
+	//next after the current image has been presented.
+	//A swapchain image is the final destination of a render pass. A render pass is a protocol, a set of operations and resources
+	//needed to generate an image from the information provided. The information provided is vertices and indices (faces), the resources are:
+	//- 1) the shaders that process the data and output data that can be used by the render pass to build an image
+	//- 2) the area of memory where to write the final image once the render pass has completed
+	//Think of the render pass as a musical orchestrator, the sheets of music as the data to be processed, the instruments as the
+	//shaders and the musicians playing the instruments as physical microprocessors on the GPU doing work with the shaders.
+	//The music produced is the final image.
+	//With that said, the area of memory where the image will be written is called an attachment. We know that an area of memory
+	//is a buffer, it's just a container of information, thus, an attachment is an area of memory or buffer where the render pass will output
+	//the rendered image. This buffer contains the final image of course
+
+
+	//A render pass describes the set of data necessary to accomplish a rendering operation.
+	//In Vulkan, this is a set of framebuffer attachments that will be used during rendering.
+	//These attachments include any buffers that will read from or written into during rendering, such as colour, depth, 
+	//and stencil buffers. This can also include input attachments which are intermediate buffers which 
+	//are written into in one subpass and then read out of by another one.
+	//Following the standard Vulkan paradigm, these attachments have to be explicitly defined when creating 
+	//a render pass, with information like image format, number of samples, and load and store behaviour specified.
+	//This reduces the driver workload during runtime, as it does not have to deduce this information itself.
+	//In addition to attachments, render passes also contain one or more subpasses that order the rendering operations.
+	//Subpasses essentially represent a phase of rendering in which rendering work is done with a subset of the 
+	//attachments in the render pass. A set of commands are recorded into each subpass to describe what work needs 
+	//to be done in that subpass.
+	//The render pass also defines a set of subpass dependencies which determine the order of execution for pairs of
+	//subpasses. They act as execution and memory dependencies. Dependencies are vital when two or more subpasses
+	//access the same attachment, as Vulkan does not guarantee the order in which the subpasses will be executed by the GPU.
+	//It is important to note that while a render pass describes the characteristics of all of the attachments 
+	//used and what to do with them, it does not point to any actual objects. This is handled by framebuffer objects.
+
+	//Define the description for the attachments
 	VkAttachmentDescription attachment_description = {};
 	attachment_description.format = swap_chain_format_;
 	attachment_description.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -770,27 +815,26 @@ void VulkanApplication::CreateRenderPass() {
 	attachment_description.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 	attachment_description.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-	// Note: hardware will automatically transition attachment to the specified layout
-	// Note: index refers to attachment descriptions array
+	//Note: hardware will automatically transition attachment to the specified layout
+	//Note: index refers to attachment descriptions array
 	VkAttachmentReference color_attachment_reference = {};
 	color_attachment_reference.attachment = 0;
 	color_attachment_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-	// Note: this is a description of how the attachments of the render pass will be used in this sub pass
-	// e.g. if they will be read in shaders and/or drawn to
+	//Note: this is a description of how the attachments of the render pass will be used in this sub pass
+	//e.g. if they will be read in shaders and/or drawn to
 	VkSubpassDescription sub_pass_description = {};
 	sub_pass_description.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 	sub_pass_description.colorAttachmentCount = 1;
 	sub_pass_description.pColorAttachments = &color_attachment_reference;
 
-	// Create the render pass
+	//Create the render pass
 	VkRenderPassCreateInfo create_info = {};
 	create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	create_info.attachmentCount = 1;
 	create_info.pAttachments = &attachment_description;
 	create_info.subpassCount = 1;
 	create_info.pSubpasses = &sub_pass_description;
-
 	if (vkCreateRenderPass(logical_device_, &create_info, nullptr, &render_pass_) != VK_SUCCESS) {
 		std::cerr << "failed to create render pass" << std::endl;
 		exit(1);
@@ -801,7 +845,8 @@ void VulkanApplication::CreateRenderPass() {
 }
 
 void VulkanApplication::CreateImageViews() {
-	//Create an image view for every image in the swap chain. An image view is an image descriptor, it's just metadata
+	//Create an image view for every image in the swap chain. An image view is an image descriptor, it's just metadata that describes
+	//the image (such as knowing what format it is, the type etc...)
 	swap_chain_image_views_.resize(swap_chain_images_.size());
 	for (size_t i = 0; i < swap_chain_images_.size(); i++) {
 		VkImageViewCreateInfo create_info = {};
@@ -827,26 +872,41 @@ void VulkanApplication::CreateImageViews() {
 }
 
 void VulkanApplication::CreateFramebuffers() {
+	//Remember, a buffer is just an aera of memory. A framebuffer is no different: a frame buffer is
+	//an area of memory that contains a frame. A frame is another buffer that contains a list of buffers, called attachments (in this context). 
+	//An attachment contains an image view. Recall that an image view is just an image descriptor. 
+	//This descriptor contains the image itself but also adds other information such as the type of image and the format.
+	//The image view in an attachment can be a depth or stencil buffer for example.
+	//What are depth and stencil buffers? Think of a stencil buffer as a portion of memory that represents
+	//an image that for each pixel contains a value. That value represents the masking, therefore it acts as a stencil.
+	//It's just like cutting a hole in a piece of paper, then placing it on a surface you want to spray paint and using
+	//it as a mask to spray that exact pattern you cut out of the piece of paper on that surface.
+	//You could accomplish the same with just saying: if this pixel has value 0, don't draw it: if the pixel has value 1
+	//then you can draw it. This can and is used to occlude certain areas of a model being rendered.
+	//A depth buffer is an area of memory that represents an image that for each pixel has a value that represents the
+	//distance from the camera to the surface in the scene that that pixel belongs to. Lets say you have a wall in front
+	//of you in the scene that is exactly one meter away and you are looking at it from a perfectly perpendicular angle
+	//with your camera in orthogonal mode: for each pixel that represents the rendered wall, the depth buffer will contain that one meter
+	//distance value to that area on the wall represented by that pixel. This information is useful and actually fundamental
+	//for making sure to draw what is visible and not what is not theoretically visible. If you have 2 overlapping planes
+	//you can't know which one to render if you don't have the depth information.
+
+	//Create a framebuffer for each image
 	swap_chain_frame_buffers_.resize(swap_chain_images_.size());
-
-	// Note: Framebuffer is basically a specific choice of attachments for a render pass
-	// That means all attachments must have the same dimensions, interesting restriction
 	for (size_t i = 0; i < swap_chain_images_.size(); i++) {
-		VkFramebufferCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		createInfo.renderPass = render_pass_;
-		createInfo.attachmentCount = 1;
-		createInfo.pAttachments = &swap_chain_image_views_[i];
-		createInfo.width = swap_chain_extent_.width;
-		createInfo.height = swap_chain_extent_.height;
-		createInfo.layers = 1;
-
-		if (vkCreateFramebuffer(logical_device_, &createInfo, nullptr, &swap_chain_frame_buffers_[i]) != VK_SUCCESS) {
+		VkFramebufferCreateInfo create_info = {};
+		create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		create_info.renderPass = render_pass_;
+		create_info.attachmentCount = 1;
+		create_info.pAttachments = &swap_chain_image_views_[i];
+		create_info.width = swap_chain_extent_.width;
+		create_info.height = swap_chain_extent_.height;
+		create_info.layers = 1;
+		if (vkCreateFramebuffer(logical_device_, &create_info, nullptr, &swap_chain_frame_buffers_[i]) != VK_SUCCESS) {
 			std::cerr << "failed to create framebuffer for swap chain image view #" << i << std::endl;
 			exit(1);
 		}
 	}
-
 	std::cout << "created framebuffers for swap chain image views" << std::endl;
 }
 
@@ -858,13 +918,13 @@ VkShaderModule VulkanApplication::CreateShaderModule(const std::string& filename
 		file.read(file_bytes.data(), file_bytes.size());
 		file.close();
 
-		VkShaderModuleCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		createInfo.codeSize = file_bytes.size();
-		createInfo.pCode = (uint32_t*)file_bytes.data();
+		VkShaderModuleCreateInfo create_info = {};
+		create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		create_info.codeSize = file_bytes.size();
+		create_info.pCode = (uint32_t*)file_bytes.data();
 
 		VkShaderModule shader_module;
-		if (vkCreateShaderModule(logical_device_, &createInfo, nullptr, &shader_module) != VK_SUCCESS) {
+		if (vkCreateShaderModule(logical_device_, &create_info, nullptr, &shader_module) != VK_SUCCESS) {
 			std::cerr << "failed to create shader module for " << filename << std::endl;
 			exit(1);
 		}
@@ -889,14 +949,14 @@ void VulkanApplication::CreateGraphicsPipeline() {
 	vertex_shader_create_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
 	vertex_shader_create_info.module = vertex_shader_module;
 	vertex_shader_create_info.pName = "main";
-	VkPipelineShaderStageCreateInfo fragmentShaderCreateInfo = {};
-	fragmentShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	fragmentShaderCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragmentShaderCreateInfo.module = fragment_shader_module;
-	fragmentShaderCreateInfo.pName = "main";
-	VkPipelineShaderStageCreateInfo shaderStages[] = { vertex_shader_create_info, fragmentShaderCreateInfo };
+	VkPipelineShaderStageCreateInfo fragment_shader_create_info = {};
+	fragment_shader_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragment_shader_create_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragment_shader_create_info.module = fragment_shader_module;
+	fragment_shader_create_info.pName = "main";
+	VkPipelineShaderStageCreateInfo shader_stages[] = { vertex_shader_create_info, fragment_shader_create_info };
 
-	//Describe vertex input
+	//Describe vertex input meaning how the graphics driver should interpret the information given in the vertex buffer
 	VkPipelineVertexInputStateCreateInfo vertex_input_create_info = {};
 	vertex_input_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertex_input_create_info.vertexBindingDescriptionCount = 1;
@@ -904,21 +964,24 @@ void VulkanApplication::CreateGraphicsPipeline() {
 	vertex_input_create_info.vertexAttributeDescriptionCount = 1;
 	vertex_input_create_info.pVertexAttributeDescriptions = vertex_attribute_descriptions_.data();
 
-	//Describe input assembly
+	//Describe input assembly meaning what we are going to draw to the screen. We want to draw triangles
 	VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info = {};
 	input_assembly_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	input_assembly_create_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	input_assembly_create_info.primitiveRestartEnable = VK_FALSE;
 
-	//Describe viewport and scissor
-	VkViewport viewport = {}; //The viewport specifies how the normalized window coordinates (-1 to 1 for both width and height) are transformed into the pixel coordinates of the framebuffer
+	//Describe viewport and scissor. The viewport specifies how the normalized window coordinates 
+	//(-1 to 1 for both width and height) are transformed into the pixel coordinates of the framebuffer.
+	//Scissor is the area where you can render, this is similar to the viewport in that regard but changing the scissor 
+	//rectangle doesn't affect the coordinates
+	VkViewport viewport = {};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
 	viewport.width = (float)swap_chain_extent_.width;
 	viewport.height = (float)swap_chain_extent_.height;
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
-	VkRect2D scissor = {}; //Scissor is the area where you can render, this is similar to the viewport in that regard but changing the scissor rectangle doesn't affect the coordinates.
+	VkRect2D scissor = {}; 
 	scissor.offset.x = 0;
 	scissor.offset.y = 0;
 	scissor.extent.width = swap_chain_extent_.width;
@@ -1016,7 +1079,7 @@ void VulkanApplication::CreateGraphicsPipeline() {
 	VkGraphicsPipelineCreateInfo pipeline_create_info = {};
 	pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipeline_create_info.stageCount = 2;
-	pipeline_create_info.pStages = shaderStages;
+	pipeline_create_info.pStages = shader_stages;
 	pipeline_create_info.pVertexInputState = &vertex_input_create_info;
 	pipeline_create_info.pInputAssemblyState = &input_assembly_create_info;
 	pipeline_create_info.pViewportState = &viewport_create_info;

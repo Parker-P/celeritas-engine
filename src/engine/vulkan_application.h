@@ -69,7 +69,7 @@ class VulkanApplication {
 	void CreateDebugCallback();
 	void CreateSemaphores();
 	void CreateCommandPool();
-	void CopyShapeInfoToGPU();
+	void CreateVertexAndIndexBuffers();
 	void CreateUniformBuffer();
 	void UpdateUniformData();
 	VkBool32 GetMemoryType(uint32_t typeBits, VkFlags properties, uint32_t* typeIndex);
