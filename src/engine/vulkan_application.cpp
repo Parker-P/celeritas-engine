@@ -783,7 +783,11 @@ void VulkanApplication::CreateRenderPass() {
 	//The music produced is the final image.
 	//With that said, the area of memory where the image will be written is called an attachment. We know that an area of memory
 	//is a buffer, it's just a container of information, thus, an attachment is an area of memory or buffer where the render pass will output
-	//the rendered image. This buffer contains the final image of course
+	//the rendered image and in Vulkan it has a specific name, it's an image view. Attachments or image views are thus shared by framebuffers
+	//and render passes. What is a framebuffer? A framebuffer is the way that the renderpass connects to the swapchain. By writing its output
+	//to an attachment, the render pass is telling the framebuffer: hey i have rendered an image. The swapchain will then query the
+	//framebuffers when it is asked to show an image. It's a very rigid hierarchy.
+	//Lets talk a bit more about renderpasses
 
 
 	//A render pass describes the set of data necessary to accomplish a rendering operation.
