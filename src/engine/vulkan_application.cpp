@@ -770,10 +770,11 @@ VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresen
 }
 
 void VulkanApplication::CreateRenderPass() {
-	//It all starts from the swapchain. The swapchain defines how many images to use to show to the window (the
-	//glfw window in our case). Remember that to do that vulkan uses surfaces. In the case of triple buffering, 
-	//there will be three images in use at once: one for rendering to, one to present and the other one to present 
-	//next after the current image has been presented.
+	//It all starts from the swapchain. The swapchain is the queue of images that are either being presented to the glfw window (in our case)
+	//or waiting to be presented. The swapchain defines how many images to use to show to the window (the
+	//glfw window in our case) and the way it presents them. Remember that to present images to the glfw window, Vulkan uses surfaces. 
+	//In the case where the swapchain uses triple buffering, there will be three images in use at once: one for rendering to, one to 
+	//present and the other one to present next after the current image has been presented.
 	//A swapchain image is the final destination of a render pass. A render pass is a protocol, a set of operations and resources
 	//needed to generate an image from the information provided. The information provided is vertices and indices (faces), the resources are:
 	//- 1) the shaders that process the data and output data that can be used by the render pass to build an image
@@ -783,16 +784,19 @@ void VulkanApplication::CreateRenderPass() {
 	//The music produced is the final image.
 	//With that said, the area of memory where the image will be written is called an attachment. We know that an area of memory
 	//is a buffer, it's just a container of information, thus, an attachment is an area of memory or buffer where the render pass will output
-	//the rendered image and in Vulkan it has a specific name, it's an image view. Attachments or image views are thus shared by framebuffers
-	//and render passes. What is a framebuffer? A framebuffer is the way that the renderpass connects to the swapchain. By writing its output
-	//to an attachment, the render pass is telling the framebuffer: hey i have rendered an image. The swapchain will then query the
-	//framebuffers when it is asked to show an image. It's a very rigid hierarchy.
-	//Lets talk a bit more about renderpasses
-
-
-	//A render pass describes the set of data necessary to accomplish a rendering operation.
+	//the rendered image. Attachments are thus shared by framebuffers and render passes. What is a framebuffer? A framebuffer is the way 
+	//that the render pass connects to the swapchain. By writing its output to an attachment, the render pass is telling the framebuffer: 
+	//hey, i have rendered an image. The swapchain will then query the framebuffers when it is asked to show an image. 
+	//It's a very rigid hierarchy.
+	//It is EXTREMELY IMPORTANT to know that in actuality, a render pass is used as a blueprint to create
+	//multiple render pass instances. Each instance performs the same operations, but writes its output to different frame buffers.
+	//Of course this is because if there was only one render pass instance we would only have an image rendered at a time
+	//without having the benefits of double or triple buffering, so remember, for each framebuffer there is a render pass instance
+	//that generates the image it will store.
+	//Now lets dive a little deeper in render passes:
+	//As we said, a render pass describes the set of data necessary to accomplish a rendering operation.
 	//In Vulkan, this is a set of framebuffer attachments that will be used during rendering.
-	//These attachments include any buffers that will read from or written into during rendering, such as colour, depth, 
+	//These attachments include any buffers that will be read from or written into during rendering, such as colour, depth, 
 	//and stencil buffers. This can also include input attachments which are intermediate buffers which 
 	//are written into in one subpass and then read out of by another one.
 	//Following the standard Vulkan paradigm, these attachments have to be explicitly defined when creating 
@@ -1179,6 +1183,9 @@ void VulkanApplication::CreateDescriptorSets() {
 }
 
 void VulkanApplication::CreateCommandBuffers() {
+	//This is where it all comes together. In this function we allocate memory for the command buffers from the command pool,
+	//Then, we configure and record commands on it and we submit it to a queue for it to be processed by the GPU.
+
 	//Configure and allocate command buffers from the command pool
 	graphics_command_buffers_.resize(swap_chain_images_.size());
 	VkCommandBufferAllocateInfo alloc_info = {};
@@ -1194,11 +1201,10 @@ void VulkanApplication::CreateCommandBuffers() {
 		std::cout << "allocated graphics command buffers" << std::endl;
 	}
 
-	//Prepare data for recording command buffers
+	//Configure command buffer command recording
 	VkCommandBufferBeginInfo begin_info = {};
 	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-
 	VkImageSubresourceRange sub_resource_range = {};
 	sub_resource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	sub_resource_range.baseMipLevel = 0;
@@ -1206,74 +1212,82 @@ void VulkanApplication::CreateCommandBuffers() {
 	sub_resource_range.baseArrayLayer = 0;
 	sub_resource_range.layerCount = 1;
 
+	//Set the color to display
 	VkClearValue clearColor = {
-		{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A
+		{ 0.3f, 0.3f, 0.3f, 1.0f } // R, G, B, A
 	};
 
-	//Record command buffer for each swapchain image
+	//For each image in the swapchain
 	for (size_t i = 0; i < swap_chain_images_.size(); i++) {
+
+		//Start recording commands
 		vkBeginCommandBuffer(graphics_command_buffers_[i], &begin_info);
 
 		//If present queue family and graphics queue family are different, then a barrier is necessary
 		//The barrier is also needed initially to transition the image to the present layout
-		VkImageMemoryBarrier presentToDrawBarrier = {};
-		presentToDrawBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		presentToDrawBarrier.srcAccessMask = 0;
-		presentToDrawBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		presentToDrawBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		presentToDrawBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
+		VkImageMemoryBarrier present_to_draw_barrier = {};
+		present_to_draw_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		present_to_draw_barrier.srcAccessMask = 0;
+		present_to_draw_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		present_to_draw_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		present_to_draw_barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 		if (present_queue_family_ != graphics_queue_family_) {
-			presentToDrawBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			presentToDrawBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			present_to_draw_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			present_to_draw_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		}
 		else {
-			presentToDrawBarrier.srcQueueFamilyIndex = present_queue_family_;
-			presentToDrawBarrier.dstQueueFamilyIndex = graphics_queue_family_;
+			present_to_draw_barrier.srcQueueFamilyIndex = present_queue_family_;
+			present_to_draw_barrier.dstQueueFamilyIndex = graphics_queue_family_;
 		}
+		present_to_draw_barrier.image = swap_chain_images_[i];
+		present_to_draw_barrier.subresourceRange = sub_resource_range;
+		vkCmdPipelineBarrier(graphics_command_buffers_[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &present_to_draw_barrier);
 
-		presentToDrawBarrier.image = swap_chain_images_[i];
-		presentToDrawBarrier.subresourceRange = sub_resource_range;
+		//Configure a render pass instance and begin the render pass
+		VkRenderPassBeginInfo render_pass_begin_info = {};
+		render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		render_pass_begin_info.renderPass = render_pass_;
+		render_pass_begin_info.framebuffer = swap_chain_frame_buffers_[i];
+		render_pass_begin_info.renderArea.offset.x = 0;
+		render_pass_begin_info.renderArea.offset.y = 0;
+		render_pass_begin_info.renderArea.extent = swap_chain_extent_;
+		render_pass_begin_info.clearValueCount = 1;
+		render_pass_begin_info.pClearValues = &clearColor;
+		vkCmdBeginRenderPass(graphics_command_buffers_[i], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-		vkCmdPipelineBarrier(graphics_command_buffers_[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
-
-		VkRenderPassBeginInfo renderPassBeginInfo = {};
-		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassBeginInfo.renderPass = render_pass_;
-		renderPassBeginInfo.framebuffer = swap_chain_frame_buffers_[i];
-		renderPassBeginInfo.renderArea.offset.x = 0;
-		renderPassBeginInfo.renderArea.offset.y = 0;
-		renderPassBeginInfo.renderArea.extent = swap_chain_extent_;
-		renderPassBeginInfo.clearValueCount = 1;
-		renderPassBeginInfo.pClearValues = &clearColor;
-
-		vkCmdBeginRenderPass(graphics_command_buffers_[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
+		//Bind the data to be sent to the shaders (descriptor sets). For binding we mean binding the descriptor sets to the command buffer
 		vkCmdBindDescriptorSets(graphics_command_buffers_[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &descriptor_set_, 0, nullptr);
+
+		//Bind the graphics pipeline
 		vkCmdBindPipeline(graphics_command_buffers_[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
+		
+		//Bind the index and vertex buffers
 		VkDeviceSize offset = 0;
 		vkCmdBindVertexBuffers(graphics_command_buffers_[i], 0, 1, &vertex_buffer_, &offset);
 		vkCmdBindIndexBuffer(graphics_command_buffers_[i], index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+		
+		//Draw the triangles
 		vkCmdDrawIndexed(graphics_command_buffers_[i], 3, 1, 0, 0, 0);
 
+		//End the render pass
 		vkCmdEndRenderPass(graphics_command_buffers_[i]);
 
 		// If present and graphics queue families differ, then another barrier is required
 		if (present_queue_family_ != graphics_queue_family_) {
-			VkImageMemoryBarrier drawToPresentBarrier = {};
-			drawToPresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-			drawToPresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			drawToPresentBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-			drawToPresentBarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			drawToPresentBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			drawToPresentBarrier.srcQueueFamilyIndex = graphics_queue_family_;
-			drawToPresentBarrier.dstQueueFamilyIndex = present_queue_family_;
-			drawToPresentBarrier.image = swap_chain_images_[i];
-			drawToPresentBarrier.subresourceRange = sub_resource_range;
-
-			vkCmdPipelineBarrier(graphics_command_buffers_[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &drawToPresentBarrier);
+			VkImageMemoryBarrier draw_to_present_barrier = {};
+			draw_to_present_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			draw_to_present_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			draw_to_present_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+			draw_to_present_barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			draw_to_present_barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			draw_to_present_barrier.srcQueueFamilyIndex = graphics_queue_family_;
+			draw_to_present_barrier.dstQueueFamilyIndex = present_queue_family_;
+			draw_to_present_barrier.image = swap_chain_images_[i];
+			draw_to_present_barrier.subresourceRange = sub_resource_range;
+			vkCmdPipelineBarrier(graphics_command_buffers_[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &draw_to_present_barrier);
 		}
 
+		//Stop recording commands
 		if (vkEndCommandBuffer(graphics_command_buffers_[i]) != VK_SUCCESS) {
 			std::cerr << "failed to record command buffer" << std::endl;
 			exit(1);
