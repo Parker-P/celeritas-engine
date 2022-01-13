@@ -789,10 +789,10 @@ void VulkanApplication::CreateRenderPass() {
 	//hey, i have rendered an image. The swapchain will then query the framebuffers when it is asked to show an image. 
 	//It's a very rigid hierarchy.
 	//It is EXTREMELY IMPORTANT to know that in actuality, a render pass is used as a blueprint to create
-	//multiple render pass instances. Each instance performs the same operations, but writes its output to different frame buffers.
-	//Of course this is because if there was only one render pass instance we would only have an image rendered at a time
-	//without having the benefits of double or triple buffering, so remember, for each framebuffer there is a render pass instance
-	//that generates the image it will store.
+	//multiple render pass instances. Each instance performs the same operations, but writes its output to different attachments in
+	//different framebuffers. Of course this is because if there was only one render pass instance we would only have an image 
+	//rendered at a time without having the benefits of double or triple buffering, so remember, for each framebuffer there is 
+	//a render pass instance that generates the image it will store.
 	//Now lets dive a little deeper in render passes:
 	//As we said, a render pass describes the set of data necessary to accomplish a rendering operation.
 	//In Vulkan, this is a set of framebuffer attachments that will be used during rendering.
@@ -1258,7 +1258,7 @@ void VulkanApplication::CreateCommandBuffers() {
 		//Bind the data to be sent to the shaders (descriptor sets). For binding we mean binding the descriptor sets to the command buffer
 		vkCmdBindDescriptorSets(graphics_command_buffers_[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &descriptor_set_, 0, nullptr);
 
-		//Bind the graphics pipeline
+		//Bind the graphics pipeline. The graphics pipeline contains all the information Vulkan needs to render an image
 		vkCmdBindPipeline(graphics_command_buffers_[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
 		
 		//Bind the index and vertex buffers
