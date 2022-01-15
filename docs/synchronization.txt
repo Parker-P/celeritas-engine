@@ -1,0 +1,108 @@
+Synchronization:
+Synchronization is the most important part of Vulkan and it is the reason why it was invented in the first place. It is also the hardest
+to fully undestand. Synchronization is the act of waiting for the completion of another task before continuing, it's just like
+C++ multithreading. Vulkan is very explicit with all of its rendering tasks and components BECAUSE it allows to synchronize them, to make
+sure the idling time between them is the least possible. This will allow us to get the most performance possible out of the GPU.
+For example, we need to keep the final post-processing shader effect of a game waiting until the current frame has been fully rendered
+to avoid render artifacts or other strangeness. Vulkan’s synchronization operations let us define these tasks and dependencies as 
+part of the render pipeline so that it can process the work as efficiently as possible.
+Now that we know what synchronization is, lets dive deeper in the subject and discuss what types of synchronization objects Vulkan 
+provides us with.
+As we know, Vulkan receives and processes its commands by:
+1) Allocating a command buffer from a command pool (see memory allocation from memory pools if you don't know this)
+2) Begin recording commands on the allocated command buffer using vkBeginCommandBuffer
+3) Adding all the commands simply by calling them (vkBeginCommandBuffer for example)
+4) End recording commands with the vkEndCommandBuffer command
+5) Submitting the command buffer with the recorded list of commands to a queue
+6) Processing the commands in the same order they were recorded
+Vulkan specifies that the recorded commands are guaranteed to be executed in the same order they were recorded, but doesn't guarantee
+that they will finish in the same order. This is because we, as developers, can synchronize commands to get the most performance
+out of the GPU. This comes at the cost of being very explicit about how to run the commands and to have good knowledge of what the
+commands do and when to use them. For example lets say the command buffer in a queue looks something like this:
+1) vkCmdBeginRenderPass      4 microseconds
+2) vkCmdBindDescriptorSets   200 microseconds
+3) vkCmdBindPipeline         120 microseconds
+4) vkCmdBindVertexBuffers    50 microseconds
+5) vkCmdBindIndexBuffer      30 microseconds
+6) vkCmdDrawIndexed          1500 microseconds
+Now this example is not a reflection of what would actually happen nor are the times it would take to run them on the GPU, but it serves as
+a good example to understand what we mean. Lets say that while executing these commands, Vulkan spawns a thread to run each task.
+Of course, this means that they will all start in the same order, but because some take less than others, the tasks that take the least
+time will finish sooner; this means that if a thread that runs one of the commands depends on the work done by another previous command,
+it will fail to execute. For example, we cannot execute the command vkCmdDrawIndexed without first binding the index buffer with
+vkCmdBindIndexBuffer, because Vulkan would not know what indices to use for drawing the faces. Of course this is not what happens 
+in reality, but you get the idea. This case we just described has a specific name and it is called in-queue synchronization.
+Keep in mind that this is an extremely simple example; in reality, most of your in-queue synchronization work will have to be done across
+different commands on different command buffers in the queue.
+Vulkan provides us with 3 tools to synchronize commands withing a single queue:
+1) Pipeline barriers which can be execution barriers and memory barriers
+2) Events
+3) Subpass dependencies
+If you know what subpass dependencies are, you can already connect the two subjects.
+
+Execution barriers:
+Execution barriers allow us to tell Vulkan which commands we want executed before the barrier and which ones after the barrier.
+This is done by adding the vkCmdPipelineBarrier to the command buffer recording list. If we take the previous example, we could
+add an execution barrier to force Vulkan to wait for all commands to complete before drawing the shapes like so:
+of commands and add vkCmdPipelineBarrier
+1) vkCmdBeginRenderPass      4 microseconds
+2) vkCmdBindDescriptorSets   200 microseconds
+3) vkCmdBindPipeline         120 microseconds
+4) vkCmdBindVertexBuffers    50 microseconds
+5) vkCmdBindIndexBuffer      30 microseconds
+6) vkCmdPipelineBarrier      waits for all previous commands...
+7) vkCmdDrawIndexed          1500 microseconds
+vkCmdPipeline barrier takes many parameters but the 2 most important are srcStageMask and dstStageMask.
+These 2 parameters are present in most Vulkan synchronization commands and represent the core of how sync works in Vulkan.
+
+srcStageMask
+Vulkan does not let you add fine-grained dependencies between individual commands. 
+Instead you get to look at all work which happens in certain pipeline stages. A pipeline stage is a set of commands instead of
+individual commands. For example, if we were to submit this series 
+of commands starting off a fresh VkDevice:
+vkCmdDispatch (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT)
+vkCmdCopyBuffer (VK_PIPELINE_STAGE_TRANSFER_BIT)
+vkCmdDispatch (VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT)
+vkCmdPipelineBarrier (srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT)
+We would be referring to the two vkCmdDispatch commands, as they perform their work in the COMPUTE stage. Even if we split 
+these 4 commands into 4 different vkQueueSubmits, we would still consider the same commands for synchronization. 
+Essentially, the work we are waiting for is all commands which have ever been submitted to the queue including any previous 
+commands in the command buffer we’re recording. srcStageMask then restricts the scope of what we are waiting for. 
+Only work happening in COMPUTE_SHADER_BIT stage is relevant in this example. srcStageMask is a bit-mask as the name suggests, 
+so it’s perfectly fine to wait for both COMPUTE and TRANSFER work.
+There are also flags to refer to “all commands”, ALL_COMMANDS_BIT, which basically drains the entire queue for work. 
+ALL_GRAPHICS_BIT is the same, but only for render passes.
+NOTE: Here we will find a potential use case for TOP_OF_PIPE. srcStageMask of TOP_OF_PIPE is basically saying 
+“wait for nothing”, or to be more precise, we’re waiting for the GPU to parse all commands, which is, a complete noop. 
+We had to parse all commands before getting to the pipeline barrier command to begin with. When we get to memory barriers, 
+this can be very useful.
+
+dstStageMask
+This represents the second half of the barrier. Any work submitted after this barrier will need to wait for the work represented 
+by srcStageMask before it can execute. Only work in the specified stages are affected. For example, if dstStageMask is 
+FRAGMENT_SHADER_BIT, vertex shading for future commands can begin executing early, we only need to wait once FRAGMENT_SHADER_BIT 
+is reached.
+NOTE: As an analog to srcStageMask with TOP_OF_PIPE, for dstStageMask, using BOTTOM_OF_PIPE can be kind of useful. This basically
+translates to “block the last stage of execution in the pipeline”. Basically, we translate this to mean “no work after this barrier
+is going to wait for us”. This might seem meaningless, but it will be useful when we discuss semaphores and memory barriers later.
+
+Example:
+Let’s assume we record and submit some commands on a fresh VkDevice:
+vkCmdDispatch
+vkCmdDispatch
+vkCmdDispatch
+vkCmdPipelineBarrier(srcStageMask = COMPUTE, dstStageMask = COMPUTE)
+vkCmdDispatch
+vkCmdDispatch
+vkCmdDispatch
+With this barrier, the “before” set is commands {1, 2, 3}. The “after” set is {5, 6, 7}. A possible execution order here could be:
+#3
+#2
+#1
+#7
+#6
+#5
+{1, 2, 3} can execute out-of-order, and so can {5, 6, 7}, but these two sets of commands can not interleave execution. 
+This means that {1, 2, 3} happen before {5, 6, 7}.
+
+Memory barriers:

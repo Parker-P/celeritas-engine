@@ -126,7 +126,7 @@ void VulkanApplication::Cleanup(bool fullClean) {
 }
 
 void VulkanApplication::CreateInstance() {
-	//Add meta information to the vulkan application
+	//Add meta information to the Vulkan application
 	VkApplicationInfo app_info = {};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	app_info.pApplicationName = name_;
@@ -440,17 +440,19 @@ void VulkanApplication::CreateVertexAndIndexBuffers() {
 	//4) Create a command buffer and fill it with instructions to copy data from the staging buffer to the VRAM
 	//5) Submit the command buffer to a queue for it to be processed by the GPU
 
-	//Setup vertices
+	//Setup vertices. Vulkan's normalized viewport coordinate system is very weird: +Y points down, +X points to the right, 
+	//+Z points towards you. The origin is at the exact center of the viewport. Very unintuitive.
 	std::vector<Vertex> vertices = {
-		{ -0.5f, -0.5f,  0.0f },
-		{ -0.5f,  0.5f,  0.0f },
-		{  0.5f,  0.5f,  0.0f }
+		{ 0.0, 0.0, -0.0f },
+		{ 0.75, 0.25, -0.0f },
+		{ 0.75, -0.25, -0.0f },
+		{ 0.25, -0.25, -0.0f }
 	};
-	uint32_t vertices_size = (uint32_t)(vertices.size() * sizeof(vertices[0]));
+	uint32_t vertices_size = (uint32_t)(vertices.size() * (sizeof(float) * 3));
 
 	//Setup indices (faces)
-	std::vector<uint32_t> indices = { 0, 1, 2 };
-	uint32_t indices_size = (uint32_t)(indices.size() * sizeof(indices[0]));
+	std::vector<uint32_t> indices = { 0, 1, 2, 2, 1, 3 };
+	uint32_t indices_size = (uint32_t)(indices.size() * (sizeof(int) * 3));
 
 	//This tells the GPU how to read vertex data
 	vertex_binding_description_.binding = 0;
@@ -463,7 +465,8 @@ void VulkanApplication::CreateVertexAndIndexBuffers() {
 	vertex_attribute_descriptions_[0].location = 0;
 	vertex_attribute_descriptions_[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 
-	//Get memory related variables ready
+	//Get memory related variables ready. Note that the HOST_COHERENT_BIT flag allows us to not have to flush
+	//to the VRAM once allocating memory, it tells Vulkan to do this automatically
 	VkMemoryAllocateInfo mem_alloc = {};
 	mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	mem_alloc.memoryTypeIndex = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
@@ -597,15 +600,10 @@ void VulkanApplication::CreateUniformBuffer() {
 }
 
 void VulkanApplication::UpdateUniformData() {
-	//Rotate based on time
-	auto timeNow = std::chrono::high_resolution_clock::now();
-	long long millis = std::chrono::duration_cast<std::chrono::milliseconds>(time_start_ - timeNow).count();
-	float angle = (millis % 4000) / 4000.0f * glm::radians(360.f);
-
 	//Set up transformation matrices
 	glm::mat4 modelMatrix;
-	uniform_buffer_data_.model_matrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 0, 1));
-	uniform_buffer_data_.view_matrix = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
+	uniform_buffer_data_.model_matrix = glm::translate(glm::mat4x4(1), glm::vec3(0.0f, 0.0f, -1.0f));
+	//uniform_buffer_data_.view_matrix = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
 	uniform_buffer_data_.projection_matrix = glm::perspective(glm::radians(70.f), (float)swap_chain_extent_.width / (float)swap_chain_extent_.height, 0.1f, 10.0f);
 
 	//Copy the data to the VRAM (this procedure is similar to what we do when creating the vertex and index buffers)
@@ -884,9 +882,10 @@ void VulkanApplication::CreateFramebuffers() {
 	//an area of memory that contains a frame. A frame is another buffer that contains a list of buffers, called attachments (in this context). 
 	//An attachment contains an image view. Recall that an image view is just an image descriptor. 
 	//This descriptor contains the image itself but also adds other information such as the type of image and the format.
-	//The image view in an attachment can be a depth or stencil buffer for example.
-	//What are depth and stencil buffers? Think of a stencil buffer as a portion of memory that represents
-	//an image that for each pixel contains a value. That value represents the masking, therefore it acts as a stencil.
+	//The image view in an attachment can be a color, depth or stencil buffer for example.
+	//The color buffer is just your regular image, but what are are depth and stencil buffers? 
+	//Think of a stencil buffer as a portion of memory that represents an image that for each pixel contains a value. 
+	//That value represents the masking, therefore it acts as a stencil.
 	//It's just like cutting a hole in a piece of paper, then placing it on a surface you want to spray paint and using
 	//it as a mask to spray that exact pattern you cut out of the piece of paper on that surface.
 	//You could accomplish the same with just saying: if this pixel has value 0, don't draw it: if the pixel has value 1
@@ -989,7 +988,7 @@ void VulkanApplication::CreateGraphicsPipeline() {
 	viewport.height = (float)swap_chain_extent_.height;
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
-	VkRect2D scissor = {}; 
+	VkRect2D scissor = {};
 	scissor.offset.x = 0;
 	scissor.offset.y = 0;
 	scissor.extent.width = swap_chain_extent_.width;
@@ -1184,7 +1183,7 @@ void VulkanApplication::CreateDescriptorSets() {
 
 void VulkanApplication::CreateCommandBuffers() {
 	//This is where it all comes together. In this function we allocate memory for the command buffers from the command pool,
-	//Then, we configure and record commands on it and we submit it to a queue for it to be processed by the GPU.
+	//then, we configure and record commands on it and we submit it to a queue for it to be processed by the GPU.
 
 	//Configure and allocate command buffers from the command pool
 	graphics_command_buffers_.resize(swap_chain_images_.size());
@@ -1212,12 +1211,12 @@ void VulkanApplication::CreateCommandBuffers() {
 	sub_resource_range.baseArrayLayer = 0;
 	sub_resource_range.layerCount = 1;
 
-	//Set the color to display
+	//Set the background color
 	VkClearValue clearColor = {
-		{ 0.3f, 0.3f, 0.3f, 1.0f } // R, G, B, A
+		{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A
 	};
 
-	//For each image in the swapchain
+	//For each image in the swapchain, we record the same set of commands
 	for (size_t i = 0; i < swap_chain_images_.size(); i++) {
 
 		//Start recording commands
@@ -1243,7 +1242,7 @@ void VulkanApplication::CreateCommandBuffers() {
 		present_to_draw_barrier.subresourceRange = sub_resource_range;
 		vkCmdPipelineBarrier(graphics_command_buffers_[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &present_to_draw_barrier);
 
-		//Configure a render pass instance and begin the render pass
+		//Configure a render pass instance and tell Vulkan to instantiate a render pass and run it
 		VkRenderPassBeginInfo render_pass_begin_info = {};
 		render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		render_pass_begin_info.renderPass = render_pass_;
@@ -1255,19 +1254,19 @@ void VulkanApplication::CreateCommandBuffers() {
 		render_pass_begin_info.pClearValues = &clearColor;
 		vkCmdBeginRenderPass(graphics_command_buffers_[i], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-		//Bind the data to be sent to the shaders (descriptor sets). For binding we mean binding the descriptor sets to the command buffer
+		//Bind the data to be sent to the shaders (descriptor sets)
 		vkCmdBindDescriptorSets(graphics_command_buffers_[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &descriptor_set_, 0, nullptr);
 
 		//Bind the graphics pipeline. The graphics pipeline contains all the information Vulkan needs to render an image
 		vkCmdBindPipeline(graphics_command_buffers_[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
-		
+
 		//Bind the index and vertex buffers
 		VkDeviceSize offset = 0;
 		vkCmdBindVertexBuffers(graphics_command_buffers_[i], 0, 1, &vertex_buffer_, &offset);
 		vkCmdBindIndexBuffer(graphics_command_buffers_[i], index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-		
+
 		//Draw the triangles
-		vkCmdDrawIndexed(graphics_command_buffers_[i], 3, 1, 0, 0, 0);
+		vkCmdDrawIndexed(graphics_command_buffers_[i], 6, 1, 0, 0, 0);
 
 		//End the render pass
 		vkCmdEndRenderPass(graphics_command_buffers_[i]);
