@@ -11,6 +11,16 @@
 #include "vulkan_application.h"
 #include "vulkan_factory.h"
 
+float forward = 0.0f;
+float right = 0.0f;
+float up = 0.0f;
+bool upPressed = false;
+bool downPressed = false;
+bool leftPressed = false;
+bool rightPressed = false;
+bool shiftPressed = false;
+bool ctrlPressed = false;
+
 VkBool32 DebugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData) {
 	if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
 		std::cerr << "ERROR: [" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg << std::endl;
@@ -19,6 +29,28 @@ VkBool32 DebugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT o
 		std::cerr << "WARNING: [" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg << std::endl;
 	}
 	return VK_FALSE;
+}
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+	if (key == GLFW_KEY_UP && action == GLFW_REPEAT) {
+		upPressed = true;
+	}
+	if (key == GLFW_KEY_DOWN && action == GLFW_REPEAT) {
+		downPressed = true;
+	}
+	if (key == GLFW_KEY_LEFT && action == GLFW_REPEAT) {
+		leftPressed = true;
+	}
+	if (key == GLFW_KEY_RIGHT && action == GLFW_REPEAT) {
+		rightPressed = true;
+	}
+	if (key == GLFW_KEY_LEFT_SHIFT && action == GLFW_REPEAT) {
+		shiftPressed = true;
+	}
+	if (key == GLFW_KEY_LEFT_CONTROL && action == GLFW_REPEAT) {
+		ctrlPressed = true;
+	}
 }
 
 // Vertex layout
@@ -39,6 +71,8 @@ void VulkanApplication::WindowInit() {
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	window_ = glfwCreateWindow(width_, height_, name_, nullptr, nullptr);
 	glfwSetWindowSizeCallback(window_, VulkanApplication::OnWindowResized);
+
+	glfwSetKeyCallback(window_, key_callback);
 }
 
 void VulkanApplication::SetupVulkan() {
@@ -443,16 +477,18 @@ void VulkanApplication::CreateVertexAndIndexBuffers() {
 	//Setup vertices. Vulkan's normalized viewport coordinate system is very weird: +Y points down, +X points to the right, 
 	//+Z points towards you. The origin is at the exact center of the viewport. Very unintuitive.
 	std::vector<Vertex> vertices = {
-		{ 0.0, 0.0, -0.0f },
-		{ 0.75, 0.25, -0.0f },
-		{ 0.75, -0.25, -0.0f },
-		{ 0.25, -0.25, -0.0f }
+		{ -1.0f, 1.0f, 0.0f }, //Bottom left near
+		{ -1.0f, 1.0f, -1.0f }, //Bottom left far
+		{ 1.0f, 1.0f, 0.0f }, //Bottom right near
+		{ 1.0f, 1.0f, -1.0f }, //Bottom right far
+		{ 0.0f, -1.0f, -0.5f } //Tip
 	};
 	uint32_t vertices_size = (uint32_t)(vertices.size() * (sizeof(float) * 3));
 
 	//Setup indices (faces)
-	std::vector<uint32_t> indices = { 0, 1, 2, 2, 1, 3 };
-	uint32_t indices_size = (uint32_t)(indices.size() * (sizeof(int) * 3));
+	std::vector<uint32_t> indices = { 0, 2, 4 };
+	//uint32_t indices_size = (uint32_t)(indices.size() * (sizeof(int) * 3));
+	uint32_t indices_size = 3*4;
 
 	//This tells the GPU how to read vertex data
 	vertex_binding_description_.binding = 0;
@@ -600,11 +636,34 @@ void VulkanApplication::CreateUniformBuffer() {
 }
 
 void VulkanApplication::UpdateUniformData() {
+	if (upPressed) {
+		upPressed = false;
+		forward += 0.2f;
+	}
+	if (downPressed) {
+		downPressed = false;
+		forward -= 0.2f;
+	}
+	if (rightPressed) {
+		rightPressed = false;
+		right += 0.2f;
+	}
+	if (leftPressed) {
+		leftPressed = false;
+		right -= 0.2f;
+	}
+	if (shiftPressed) {
+		shiftPressed = false;
+		up += 0.2f;
+	}
+	if (ctrlPressed) {
+		ctrlPressed = false;
+		up -= 0.2f;
+	}
 	//Set up transformation matrices
-	glm::mat4 modelMatrix;
-	uniform_buffer_data_.model_matrix = glm::translate(glm::mat4x4(1), glm::vec3(0.0f, 0.0f, -1.0f));
-	//uniform_buffer_data_.view_matrix = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
-	uniform_buffer_data_.projection_matrix = glm::perspective(glm::radians(70.f), (float)swap_chain_extent_.width / (float)swap_chain_extent_.height, 0.1f, 10.0f);
+	uniform_buffer_data_.model_matrix = glm::translate(glm::mat4x4(1), glm::vec3(right, up, forward));
+	//uniform_buffer_data_.view_matrix = glm::translate(glm::mat4x4(1), glm::vec3(right, 0.0f, forward));
+	uniform_buffer_data_.projection_matrix = glm::perspective(glm::radians(70.f), (float)swap_chain_extent_.width / (float)swap_chain_extent_.height, 0.1f, 1000.0f);
 
 	//Copy the data to the VRAM (this procedure is similar to what we do when creating the vertex and index buffers)
 	void* data;
@@ -1266,7 +1325,7 @@ void VulkanApplication::CreateCommandBuffers() {
 		vkCmdBindIndexBuffer(graphics_command_buffers_[i], index_buffer_, 0, VK_INDEX_TYPE_UINT32);
 
 		//Draw the triangles
-		vkCmdDrawIndexed(graphics_command_buffers_[i], 6, 1, 0, 0, 0);
+		vkCmdDrawIndexed(graphics_command_buffers_[i], 3, 1, 0, 0, 0);
 
 		//End the render pass
 		vkCmdEndRenderPass(graphics_command_buffers_[i]);
