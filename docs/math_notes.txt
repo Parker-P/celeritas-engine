@@ -64,7 +64,7 @@ This means that applying translation to a vector with homogeneous coordinates ha
 the exact same. You will find plenty of examples online that show how it's actually done with examples.
 To visualize it, watch this video if it's still up: https://www.youtube.com/watch?v=IiXB6tYtY4w
 
-Now lets define what transformation matrices are used in a 3D game:
+WHAT TRANSFORMATION MATRICES AND COORDINATES SYSTEMS ARE USED IN A 3D GAME:
 
 Model matrix: allows you to position a point in space relative to the world coordinates.
 World coordinates are at the bedrock of your game world. The 3D positions of all objects are ultimately specified in world space, 

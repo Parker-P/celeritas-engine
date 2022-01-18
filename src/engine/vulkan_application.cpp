@@ -494,8 +494,8 @@ void VulkanApplication::CreateVertexAndIndexBuffers() {
 	};
 	uint32_t vertices_size = static_cast<uint32_t>(vertices.size() * (sizeof(float) * 3));
 
-	//Setup indices (faces)
-	std::vector<uint32_t> indices = { 0, 2, 4, 2, 3, 4, 3, 1, 4, 1, 0, 4, 0, 2, 3, 0, 2, 1 };
+	//Setup indices (faces) for faces to actually show, vertex indices need to be defined in counter clockwise order
+	std::vector<uint32_t> indices = { 0, 2, 4, 2, 3, 4, 3, 1, 4, 1, 0, 4, 1, 3, 0, 0, 3, 2 };
 	//uint32_t indices_size = (uint32_t)(indices.size() * (sizeof(int) * 3));
 	uint32_t indices_size = static_cast<uint32_t>(indices.size() * sizeof(int));
 
@@ -1344,7 +1344,7 @@ void VulkanApplication::CreateCommandBuffers() {
 		vkCmdBindIndexBuffer(graphics_command_buffers_[i], index_buffer_, 0, VK_INDEX_TYPE_UINT32);
 
 		//Draw the triangles
-		vkCmdDrawIndexed(graphics_command_buffers_[i], 12, 1, 0, 0, 0);
+		vkCmdDrawIndexed(graphics_command_buffers_[i], 18, 1, 0, 0, 0);
 
 		//End the render pass
 		vkCmdEndRenderPass(graphics_command_buffers_[i]);
