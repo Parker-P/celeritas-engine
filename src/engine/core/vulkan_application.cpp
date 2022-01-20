@@ -471,6 +471,8 @@ void VulkanApplication::CreateCommandPool() {
 	}
 }
 
+uint32_t indices_size;
+
 void VulkanApplication::CreateVertexAndIndexBuffers() {
 	//In this function we copy vertex and face information to the GPU.
 	//With a GPU we have two types of memory: RAM (on the motherboard) and VRAM (on the GPU).
@@ -504,13 +506,13 @@ void VulkanApplication::CreateVertexAndIndexBuffers() {
 
 	//Add the vertices from the imported model
 	std::vector<Vertex> vertices;
-	/*for (int mesh_index = 0; mesh_index < scene->mNumMeshes; ++mesh_index) {
+	for (int mesh_index = 0; mesh_index < scene->mNumMeshes; ++mesh_index) {
 		vertices.reserve(scene->mMeshes[mesh_index]->mVertices->Length());
 		for (int vert_index = 0; vert_index < scene->mMeshes[mesh_index]->mNumVertices; ++vert_index) {
-			float vertex[3] = { scene->mMeshes[mesh_index]->mVertices[vert_index].x, scene->mMeshes[mesh_index]->mVertices[vert_index].y, scene->mMeshes[mesh_index]->mVertices[vert_index].z };
-			vertices.emplace_back(vertex);
+			Vertex v{ { static_cast<float>(scene->mMeshes[mesh_index]->mVertices[vert_index].x), static_cast<float>(scene->mMeshes[mesh_index]->mVertices[vert_index].y), static_cast<float>(scene->mMeshes[mesh_index]->mVertices[vert_index].z) } };
+			vertices.emplace_back(v);
 		}
-	}*/
+	}
 
 	//Setup vertices. Vulkan's normalized viewport coordinate system is very weird: +Y points down, +X points to the right, 
 	//+Z points towards you. The origin is at the exact center of the viewport. Very unintuitive.
@@ -525,19 +527,20 @@ void VulkanApplication::CreateVertexAndIndexBuffers() {
 
 	//Add faces from the imported model
 	std::vector<uint32_t> faces;
-	/*for (int mesh_index = 0; mesh_index < scene->mNumMeshes; ++mesh_index) {
+	for (int mesh_index = 0; mesh_index < scene->mNumMeshes; ++mesh_index) {
 		faces.reserve(scene->mMeshes[mesh_index]->mNumFaces);
 		for (int face_index = 0; face_index < scene->mMeshes[mesh_index]->mNumFaces; ++face_index) {
 			for (int i = 0; i < scene->mMeshes[mesh_index]->mFaces[face_index].mNumIndices; ++i) {
 				faces.emplace_back(static_cast<uint32_t>(scene->mMeshes[mesh_index]->mFaces[face_index].mIndices[i]));
 			}
 		}
-	}*/
+	}
 
 	//Setup indices (faces) for faces to actually show, vertex indices need to be defined in counter clockwise order
 	//std::vector<faces> indices = { 0, 2, 4, 2, 3, 4, 3, 1, 4, 1, 0, 4, 1, 3, 0, 0, 3, 2 };
 	//uint32_t indices_size = (uint32_t)(indices.size() * (sizeof(int) * 3));
 	uint32_t faces_size = static_cast<uint32_t>(faces.size() * sizeof(int));
+	indices_size = faces_size;
 
 	//This tells the GPU how to read vertex data
 	vertex_binding_description_.binding = 0;
@@ -1384,7 +1387,7 @@ void VulkanApplication::CreateCommandBuffers() {
 		vkCmdBindIndexBuffer(graphics_command_buffers_[i], index_buffer_, 0, VK_INDEX_TYPE_UINT32);
 
 		//Draw the triangles
-		vkCmdDrawIndexed(graphics_command_buffers_[i], 18, 1, 0, 0, 0);
+		vkCmdDrawIndexed(graphics_command_buffers_[i], indices_size, 1, 0, 0, 0);
 
 		//End the render pass
 		vkCmdEndRenderPass(graphics_command_buffers_[i]);
