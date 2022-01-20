@@ -5,12 +5,12 @@
 #include <algorithm>
 #include <chrono>
 #include <functional>
-#include <assimp/BaseImporter.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include "vulkan_application.h"
-#include "vulkan_factory.h"
+#include "../src/engine/utils/singleton.h"
+#include "../src/engine/utils/vulkan_factory.h"
 
 float forward = 0.0f;
 float right = 0.0f;
@@ -474,7 +474,8 @@ void VulkanApplication::CreateVertexAndIndexBuffers() {
 	//which uses the RAM. Our goal is to have the GPU read vertex information, but for it to be as fast as possible
 	//we want it to be reading from the VRAM because it sits inside the GPU and would be much quicker to read, so our goal 
 	//is to transfer the vertex information from here (the RAM) to the VRAM once so it's much quicker to read multiple times.
-	//The procedure to copy data to the VRAM is quite complicated because of the nature of how the GPU works. What we need to do is:
+	//The procedure to copy data to the VRAM is quite
+	//complicated because of the nature of how the GPU works. What we need to do is:
 	//1) Allocate some memory on the VRAM that is visible to both the CPU and the GPU. This will be what we call the staging buffer
 	//This staging buffer is a temporary location that we use to expose to the GPU the data we want to send it
 	//2) Copy the vertex information to the allocated memory (to the staging buffer)

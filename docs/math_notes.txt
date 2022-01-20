@@ -63,6 +63,8 @@ physically grabbing the vector's arrow and moving to another point in space) you
 This means that applying translation to a vector with homogeneous coordinates has literally ZERO effect on the vector, it just remains
 the exact same. You will find plenty of examples online that show how it's actually done with examples.
 To visualize it, watch this video if it's still up: https://www.youtube.com/watch?v=IiXB6tYtY4w
+Having said this, this is how you interpret a 3D transformation, provided that the image is still online:
+https://www.researchgate.net/profile/Alexandre-Campo/publication/315552592/figure/fig2/AS:705739689566214@1545272862838/Homogeneous-Transformation-Matrix-a-and-Global-Homogeneous-Transformation-Matrix-b.ppm
 
 WHAT TRANSFORMATION MATRICES AND COORDINATES SYSTEMS ARE USED IN A 3D GAME:
 

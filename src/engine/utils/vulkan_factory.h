@@ -2,7 +2,7 @@
 
 //Singleton and factory class that acts as a container for 
 //multiple Vulkan applications and as a factory to create them
-class VulkanFactory {
+class VulkanFactory : public Singleton<VulkanFactory> {
 	//Private member variables
 
 	//All the apps this container is tracking
@@ -15,9 +15,6 @@ class VulkanFactory {
 
 public:
 	//Public member functions
-
-	//Returns the singleton instance
-	static VulkanFactory& GetInstance();
 
 	//Create an application specifying its name and window width and height
 	VulkanApplication CreateApplication(const char* name, const unsigned int& width, const unsigned int& height);
