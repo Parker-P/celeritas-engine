@@ -18,10 +18,13 @@
     <ClCompile Include="src\game\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\engine\vulkan_application.cpp">
+    <ClCompile Include="src\engine\utils\keybinds_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\engine\vulkan_factory.cpp">
+    <ClCompile Include="src\engine\utils\vulkan_factory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\core\vulkan_application.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -29,7 +32,13 @@
     <ClInclude Include="src\engine\vulkan_application.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\vulkan_factory.h">
+    <ClInclude Include="src\engine\utils\keybinds_manager.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\utils\singleton.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\utils\vulkan_factory.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
