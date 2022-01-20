@@ -1,8 +1,16 @@
+#include <iostream>
+#include <fstream>
 #include <vector>
+#include <string>
+#include <algorithm>
+#include <chrono>
+#include <functional>
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <glm/gtc/matrix_transform.hpp>
 #include "singleton.h"
-#include "vulkan_factory.h"
 #include "../core/vulkan_application.h"
+#include "vulkan_factory.h"
 
 unsigned int VulkanFactory::GenerateAppId(){
 	//Simply use the smallest available number as id

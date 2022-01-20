@@ -8,7 +8,7 @@
 //This is a class for a generic vulkan application
 class VulkanApplication {
 	//Private member variables
-	const std::string kShaderPath_ = "C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\engine\\"; //Path to the folder where the shader files to be compiled to SPIR-V are
+	const std::string kShaderPath_ = "C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\engine\\shaders\\"; //Path to the folder where the shader files are
 	const bool kEnableDebugging_ = false; //Enable debugging?
 	const char* kDebugLayer_ = "VK_LAYER_LUNARG_standard_validation"; //Debug layer constant
 	bool window_resized_ = false; //Was the window resized?

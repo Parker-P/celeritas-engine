@@ -8,6 +8,10 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <assimp/BaseImporter.h>
+#include <assimp/Importer.hpp> 
+#include <assimp/scene.h>
+#include <assimp/postprocess.h> 
 #include "vulkan_application.h"
 #include "../src/engine/utils/singleton.h"
 #include "../src/engine/utils/vulkan_factory.h"
@@ -484,21 +488,56 @@ void VulkanApplication::CreateVertexAndIndexBuffers() {
 	//4) Create a command buffer and fill it with instructions to copy data from the staging buffer to the VRAM
 	//5) Submit the command buffer to a queue for it to be processed by the GPU
 
+	//Import a model
+	// Create an instance of the Importer class
+	Assimp::Importer importer;
+	const aiScene* scene = importer.ReadFile("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\models\\monkey.dae",
+		aiProcess_CalcTangentSpace |
+		aiProcess_Triangulate |
+		aiProcess_JoinIdenticalVertices |
+		aiProcess_SortByPType);
+
+	// If the import failed, report it
+	if (nullptr != scene) {
+		std::cout << importer.GetErrorString();
+	}
+
+	//Add the vertices from the imported model
+	std::vector<Vertex> vertices;
+	/*for (int mesh_index = 0; mesh_index < scene->mNumMeshes; ++mesh_index) {
+		vertices.reserve(scene->mMeshes[mesh_index]->mVertices->Length());
+		for (int vert_index = 0; vert_index < scene->mMeshes[mesh_index]->mNumVertices; ++vert_index) {
+			float vertex[3] = { scene->mMeshes[mesh_index]->mVertices[vert_index].x, scene->mMeshes[mesh_index]->mVertices[vert_index].y, scene->mMeshes[mesh_index]->mVertices[vert_index].z };
+			vertices.emplace_back(vertex);
+		}
+	}*/
+
 	//Setup vertices. Vulkan's normalized viewport coordinate system is very weird: +Y points down, +X points to the right, 
 	//+Z points towards you. The origin is at the exact center of the viewport. Very unintuitive.
-	std::vector<Vertex> vertices = {
-		{ -1.0f, 1.0f, 1.0f }, //Bottom left near
-		{ -1.0f, 1.0f, -1.0f }, //Bottom left far
-		{ 1.0f, 1.0f, 1.0f }, //Bottom right near
-		{ 1.0f, 1.0f, -1.0f }, //Bottom right far
-		{ 0.0f, -1.0f, 0.0f } //Tip
-	};
+	//std::vector<Vertex> vertices = {
+	//	{ -1.0f, 1.0f, 1.0f }, //Bottom left near
+	//	{ -1.0f, 1.0f, -1.0f }, //Bottom left far
+	//	{ 1.0f, 1.0f, 1.0f }, //Bottom right near
+	//	{ 1.0f, 1.0f, -1.0f }, //Bottom right far
+	//	{ 0.0f, -1.0f, 0.0f } //Tip
+	//};
 	uint32_t vertices_size = static_cast<uint32_t>(vertices.size() * (sizeof(float) * 3));
 
+	//Add faces from the imported model
+	std::vector<uint32_t> faces;
+	/*for (int mesh_index = 0; mesh_index < scene->mNumMeshes; ++mesh_index) {
+		faces.reserve(scene->mMeshes[mesh_index]->mNumFaces);
+		for (int face_index = 0; face_index < scene->mMeshes[mesh_index]->mNumFaces; ++face_index) {
+			for (int i = 0; i < scene->mMeshes[mesh_index]->mFaces[face_index].mNumIndices; ++i) {
+				faces.emplace_back(static_cast<uint32_t>(scene->mMeshes[mesh_index]->mFaces[face_index].mIndices[i]));
+			}
+		}
+	}*/
+
 	//Setup indices (faces) for faces to actually show, vertex indices need to be defined in counter clockwise order
-	std::vector<uint32_t> indices = { 0, 2, 4, 2, 3, 4, 3, 1, 4, 1, 0, 4, 1, 3, 0, 0, 3, 2 };
+	//std::vector<faces> indices = { 0, 2, 4, 2, 3, 4, 3, 1, 4, 1, 0, 4, 1, 3, 0, 0, 3, 2 };
 	//uint32_t indices_size = (uint32_t)(indices.size() * (sizeof(int) * 3));
-	uint32_t indices_size = static_cast<uint32_t>(indices.size() * sizeof(int));
+	uint32_t faces_size = static_cast<uint32_t>(faces.size() * sizeof(int));
 
 	//This tells the GPU how to read vertex data
 	vertex_binding_description_.binding = 0;
@@ -559,7 +598,7 @@ void VulkanApplication::CreateVertexAndIndexBuffers() {
 	//1) Allocate some memory on the RAM that is visible to both the CPU and the GPU. This will be what we call the staging buffer
 	VkBufferCreateInfo index_buffer_info = {};
 	index_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	index_buffer_info.size = indices_size;
+	index_buffer_info.size = faces_size;
 	index_buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	vkCreateBuffer(logical_device_, &index_buffer_info, nullptr, &staging_buffers.indices.buffer);
 	vkGetBufferMemoryRequirements(logical_device_, staging_buffers.indices.buffer, &mem_reqs);
@@ -568,8 +607,8 @@ void VulkanApplication::CreateVertexAndIndexBuffers() {
 	vkAllocateMemory(logical_device_, &mem_alloc, nullptr, &staging_buffers.indices.memory);
 
 	//2) Copy the vertex information to the allocated memory (to the staging buffer)
-	vkMapMemory(logical_device_, staging_buffers.indices.memory, 0, indices_size, 0, &data);
-	memcpy(data, indices.data(), indices_size);
+	vkMapMemory(logical_device_, staging_buffers.indices.memory, 0, faces_size, 0, &data);
+	memcpy(data, faces.data(), faces_size);
 	vkUnmapMemory(logical_device_, staging_buffers.indices.memory);
 	vkBindBufferMemory(logical_device_, staging_buffers.indices.buffer, staging_buffers.indices.memory, 0);
 
@@ -599,7 +638,7 @@ void VulkanApplication::CreateVertexAndIndexBuffers() {
 	VkBufferCopy copyRegion = {};
 	copyRegion.size = vertices_size;
 	vkCmdCopyBuffer(copy_command_buffer, staging_buffers.vertices.buffer, vertex_buffer_, 1, &copyRegion);
-	copyRegion.size = indices_size;
+	copyRegion.size = faces_size;
 	vkCmdCopyBuffer(copy_command_buffer, staging_buffers.indices.buffer, index_buffer_, 1, &copyRegion);
 	vkEndCommandBuffer(copy_command_buffer);
 
@@ -1179,8 +1218,8 @@ void VulkanApplication::CreateGraphicsPipeline() {
 	pipeline_create_info.basePipelineIndex = -1;
 
 	//Create the pipeline
-	if (vkCreateGraphicsPipelines(logical_device_, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr, &graphics_pipeline_) != VK_SUCCESS) {
-		std::cerr << "failed to create graphics pipeline" << std::endl;
+	if (auto result = vkCreateGraphicsPipelines(logical_device_, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr, &graphics_pipeline_); result != VK_SUCCESS) {
+		std::cerr << "failed to create graphics pipeline with error " << result << std::endl;
 		exit(1);
 	}
 	else {
