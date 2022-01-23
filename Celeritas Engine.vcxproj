@@ -19,12 +19,36 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\engine\core\app_config.cpp" />
     <ClCompile Include="src\engine\core\vulkan_application.cpp" />
+    <ClCompile Include="src\engine\core\vulkan_entities\descriptor_set.cpp" />
+    <ClCompile Include="src\engine\core\vulkan_entities\framebuffer.cpp" />
+    <ClCompile Include="src\engine\core\vulkan_entities\graphics_pipeline.cpp" />
+    <ClCompile Include="src\engine\core\vulkan_entities\image_view.cpp" />
+    <ClCompile Include="src\engine\core\vulkan_entities\instance.cpp" />
+    <ClCompile Include="src\engine\core\vulkan_entities\logical_device.cpp" />
+    <ClCompile Include="src\engine\core\vulkan_entities\physical_device.cpp" />
+    <ClCompile Include="src\engine\core\vulkan_entities\queue_family.cpp" />
+    <ClCompile Include="src\engine\core\vulkan_entities\render_pass.cpp" />
+    <ClCompile Include="src\engine\core\vulkan_entities\swap_chain.cpp" />
+    <ClCompile Include="src\engine\core\vulkan_entities\window_surface.cpp" />
     <ClCompile Include="src\engine\utils\keybinds_manager.cpp" />
     <ClCompile Include="src\engine\utils\vulkan_factory.cpp" />
     <ClCompile Include="src\game\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\engine\core\app_config.h" />
+    <ClInclude Include="src\engine\core\vulkan_entities\descriptor_set.h" />
+    <ClInclude Include="src\engine\core\vulkan_entities\framebuffer.h" />
+    <ClInclude Include="src\engine\core\vulkan_entities\graphics_pipeline.h" />
+    <ClInclude Include="src\engine\core\vulkan_entities\image_view.h" />
+    <ClInclude Include="src\engine\core\vulkan_entities\instance.h" />
+    <ClInclude Include="src\engine\core\vulkan_entities\logical_device.h" />
+    <ClInclude Include="src\engine\core\vulkan_entities\physical_device.h" />
+    <ClInclude Include="src\engine\core\vulkan_entities\queue_family.h" />
+    <ClInclude Include="src\engine\core\vulkan_entities\render_pass.h" />
+    <ClInclude Include="src\engine\core\vulkan_entities\swap_chain.h" />
+    <ClInclude Include="src\engine\core\vulkan_entities\window_surface.h" />
     <ClInclude Include="src\engine\utils\keybinds_manager.h" />
     <ClInclude Include="src\engine\utils\singleton.h" />
     <ClInclude Include="src\engine\utils\vulkan_factory.h" />
