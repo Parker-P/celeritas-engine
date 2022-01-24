@@ -48,7 +48,7 @@
     <ClCompile Include="src\engine\core\vulkan_entities\physical_device.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\engine\core\vulkan_entities\queue_family.cpp">
+    <ClCompile Include="src\engine\core\vulkan_entities\queue.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\engine\core\vulkan_entities\render_pass.cpp">
@@ -98,7 +98,7 @@
     <ClInclude Include="src\engine\core\vulkan_entities\physical_device.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\core\vulkan_entities\queue_family.h">
+    <ClInclude Include="src\engine\core\vulkan_entities\queue.h">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\core\vulkan_entities\render_pass.h">
