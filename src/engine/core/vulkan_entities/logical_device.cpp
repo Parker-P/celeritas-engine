@@ -3,6 +3,8 @@
 #include <vulkan/vulkan.h>
 
 #include "../src/engine/core/app_config.h"
+#include "instance.h"
+#include "queue.h"
 #include "window_surface.h"
 #include "physical_device.h"
 #include "logical_device.h"
@@ -18,11 +20,11 @@ namespace Engine::Core::VulkanEntities {
 		float queue_priority = 1.0f;
 		VkDeviceQueueCreateInfo queue_create_info[2] = {};
 		queue_create_info[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queue_create_info[0].queueFamilyIndex = physical_device.GetGraphicsQueueFamily();
+		queue_create_info[0].queueFamilyIndex = physical_device.GetGraphicsQueue().GetQueueFamily();
 		queue_create_info[0].queueCount = 1;
 		queue_create_info[0].pQueuePriorities = &queue_priority;
 		queue_create_info[1].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queue_create_info[1].queueFamilyIndex = physical_device.GetPresentQueueFamily();
+		queue_create_info[1].queueFamilyIndex = physical_device.GetPresentQueue().GetQueueFamily();
 		queue_create_info[1].queueCount = 1;
 		queue_create_info[1].pQueuePriorities = &queue_priority;
 
@@ -30,7 +32,7 @@ namespace Engine::Core::VulkanEntities {
 		VkDeviceCreateInfo device_create_info = {};
 		device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 		device_create_info.pQueueCreateInfos = queue_create_info;
-		if (physical_device.GetGraphicsQueueFamily() == physical_device.GetPresentQueueFamily()) {
+		if (physical_device.GetGraphicsQueue().GetQueueFamily() == physical_device.GetPresentQueue().GetQueueFamily()) {
 			device_create_info.queueCreateInfoCount = 1;
 		}
 		else {
@@ -58,12 +60,19 @@ namespace Engine::Core::VulkanEntities {
 		std::cout << "created logical device" << std::endl;
 
 		//Get graphics and presentation queues (which may be the same because they could belong to the same family since 
-		//graphics_queue_family_ isn't necessarily different from present_queue_family_)
-		vkGetDeviceQueue(logical_device_, graphics_queue_family_, 0, &graphics_queue_);
-		vkGetDeviceQueue(logical_device_, present_queue_family_, 0, &present_queue_);
+		//the queue family the graphics queue belongs to isn't necessarily different from the one that the present queue belongs to
+		//because they could contain commands that have the same queue family support list)
+		VkQueue graphics_queue = physical_device.GetGraphicsQueue().GetQueue();
+		VkQueue present_queue = physical_device.GetPresentQueue().GetQueue();
+		vkGetDeviceQueue(logical_device_, physical_device.GetGraphicsQueue().GetQueueFamily(), 0, &graphics_queue);
+		vkGetDeviceQueue(logical_device_, physical_device.GetPresentQueue().GetQueueFamily(), 0, &present_queue);
+		physical_device.GetGraphicsQueue().SetQueue(graphics_queue);
+		physical_device.GetPresentQueue().SetQueue(present_queue);
 		std::cout << "acquired graphics and presentation queues" << std::endl;
 
-		//Get physical device memory properties (VRAM) so we have the information to do memory management
-		vkGetPhysicalDeviceMemoryProperties(physical_device_, &device_memory_properties_);
+		//Get physical device memory properties (VRAM) so we have the information to do memory management and set it in the physical device
+		VkPhysicalDeviceMemoryProperties device_memory_properties;
+		vkGetPhysicalDeviceMemoryProperties(physical_device.GetPhysicalDevice(), &device_memory_properties);
+		physical_device.SetDeviceMemoryProperties(device_memory_properties);
 	}
 }

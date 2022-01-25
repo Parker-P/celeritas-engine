@@ -27,34 +27,39 @@ namespace Engine::Core::VulkanEntities {
 			exit(1);
 		}
 
-		//Find queue family with graphics support
-		std::vector<VkQueueFamilyProperties> queue_families(queue_family_count);
-		vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_family_count, queue_families.data());
+		//Now we need to find the queue family that has graphics support and the queue family used to present images to the screen.
+		//To do that we first query vulkan to get the available queue families for the physical device
+		std::vector<VkQueueFamilyProperties> available_queue_families(queue_family_count);
+		vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_family_count, available_queue_families.data());
 		std::cout << "physical device has " << queue_family_count << " queue families" << std::endl;
+
+		//Then we loop through all the queue families and look for the needed queue families
 		bool found_graphics_queue_family = false;
 		bool found_present_queue_family = false;
-		for (int i = 0; i < queue_family_count; ++i) {
+		for (int queueIndex = 0; queueIndex < queue_family_count; ++queueIndex) {
 			VkBool32 present_support = false;
-			vkGetPhysicalDeviceSurfaceSupportKHR(physical_device_, i, window_surface.GetWindowSurface(), &present_support);
-			if (queue_families[i].queueCount > 0 && queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-				graphics_queue_family_ = i;
+
+			//In doing it we also check if the considered queue family supports commands to present to the screen
+			vkGetPhysicalDeviceSurfaceSupportKHR(physical_device_, queueIndex, window_surface.GetWindowSurface(), &present_support);
+			if (available_queue_families[queueIndex].queueCount > 0 && available_queue_families[queueIndex].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+				graphics_queue_.SetQueueFamily(queueIndex);
 				found_graphics_queue_family = true;
 				if (present_support) {
-					present_queue_family_ = i;
+					present_queue_.SetQueueFamily(queueIndex);
 					found_present_queue_family = true;
 					break;
 				}
 			}
 			if (!found_present_queue_family && present_support) {
-				present_queue_family_ = i;
+				present_queue_.SetQueueFamily(queueIndex);
 				found_present_queue_family = true;
 			}
 		}
 		if (found_graphics_queue_family) {
-			std::cout << "queue family #" << graphics_queue_family_ << " supports graphics" << std::endl;
+			std::cout << "queue family #" << graphics_queue_.GetQueueFamily() << " supports graphics" << std::endl;
 
 			if (found_present_queue_family) {
-				std::cout << "queue family #" << present_queue_family_ << " supports presentation" << std::endl;
+				std::cout << "queue family #" << present_queue_.GetQueueFamily() << " supports presentation" << std::endl;
 			}
 			else {
 				std::cerr << "could not find a valid queue family with present support" << std::endl;
@@ -69,7 +74,7 @@ namespace Engine::Core::VulkanEntities {
 
 	void PhysicalDevice::SelectPhysicalDevice(Instance& instance, WindowSurface& surface) {
 
-		//After creating an instance, the application needs to select a physical device.
+		//After creating an instance, we need to select a physical device.
 		//A physical device represents a piece of hardware installed in the system, most commonly a single GPU.
 		//The application can retrieve a list of the available physical devicesand select the one which has the 
 		//properties and features which most closely matches the application's requirements. 
@@ -129,32 +134,49 @@ namespace Engine::Core::VulkanEntities {
 			}
 		}
 		std::cerr << "physical device doesn't support swap chains" << std::endl;
-		
+
 		//Find the queue families needed for rendering and store their IDs in member vaiables
 		FindQueueFamilies(surface);
 	}
 
-	VkPhysicalDevice PhysicalDevice::GetPhysicalDevice(){
+	VkPhysicalDevice PhysicalDevice::GetPhysicalDevice() {
 		return physical_device_;
 	}
 
-	VkPhysicalDeviceProperties PhysicalDevice::GetDeviceProperties(){
+	VkPhysicalDeviceProperties PhysicalDevice::GetDeviceProperties() {
 		return device_properties_;
 	}
 
-	VkPhysicalDeviceFeatures PhysicalDevice::GetDeviceFeatures(){
+	VkPhysicalDeviceMemoryProperties PhysicalDevice::GetDeviceMemoryProperties()
+	{
+		return device_memory_properties_;
+	}
+
+	VkPhysicalDeviceFeatures PhysicalDevice::GetDeviceFeatures() {
 		return device_features_;
 	}
 
-	std::vector<VkExtensionProperties> PhysicalDevice::GetDeviceExtensions(){
+	std::vector<VkExtensionProperties> PhysicalDevice::GetDeviceExtensions() {
 		return device_extensions_;
 	}
 
-	VkQueue PhysicalDevice::GetGraphicsQueueFamily(){
-		return graphics_queue_family_;
+	void PhysicalDevice::SetGraphicsQueue(Queue graphics_queue) {
+		graphics_queue_ = graphics_queue;
 	}
 
-	VkQueue PhysicalDevice::GetPresentQueueFamily(){
-		return present_queue_family_;
+	void PhysicalDevice::SetPresentQueue(Queue present_queue) {
+		present_queue_ = present_queue;
+	}
+
+	Queue PhysicalDevice::GetGraphicsQueue() {
+		return graphics_queue_;
+	}
+
+	Queue PhysicalDevice::GetPresentQueue() {
+		return present_queue_;
+	}
+
+	void PhysicalDevice::SetDeviceMemoryProperties(VkPhysicalDeviceMemoryProperties device_memory_properties) {
+		device_memory_properties_ = device_memory_properties;
 	}
 }

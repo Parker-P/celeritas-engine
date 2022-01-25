@@ -5,6 +5,7 @@ namespace Engine::Core::VulkanEntities {
 
 		VkPhysicalDevice physical_device_;
 		VkPhysicalDeviceProperties device_properties_;
+		VkPhysicalDeviceMemoryProperties device_memory_properties_;
 		VkPhysicalDeviceFeatures device_features_;
 		std::vector<VkExtensionProperties> device_extensions_;
 		Queue graphics_queue_;
@@ -23,16 +24,28 @@ namespace Engine::Core::VulkanEntities {
 		//Returns the device's properties
 		VkPhysicalDeviceProperties GetDeviceProperties();
 
+		//Returns the device's memory properties
+		VkPhysicalDeviceMemoryProperties GetDeviceMemoryProperties();
+
 		//Returns the device's features
 		VkPhysicalDeviceFeatures GetDeviceFeatures();
 
 		//Returns the device's supported extensions
 		std::vector<VkExtensionProperties> GetDeviceExtensions();
 
-		//Returns the graphics queue family
-		VkQueue GetGraphicsQueueFamily();
+		//Returns the graphics queue
+		Queue GetGraphicsQueue();
 
-		//Returns the present queue family
-		VkQueue GetPresentQueueFamily();
+		//Returns the present queue
+		Queue GetPresentQueue();
+
+		//Returns the device's memory properties
+		void SetDeviceMemoryProperties(VkPhysicalDeviceMemoryProperties device_memory_properties);
+
+		//Sets the graphics queue
+		void SetGraphicsQueue(Queue graphics_queue);
+
+		//Sets the present queue
+		void SetPresentQueue(Queue present_queue);
 	};
 }
