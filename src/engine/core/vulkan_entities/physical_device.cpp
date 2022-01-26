@@ -76,7 +76,7 @@ namespace Engine::Core::VulkanEntities {
 
 		//After creating an instance, we need to select a physical device.
 		//A physical device represents a piece of hardware installed in the system, most commonly a single GPU.
-		//The application can retrieve a list of the available physical devicesand select the one which has the 
+		//The application can retrieve a list of the available physical devices and select the one which has the 
 		//properties and features which most closely matches the application's requirements. 
 		//These properties and features can be simply things like whether the device is integrated or discrete, 
 		//or something more complex like the maximum size of the pool of push constant memory.

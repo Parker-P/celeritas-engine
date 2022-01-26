@@ -10,8 +10,8 @@
 #include "logical_device.h"
 
 namespace Engine::Core::VulkanEntities {
-	void LogicalDevice::CreateLogicalDevice(PhysicalDevice physical_device, AppConfig app_config) {
-		//After the physical deviceand queue family have been selected, they can be used to generate a logical device handle.
+	void LogicalDevice::CreateLogicalDevice(PhysicalDevice& physical_device, AppConfig& app_config) {
+		//After the physical device and queue family have been selected, they can be used to generate a logical device handle.
 		//A logical device is the main interface between the GPU (physical device) and the application, and is required for the 
 		//creation of most objects. It can be used to create the queues that will be used to render and present images.
 		//A logical device is often referenced when calling the creation function of many objects.
@@ -74,5 +74,9 @@ namespace Engine::Core::VulkanEntities {
 		VkPhysicalDeviceMemoryProperties device_memory_properties;
 		vkGetPhysicalDeviceMemoryProperties(physical_device.GetPhysicalDevice(), &device_memory_properties);
 		physical_device.SetDeviceMemoryProperties(device_memory_properties);
+	}
+
+	VkDevice LogicalDevice::GetLogicalDevice() {
+		return logical_device_;
 	}
 }

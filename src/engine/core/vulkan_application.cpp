@@ -18,6 +18,9 @@
 #include "app_config.h"
 
 //Vulkan entities
+#include "vulkan_entities/swap_chain.h"
+#include "vulkan_entities/command_pool.h"
+#include "vulkan_entities/semaphore.h"
 #include "vulkan_entities/instance.h"
 #include "vulkan_entities/window_surface.h"
 #include "vulkan_entities/physical_device.h"
@@ -98,16 +101,16 @@ namespace Engine::Core {
 
 	void VulkanApplication::SetupVulkan() {
 		instance_.CreateInstance(app_config_);
-		window_surface_.CreateWindowSurface(instance_, window_);
+		window_surface_.CreateWindowSurface(instance_, physical_device_, window_);
 		physical_device_.SelectPhysicalDevice(instance_, window_surface_);
+		logical_device_.CreateLogicalDevice(physical_device_, app_config_);
+		image_available_semaphore_.CreateSemaphore(logical_device_);
+		rendering_finished_semaphore_.CreateSemaphore(logical_device_);
+		graphics_command_pool_.CreateCommandPool(logical_device_, physical_device_.GetGraphicsQueue());
 
-		CheckSwapChainSupport();
-		FindQueueFamilies();
-		CreateLogicalDevice();
-		CreateSemaphores();
-		CreateCommandPool();
 		CreateVertexAndIndexBuffers();
 		CreateUniformBuffer();
+
 		CreateSwapChain();
 		CreateRenderPass();
 		CreateImageViews();
@@ -180,33 +183,6 @@ namespace Engine::Core {
 		}
 	}
 
-	void VulkanApplication::CreateSemaphores() {
-		VkSemaphoreCreateInfo create_info = {};
-		create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		if (vkCreateSemaphore(logical_device_, &create_info, nullptr, &image_available_semaphore_) != VK_SUCCESS ||
-			vkCreateSemaphore(logical_device_, &create_info, nullptr, &rendering_finished_semaphore_) != VK_SUCCESS) {
-			std::cerr << "failed to create semaphores" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created semaphores" << std::endl;
-		}
-	}
-
-	void VulkanApplication::CreateCommandPool() {
-		//Create graphics command pool for the graphics queue family since we want to send commands on that queue
-		VkCommandPoolCreateInfo pool_create_info = {};
-		pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		pool_create_info.queueFamilyIndex = graphics_queue_family_;
-		if (vkCreateCommandPool(logical_device_, &pool_create_info, nullptr, &command_pool_) != VK_SUCCESS) {
-			std::cerr << "failed to create command queue for graphics queue family" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created command pool for graphics queue family" << std::endl;
-		}
-	}
-
 	uint32_t indices_size;
 
 	void VulkanApplication::CreateVertexAndIndexBuffers() {
@@ -219,7 +195,7 @@ namespace Engine::Core {
 		//The procedure to copy data to the VRAM is quite
 		//complicated because of the nature of how the GPU works. What we need to do is:
 		//1) Allocate some memory on the VRAM that is visible to both the CPU and the GPU. This will be what we call the staging buffer
-		//This staging buffer is a temporary location that we use to expose to the GPU the data we want to send it
+		//This staging buffer is a temporary location that we use to expose the data we want to send to the GPU
 		//2) Copy the vertex information to the allocated memory (to the staging buffer)
 		//3) Allocate memory on the VRAM that is only visible to the GPU. This is the memory location that will be used by the shaders
 		//and the destination to where we will copy the data we previously copied to the staging buffer
@@ -482,147 +458,7 @@ namespace Engine::Core {
 			typeBits >>= 1;
 		}
 		return false;
-	}
-
-	void VulkanApplication::CreateSwapChain() {
-		//Find surface capabilities
-		VkSurfaceCapabilitiesKHR surface_capabilities;
-		if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device_, window_surface_, &surface_capabilities) != VK_SUCCESS) {
-			std::cerr << "failed to acquire presentation surface capabilities" << std::endl;
-			exit(1);
-		}
-
-		//Find supported surface formats for the swapchain's images
-		uint32_t format_count;
-		if (vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device_, window_surface_, &format_count, nullptr) != VK_SUCCESS || format_count == 0) {
-			std::cerr << "failed to get number of supported surface formats" << std::endl;
-			exit(1);
-		}
-		std::vector<VkSurfaceFormatKHR> surface_formats(format_count);
-		if (vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device_, window_surface_, &format_count, surface_formats.data()) != VK_SUCCESS) {
-			std::cerr << "failed to get supported surface formats" << std::endl;
-			exit(1);
-		}
-
-		//Find supported present modes
-		uint32_t present_mode_count;
-		if (vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device_, window_surface_, &present_mode_count, nullptr) != VK_SUCCESS || present_mode_count == 0) {
-			std::cerr << "failed to get number of supported presentation modes" << std::endl;
-			exit(1);
-		}
-		std::vector<VkPresentModeKHR> present_modes(present_mode_count);
-		if (vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device_, window_surface_, &present_mode_count, present_modes.data()) != VK_SUCCESS) {
-			std::cerr << "failed to get supported presentation modes" << std::endl;
-			exit(1);
-		}
-
-		//Determine number of images for swap chain
-		uint32_t image_count = surface_capabilities.minImageCount + 1;
-		if (surface_capabilities.maxImageCount != 0 && image_count > surface_capabilities.maxImageCount) {
-			image_count = surface_capabilities.maxImageCount;
-		}
-		std::cout << "using " << image_count << " images for swap chain" << std::endl;
-
-		//Select a surface format
-		VkSurfaceFormatKHR surface_format = ChooseSurfaceFormat(surface_formats);
-
-		//Select swap chain size
-		swap_chain_extent_ = ChooseSwapExtent(surface_capabilities);
-
-		//Determine transformation to use (preferring no transform)
-		VkSurfaceTransformFlagBitsKHR surface_transform;
-		if (surface_capabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
-			surface_transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-		}
-		else {
-			surface_transform = surface_capabilities.currentTransform;
-		}
-
-		//Choose presentation mode (preferring MAILBOX ~= triple buffering)
-		VkPresentModeKHR present_mode = ChoosePresentMode(present_modes);
-
-		//Finally, create the swap chain
-		VkSwapchainCreateInfoKHR createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		createInfo.surface = window_surface_;
-		createInfo.minImageCount = image_count;
-		createInfo.imageFormat = surface_format.format;
-		createInfo.imageColorSpace = surface_format.colorSpace;
-		createInfo.imageExtent = swap_chain_extent_;
-		createInfo.imageArrayLayers = 1;
-		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		createInfo.queueFamilyIndexCount = 0;
-		createInfo.pQueueFamilyIndices = nullptr;
-		createInfo.preTransform = surface_transform;
-		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-		createInfo.presentMode = present_mode;
-		createInfo.clipped = VK_TRUE;
-		if (vkCreateSwapchainKHR(logical_device_, &createInfo, nullptr, &swap_chain_) != VK_SUCCESS) {
-			std::cerr << "failed to create swap chain" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created swap chain" << std::endl;
-		}
-		swap_chain_format_ = surface_format.format;
-
-		//Store the images used by the swap chain
-		//Note: these are the images that swap chain image indices refer to
-		//Note: actual number of images may differ from requested number, since it's a lower bound
-		uint32_t actual_image_count = 0;
-		if (vkGetSwapchainImagesKHR(logical_device_, swap_chain_, &actual_image_count, nullptr) != VK_SUCCESS || actual_image_count == 0) {
-			std::cerr << "failed to acquire number of swap chain images" << std::endl;
-			exit(1);
-		}
-		swap_chain_images_.resize(actual_image_count);
-		if (vkGetSwapchainImagesKHR(logical_device_, swap_chain_, &actual_image_count, swap_chain_images_.data()) != VK_SUCCESS) {
-			std::cerr << "failed to acquire swap chain images" << std::endl;
-			exit(1);
-		}
-		std::cout << "acquired swap chain images" << std::endl;
-	}
-
-	VkSurfaceFormatKHR VulkanApplication::ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
-		// We can either choose any format
-		if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED) {
-			return{ VK_FORMAT_R8G8B8A8_UNORM, VK_COLORSPACE_SRGB_NONLINEAR_KHR };
-		}
-
-		// Or go with the standard format - if available
-		for (const auto& available_surface_format : availableFormats) {
-			if (available_surface_format.format == VK_FORMAT_R8G8B8A8_UNORM) {
-				return available_surface_format;
-			}
-		}
-
-		// Or fall back to the first available one
-		return availableFormats[0];
-	}
-
-	VkExtent2D VulkanApplication::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities) {
-		//Choose the size of the images in the swapchain based on viewport width and size, and device output image capabilities
-		if (surfaceCapabilities.currentExtent.width == -1) {
-			VkExtent2D swapchain_extent = {};
-			swapchain_extent.width = std::min(std::max(width_, surfaceCapabilities.minImageExtent.width), surfaceCapabilities.maxImageExtent.width);
-			swapchain_extent.height = std::min(std::max(height_, surfaceCapabilities.minImageExtent.height), surfaceCapabilities.maxImageExtent.height);
-			return swapchain_extent;
-		}
-		else {
-			return surfaceCapabilities.currentExtent;
-		}
-	}
-
-	VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes) {
-		for (const auto& presentMode : presentModes) {
-			if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-				return presentMode;
-			}
-		}
-
-		// If mailbox is unavailable, fall back to FIFO (guaranteed to be available)
-		return VK_PRESENT_MODE_FIFO_KHR;
-	}
+	}	
 
 	void VulkanApplication::CreateRenderPass() {
 		//It all starts from the swapchain. The swapchain is the queue of images that are either being presented to the glfw window (in our case)
@@ -707,32 +543,7 @@ namespace Engine::Core {
 		}
 	}
 
-	void VulkanApplication::CreateImageViews() {
-		//Create an image view for every image in the swap chain. An image view is an image descriptor, it's just metadata that describes
-		//the image (such as knowing what format it is, the type etc...)
-		swap_chain_image_views_.resize(swap_chain_images_.size());
-		for (size_t i = 0; i < swap_chain_images_.size(); i++) {
-			VkImageViewCreateInfo create_info = {};
-			create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			create_info.image = swap_chain_images_[i];
-			create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			create_info.format = swap_chain_format_;
-			create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-			create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-			create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-			create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-			create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			create_info.subresourceRange.baseMipLevel = 0;
-			create_info.subresourceRange.levelCount = 1;
-			create_info.subresourceRange.baseArrayLayer = 0;
-			create_info.subresourceRange.layerCount = 1;
-			if (vkCreateImageView(logical_device_, &create_info, nullptr, &swap_chain_image_views_[i]) != VK_SUCCESS) {
-				std::cerr << "failed to create image view for swap chain image #" << i << std::endl;
-				exit(1);
-			}
-		}
-		std::cout << "created image views for swap chain images" << std::endl;
-	}
+	
 
 	void VulkanApplication::CreateFramebuffers() {
 		//Remember, a buffer is just an aera of memory. A framebuffer is no different: a frame buffer is

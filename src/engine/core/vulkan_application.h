@@ -20,11 +20,13 @@ namespace Engine::Core {
 		VulkanEntities::Instance instance_; //The instance is our gateway to the vulkan API. The instance is what allows us to use vulkan commands and is the root of the entire Vulkan application context
 		VulkanEntities::PhysicalDevice physical_device_; //This is the handle to the actual physical graphics card. The physical device handles the queues and GPU-local memory (VRAM)
 		VulkanEntities::WindowSurface window_surface_; //This is the object that acts as an interface between the glfw window (in our case) and the swap chain. The type has the KHR suffix because it's an extension, meaning that it's an optional object that contains pieces of code that enable you to do something that is not native to Vulkan. In this case this extension is provided by Khronos, which also created Vulkan in the first place
+		VulkanEntities::LogicalDevice logical_device_; //The logical device is an interface that we use to communicate to the physical device
+		VulkanEntities::Semaphore image_available_semaphore_; //A semaphore is used to synchronize different commands on different queues. This semaphore in particular is used to make sure a command to display the image to the window isn't executed before the image has actually finished rendering
+		VulkanEntities::Semaphore rendering_finished_semaphore_; //A semaphore is used to synchronize different commands on different queues. This semaphore in particular is used to make sure a command to display the image to the window isn't executed before the image has actually finished rendering
+		VulkanEntities::CommandPool graphics_command_pool_; //The command pool used to allocate memory for the command buffers that will be submitted to the queue family of the graphics queue. Command pools are opaque objects that command buffer memory is allocated from, and which allow the implementation to amortize the cost of resource creation across multiple command buffers. Command pools are externally synchronized, meaning that a command pool must not be used concurrently in multiple threads. That includes use via recording commands on any command buffers allocated from the pool, as well as operations that allocate, free, and reset command buffers or the pool itself.
+		VulkanEntities::SwapChain swap_chain_;
 
-		VkDevice logical_device_; //The logical device is an interface that we use to communicate to the physical device
-		VkPhysicalDeviceMemoryProperties device_memory_properties_; //Stores information for us to do memory management. This information is acquired when creating the logical device
-		VkSemaphore image_available_semaphore_; //Semaphore used to know when an image is available. Semaphores are a synchronization primitive that can be used to insert a dependency between queue operations or between a queue operation and the host (from the Vulkan spec)
-		VkSemaphore rendering_finished_semaphore_; //Semaphore used to know when an image has finished rendering. Semaphores are a synchronization primitive that can be used to insert a dependency between queue operations or between a queue operation and the host (from the Vulkan spec)
+		//3D Model related stuff
 		VkBuffer vertex_buffer_; //The CPU side vertex information of an object
 		VkBuffer index_buffer_; //The CPU side face information of an object. An index buffer contains integers that are the corresponding array indices in the vertex buffer. For example if we had 4 vertices and 2 triangles (a quad), the index buffer would look something like {0, 1, 2, 2, 1, 3} where the first and last 3 triplets represent a face. Each integer points to the vertex buffer so the GPU knows which vertex to choose from the vertex buffer
 		VkDeviceMemory vertex_buffer_memory_; //The GPU side memory allocated for vertex info of an object. This object is filled using the vertex_buffer_ variable
@@ -39,6 +41,7 @@ namespace Engine::Core {
 		} uniform_buffer_data_;
 		VkBuffer uniform_buffer_; //This is the buffer that contains the uniform_buffer_data_ struct
 		VkDeviceMemory uniform_buffer_memory_; //Provides memory allocation info to vulkan when creating the uniform buffer
+		
 		VkDescriptorSetLayout descriptor_set_layout_; //This is used to describe the layout of a descriptor set
 		VkDescriptorPool descriptor_pool_; //This is used to allocate memory for the descriptor sets. The memory allocation done by the pool is handled by the Vulkan drivers
 		VkDescriptorSet descriptor_set_; //A descriptor set is a collection of descriptors. A descriptor is a shader resource. Each descriptor contains a pointer to a buffer or image and a description of what that pointed-to data represents. We use sets of descriptors so that we can group descriptors by how they are used in the rendering process. Descriptors are the main way to pass variables to the GPU's shaders and that's why they are also called shader resources. Another way to pass data to shaders is by using push constants, but their use is more limited
@@ -51,12 +54,7 @@ namespace Engine::Core {
 		VkRenderPass render_pass_; //The object that holds information for generating an image
 		VkPipeline graphics_pipeline_; //The graphics pipeline is the entire process of generating an image from the information we are given. It's the process of going fron vertex positions and face information to actual triangles drawn on screen. This object contains all the information needed to do that
 		VkPipelineLayout pipeline_layout_;
-		VkCommandPool command_pool_; //The command pool is a space of memory that is divided into equally sized blocks and is used to allocate memory for the command buffers. From the Vulkan spec: command pools are opaque objects that command buffer memory is allocated from, and which allow the implementation to amortize the cost of resource creation across multiple command buffers
 		std::vector<VkCommandBuffer> graphics_command_buffers_; //A command buffer contains pre recorded Vulkan commands. These commands are recorded in this object then put onto a logical device queue so that Vulkan will then tell the GPU to execute them in order
-		uint32_t graphics_queue_family_; //A queue family is a category of queue. Queues within a single family are considered compatible with one another, and work produced for a family of queues can be executed on any queue within that family
-		uint32_t present_queue_family_; //A queue family is a category of queue. Queues within a single family are considered compatible with one another, and work produced for a family of queues can be executed on any queue within that family
-		VkQueue graphics_queue_; //This is the actual queue to process graphics commands
-		VkQueue present_queue_; //This is the actual queue to process present commands
 		std::chrono::high_resolution_clock::time_point time_start_; //A simple time variable to know when the app was started
 
 		//Private member functions
@@ -67,13 +65,11 @@ namespace Engine::Core {
 		void OnWindowSizeChanged();
 		void Cleanup(bool fullClean);
 
-		void CreateLogicalDevice();
-		void CreateSemaphores();
-		void CreateCommandPool();
 		void CreateVertexAndIndexBuffers();
 		void CreateUniformBuffer();
 		void UpdateUniformData();
 		VkBool32 GetMemoryType(uint32_t typeBits, VkFlags properties, uint32_t* typeIndex);
+
 		void CreateSwapChain();
 		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 		VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);

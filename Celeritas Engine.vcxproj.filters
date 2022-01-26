@@ -63,6 +63,12 @@
     <ClCompile Include="src\engine\core\app_config.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\engine\core\vulkan_entities\semaphore.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\core\vulkan_entities\command_pool.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\engine\vulkan_application.h">
@@ -111,6 +117,12 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\core\app_config.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\core\vulkan_entities\semaphore.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\core\vulkan_entities\command_pool.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
