@@ -74,13 +74,6 @@ namespace Engine::Core::VulkanEntities {
 
 	void PhysicalDevice::SelectPhysicalDevice(Instance& instance, WindowSurface& surface) {
 
-		//After creating an instance, we need to select a physical device.
-		//A physical device represents a piece of hardware installed in the system, most commonly a single GPU.
-		//The application can retrieve a list of the available physical devices and select the one which has the 
-		//properties and features which most closely matches the application's requirements. 
-		//These properties and features can be simply things like whether the device is integrated or discrete, 
-		//or something more complex like the maximum size of the pool of push constant memory.
-
 		//Try to find 1 Vulkan supported device
 		uint32_t device_count = 0;
 		if (vkEnumeratePhysicalDevices(instance.GetVulkanInstance(), &device_count, nullptr) != VK_SUCCESS || device_count == 0) {
@@ -112,11 +105,7 @@ namespace Engine::Core::VulkanEntities {
 		};
 		std::cout << "physical device supports version " << supported_version[0] << "." << supported_version[1] << "." << supported_version[2] << std::endl;
 
-		//Check how many extensions the physical device supports. An extension is simply a feature, a piece of code, that the graphics driver provides.
-		//There are device extensions which are extensions (code features) that pertain to the behaviour of a device and there are
-		//instance extensions which pertain to the behaviour of the instance. For example the VK_KHR_surface extension that enables us
-		//to connect the swapchain to the glfw window is an instance extension, whereas the swapchain is a concept that is tightly related
-		//to the graphics pipeline so it is a device extension.
+		//Check which extensions the physical device supports. An extension is simply an optional component that can be used to accomplish something
 		uint32_t extension_count = 0;
 		vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &extension_count, nullptr);
 		if (extension_count == 0) {

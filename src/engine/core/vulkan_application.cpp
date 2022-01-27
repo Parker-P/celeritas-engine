@@ -107,14 +107,11 @@ namespace Engine::Core {
 		image_available_semaphore_.CreateSemaphore(logical_device_);
 		rendering_finished_semaphore_.CreateSemaphore(logical_device_);
 		graphics_command_pool_.CreateCommandPool(logical_device_, physical_device_.GetGraphicsQueue());
+		swap_chain_.CreateSwapChain(physical_device_, logical_device_, window_surface_, app_config_);
 
 		CreateVertexAndIndexBuffers();
 		CreateUniformBuffer();
 
-		CreateSwapChain();
-		CreateRenderPass();
-		CreateImageViews();
-		CreateFramebuffers();
 		CreateGraphicsPipeline();
 		CreateDescriptorPool();
 		CreateDescriptorSets();
@@ -137,9 +134,6 @@ namespace Engine::Core {
 		window_resized_ = false;
 		// Only recreate objects that are affected by framebuffer size changes
 		Cleanup(false);
-		CreateSwapChain();
-		CreateRenderPass();
-		CreateImageViews();
 		CreateFramebuffers();
 		CreateGraphicsPipeline();
 		CreateCommandBuffers();
@@ -150,9 +144,9 @@ namespace Engine::Core {
 		vkFreeCommandBuffers(logical_device_, command_pool_, (uint32_t)graphics_command_buffers_.size(), graphics_command_buffers_.data());
 		vkDestroyPipeline(logical_device_, graphics_pipeline_, nullptr);
 		vkDestroyRenderPass(logical_device_, render_pass_, nullptr);
-		for (size_t i = 0; i < swap_chain_images_.size(); i++) {
+		for (size_t i = 0; i < images_.size(); i++) {
 			vkDestroyFramebuffer(logical_device_, swap_chain_frame_buffers_[i], nullptr);
-			vkDestroyImageView(logical_device_, swap_chain_image_views_[i], nullptr);
+			vkDestroyImageView(logical_device_, image_views_[i], nullptr);
 		}
 		vkDestroyDescriptorSetLayout(logical_device_, descriptor_set_layout_, nullptr);
 		if (fullClean) {
@@ -437,7 +431,7 @@ namespace Engine::Core {
 		uniform_buffer_data_.model_matrix = glm::translate(glm::mat4x4(1), glm::vec3(right, up, forward));
 		uniform_buffer_data_.model_matrix *= glm::rotate(glm::mat4x4(1), glm::radians(rotate), glm::vec3(0, 1.0f, 0.0f));
 		uniform_buffer_data_.view_matrix = glm::mat4x4(1);
-		uniform_buffer_data_.projection_matrix = glm::perspective(glm::radians(70.f), (float)swap_chain_extent_.width / (float)swap_chain_extent_.height, 0.1f, 1000.0f);
+		uniform_buffer_data_.projection_matrix = glm::perspective(glm::radians(70.f), (float)extent_.width / (float)extent_.height, 0.1f, 1000.0f);
 
 		//Copy the data to the VRAM (this procedure is similar to what we do when creating the vertex and index buffers)
 		void* data;
@@ -459,327 +453,6 @@ namespace Engine::Core {
 		}
 		return false;
 	}	
-
-	void VulkanApplication::CreateRenderPass() {
-		//It all starts from the swapchain. The swapchain is the queue of images that are either being presented to the glfw window (in our case)
-		//or waiting to be presented. The swapchain defines how many images to use to show to the window (the
-		//glfw window in our case) and the way it presents them. Remember that to present images to the glfw window, Vulkan uses surfaces. 
-		//In the case where the swapchain uses triple buffering, there will be three images in use at once: one for rendering to, one to 
-		//present and the other one to present next after the current image has been presented.
-		//A swapchain image is the final destination of a render pass. A render pass is a protocol, a set of operations and resources
-		//needed to generate an image from the information provided. The information provided is vertices and indices (faces), the resources are:
-		//- 1) the shaders that process the data and output data that can be used by the render pass to build an image
-		//- 2) the area of memory where to write the final image once the render pass has completed
-		//Think of the render pass as a musical orchestrator, the sheets of music as the data to be processed, the instruments as the
-		//shaders and the musicians playing the instruments as physical microprocessors on the GPU doing work with the shaders.
-		//The music produced is the final image.
-		//With that said, the area of memory where the image will be written is called an attachment. We know that an area of memory
-		//is a buffer, it's just a container of information, thus, an attachment is an area of memory or buffer where the render pass will output
-		//the rendered image. Attachments are thus shared by framebuffers and render passes. What is a framebuffer? A framebuffer is the way 
-		//that the render pass connects to the swapchain. By writing its output to an attachment, the render pass is telling the framebuffer: 
-		//hey, i have rendered an image. The swapchain will then query the framebuffers when it is asked to show an image. 
-		//It's a very rigid hierarchy.
-		//It is EXTREMELY IMPORTANT to know that in actuality, a render pass is used as a blueprint to create
-		//multiple render pass instances. Each instance performs the same operations, but writes its output to different attachments in
-		//different framebuffers. Of course this is because if there was only one render pass instance we would only have an image 
-		//rendered at a time without having the benefits of double or triple buffering, so remember, for each framebuffer there is 
-		//a render pass instance that generates the image it will store.
-		//Now lets dive a little deeper in render passes:
-		//As we said, a render pass describes the set of data necessary to accomplish a rendering operation.
-		//In Vulkan, this is a set of framebuffer attachments that will be used during rendering.
-		//These attachments include any buffers that will be read from or written into during rendering, such as colour, depth, 
-		//and stencil buffers. This can also include input attachments which are intermediate buffers which 
-		//are written into in one subpass and then read out of by another one.
-		//Following the standard Vulkan paradigm, these attachments have to be explicitly defined when creating 
-		//a render pass, with information like image format, number of samples, and load and store behaviour specified.
-		//This reduces the driver workload during runtime, as it does not have to deduce this information itself.
-		//In addition to attachments, render passes also contain one or more subpasses that order the rendering operations.
-		//Subpasses essentially represent a phase of rendering in which rendering work is done with a subset of the 
-		//attachments in the render pass. A set of commands are recorded into each subpass to describe what work needs 
-		//to be done in that subpass.
-		//The render pass also defines a set of subpass dependencies which determine the order of execution for pairs of
-		//subpasses. They act as execution and memory dependencies. Dependencies are vital when two or more subpasses
-		//access the same attachment, as Vulkan does not guarantee the order in which the subpasses will be executed by the GPU.
-		//It is important to note that while a render pass describes the characteristics of all of the attachments 
-		//used and what to do with them, it does not point to any actual objects. This is handled by framebuffer objects.
-
-		//Define the description for the attachments
-		VkAttachmentDescription attachment_description = {};
-		attachment_description.format = swap_chain_format_;
-		attachment_description.samples = VK_SAMPLE_COUNT_1_BIT;
-		attachment_description.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		attachment_description.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		attachment_description.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		attachment_description.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		attachment_description.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		attachment_description.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-		//Note: hardware will automatically transition attachment to the specified layout
-		//Note: index refers to attachment descriptions array
-		VkAttachmentReference color_attachment_reference = {};
-		color_attachment_reference.attachment = 0;
-		color_attachment_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		//Note: this is a description of how the attachments of the render pass will be used in this sub pass
-		//e.g. if they will be read in shaders and/or drawn to
-		VkSubpassDescription sub_pass_description = {};
-		sub_pass_description.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		sub_pass_description.colorAttachmentCount = 1;
-		sub_pass_description.pColorAttachments = &color_attachment_reference;
-
-		//Create the render pass
-		VkRenderPassCreateInfo create_info = {};
-		create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		create_info.attachmentCount = 1;
-		create_info.pAttachments = &attachment_description;
-		create_info.subpassCount = 1;
-		create_info.pSubpasses = &sub_pass_description;
-		if (vkCreateRenderPass(logical_device_, &create_info, nullptr, &render_pass_) != VK_SUCCESS) {
-			std::cerr << "failed to create render pass" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created render pass" << std::endl;
-		}
-	}
-
-	
-
-	void VulkanApplication::CreateFramebuffers() {
-		//Remember, a buffer is just an aera of memory. A framebuffer is no different: a frame buffer is
-		//an area of memory that contains a frame. A frame is another buffer that contains a list of buffers, called attachments (in this context). 
-		//An attachment contains an image view. Recall that an image view is just an image descriptor. 
-		//This descriptor contains the image itself but also adds other information such as the type of image and the format.
-		//The image view in an attachment can be a color, depth or stencil buffer for example.
-		//The color buffer is just your regular image, but what are are depth and stencil buffers? 
-		//Think of a stencil buffer as a portion of memory that represents an image that for each pixel contains a value. 
-		//That value represents the masking, therefore it acts as a stencil.
-		//It's just like cutting a hole in a piece of paper, then placing it on a surface you want to spray paint and using
-		//it as a mask to spray that exact pattern you cut out of the piece of paper on that surface.
-		//You could accomplish the same with just saying: if this pixel has value 0, don't draw it: if the pixel has value 1
-		//then you can draw it. This can and is used to occlude certain areas of a model being rendered.
-		//A depth buffer is an area of memory that represents an image that for each pixel has a value that represents the
-		//distance from the camera to the surface in the scene that that pixel belongs to. Lets say you have a wall in front
-		//of you in the scene that is exactly one meter away and you are looking at it from a perfectly perpendicular angle
-		//with your camera in orthogonal mode: for each pixel that represents the rendered wall, the depth buffer will contain that one meter
-		//distance value to that area on the wall represented by that pixel. This information is useful and actually fundamental
-		//for making sure to draw what is visible and not what is not theoretically visible. If you have 2 overlapping planes
-		//you can't know which one to render if you don't have the depth information.
-
-		//Create a framebuffer for each image
-		swap_chain_frame_buffers_.resize(swap_chain_images_.size());
-		for (size_t i = 0; i < swap_chain_images_.size(); i++) {
-			VkFramebufferCreateInfo create_info = {};
-			create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			create_info.renderPass = render_pass_;
-			create_info.attachmentCount = 1;
-			create_info.pAttachments = &swap_chain_image_views_[i];
-			create_info.width = swap_chain_extent_.width;
-			create_info.height = swap_chain_extent_.height;
-			create_info.layers = 1;
-			if (vkCreateFramebuffer(logical_device_, &create_info, nullptr, &swap_chain_frame_buffers_[i]) != VK_SUCCESS) {
-				std::cerr << "failed to create framebuffer for swap chain image view #" << i << std::endl;
-				exit(1);
-			}
-		}
-		std::cout << "created framebuffers for swap chain image views" << std::endl;
-	}
-
-	VkShaderModule VulkanApplication::CreateShaderModule(const std::string& filename) {
-		std::ifstream file(filename, std::ios::ate | std::ios::binary);
-		if (file) {
-			std::vector<char> file_bytes(file.tellg());
-			file.seekg(0, std::ios::beg);
-			file.read(file_bytes.data(), file_bytes.size());
-			file.close();
-
-			VkShaderModuleCreateInfo create_info = {};
-			create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-			create_info.codeSize = file_bytes.size();
-			create_info.pCode = (uint32_t*)file_bytes.data();
-
-			VkShaderModule shader_module;
-			if (vkCreateShaderModule(logical_device_, &create_info, nullptr, &shader_module) != VK_SUCCESS) {
-				std::cerr << "failed to create shader module for " << filename << std::endl;
-				exit(1);
-			}
-
-			std::cout << "created shader module for " << filename << std::endl;
-			return shader_module;
-		}
-		else {
-			std::cout << "could not open file " << filename << std::endl;
-		}
-	}
-
-	void VulkanApplication::CreateGraphicsPipeline() {
-		//Compile and load the shaders
-		//system((std::string("start \"\" \"") + kShaderPath_ + std::string("shader_compiler.bat\"")).c_str());
-		VkShaderModule vertex_shader_module = CreateShaderModule(kShaderPath_ + std::string("vertex_shader.spv"));
-		VkShaderModule fragment_shader_module = CreateShaderModule(kShaderPath_ + std::string("fragment_shader.spv"));
-
-		//Set up shader stage info
-		VkPipelineShaderStageCreateInfo vertex_shader_create_info = {};
-		vertex_shader_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		vertex_shader_create_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertex_shader_create_info.module = vertex_shader_module;
-		vertex_shader_create_info.pName = "main";
-		VkPipelineShaderStageCreateInfo fragment_shader_create_info = {};
-		fragment_shader_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		fragment_shader_create_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		fragment_shader_create_info.module = fragment_shader_module;
-		fragment_shader_create_info.pName = "main";
-		VkPipelineShaderStageCreateInfo shader_stages[] = { vertex_shader_create_info, fragment_shader_create_info };
-
-		//Describe vertex input meaning how the graphics driver should interpret the information given in the vertex buffer
-		VkPipelineVertexInputStateCreateInfo vertex_input_create_info = {};
-		vertex_input_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertex_input_create_info.vertexBindingDescriptionCount = 1;
-		vertex_input_create_info.pVertexBindingDescriptions = &vertex_binding_description_;
-		vertex_input_create_info.vertexAttributeDescriptionCount = 1;
-		vertex_input_create_info.pVertexAttributeDescriptions = vertex_attribute_descriptions_.data();
-
-		//Describe input assembly meaning what we are going to draw to the screen. We want to draw triangles
-		VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info = {};
-		input_assembly_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-		input_assembly_create_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-		input_assembly_create_info.primitiveRestartEnable = VK_FALSE;
-
-		//Describe viewport and scissor. The viewport specifies how the normalized window coordinates 
-		//(-1 to 1 for both width and height) are transformed into the pixel coordinates of the framebuffer.
-		//Scissor is the area where you can render, this is similar to the viewport in that regard but changing the scissor 
-		//rectangle doesn't affect the coordinates
-		VkViewport viewport = {};
-		viewport.x = 0.0f;
-		viewport.y = 0.0f;
-		viewport.width = (float)swap_chain_extent_.width;
-		viewport.height = (float)swap_chain_extent_.height;
-		viewport.minDepth = 0.0f;
-		viewport.maxDepth = 1.0f;
-		VkRect2D scissor = {};
-		scissor.offset.x = 0;
-		scissor.offset.y = 0;
-		scissor.extent.width = swap_chain_extent_.width;
-		scissor.extent.height = swap_chain_extent_.height;
-
-		//Note: scissor test is always enabled (although dynamic scissor is possible)
-		//Number of viewports must match number of scissors
-		VkPipelineViewportStateCreateInfo viewport_create_info = {};
-		viewport_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-		viewport_create_info.viewportCount = 1;
-		viewport_create_info.pViewports = &viewport;
-		viewport_create_info.scissorCount = 1;
-		viewport_create_info.pScissors = &scissor;
-
-		//Describe rasterization
-		//Note: depth bias and using polygon modes other than fill require changes to logical device creation (device features)
-		VkPipelineRasterizationStateCreateInfo rasterization_create_info = {};
-		rasterization_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-		rasterization_create_info.depthClampEnable = VK_FALSE;
-		rasterization_create_info.rasterizerDiscardEnable = VK_FALSE;
-		rasterization_create_info.polygonMode = VK_POLYGON_MODE_FILL;
-		rasterization_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
-		rasterization_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-		rasterization_create_info.depthBiasEnable = VK_FALSE;
-		rasterization_create_info.depthBiasConstantFactor = 0.0f;
-		rasterization_create_info.depthBiasClamp = 0.0f;
-		rasterization_create_info.depthBiasSlopeFactor = 0.0f;
-		rasterization_create_info.lineWidth = 1.0f;
-
-		//Describe multisampling
-		//Note: using multisampling also requires turning on device features
-		VkPipelineMultisampleStateCreateInfo multisample_create_info = {};
-		multisample_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		multisample_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-		multisample_create_info.sampleShadingEnable = VK_FALSE;
-		multisample_create_info.minSampleShading = 1.0f;
-		multisample_create_info.alphaToCoverageEnable = VK_FALSE;
-		multisample_create_info.alphaToOneEnable = VK_FALSE;
-
-		//Describing color blending
-		//Note: all paramaters except blendEnable and colorWriteMask are irrelevant here
-		VkPipelineColorBlendAttachmentState color_blend_attachment_state = {};
-		color_blend_attachment_state.blendEnable = VK_FALSE;
-		color_blend_attachment_state.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		color_blend_attachment_state.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-		color_blend_attachment_state.colorBlendOp = VK_BLEND_OP_ADD;
-		color_blend_attachment_state.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		color_blend_attachment_state.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-		color_blend_attachment_state.alphaBlendOp = VK_BLEND_OP_ADD;
-		color_blend_attachment_state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-
-		//Note: all attachments must have the same values unless a device feature is enabled
-		VkPipelineColorBlendStateCreateInfo color_blend_create_info = {};
-		color_blend_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		color_blend_create_info.logicOpEnable = VK_FALSE;
-		color_blend_create_info.logicOp = VK_LOGIC_OP_COPY;
-		color_blend_create_info.attachmentCount = 1;
-		color_blend_create_info.pAttachments = &color_blend_attachment_state;
-		color_blend_create_info.blendConstants[0] = 0.0f;
-		color_blend_create_info.blendConstants[1] = 0.0f;
-		color_blend_create_info.blendConstants[2] = 0.0f;
-		color_blend_create_info.blendConstants[3] = 0.0f;
-
-		//Describe pipeline layout
-		//Note: this describes the mapping between memory and shader resources (descriptor sets)
-		//This is for uniform buffers and samplers
-		VkDescriptorSetLayoutBinding layout_binding = {};
-		layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		layout_binding.descriptorCount = 1;
-		layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-		VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {};
-		descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptor_set_layout_create_info.bindingCount = 1;
-		descriptor_set_layout_create_info.pBindings = &layout_binding;
-		if (vkCreateDescriptorSetLayout(logical_device_, &descriptor_set_layout_create_info, nullptr, &descriptor_set_layout_) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor layout" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created descriptor layout" << std::endl;
-		}
-		VkPipelineLayoutCreateInfo layout_create_info = {};
-		layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		layout_create_info.setLayoutCount = 1;
-		layout_create_info.pSetLayouts = &descriptor_set_layout_;
-		if (vkCreatePipelineLayout(logical_device_, &layout_create_info, nullptr, &pipeline_layout_) != VK_SUCCESS) {
-			std::cerr << "failed to create pipeline layout" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created pipeline layout" << std::endl;
-		}
-
-		//Configure the creation of the graphics pipeline
-		VkGraphicsPipelineCreateInfo pipeline_create_info = {};
-		pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-		pipeline_create_info.stageCount = 2;
-		pipeline_create_info.pStages = shader_stages;
-		pipeline_create_info.pVertexInputState = &vertex_input_create_info;
-		pipeline_create_info.pInputAssemblyState = &input_assembly_create_info;
-		pipeline_create_info.pViewportState = &viewport_create_info;
-		pipeline_create_info.pRasterizationState = &rasterization_create_info;
-		pipeline_create_info.pMultisampleState = &multisample_create_info;
-		pipeline_create_info.pColorBlendState = &color_blend_create_info;
-		pipeline_create_info.layout = pipeline_layout_;
-		pipeline_create_info.renderPass = render_pass_;
-		pipeline_create_info.subpass = 0;
-		pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
-		pipeline_create_info.basePipelineIndex = -1;
-
-		//Create the pipeline
-		if (auto result = vkCreateGraphicsPipelines(logical_device_, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr, &graphics_pipeline_); result != VK_SUCCESS) {
-			std::cerr << "failed to create graphics pipeline with error " << result << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created graphics pipeline" << std::endl;
-		}
-
-		//Delete the unused shader modules as they have been transferred to the VRAM now
-		vkDestroyShaderModule(logical_device_, vertex_shader_module, nullptr);
-		vkDestroyShaderModule(logical_device_, fragment_shader_module, nullptr);
-	}
 
 	void VulkanApplication::CreateDescriptorPool() {
 		//This describes how many descriptor sets we'll create from this pool for each type
@@ -854,7 +527,7 @@ namespace Engine::Core {
 		//then, we configure and record commands on it and we submit it to a queue for it to be processed by the GPU.
 
 		//Configure and allocate command buffers from the command pool
-		graphics_command_buffers_.resize(swap_chain_images_.size());
+		graphics_command_buffers_.resize(images_.size());
 		VkCommandBufferAllocateInfo alloc_info = {};
 		alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		alloc_info.commandPool = command_pool_;
@@ -885,7 +558,7 @@ namespace Engine::Core {
 		};
 
 		//For each image in the swapchain, we record the same set of commands
-		for (size_t i = 0; i < swap_chain_images_.size(); i++) {
+		for (size_t i = 0; i < images_.size(); i++) {
 
 			//Start recording commands
 			vkBeginCommandBuffer(graphics_command_buffers_[i], &begin_info);
@@ -906,7 +579,7 @@ namespace Engine::Core {
 				present_to_draw_barrier.srcQueueFamilyIndex = present_queue_family_;
 				present_to_draw_barrier.dstQueueFamilyIndex = graphics_queue_family_;
 			}
-			present_to_draw_barrier.image = swap_chain_images_[i];
+			present_to_draw_barrier.image = images_[i];
 			present_to_draw_barrier.subresourceRange = sub_resource_range;
 			vkCmdPipelineBarrier(graphics_command_buffers_[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &present_to_draw_barrier);
 
@@ -917,7 +590,7 @@ namespace Engine::Core {
 			render_pass_begin_info.framebuffer = swap_chain_frame_buffers_[i];
 			render_pass_begin_info.renderArea.offset.x = 0;
 			render_pass_begin_info.renderArea.offset.y = 0;
-			render_pass_begin_info.renderArea.extent = swap_chain_extent_;
+			render_pass_begin_info.renderArea.extent = extent_;
 			render_pass_begin_info.clearValueCount = 1;
 			render_pass_begin_info.pClearValues = &clearColor;
 			vkCmdBeginRenderPass(graphics_command_buffers_[i], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
@@ -949,7 +622,7 @@ namespace Engine::Core {
 				draw_to_present_barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 				draw_to_present_barrier.srcQueueFamilyIndex = graphics_queue_family_;
 				draw_to_present_barrier.dstQueueFamilyIndex = present_queue_family_;
-				draw_to_present_barrier.image = swap_chain_images_[i];
+				draw_to_present_barrier.image = images_[i];
 				draw_to_present_barrier.subresourceRange = sub_resource_range;
 				vkCmdPipelineBarrier(graphics_command_buffers_[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &draw_to_present_barrier);
 			}
