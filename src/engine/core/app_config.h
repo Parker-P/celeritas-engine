@@ -27,14 +27,13 @@ namespace Engine::Core {
 			const char* debug_layer; //Debug layer constant
 		} debugInfo_;
 
-		//Absolute path to the shaders folder
-		static std::string kShaderPath_ = "C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\engine\\shaders\\"; //Path to the folder where the shader files are
+		static std::string kShaderPath_; //Absolute path to the shaders folder
 	
 		AppConfig& operator=(AppConfig& other) {
 			this->appInfo_ = other.appInfo_;
 			this->settings_ = other.settings_;
 			this->debugInfo_ = other.debugInfo_;
-			this->kShaderPath_ = other.kShaderPath_;
+			this->kShaderPath_ = "C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\engine\\shaders\\";
 		}
 
 		//Callback used by Vulkan when a validation layer reports an error

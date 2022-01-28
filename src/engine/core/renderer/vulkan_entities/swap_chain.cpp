@@ -282,6 +282,10 @@ namespace Engine::Core::VulkanEntities {
 		return format_;
 	}
 
+	VkRenderPass SwapChain::GetRenderPass() {
+		return render_pass_;
+	}
+
 	std::vector<VkImage> SwapChain::GetImages() {
 		return images_;
 	}

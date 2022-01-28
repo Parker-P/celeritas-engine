@@ -2,42 +2,54 @@
 #include <fstream>
 #include <vulkan/vulkan.hpp>
 
+#include "../src/engine/core/app_config.h"
+#include "swap_chain.h"
+#include "logical_device.h"
 #include "graphics_pipeline.h"
 
 namespace Engine::Core::VulkanEntities {
 
-	VkShaderModule GraphicsPipeline::CreateShaderModule(const std::string& filename) {
+	void GetShaderFileContent(const std::string& filename, std::vector<char>& content) {
 		std::ifstream file(filename, std::ios::ate | std::ios::binary);
-		if (file) {
-			std::vector<char> file_bytes(file.tellg());
+		if (file.is_open()) {
+			std::vector<char> file_text(file.tellg());
 			file.seekg(0, std::ios::beg);
-			file.read(file_bytes.data(), file_bytes.size());
+			file.read(file_text.data(), file_text.size());
 			file.close();
-
-			VkShaderModuleCreateInfo create_info = {};
-			create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-			create_info.codeSize = file_bytes.size();
-			create_info.pCode = (uint32_t*)file_bytes.data();
-
-			VkShaderModule shader_module;
-			if (vkCreateShaderModule(logical_device_, &create_info, nullptr, &shader_module) != VK_SUCCESS) {
-				std::cerr << "failed to create shader module for " << filename << std::endl;
-				exit(1);
-			}
-
-			std::cout << "created shader module for " << filename << std::endl;
-			return shader_module;
+			content = file_text;
 		}
 		else {
-			std::cout << "could not open file " << filename << std::endl;
+			std::cout << "error opening shader file" << std::endl;
 		}
 	}
 
-	void GraphicsPipeline::CreateGraphicsPipeline() {
+	VkShaderModule GraphicsPipeline::CreateShaderModule(LogicalDevice& logical_device, const std::string& file_name) {
+		
+		//Get file content
+		std::vector<char> shader_file_text;
+		GetShaderFileContent(file_name, shader_file_text);
+
+		//Prepare shader module creation information
+		VkShaderModuleCreateInfo create_info = {};
+		create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		create_info.codeSize = shader_file_text.size();
+		create_info.pCode = (uint32_t*)shader_file_text.data();
+
+		//Create the shader module
+		VkShaderModule shader_module;
+		if (vkCreateShaderModule(logical_device.GetLogicalDevice(), &create_info, nullptr, &shader_module) != VK_SUCCESS) {
+			std::cerr << "failed to create shader module for " << file_name << std::endl;
+			exit(1);
+		}
+		std::cout << "created shader module for " << file_name << std::endl;
+		return shader_module;
+	}
+
+	void GraphicsPipeline::CreateGraphicsPipeline(LogicalDevice& logical_device, SwapChain& swap_chain, AppConfig& app_config) {
+
 		//Compile and load the shaders
-		//system((std::string("start \"\" \"") + kShaderPath_ + std::string("shader_compiler.bat\"")).c_str());
-		VkShaderModule vertex_shader_module = CreateShaderModule(kShaderPath_ + std::string("vertex_shader.spv"));
-		VkShaderModule fragment_shader_module = CreateShaderModule(kShaderPath_ + std::string("fragment_shader.spv"));
+		VkShaderModule vertex_shader_module = CreateShaderModule(logical_device, app_config.kShaderPath_ + std::string("vertex_shader.spv"));
+		VkShaderModule fragment_shader_module = CreateShaderModule(logical_device, app_config.kShaderPath_ + std::string("fragment_shader.spv"));
 
 		//Set up shader stage info
 		VkPipelineShaderStageCreateInfo vertex_shader_create_info = {};
@@ -73,15 +85,15 @@ namespace Engine::Core::VulkanEntities {
 		VkViewport viewport = {};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
-		viewport.width = (float)extent_.width;
-		viewport.height = (float)extent_.height;
+		viewport.width = (float)swap_chain.GetExtent().width;
+		viewport.height = (float)swap_chain.GetExtent().height;
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 		VkRect2D scissor = {};
 		scissor.offset.x = 0;
 		scissor.offset.y = 0;
-		scissor.extent.width = extent_.width;
-		scissor.extent.height = extent_.height;
+		scissor.extent.width = swap_chain.GetExtent().width;
+		scissor.extent.height = swap_chain.GetExtent().height;
 
 		//Note: scissor test is always enabled (although dynamic scissor is possible)
 		//Number of viewports must match number of scissors
@@ -152,7 +164,7 @@ namespace Engine::Core::VulkanEntities {
 		descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 		descriptor_set_layout_create_info.bindingCount = 1;
 		descriptor_set_layout_create_info.pBindings = &layout_binding;
-		if (vkCreateDescriptorSetLayout(logical_device_, &descriptor_set_layout_create_info, nullptr, &descriptor_set_layout_) != VK_SUCCESS) {
+		if (vkCreateDescriptorSetLayout(logical_device.GetLogicalDevice(), &descriptor_set_layout_create_info, nullptr, &descriptor_set_layout_) != VK_SUCCESS) {
 			std::cerr << "failed to create descriptor layout" << std::endl;
 			exit(1);
 		}
@@ -163,7 +175,7 @@ namespace Engine::Core::VulkanEntities {
 		layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		layout_create_info.setLayoutCount = 1;
 		layout_create_info.pSetLayouts = &descriptor_set_layout_;
-		if (vkCreatePipelineLayout(logical_device_, &layout_create_info, nullptr, &pipeline_layout_) != VK_SUCCESS) {
+		if (vkCreatePipelineLayout(logical_device.GetLogicalDevice(), &layout_create_info, nullptr, &pipeline_layout_) != VK_SUCCESS) {
 			std::cerr << "failed to create pipeline layout" << std::endl;
 			exit(1);
 		}
@@ -183,13 +195,13 @@ namespace Engine::Core::VulkanEntities {
 		pipeline_create_info.pMultisampleState = &multisample_create_info;
 		pipeline_create_info.pColorBlendState = &color_blend_create_info;
 		pipeline_create_info.layout = pipeline_layout_;
-		pipeline_create_info.renderPass = render_pass_;
+		pipeline_create_info.renderPass = swap_chain.GetRenderPass();
 		pipeline_create_info.subpass = 0;
 		pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
 		pipeline_create_info.basePipelineIndex = -1;
 
 		//Create the pipeline
-		if (auto result = vkCreateGraphicsPipelines(logical_device_, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr, &graphics_pipeline_); result != VK_SUCCESS) {
+		if (auto result = vkCreateGraphicsPipelines(logical_device.GetLogicalDevice(), VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr, &graphics_pipeline_); result != VK_SUCCESS) {
 			std::cerr << "failed to create graphics pipeline with error " << result << std::endl;
 			exit(1);
 		}
@@ -198,7 +210,7 @@ namespace Engine::Core::VulkanEntities {
 		}
 
 		//Delete the unused shader modules as they have been transferred to the VRAM now
-		vkDestroyShaderModule(logical_device_, vertex_shader_module, nullptr);
-		vkDestroyShaderModule(logical_device_, fragment_shader_module, nullptr);
+		vkDestroyShaderModule(logical_device.GetLogicalDevice(), vertex_shader_module, nullptr);
+		vkDestroyShaderModule(logical_device.GetLogicalDevice(), fragment_shader_module, nullptr);
 	}
 }

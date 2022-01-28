@@ -24,6 +24,8 @@ namespace Engine::Core {
 		VulkanEntities::Semaphore rendering_finished_semaphore_;
 		VulkanEntities::CommandPool graphics_command_pool_;
 		VulkanEntities::SwapChain swap_chain_;
+		VulkanEntities::GraphicsPipeline graphics_pipeline_;
+		VulkanEntities::DescriptorPool descriptor_pool_;
 
 		//3D Model related stuff
 		VkBuffer vertex_buffer_; //The CPU side vertex information of an object
@@ -42,9 +44,7 @@ namespace Engine::Core {
 		VkDeviceMemory uniform_buffer_memory_; //Provides memory allocation info to vulkan when creating the uniform buffer
 		
 		VkDescriptorSetLayout descriptor_set_layout_; //This is used to describe the layout of a descriptor set
-		VkDescriptorPool descriptor_pool_; //This is used to allocate memory for the descriptor sets. The memory allocation done by the pool is handled by the Vulkan drivers
 		VkDescriptorSet descriptor_set_; //A descriptor set is a collection of descriptors. A descriptor is a shader resource. Each descriptor contains a pointer to a buffer or image and a description of what that pointed-to data represents. We use sets of descriptors so that we can group descriptors by how they are used in the rendering process. Descriptors are the main way to pass variables to the GPU's shaders and that's why they are also called shader resources. Another way to pass data to shaders is by using push constants, but their use is more limited
-		VkPipeline graphics_pipeline_; //The graphics pipeline is the entire process of generating an image from the information we are given. It's the process of going fron vertex positions and face information to actual triangles drawn on screen. This object contains all the information needed to do that
 		VkPipelineLayout pipeline_layout_;
 		std::vector<VkCommandBuffer> graphics_command_buffers_; //A command buffer contains pre recorded Vulkan commands. These commands are recorded in this object then put onto a logical device queue so that Vulkan will then tell the GPU to execute them in order
 		std::chrono::high_resolution_clock::time_point time_start_; //A simple time variable to know when the app was started
@@ -63,7 +63,6 @@ namespace Engine::Core {
 		VkBool32 GetMemoryType(uint32_t typeBits, VkFlags properties, uint32_t* typeIndex);
 		VkShaderModule CreateShaderModule(const std::string& filename);
 
-		void CreateGraphicsPipeline();
 		void CreateDescriptorPool();
 		void CreateDescriptorSets();
 		void CreateCommandBuffers();

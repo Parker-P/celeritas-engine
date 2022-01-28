@@ -11,5 +11,3 @@ namespace Engine::Core::VulkanEntities {
 		VkCommandPool GetCommandPool();
 	};
 }
-
-

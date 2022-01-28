@@ -37,6 +37,7 @@ namespace Engine::Core::VulkanEntities {
 		WindowSurface GetWindowSurface();
 		VkExtent2D GetExtent();
 		VkSurfaceFormatKHR GetFormat();
+		VkRenderPass GetRenderPass();
 		std::vector<VkImage> GetImages();
 		std::vector<VkImageView> GetImageViews();
 	};
