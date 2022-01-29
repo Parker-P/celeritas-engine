@@ -1,10 +1,12 @@
 #include <iostream>
+#include <vector>
 #include <vulkan/vulkan.h>
 
+#include "descriptor_set.h"
 #include "logical_device.h"
 #include "descriptor_pool.h"
 
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
 	void DescriptorPool::CreateDescriptorPool(LogicalDevice& logical_device) {
 
 		//This describes how many descriptor sets we'll create from this pool for each type
@@ -27,5 +29,9 @@ namespace Engine::Core::VulkanEntities {
 		else {
 			std::cout << "descriptor pool created" << std::endl;
 		}
+	}
+
+	VkDescriptorPool VulkanEntities::DescriptorPool::GetDescriptorPool() {
+		return descriptor_pool_;
 	}
 }

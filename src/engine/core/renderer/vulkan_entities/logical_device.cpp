@@ -9,8 +9,10 @@
 #include "physical_device.h"
 #include "logical_device.h"
 
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
+
 	void LogicalDevice::CreateLogicalDevice(PhysicalDevice& physical_device, AppConfig& app_config) {
+
 		//After the physical device and queue family have been selected, they can be used to generate a logical device handle.
 		//A logical device is the main interface between the GPU (physical device) and the application, and is required for the 
 		//creation of most objects. It can be used to create the queues that will be used to render and present images.

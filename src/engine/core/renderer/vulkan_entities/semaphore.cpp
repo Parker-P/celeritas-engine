@@ -6,7 +6,7 @@
 #include "logical_device.h"
 #include "semaphore.h"
 
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
 	void Semaphore::CreateSemaphore(LogicalDevice& logical_device)
 	{
 		VkSemaphoreCreateInfo create_info = {};

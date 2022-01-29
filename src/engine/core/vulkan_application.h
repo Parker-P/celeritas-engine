@@ -11,21 +11,21 @@ namespace Engine::Core {
 
 	//This is a class for a generic vulkan application. The idea is that this class handles all the interactions between vulkan entities.
 	//All the creation is done in each specific entity to remove as much creation boilerplate code as possible from this class. 
-	//For vulkan entities we mean the building blocks of a vulkan application such as the instance, logical device, physical device, swap chain etc...
+	//For vulkan entities we mean the building blocks of a vulkan application such as the instance, logical device, physical device, swap chain, graphics pipeline etc...
 	class VulkanApplication {
 
 		//Private member variables
 		bool window_resized_ = false; //Was the window resized?
-		VulkanEntities::Instance instance_;
-		VulkanEntities::PhysicalDevice physical_device_;
-		VulkanEntities::WindowSurface window_surface_;
-		VulkanEntities::LogicalDevice logical_device_;
-		VulkanEntities::Semaphore image_available_semaphore_;
-		VulkanEntities::Semaphore rendering_finished_semaphore_;
-		VulkanEntities::CommandPool graphics_command_pool_;
-		VulkanEntities::SwapChain swap_chain_;
-		VulkanEntities::GraphicsPipeline graphics_pipeline_;
-		VulkanEntities::DescriptorPool descriptor_pool_;
+		Renderer::VulkanEntities::Instance instance_;
+		Renderer::VulkanEntities::PhysicalDevice physical_device_;
+		Renderer::VulkanEntities::WindowSurface window_surface_;
+		Renderer::VulkanEntities::LogicalDevice logical_device_;
+		Renderer::VulkanEntities::Semaphore image_available_semaphore_;
+		Renderer::VulkanEntities::Semaphore rendering_finished_semaphore_;
+		Renderer::VulkanEntities::CommandPool graphics_command_pool_;
+		Renderer::VulkanEntities::SwapChain swap_chain_;
+		Renderer::VulkanEntities::GraphicsPipeline graphics_pipeline_;
+		Renderer::VulkanEntities::DescriptorPool descriptor_pool_;
 
 		//3D Model related stuff
 		VkBuffer vertex_buffer_; //The CPU side vertex information of an object
@@ -38,14 +38,9 @@ namespace Engine::Core {
 		struct {
 			glm::mat4 model_matrix; //The model matrix. This transformation matrix is responsible for translating the vertices of a model to the correct world space coordinates
 			glm::mat4 view_matrix; //The camera matrix. This transformation matrix is responsible for translating the vertices of a model so that it looks like we are viewing it from a world space camera. In reality there is no camera, it's all the models moving around the logical space
-			glm::mat4 projection_matrix; //The projection matrix. This transformation matrix is responsible for the 3D look of the models. This matrix makes sure that perspective is taken into account when the shaders calculate vertex positions on the screen. This will make objects that are further away appear smaller
+			glm::mat4 projection_matrix; //The projection matrix. This transformation matrix is responsible for taking the 3D space coordinates and generating 2D coordinates on our screen. This matrix makes sure that perspective is taken into account when the shaders calculate vertex positions on the screen. This will make objects that are further away appear smaller
 		} uniform_buffer_data_;
-		VkBuffer uniform_buffer_; //This is the buffer that contains the uniform_buffer_data_ struct
-		VkDeviceMemory uniform_buffer_memory_; //Provides memory allocation info to vulkan when creating the uniform buffer
 		
-		VkDescriptorSetLayout descriptor_set_layout_; //This is used to describe the layout of a descriptor set
-		VkDescriptorSet descriptor_set_; //A descriptor set is a collection of descriptors. A descriptor is a shader resource. Each descriptor contains a pointer to a buffer or image and a description of what that pointed-to data represents. We use sets of descriptors so that we can group descriptors by how they are used in the rendering process. Descriptors are the main way to pass variables to the GPU's shaders and that's why they are also called shader resources. Another way to pass data to shaders is by using push constants, but their use is more limited
-		VkPipelineLayout pipeline_layout_;
 		std::vector<VkCommandBuffer> graphics_command_buffers_; //A command buffer contains pre recorded Vulkan commands. These commands are recorded in this object then put onto a logical device queue so that Vulkan will then tell the GPU to execute them in order
 		std::chrono::high_resolution_clock::time_point time_start_; //A simple time variable to know when the app was started
 

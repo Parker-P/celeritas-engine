@@ -6,7 +6,7 @@
 #include "logical_device.h"
 #include "command_pool.h"
 
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
 
 	void CommandPool::CreateCommandPool(LogicalDevice& logical_device, Queue& queue) {
 		//Create graphics command pool for the graphics queue family since we want to send commands on that queue

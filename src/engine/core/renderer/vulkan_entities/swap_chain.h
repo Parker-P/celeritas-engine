@@ -1,4 +1,4 @@
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
 
 	//The swap chain is the object that handles the way the images are presented to the screen and is the what allows the output images to go from the frame buffers to the window surface to be presented to the screen. See the FrameBuffer and WindowSurface classes
 	//The swap chain handles retrieving and updating the images to be displayed. The swapchain decides when to swap the front and back buffers and contains a queue of images to be drawn

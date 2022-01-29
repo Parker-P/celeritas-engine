@@ -7,7 +7,7 @@
 #include "instance.h"
 #include "window_surface.h"
 
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
 	void WindowSurface::CreateWindowSurface(Instance& instance, PhysicalDevice& physical_device, GLFWwindow* window) {
 		if (glfwCreateWindowSurface(instance.GetVulkanInstance(), window, NULL, &window_surface_) != VK_SUCCESS) {
 			std::cerr << "failed to create window surface!" << std::endl;
@@ -31,13 +31,5 @@ namespace Engine::Core::VulkanEntities {
 
 	VkSurfaceCapabilitiesKHR WindowSurface::GetSurfaceCapabilities() {
 		return surface_capabilities_;
-	}
-
-	VkSurfaceFormatKHR WindowSurface::GetSurfaceFormat() {
-		return surface_format_;
-	}
-
-	void WindowSurface::SetSurfaceFormat(VkSurfaceFormatKHR surface_format) {
-		surface_format_ = surface_format;
 	}
 }

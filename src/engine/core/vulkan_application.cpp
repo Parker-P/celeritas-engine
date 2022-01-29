@@ -18,15 +18,15 @@
 #include "app_config.h"
 
 //Vulkan entities
-#include "vulkan_entities/descriptor_pool.h"
-#include "vulkan_entities/graphics_pipeline.h"
-#include "vulkan_entities/swap_chain.h"
-#include "vulkan_entities/command_pool.h"
-#include "vulkan_entities/semaphore.h"
-#include "vulkan_entities/instance.h"
-#include "vulkan_entities/window_surface.h"
-#include "vulkan_entities/physical_device.h"
-#include "vulkan_entities/logical_device.h"
+#include "renderer/vulkan_entities/descriptor_pool.h"
+#include "renderer/vulkan_entities/graphics_pipeline.h"
+#include "renderer/vulkan_entities/swap_chain.h"
+#include "renderer/vulkan_entities/command_pool.h"
+#include "renderer/vulkan_entities/semaphore.h"
+#include "renderer/vulkan_entities/instance.h"
+#include "renderer/vulkan_entities/window_surface.h"
+#include "renderer/vulkan_entities/physical_device.h"
+#include "renderer/vulkan_entities/logical_device.h"
 #include "vulkan_application.h"
 
 //Utils
@@ -179,8 +179,6 @@ namespace Engine::Core {
 		}
 	}
 
-	uint32_t indices_size;
-
 	void VulkanApplication::CreateVertexAndIndexBuffers() {
 
 		//In this function we copy vertex and face information to the GPU.
@@ -225,13 +223,6 @@ namespace Engine::Core {
 
 		//Setup vertices. Vulkan's normalized viewport coordinate system is very weird: +Y points down, +X points to the right, 
 		//+Z points towards you. The origin is at the exact center of the viewport. Very unintuitive.
-		//std::vector<Vertex> vertices = {
-		//	{ -1.0f, 1.0f, 1.0f }, //Bottom left near
-		//	{ -1.0f, 1.0f, -1.0f }, //Bottom left far
-		//	{ 1.0f, 1.0f, 1.0f }, //Bottom right near
-		//	{ 1.0f, 1.0f, -1.0f }, //Bottom right far
-		//	{ 0.0f, -1.0f, 0.0f } //Tip
-		//};
 		uint32_t vertices_size = static_cast<uint32_t>(vertices.size() * (sizeof(float) * 3));
 
 		//Add faces from the imported model
@@ -245,11 +236,7 @@ namespace Engine::Core {
 			}
 		}
 
-		//Setup indices (faces) for faces to actually show, vertex indices need to be defined in counter clockwise order
-		//std::vector<faces> indices = { 0, 2, 4, 2, 3, 4, 3, 1, 4, 1, 0, 4, 1, 3, 0, 0, 3, 2 };
-		//uint32_t indices_size = (uint32_t)(indices.size() * (sizeof(int) * 3));
-		uint32_t faces_size = static_cast<uint32_t>(faces.size() * sizeof(int));
-		indices_size = faces_size;
+		uint32_t indices_size = static_cast<uint32_t>(faces.size() * sizeof(int));
 
 		//This tells the GPU how to read vertex data
 		vertex_binding_description_.binding = 0;
@@ -465,6 +452,7 @@ namespace Engine::Core {
 		//to pass to the shaders.
 		//Desciptor sets are allocated using a descriptor pool, but the behaviour of the pool is handled by
 		//the Vulkan drivers so we don't need to worry about how it works.
+		//We use descriptor sets to pass the transformation matrices to the vertex shader
 
 		//There needs to be one descriptor set per binding point in the shader
 		VkDescriptorSetAllocateInfo alloc_info = {};

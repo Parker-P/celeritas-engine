@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
 	//A queue in vulkan is an entity used to organize how vulkan commands are executed. Vulkan command buffers are
 	//submitted to these queues and then vulkan tells the drivers to execute them in order. 
 	//To categorize the queues vulkan uses the concept of queue families. Each command in vulkan has a flag that says

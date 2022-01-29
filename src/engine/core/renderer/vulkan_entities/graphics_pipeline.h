@@ -1,8 +1,8 @@
 #pragma once
 
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
 	class GraphicsPipeline {
-		VkPipeline graphics_pipeline_;
+		VkPipeline graphics_pipeline_; //Holds info about the entire graphics pipeline
 		VkShaderModule CreateShaderModule(LogicalDevice& logical_device, const std::string& file_name);
 	public:
 

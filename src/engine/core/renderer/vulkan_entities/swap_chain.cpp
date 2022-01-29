@@ -9,7 +9,7 @@
 #include "physical_device.h"
 #include "swap_chain.h"
 
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
 	VkSurfaceFormatKHR SwapChain::ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& available_formats) {
 
 		//We can either choose any format

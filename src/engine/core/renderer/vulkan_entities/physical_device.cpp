@@ -8,7 +8,7 @@
 #include "physical_device.h"
 
 //Set device count to 1 to force Vulkan to use the first device we found
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
 
 	void PhysicalDevice::FindQueueFamilies(WindowSurface& window_surface) {
 		//Once a physical device has been selected, the device needs to be queried for available queues.

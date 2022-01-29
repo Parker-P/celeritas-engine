@@ -7,7 +7,7 @@
 #include "logical_device.h"
 #include "graphics_pipeline.h"
 
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
 
 	void GetShaderFileContent(const std::string& filename, std::vector<char>& content) {
 		std::ifstream file(filename, std::ios::ate | std::ios::binary);

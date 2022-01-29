@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
 
 	//This is the object that acts as an interface between the glfw window (in our case) and the swap chain. A window surface is an extension, meaning that it's an optional object that contains pieces of code that enable you to do something that is not native to Vulkan.
 	class WindowSurface {

@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
 	//A logical device is an instance of a physical device
 	class LogicalDevice {
 		VkDevice logical_device_;

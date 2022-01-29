@@ -19,38 +19,42 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\engine\core\app_config.cpp" />
-    <ClCompile Include="src\engine\core\vulkan_application.cpp" />
-    <ClCompile Include="src\engine\core\vulkan_entities\command_pool.cpp" />
-    <ClCompile Include="src\engine\core\vulkan_entities\descriptor_set.cpp" />
-    <ClCompile Include="src\engine\core\vulkan_entities\graphics_pipeline.cpp" />
-    <ClCompile Include="src\engine\core\vulkan_entities\instance.cpp" />
-    <ClCompile Include="src\engine\core\vulkan_entities\logical_device.cpp" />
-    <ClCompile Include="src\engine\core\vulkan_entities\physical_device.cpp" />
-    <ClCompile Include="src\engine\core\vulkan_entities\queue.cpp" />
-    <ClCompile Include="src\engine\core\vulkan_entities\semaphore.cpp" />
-    <ClCompile Include="src\engine\core\vulkan_entities\swap_chain.cpp" />
-    <ClCompile Include="src\engine\core\vulkan_entities\window_surface.cpp" />
-    <ClCompile Include="src\engine\utils\keybinds_manager.cpp" />
-    <ClCompile Include="src\engine\utils\vulkan_factory.cpp" />
-    <ClCompile Include="src\game\main.cpp" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="src\engine\core\app_config.h" />
-    <ClInclude Include="src\engine\core\vulkan_entities\command_pool.h" />
-    <ClInclude Include="src\engine\core\vulkan_entities\descriptor_set.h" />
-    <ClInclude Include="src\engine\core\vulkan_entities\graphics_pipeline.h" />
-    <ClInclude Include="src\engine\core\vulkan_entities\instance.h" />
-    <ClInclude Include="src\engine\core\vulkan_entities\logical_device.h" />
-    <ClInclude Include="src\engine\core\vulkan_entities\physical_device.h" />
-    <ClInclude Include="src\engine\core\vulkan_entities\queue.h" />
-    <ClInclude Include="src\engine\core\vulkan_entities\semaphore.h" />
-    <ClInclude Include="src\engine\core\vulkan_entities\swap_chain.h" />
-    <ClInclude Include="src\engine\core\vulkan_entities\window_surface.h" />
+    <ClInclude Include="src\engine\core\renderer\custom_entities\object_3d.h" />
+    <ClInclude Include="src\engine\core\renderer\vulkan_entities\command_pool.h" />
+    <ClInclude Include="src\engine\core\renderer\vulkan_entities\descriptor_pool.h" />
+    <ClInclude Include="src\engine\core\renderer\vulkan_entities\descriptor_set.h" />
+    <ClInclude Include="src\engine\core\renderer\vulkan_entities\graphics_pipeline.h" />
+    <ClInclude Include="src\engine\core\renderer\vulkan_entities\instance.h" />
+    <ClInclude Include="src\engine\core\renderer\vulkan_entities\logical_device.h" />
+    <ClInclude Include="src\engine\core\renderer\vulkan_entities\physical_device.h" />
+    <ClInclude Include="src\engine\core\renderer\vulkan_entities\queue.h" />
+    <ClInclude Include="src\engine\core\renderer\vulkan_entities\semaphore.h" />
+    <ClInclude Include="src\engine\core\renderer\vulkan_entities\swap_chain.h" />
+    <ClInclude Include="src\engine\core\renderer\vulkan_entities\window_surface.h" />
+    <ClInclude Include="src\engine\core\vulkan_application.h" />
     <ClInclude Include="src\engine\utils\keybinds_manager.h" />
     <ClInclude Include="src\engine\utils\singleton.h" />
     <ClInclude Include="src\engine\utils\vulkan_factory.h" />
-    <ClInclude Include="src\engine\vulkan_application.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\engine\core\mesh.cpp" />
+    <ClCompile Include="src\engine\core\renderer\custom_entities\object_3d.cpp" />
+    <ClCompile Include="src\engine\core\renderer\vulkan_entities\command_pool.cpp" />
+    <ClCompile Include="src\engine\core\renderer\vulkan_entities\descriptor_pool.cpp" />
+    <ClCompile Include="src\engine\core\renderer\vulkan_entities\descriptor_set.cpp" />
+    <ClCompile Include="src\engine\core\renderer\vulkan_entities\graphics_pipeline.cpp" />
+    <ClCompile Include="src\engine\core\renderer\vulkan_entities\instance.cpp" />
+    <ClCompile Include="src\engine\core\renderer\vulkan_entities\logical_device.cpp" />
+    <ClCompile Include="src\engine\core\renderer\vulkan_entities\physical_device.cpp" />
+    <ClCompile Include="src\engine\core\renderer\vulkan_entities\queue.cpp" />
+    <ClCompile Include="src\engine\core\renderer\vulkan_entities\semaphore.cpp" />
+    <ClCompile Include="src\engine\core\renderer\vulkan_entities\swap_chain.cpp" />
+    <ClCompile Include="src\engine\core\renderer\vulkan_entities\window_surface.cpp" />
+    <ClCompile Include="src\engine\core\vulkan_application.cpp" />
+    <ClCompile Include="src\engine\utils\keybinds_manager.cpp" />
+    <ClCompile Include="src\engine\utils\vulkan_factory.cpp" />
+    <ClCompile Include="src\game\main.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

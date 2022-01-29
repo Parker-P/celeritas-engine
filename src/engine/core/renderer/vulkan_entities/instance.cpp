@@ -7,7 +7,8 @@
 #include "instance.h"
 
 
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
+
 	void Instance::CreateDebugCallback(AppConfig& app_config) {
 		if (app_config.debugInfo_.enable_debugging) {
 			VkDebugReportCallbackCreateInfoEXT create_info = {};

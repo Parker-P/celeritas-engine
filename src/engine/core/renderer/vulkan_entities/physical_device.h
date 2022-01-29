@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Engine::Core::VulkanEntities {
+namespace Engine::Core::Renderer::VulkanEntities {
 
 	//This is the handle to the actual physical graphics card. The physical device handles the queues and GPU-local memory (VRAM)
 	class PhysicalDevice {
