@@ -9,6 +9,7 @@
 
 namespace Engine::Core::Renderer::VulkanEntities {
 
+	//Copies the text of the file at path "filename" into "content"
 	void GetShaderFileContent(const std::string& filename, std::vector<char>& content) {
 		std::ifstream file(filename, std::ios::ate | std::ios::binary);
 		if (file.is_open()) {

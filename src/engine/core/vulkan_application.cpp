@@ -9,10 +9,6 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
-#include <assimp/BaseImporter.h>
-#include <assimp/Importer.hpp> 
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
 
 //Config
 #include "app_config.h"
@@ -29,10 +25,14 @@
 #include "renderer/vulkan_entities/logical_device.h"
 #include "vulkan_application.h"
 
+//Custom entities
+#include "../src/engine/core/renderer/custom_entities/mesh.h"
+
 //Utils
-#include "../src/engine/utils/singleton.h"
+#include "../src/engine/utils/patterns/singleton.h"
 #include "../src/engine/core/vulkan_application.h"
-#include "../src/engine/utils/vulkan_factory.h"
+#include "../src/engine/utils/patterns/vulkan_factory.h"
+#include "../src/engine/utils/asset_importer.h"
 
 float forward = 0.0f;
 float right = 0.0f;
@@ -197,57 +197,9 @@ namespace Engine::Core {
 		//4) Create a command buffer and fill it with instructions to copy data from the staging buffer to the VRAM
 		//5) Submit the command buffer to a queue for it to be processed by the GPU
 
-		//Import a model
-		// Create an instance of the Importer class
-		Assimp::Importer importer;
-		const aiScene* scene = importer.ReadFile("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\models\\monkey.dae",
-			aiProcess_CalcTangentSpace |
-			aiProcess_Triangulate |
-			aiProcess_JoinIdenticalVertices |
-			aiProcess_SortByPType);
+		using Mesh = Engine::Core::Renderer::CustomEntities::Mesh;
 
-		// If the import failed, report it
-		if (nullptr != scene) {
-			std::cout << importer.GetErrorString();
-		}
-
-		//Add the vertices from the imported model
-		std::vector<Vertex> vertices;
-		for (int mesh_index = 0; mesh_index < scene->mNumMeshes; ++mesh_index) {
-			vertices.reserve(scene->mMeshes[mesh_index]->mVertices->Length());
-			for (int vert_index = 0; vert_index < scene->mMeshes[mesh_index]->mNumVertices; ++vert_index) {
-				Vertex v{ { static_cast<float>(scene->mMeshes[mesh_index]->mVertices[vert_index].x), static_cast<float>(scene->mMeshes[mesh_index]->mVertices[vert_index].y), static_cast<float>(scene->mMeshes[mesh_index]->mVertices[vert_index].z) } };
-				vertices.emplace_back(v);
-			}
-		}
-
-		//Setup vertices. Vulkan's normalized viewport coordinate system is very weird: +Y points down, +X points to the right, 
-		//+Z points towards you. The origin is at the exact center of the viewport. Very unintuitive.
-		uint32_t vertices_size = static_cast<uint32_t>(vertices.size() * (sizeof(float) * 3));
-
-		//Add faces from the imported model
-		std::vector<uint32_t> faces;
-		for (int mesh_index = 0; mesh_index < scene->mNumMeshes; ++mesh_index) {
-			faces.reserve(scene->mMeshes[mesh_index]->mNumFaces);
-			for (int face_index = 0; face_index < scene->mMeshes[mesh_index]->mNumFaces; ++face_index) {
-				for (int i = 0; i < scene->mMeshes[mesh_index]->mFaces[face_index].mNumIndices; ++i) {
-					faces.emplace_back(static_cast<uint32_t>(scene->mMeshes[mesh_index]->mFaces[face_index].mIndices[i]));
-				}
-			}
-		}
-
-		uint32_t indices_size = static_cast<uint32_t>(faces.size() * sizeof(int));
-
-		//This tells the GPU how to read vertex data
-		vertex_binding_description_.binding = 0;
-		vertex_binding_description_.stride = sizeof(vertices[0]);
-		vertex_binding_description_.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-		//This tells the GPU how to connect shader variables and vertex data
-		vertex_attribute_descriptions_.resize(1);
-		vertex_attribute_descriptions_[0].binding = 0;
-		vertex_attribute_descriptions_[0].location = 0;
-		vertex_attribute_descriptions_[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+		Mesh mesh = Engine::Core::Utils::AssetImporter::ImportModel("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\models\\monkey.dae");
 
 		//Get memory related variables ready. Note that the HOST_COHERENT_BIT flag allows us to not have to flush
 		//to the VRAM once allocating memory, it tells Vulkan to do this automatically
@@ -367,7 +319,6 @@ namespace Engine::Core {
 		buffer_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 		vkCreateBuffer(logical_device_, &buffer_info, nullptr, &uniform_buffer_);
 
-		//Get memory requirements for the uniform buffer
 		VkMemoryRequirements mem_reqs;
 		vkGetBufferMemoryRequirements(logical_device_, uniform_buffer_, &mem_reqs);
 
