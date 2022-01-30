@@ -8,8 +8,6 @@ namespace Engine::Core::Renderer::CustomEntities {
 	
 	class Mesh {
 
-		std::vector<VkVertexInputAttributeDescription> vertex_attribute_descriptions_; //This variable is used to tell vulkan what vertex information we have in our vertex buffer (if it's just vertex positions or also uv coordinates, vertex colors and so on)
-		VkVertexInputBindingDescription vertex_binding_description_; //This variable is used to tell Vulkan how to read the vertex buffer.
 		std::vector<Vertex> vertices_;
 		std::vector<uint32_t> faces_;
 	

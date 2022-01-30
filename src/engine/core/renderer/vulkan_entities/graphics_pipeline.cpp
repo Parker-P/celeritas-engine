@@ -24,19 +24,16 @@ namespace Engine::Core::Renderer::VulkanEntities {
 		}
 	}
 
-	VkShaderModule GraphicsPipeline::CreateShaderModule(LogicalDevice& logical_device, const std::string& file_name) {
+	VkShaderModule CreateShaderModule(LogicalDevice& logical_device, const std::string& file_name) {
 		
-		//Get file content
 		std::vector<char> shader_file_text;
 		GetShaderFileContent(file_name, shader_file_text);
 
-		//Prepare shader module creation information
 		VkShaderModuleCreateInfo create_info = {};
 		create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 		create_info.codeSize = shader_file_text.size();
 		create_info.pCode = (uint32_t*)shader_file_text.data();
 
-		//Create the shader module
 		VkShaderModule shader_module;
 		if (vkCreateShaderModule(logical_device.GetLogicalDevice(), &create_info, nullptr, &shader_module) != VK_SUCCESS) {
 			std::cerr << "failed to create shader module for " << file_name << std::endl;
@@ -46,43 +43,58 @@ namespace Engine::Core::Renderer::VulkanEntities {
 		return shader_module;
 	}
 
-	void GraphicsPipeline::CreateGraphicsPipeline(LogicalDevice& logical_device, SwapChain& swap_chain, AppConfig& app_config) {
+	void DefineHowToReadVertices(VkVertexInputBindingDescription& vertex_layout, std::vector<VkVertexInputAttributeDescription>& attributes_layout) {
+		//This tells the GPU how to read vertex data
+		vertex_layout.binding = 0;								//A unique binding number for the attributes_layout
+		vertex_layout.stride = sizeof(float) * 3;				//How many bytes 
+		vertex_layout.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;	//Specifies rate at which vertex attributes are pulled from buffers
 
-		//Compile and load the shaders
-		VkShaderModule vertex_shader_module = CreateShaderModule(logical_device, app_config.kShaderPath_ + std::string("vertex_shader.spv"));
-		VkShaderModule fragment_shader_module = CreateShaderModule(logical_device, app_config.kShaderPath_ + std::string("fragment_shader.spv"));
+		/*
+		This tells the GPU how to connect shader variables and vertex data.
+		Each element of the array defines what attribute it is.
+		For example if for each vertex you have position and normal you can
+		use vertex_attribute_descriptions[0] for positions and vertex_attribute_descriptions[1] for normals.
+		*/
+		attributes_layout.resize(1);
+		attributes_layout[0].binding = 0;							//The number we assigned before
+		attributes_layout[0].location = 0;							//The location of the attribute for the shader
+		attributes_layout[0].format = VK_FORMAT_R32G32B32_SFLOAT;	//The format of the data this attribute is in
+	}
 
-		//Set up shader stage info
-		VkPipelineShaderStageCreateInfo vertex_shader_create_info = {};
-		vertex_shader_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		vertex_shader_create_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertex_shader_create_info.module = vertex_shader_module;
-		vertex_shader_create_info.pName = "main";
-		VkPipelineShaderStageCreateInfo fragment_shader_create_info = {};
-		fragment_shader_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		fragment_shader_create_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		fragment_shader_create_info.module = fragment_shader_module;
-		fragment_shader_create_info.pName = "main";
-		VkPipelineShaderStageCreateInfo shader_stages[] = { vertex_shader_create_info, fragment_shader_create_info };
+	void GenerateShaderStagesCreateInfo(VkPipelineShaderStageCreateInfo& vertex_stage_create_info, VkPipelineShaderStageCreateInfo& fragment_stage_create_info, VkShaderModule& vert_shader, VkShaderModule& frag_shader) {
+		vertex_stage_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		vertex_stage_create_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		vertex_stage_create_info.module = vert_shader;
+		vertex_stage_create_info.pName = "main";
 
-		//Describe vertex input meaning how the graphics driver should interpret the information given in the vertex buffer
-		VkPipelineVertexInputStateCreateInfo vertex_input_create_info = {};
-		vertex_input_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertex_input_create_info.vertexBindingDescriptionCount = 1;
-		vertex_input_create_info.pVertexBindingDescriptions = &vertex_binding_description_;
-		vertex_input_create_info.vertexAttributeDescriptionCount = 1;
-		vertex_input_create_info.pVertexAttributeDescriptions = vertex_attribute_descriptions_.data();
+		fragment_stage_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		fragment_stage_create_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		fragment_stage_create_info.module = frag_shader;
+		fragment_stage_create_info.pName = "main";
+	}
 
-		//Describe input assembly meaning what we are going to draw to the screen. We want to draw triangles
-		VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info = {};
+	//Describe vertex input meaning how the graphics driver should interpret the information given in the vertex buffer
+	void GenerateVertexLayoutCreateInfo(VkPipelineVertexInputStateCreateInfo& vertex_layout_create_info, VkVertexInputBindingDescription& vertex_layout, std::vector<VkVertexInputAttributeDescription>& attributes_layout) {
+		vertex_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		vertex_layout_create_info.vertexBindingDescriptionCount = 1;
+		vertex_layout_create_info.pVertexBindingDescriptions = &vertex_layout;
+		vertex_layout_create_info.vertexAttributeDescriptionCount = 1;
+		vertex_layout_create_info.pVertexAttributeDescriptions = attributes_layout.data();
+	}
+
+	void DefineShapeTypeToRender(VkPipelineInputAssemblyStateCreateInfo& input_assembly_create_info) {
 		input_assembly_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		input_assembly_create_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		input_assembly_create_info.primitiveRestartEnable = VK_FALSE;
+	}
 
-		//Describe viewport and scissor. The viewport specifies how the normalized window coordinates 
-		//(-1 to 1 for both width and height) are transformed into the pixel coordinates of the framebuffer.
-		//Scissor is the area where you can render, this is similar to the viewport in that regard but changing the scissor 
-		//rectangle doesn't affect the coordinates
+	void DefineViewportInfo(VkPipelineViewportStateCreateInfo& viewport_create_info, SwapChain& swap_chain) {
+		/*
+		Describe viewport and scissor. The viewport specifies how the normalized window coordinates 
+		(-1 to 1 for both width and height) are transformed into the pixel coordinates of the framebuffer.
+		Scissor is the area where you can render, this is similar to the viewport in that regard but changing the scissor 
+		rectangle doesn't affect the coordinates
+		*/
 		VkViewport viewport = {};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
@@ -96,18 +108,15 @@ namespace Engine::Core::Renderer::VulkanEntities {
 		scissor.extent.width = swap_chain.GetExtent().width;
 		scissor.extent.height = swap_chain.GetExtent().height;
 
-		//Note: scissor test is always enabled (although dynamic scissor is possible)
 		//Number of viewports must match number of scissors
-		VkPipelineViewportStateCreateInfo viewport_create_info = {};
 		viewport_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 		viewport_create_info.viewportCount = 1;
 		viewport_create_info.pViewports = &viewport;
 		viewport_create_info.scissorCount = 1;
 		viewport_create_info.pScissors = &scissor;
+	}
 
-		//Describe rasterization
-		//Note: depth bias and using polygon modes other than fill require changes to logical device creation (device features)
-		VkPipelineRasterizationStateCreateInfo rasterization_create_info = {};
+	void DefineHowToColorPixels(VkPipelineRasterizationStateCreateInfo& rasterization_create_info) {
 		rasterization_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterization_create_info.depthClampEnable = VK_FALSE;
 		rasterization_create_info.rasterizerDiscardEnable = VK_FALSE;
@@ -119,19 +128,19 @@ namespace Engine::Core::Renderer::VulkanEntities {
 		rasterization_create_info.depthBiasClamp = 0.0f;
 		rasterization_create_info.depthBiasSlopeFactor = 0.0f;
 		rasterization_create_info.lineWidth = 1.0f;
+	}
 
-		//Describe multisampling
-		//Note: using multisampling also requires turning on device features
-		VkPipelineMultisampleStateCreateInfo multisample_create_info = {};
+	//Note: using multisampling also requires turning on device features
+	void ConfigureMultisampling(VkPipelineMultisampleStateCreateInfo& multisample_create_info) {
 		multisample_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 		multisample_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 		multisample_create_info.sampleShadingEnable = VK_FALSE;
 		multisample_create_info.minSampleShading = 1.0f;
 		multisample_create_info.alphaToCoverageEnable = VK_FALSE;
 		multisample_create_info.alphaToOneEnable = VK_FALSE;
+	}
 
-		//Describing color blending
-		//Note: all paramaters except blendEnable and colorWriteMask are irrelevant here
+	void DefineHowToColorOverlappingSurfaces(VkPipelineColorBlendStateCreateInfo& color_blend_create_info) {
 		VkPipelineColorBlendAttachmentState color_blend_attachment_state = {};
 		color_blend_attachment_state.blendEnable = VK_FALSE;
 		color_blend_attachment_state.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
@@ -153,10 +162,10 @@ namespace Engine::Core::Renderer::VulkanEntities {
 		color_blend_create_info.blendConstants[1] = 0.0f;
 		color_blend_create_info.blendConstants[2] = 0.0f;
 		color_blend_create_info.blendConstants[3] = 0.0f;
+	}
 
-		//Describe pipeline layout
+	void DefineHowToReadDescriptorSets(LogicalDevice& logical_device) {
 		//Note: this describes the mapping between memory and shader resources (descriptor sets)
-		//This is for uniform buffers and samplers
 		VkDescriptorSetLayoutBinding layout_binding = {};
 		layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		layout_binding.descriptorCount = 1;
@@ -183,6 +192,32 @@ namespace Engine::Core::Renderer::VulkanEntities {
 		else {
 			std::cout << "created pipeline layout" << std::endl;
 		}
+	}
+
+	void GraphicsPipeline::CreateGraphicsPipeline(LogicalDevice& logical_device, SwapChain& swap_chain, AppConfig& app_config) {
+
+		VkShaderModule vertex_shader_module = CreateShaderModule(logical_device, app_config.kShaderPath_ + std::string("vertex_shader.spv"));
+		VkShaderModule fragment_shader_module = CreateShaderModule(logical_device, app_config.kShaderPath_ + std::string("fragment_shader.spv"));
+		VkVertexInputBindingDescription vertex_layout;
+		std::vector<VkVertexInputAttributeDescription> attributes_layout;
+		VkPipelineVertexInputStateCreateInfo vertex_layout_create_info;
+		VkPipelineShaderStageCreateInfo vertex_stage_create_info;
+		VkPipelineShaderStageCreateInfo fragment_stage_create_info;
+		VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info;
+		VkPipelineViewportStateCreateInfo viewport_create_info;
+		VkPipelineRasterizationStateCreateInfo rasterization_create_info;
+		VkPipelineMultisampleStateCreateInfo multisample_create_info;
+		VkPipelineColorBlendStateCreateInfo color_blend_create_info;
+		
+		DefineHowToReadVertices(vertex_layout, attributes_layout);
+		GenerateVertexLayoutCreateInfo(vertex_layout_create_info, vertex_layout, attributes_layout);
+		GenerateShaderStagesCreateInfo(vertex_stage_create_info, fragment_stage_create_info, vertex_shader_module, fragment_shader_module);
+		DefineShapeTypeToRender(input_assembly_create_info);
+		DefineViewportInfo(viewport_create_info, swap_chain);
+		DefineHowToColorPixels(rasterization_create_info);
+		ConfigureMultisampling(multisample_create_info);
+		DefineHowToColorOverlappingSurfaces(color_blend_create_info);
+		DefineHowToReadDescriptorSets();
 
 		//Configure the creation of the graphics pipeline
 		VkGraphicsPipelineCreateInfo pipeline_create_info = {};
