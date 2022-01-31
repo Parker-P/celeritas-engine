@@ -26,6 +26,7 @@ namespace Engine::Core {
 		Renderer::VulkanEntities::SwapChain swap_chain_;
 		Renderer::VulkanEntities::GraphicsPipeline graphics_pipeline_;
 		Renderer::VulkanEntities::DescriptorPool descriptor_pool_;
+		Renderer::CustomEntities::Scene scene_;
 
 		//3D Model related stuff
 		VkBuffer vertex_buffer_; //The CPU side vertex information of an object

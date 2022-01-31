@@ -26,7 +26,9 @@
 #include "vulkan_application.h"
 
 //Custom entities
-#include "../src/engine/core/renderer/custom_entities/mesh.h"
+#include "renderer/custom_entities/game_object.h"
+#include "renderer/custom_entities/scene.h"
+#include "renderer/custom_entities/mesh.h"
 
 //Utils
 #include "../src/engine/utils/patterns/singleton.h"
@@ -200,6 +202,8 @@ namespace Engine::Core {
 		using Mesh = Engine::Core::Renderer::CustomEntities::Mesh;
 
 		Mesh mesh = Engine::Core::Utils::AssetImporter::ImportModel("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\models\\monkey.dae");
+
+		scene_.AddMesh(mesh);
 
 		//Get memory related variables ready. Note that the HOST_COHERENT_BIT flag allows us to not have to flush
 		//to the VRAM once allocating memory, it tells Vulkan to do this automatically

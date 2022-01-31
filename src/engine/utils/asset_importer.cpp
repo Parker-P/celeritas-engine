@@ -59,7 +59,6 @@ namespace Engine::Core::Utils {
 		else {
 			Mesh mesh;
 			FetchMeshInfo(scene, mesh);
-			mesh.GenerateVertexDescriptions();
 		}
 	}
 }

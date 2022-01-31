@@ -1,14 +1,10 @@
 #include <vector>
 #include <vulkan/vulkan.h>
+#include <glm/glm.hpp>
 
 #include "mesh.h"
 
 namespace Engine::Core::Renderer::CustomEntities {
-	void Mesh::GenerateVertexDescriptions()
-	{
-		
-	}
-
 	std::vector<Vertex> Mesh::GetVertices() {
 		return vertices_;
 	}

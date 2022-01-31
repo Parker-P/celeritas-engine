@@ -165,7 +165,6 @@ namespace Engine::Core::Renderer::VulkanEntities {
 	}
 
 	void DefineHowToReadDescriptorSets(LogicalDevice& logical_device) {
-		//Note: this describes the mapping between memory and shader resources (descriptor sets)
 		VkDescriptorSetLayoutBinding layout_binding = {};
 		layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		layout_binding.descriptorCount = 1;
