@@ -49,6 +49,10 @@ namespace Engine::Core::Renderer::VulkanEntities {
 
 		//Creates a command pool for commands that will be submitted to the queue family the "queue" parameter belongs to
 		void CreateDescriptorPool(LogicalDevice& logical_device);
+
+		//Allocates a descriptor set and stores its handle into the "descriptor_sets_" vector
+		void AllocateDescriptorSet(LogicalDevice& logical_device, VkDescriptorSetLayout descriptor_set_layout);
+
 		VkDescriptorPool GetDescriptorPool();
 	};
 }

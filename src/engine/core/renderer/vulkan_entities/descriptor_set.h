@@ -6,10 +6,11 @@ namespace Engine::Core::Renderer::VulkanEntities {
 
 		A descriptor is a special opaque shader variable that shaders use to access buffer and image resources in an indirect fashion. It can be thought of as a "pointer" to a resource. 
 		The Vulkan API allows these variables to be changed between draw operations so that the shaders can access different resources for each draw.
-		In the sample example, you have only one uniform buffer. But you could create two uniform buffers, each with a different MVP to give different views of the scene. 
+		You could create two uniform buffers, each with a different MVP to give different views of the scene. 
 		You could then easily change the descriptor to point to either uniform buffer to switch back and forth between the MVP matrices.
 		A descriptor set is called a "set" because it can refer to an array of homogenous resources that can be described with the same layout binding. (The "layout binding" will be explained shortly.)
-		You are not using textures in this sample, but one possible way to use multiple descriptors is to construct a descriptor set with two descriptors, with each descriptor referencing a separate texture. Both textures are therefore available during a draw. A command in a command buffer could then select the texture to use by specifying the index of the desired texture.
+		One possible way to use multiple descriptors is to construct a descriptor set with two descriptors, with each descriptor referencing a separate texture. 
+		Both textures are therefore available during a draw. A command in a command buffer could then select the texture to use by specifying the index of the desired texture.
 		It is important to note that you are just working on describing the descriptor set here and are not actually allocating or creating the descriptor set itself, which you will do later, in the descriptor_set sample.
 		To describe a descriptor set, you use a descriptor set layout.
 
@@ -58,8 +59,16 @@ namespace Engine::Core::Renderer::VulkanEntities {
 	
 	SOURCE: https://vulkan.lunarg.com/doc/view/1.2.154.1/windows/tutorial/html/08-init_pipeline_layout.html*/
 	class DescriptorSet {
+		VkDescriptorSet descriptor_set_;
 		VkBuffer uniform_buffer_; //This is the buffer that contains the uniform_buffer_data_ struct
 		VkDeviceMemory uniform_buffer_memory_; //Provides memory allocation info to vulkan when creating the uniform buffer
 		VkDescriptorSetLayout descriptor_set_layout_; //This is used to describe the layout of this descriptor set so that Vulkan can tell the GPU how to read the data it contains
+		VkDescriptorSetLayoutBinding shader_binding_; //Defines how this descriptor set is going to be accessed by the shaders - with the "binding" variable - and which shaders can access this descriptor set - with the "stageFlags" variable
+	public:
+		//Defines the shader bindings and the layout of the descriptor set, then creates the descriptor set
+		void CreateDescriptorSet(LogicalDevice& logical_device);
+		VkDescriptorSet GetDescriptorSet();
+		void SetDescriptorSet(VkDescriptorSet descriptor_set);
+		VkDescriptorSetLayout GetLayout();
 	};
 }

@@ -14,6 +14,7 @@
 #include "app_config.h"
 
 //Vulkan entities
+#include "renderer/vulkan_entities/descriptor_set.h"
 #include "renderer/vulkan_entities/descriptor_pool.h"
 #include "renderer/vulkan_entities/graphics_pipeline.h"
 #include "renderer/vulkan_entities/swap_chain.h"
@@ -76,11 +77,6 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 		qPressed = true;
 	}
 }
-
-// Vertex layout
-struct Vertex {
-	float pos[3];
-};
 
 namespace Engine::Core {
 	VulkanApplication::VulkanApplication(Engine::Core::AppConfig app_config) {
@@ -200,10 +196,18 @@ namespace Engine::Core {
 		//5) Submit the command buffer to a queue for it to be processed by the GPU
 
 		using Mesh = Engine::Core::Renderer::CustomEntities::Mesh;
+		using DescriptorSet = Engine::Core::Renderer::VulkanEntities::DescriptorSet;
 
 		Mesh mesh = Engine::Core::Utils::AssetImporter::ImportModel("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\models\\monkey.dae");
 
 		scene_.AddMesh(mesh);
+
+		//Create a descriptor set
+		DescriptorSet vertex_transformation_matrices;
+		vertex_transformation_matrices.CreateDescriptorSet(logical_device_);
+
+		//Allocate the descriptor set
+		descriptor_pool_.AllocateDescriptorSet(logical_device_, vertex_transformation_matrices.GetLayout());
 
 		//Get memory related variables ready. Note that the HOST_COHERENT_BIT flag allows us to not have to flush
 		//to the VRAM once allocating memory, it tells Vulkan to do this automatically
@@ -408,22 +412,6 @@ namespace Engine::Core {
 		//Desciptor sets are allocated using a descriptor pool, but the behaviour of the pool is handled by
 		//the Vulkan drivers so we don't need to worry about how it works.
 		//We use descriptor sets to pass the transformation matrices to the vertex shader
-
-		//There needs to be one descriptor set per binding point in the shader
-		VkDescriptorSetAllocateInfo alloc_info = {};
-		alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		alloc_info.descriptorPool = descriptor_pool_;
-		alloc_info.descriptorSetCount = 1;
-		alloc_info.pSetLayouts = &descriptor_set_layout_;
-
-		//Create the descriptor set
-		if (vkAllocateDescriptorSets(logical_device_, &alloc_info, &descriptor_set_) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor set" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created descriptor set" << std::endl;
-		}
 
 		//Bind the uniform buffer to the descriptor. This descriptor will then be bound to a descriptor set and then that descriptor
 		//set will be uploaded to the VRAM
