@@ -79,6 +79,8 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 }
 
 namespace Engine::Core {
+	using Vertex = Engine::Core::Renderer::CustomEntities::Vertex;
+
 	VulkanApplication::VulkanApplication(Engine::Core::AppConfig app_config) {
 		this->app_config_ = app_config;
 	}
@@ -90,6 +92,7 @@ namespace Engine::Core {
 		MainLoop();
 		Cleanup(true);
 	}
+
 
 	void VulkanApplication::WindowInit() {
 		glfwInit();
@@ -111,6 +114,7 @@ namespace Engine::Core {
 		graphics_pipeline_.CreateGraphicsPipeline(logical_device_, swap_chain_, app_config_);
 		descriptor_pool_.CreateDescriptorPool(logical_device_);
 
+		LoadScene();
 		CreateVertexAndIndexBuffers();
 		CreateUniformBuffer();
 
@@ -125,6 +129,7 @@ namespace Engine::Core {
 			glfwPollEvents();
 		}
 	}
+
 
 	void VulkanApplication::OnWindowResized(GLFWwindow* window, int width, int height) {
 		VulkanFactory::GetInstance().GetApplicationByGlfwWindow(window)->window_resized_ = true;
@@ -177,6 +182,28 @@ namespace Engine::Core {
 		}
 	}
 
+	std::vector<Vertex> VulkanApplication::GetAllVerticesInScene()
+	{
+		return std::vector<uint32_t>();
+	}
+
+	void VulkanApplication::LoadScene()
+	{
+		using Mesh = Engine::Core::Renderer::CustomEntities::Mesh;
+		using DescriptorSet = Engine::Core::Renderer::VulkanEntities::DescriptorSet;
+
+		Mesh mesh = Engine::Core::Utils::AssetImporter::ImportModel("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\models\\monkey.dae");
+
+		scene_.AddMesh(mesh);
+
+		//Create a descriptor set
+		DescriptorSet vertex_transformation_matrices;
+		vertex_transformation_matrices.CreateDescriptorSet(logical_device_);
+
+		//Allocate the descriptor set
+		descriptor_pool_.AllocateDescriptorSet(logical_device_, vertex_transformation_matrices.GetLayout());
+	}
+
 	void VulkanApplication::CreateVertexAndIndexBuffers() {
 
 		//In this function we copy vertex and face information to the GPU.
@@ -195,19 +222,8 @@ namespace Engine::Core {
 		//4) Create a command buffer and fill it with instructions to copy data from the staging buffer to the VRAM
 		//5) Submit the command buffer to a queue for it to be processed by the GPU
 
-		using Mesh = Engine::Core::Renderer::CustomEntities::Mesh;
-		using DescriptorSet = Engine::Core::Renderer::VulkanEntities::DescriptorSet;
-
-		Mesh mesh = Engine::Core::Utils::AssetImporter::ImportModel("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\models\\monkey.dae");
-
-		scene_.AddMesh(mesh);
-
-		//Create a descriptor set
-		DescriptorSet vertex_transformation_matrices;
-		vertex_transformation_matrices.CreateDescriptorSet(logical_device_);
-
-		//Allocate the descriptor set
-		descriptor_pool_.AllocateDescriptorSet(logical_device_, vertex_transformation_matrices.GetLayout());
+		GetAllVerticesInScene();
+		GetAllVertexIndicesInScene();
 
 		//Get memory related variables ready. Note that the HOST_COHERENT_BIT flag allows us to not have to flush
 		//to the VRAM once allocating memory, it tells Vulkan to do this automatically
@@ -227,11 +243,11 @@ namespace Engine::Core {
 		} staging_buffers;
 
 		//1) Allocate some memory on the VRAM that is visible to both the CPU and the GPU. This will be what we call the staging buffer
-		VkBufferCreateInfo vertex_buffer_info = {};
-		vertex_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		vertex_buffer_info.size = vertices_size;
-		vertex_buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		vkCreateBuffer(logical_device_, &vertex_buffer_info, nullptr, &staging_buffers.vertices.buffer);
+		VkBufferCreateInfo vertex_staging_buffer_info = {};
+		vertex_staging_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		vertex_staging_buffer_info.size = vertices_size;
+		vertex_staging_buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		vkCreateBuffer(logical_device_, &vertex_staging_buffer_info, nullptr, &staging_buffers.vertices.buffer);
 		vkGetBufferMemoryRequirements(logical_device_, staging_buffers.vertices.buffer, &mem_reqs);
 		mem_alloc.allocationSize = mem_reqs.size;
 		GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &mem_alloc.memoryTypeIndex);
@@ -245,8 +261,8 @@ namespace Engine::Core {
 		vkBindBufferMemory(logical_device_, staging_buffers.vertices.buffer, staging_buffers.vertices.memory, 0);
 
 		//3) Allocate memory on the VRAM that is only visible to the GPU. This is the memory location that will be used by the shaders
-		vertex_buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		vkCreateBuffer(logical_device_, &vertex_buffer_info, nullptr, &vertex_buffer_);
+		vertex_staging_buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		vkCreateBuffer(logical_device_, &vertex_staging_buffer_info, nullptr, &vertex_buffer_);
 		vkGetBufferMemoryRequirements(logical_device_, vertex_buffer_, &mem_reqs);
 		mem_alloc.allocationSize = mem_reqs.size;
 		GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &mem_alloc.memoryTypeIndex);
@@ -255,11 +271,11 @@ namespace Engine::Core {
 
 		//Now we repeat the same steps for the index buffer (face information)
 		//1) Allocate some memory on the RAM that is visible to both the CPU and the GPU. This will be what we call the staging buffer
-		VkBufferCreateInfo index_buffer_info = {};
-		index_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		index_buffer_info.size = faces_size;
-		index_buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		vkCreateBuffer(logical_device_, &index_buffer_info, nullptr, &staging_buffers.indices.buffer);
+		VkBufferCreateInfo index_staging_buffer_info = {};
+		index_staging_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		index_staging_buffer_info.size = faces_size;
+		index_staging_buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		vkCreateBuffer(logical_device_, &index_staging_buffer_info, nullptr, &staging_buffers.indices.buffer);
 		vkGetBufferMemoryRequirements(logical_device_, staging_buffers.indices.buffer, &mem_reqs);
 		mem_alloc.allocationSize = mem_reqs.size;
 		GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &mem_alloc.memoryTypeIndex);
@@ -272,8 +288,8 @@ namespace Engine::Core {
 		vkBindBufferMemory(logical_device_, staging_buffers.indices.buffer, staging_buffers.indices.memory, 0);
 
 		//3) Allocate memory on the VRAM that is only visible to the GPU. This is the memory location that will be used by the shaders
-		index_buffer_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		vkCreateBuffer(logical_device_, &index_buffer_info, nullptr, &index_buffer_);
+		index_staging_buffer_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		vkCreateBuffer(logical_device_, &index_staging_buffer_info, nullptr, &index_buffer_);
 		vkGetBufferMemoryRequirements(logical_device_, index_buffer_, &mem_reqs);
 		mem_alloc.allocationSize = mem_reqs.size;
 		GetMemoryType(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &mem_alloc.memoryTypeIndex);
@@ -551,7 +567,7 @@ namespace Engine::Core {
 		vkDestroyPipelineLayout(logical_device_, pipeline_layout_, nullptr);
 	}
 
-	void VulkanApplication::Draw() {
+	void VulkanApplication::() {
 		//Acquire image
 		uint32_t imageIndex;
 		VkResult res = vkAcquireNextImageKHR(logical_device_, swap_chain_, UINT64_MAX, image_available_semaphore_, VK_NULL_HANDLE, &imageIndex);

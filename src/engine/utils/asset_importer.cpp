@@ -18,6 +18,7 @@ namespace Engine::Core::Utils {
 	//Gets the mesh information from "scene_to_fetch" and initializes "destination_mesh" with that data
 	void FetchMeshInfo(const aiScene* scene_to_fetch, Mesh& destination_mesh) {
 
+		//Get vertices and map them to our mesh object
 		auto vertices = destination_mesh.GetVertices();
 		for (int mesh_index = 0; mesh_index < scene_to_fetch->mNumMeshes; ++mesh_index) {
 			destination_mesh.GetVertices().reserve(scene_to_fetch->mMeshes[mesh_index]->mVertices->Length());
@@ -30,6 +31,7 @@ namespace Engine::Core::Utils {
 			}
 		}
 
+		//Get faces and map them to our mesh object
 		auto faces = destination_mesh.GetFaces();
 		for (int mesh_index = 0; mesh_index < scene_to_fetch->mNumMeshes; ++mesh_index) {
 			faces.reserve(scene_to_fetch->mMeshes[mesh_index]->mNumFaces);
@@ -40,6 +42,7 @@ namespace Engine::Core::Utils {
 			}
 		}
 
+		//Set the data in the destination mesh
 		destination_mesh.SetVertices(vertices);
 		destination_mesh.SetFaces(faces);
 	}
@@ -55,10 +58,12 @@ namespace Engine::Core::Utils {
 
 		if (nullptr == scene) {
 			std::cout << importer.GetErrorString();
+			return;
 		}
 		else {
 			Mesh mesh;
 			FetchMeshInfo(scene, mesh);
+			return mesh;
 		}
 	}
 }
