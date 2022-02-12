@@ -1,0 +1,11 @@
+Project methodology
+1) Acquire as much knowledge as possible on the subject
+2) Identify the scenarios. Which are the most important and relevant use cases of your application?
+3) Once you have identified your use cases, find good, simple, flexible and readable, ready made examples/code 
+that grossly implement your use cases. If they achieve what you want and are free, study them and find 
+a way to use them in your project.
+4) Draw a sequence diagram. Using the knowledge you have acquired in step 1), lay out the most important use cases. 
+If you rely on other systems/libraries to create your project, you will need to keep acquiring knowledge about how that 
+particular system/library works in order to crete accurate sequence diagrams.
+5) Once your sequence diagrams are complete, start by coding your main use case in the simplest and most straightforward,
+flexible way possible

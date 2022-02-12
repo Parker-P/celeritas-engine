@@ -5807,7 +5807,7 @@ GLFWAPI GLFWvkproc glfwGetInstanceProcAddress(VkInstance instance, const char* p
  *
  *  @ingroup vulkan
  */
-GLFWAPI int glfwGetPhysicalDevicePresentationSupport(VkInstance instance, VkPhysicalDevice device, uint32_t queuefamily);
+GLFWAPI int glfwGetPhysicalDevicePresentationSupport(VkInstance instance, VkPhysicalDevice logicalDevice, uint32_t queuefamily);
 
 /*! @brief Creates a Vulkan surface for the specified window.
  *
