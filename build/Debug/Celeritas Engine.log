@@ -1,3 +1,3 @@
 ﻿  vulkan_application.cpp
-C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(1042,1): warning C4267: '=': conversion from 'size_t' to 'uint32_t', possible loss of data
+C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(1051,1): warning C4267: '=': conversion from 'size_t' to 'uint32_t', possible loss of data
   Celeritas Engine.vcxproj -> C:\Users\Paolo Parker\source\repos\Celeritas Engine\bin\Debug\Celeritas Engine.exe

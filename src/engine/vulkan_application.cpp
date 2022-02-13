@@ -1,3 +1,4 @@
+#define GLFW_INCLUDE_VULKAN
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -5,11 +6,11 @@
 #include <algorithm>
 #include <chrono>
 #include <functional>
-
-#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-
 #include <glm/gtc/matrix_transform.hpp>
+
+#include "singleton.h"
+#include "input.h"
 
 using namespace std::placeholders;
 
@@ -56,9 +57,12 @@ public:
 		// Create window for Vulkan
 		glfwInit();
 
+
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
 		window = glfwCreateWindow(WIDTH, HEIGHT, "The spinning triangle that took 1397 lines of code", nullptr, nullptr);
+
+		input.Init(window);
 
 		glfwSetWindowSizeCallback(window, VulkanApplication::onWindowResized);
 
@@ -124,6 +128,8 @@ private:
 
 	// Misc
 	std::chrono::high_resolution_clock::time_point timeStart;
+	Input input;
+
 
 	void setupVulkan() {
 		oldSwapChain = VK_NULL_HANDLE;
@@ -708,22 +714,25 @@ private:
 	}
 
 	void updateUniformData() {
-		// Rotate based on time
-		auto timeNow = std::chrono::high_resolution_clock::now();
-		long long millis = std::chrono::duration_cast<std::chrono::milliseconds>(timeStart - timeNow).count();
-		float angle = (millis % 4000) / 4000.0f * glm::radians(360.f);
-
 		glm::mat4 modelMatrix;
-		modelMatrix = glm::rotate(modelMatrix, angle, glm::vec3(0, 0, 1));
+
+		if (input.IsKeyHeldDown("w")) {
+			std::cout << "w key is being held down\n";
+		}
+
+		if (input.WasKeyPressed("w")) {
+			std::cout << "w key was pressed\n";
+		}
+
 		modelMatrix = glm::translate(modelMatrix, glm::vec3(0.5f / 3.0f, -0.5f / 3.0f, 0.0f));
 
 		// Set up view
-		auto viewMatrix = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
+		auto cameraMatrix = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
 
 		// Set up projection
-		auto projMatrix = glm::perspective(glm::radians(70.f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
+		auto projMatrix = glm::perspective(glm::radians(70.f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 1000.0f);
 
-		uniformBufferData.transformationMatrix = projMatrix * viewMatrix * modelMatrix;
+		uniformBufferData.transformationMatrix = projMatrix * cameraMatrix * modelMatrix;
 
 		void* data;
 		vkMapMemory(logicalDevice, uniformBufferMemory, 0, sizeof(uniformBufferData), 0, &data);
