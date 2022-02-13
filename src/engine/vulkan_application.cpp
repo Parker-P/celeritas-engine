@@ -11,6 +11,7 @@
 
 #include "singleton.h"
 #include "input.h"
+#include "camera.h"
 
 using namespace std::placeholders;
 
@@ -63,6 +64,7 @@ public:
 		window = glfwCreateWindow(WIDTH, HEIGHT, "The spinning triangle that took 1397 lines of code", nullptr, nullptr);
 
 		input.Init(window);
+		mainCamera.Init(90.0f, WIDTH / HEIGHT, 0.1f, 1000.0f);
 
 		glfwSetWindowSizeCallback(window, VulkanApplication::onWindowResized);
 
@@ -93,7 +95,7 @@ private:
 	VkSemaphore							renderingFinishedSemaphore;
 	VkRenderPass						renderPass;
 	VkPipeline							graphicsPipeline;
-	
+
 	// Vertex and index buffers
 	VkBuffer										vertexBuffer;
 	VkDeviceMemory									vertexBufferMemory;
@@ -101,7 +103,7 @@ private:
 	VkDeviceMemory									indexBufferMemory;
 	VkVertexInputBindingDescription					vertexBindingDescription;
 	std::vector<VkVertexInputAttributeDescription>	vertexAttributeDescriptions;
-	
+
 	// Shader resources (descriptor sets and push constants)
 	VkBuffer				uniformBuffer;
 	VkDeviceMemory			uniformBufferMemory;
@@ -126,10 +128,11 @@ private:
 	VkCommandPool					commandPool;
 	std::vector<VkCommandBuffer>	graphicsCommandBuffers;
 
+
 	// Misc
 	std::chrono::high_resolution_clock::time_point timeStart;
 	Input input;
-
+	Camera mainCamera;
 
 	void setupVulkan() {
 		oldSwapChain = VK_NULL_HANDLE;
@@ -718,21 +721,28 @@ private:
 
 		if (input.IsKeyHeldDown("w")) {
 			std::cout << "w key is being held down\n";
+			mainCamera.view += glm::translate(mainCamera.view, glm::vec3(0.0f, 0.0f, 0.1f));
 		}
 
-		if (input.WasKeyPressed("w")) {
-			std::cout << "w key was pressed\n";
+		if (input.IsKeyHeldDown("a")) {
+			std::cout << "a key is being held down\n";
+			mainCamera.view += glm::translate(mainCamera.view, glm::vec3(-0.1f, 0.0f, 0.0f));
 		}
+
+		if (input.IsKeyHeldDown("s")) {
+			std::cout << "s key is being held down\n";
+			mainCamera.view += glm::translate(mainCamera.view, glm::vec3(0.0f, 0.0f, -0.1f));
+		}
+
+		if (input.IsKeyHeldDown("d")) {
+			std::cout << "d key is being held down\n";
+			mainCamera.view += glm::translate(mainCamera.view, glm::vec3(0.1f, 0.0f, 0.0f));
+		}
+
 
 		modelMatrix = glm::translate(modelMatrix, glm::vec3(0.5f / 3.0f, -0.5f / 3.0f, 0.0f));
 
-		// Set up view
-		auto cameraMatrix = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
-
-		// Set up projection
-		auto projMatrix = glm::perspective(glm::radians(70.f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 1000.0f);
-
-		uniformBufferData.transformationMatrix = projMatrix * cameraMatrix * modelMatrix;
+		uniformBufferData.transformationMatrix = mainCamera.projection * mainCamera.view * modelMatrix;
 
 		void* data;
 		vkMapMemory(logicalDevice, uniformBufferMemory, 0, sizeof(uniformBufferData), 0, &data);
