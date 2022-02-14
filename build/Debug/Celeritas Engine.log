@@ -1,5 +1,5 @@
-﻿  camera.cpp
-  vulkan_application.cpp
-C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(1061,1): warning C4267: '=': conversion from 'size_t' to 'uint32_t', possible loss of data
-  Generating Code...
+﻿  vulkan_application.cpp
+C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(587,21): warning C4018: '<': signed/unsigned mismatch
+C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(596,21): warning C4018: '<': signed/unsigned mismatch
+C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(1092,1): warning C4267: '=': conversion from 'size_t' to 'uint32_t', possible loss of data
   Celeritas Engine.vcxproj -> C:\Users\Paolo Parker\source\repos\Celeritas Engine\bin\Debug\Celeritas Engine.exe

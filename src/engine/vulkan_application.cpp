@@ -1,4 +1,5 @@
 #define GLFW_INCLUDE_VULKAN
+// STL
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -6,12 +7,20 @@
 #include <algorithm>
 #include <chrono>
 #include <functional>
+
+// 
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
+
+// Assimp
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 #include "singleton.h"
 #include "input.h"
 #include "camera.h"
+#include "model.h"
 
 using namespace std::placeholders;
 
@@ -37,11 +46,6 @@ VkBool32 debugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT o
 	return VK_FALSE;
 }
 
-// Vertex layout
-struct Vertex {
-	float pos[3];
-};
-
 bool windowResized = false;
 
 // Note: support swap chain recreation (not only required for resized windows!)
@@ -61,10 +65,9 @@ public:
 
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-		window = glfwCreateWindow(WIDTH, HEIGHT, "The spinning triangle that took 1397 lines of code", nullptr, nullptr);
+		window = glfwCreateWindow(WIDTH, HEIGHT, "Solar System Explorer", nullptr, nullptr);
 
 		input.Init(window);
-		mainCamera.Init(90.0f, WIDTH / HEIGHT, 0.1f, 1000.0f);
 
 		glfwSetWindowSizeCallback(window, VulkanApplication::onWindowResized);
 
@@ -133,6 +136,8 @@ private:
 	std::chrono::high_resolution_clock::time_point timeStart;
 	Input input;
 	Camera mainCamera;
+	glm::mat4 modelMatrix;
+	Model model;
 
 	void setupVulkan() {
 		oldSwapChain = VK_NULL_HANDLE;
@@ -560,17 +565,43 @@ private:
 	}
 
 	void createVertexAndIndexBuffers() {
-		// Setup triangle's vertices
-		std::vector<Vertex> vertices = {
-			{ -0.5f, -0.5f,  0.0f },
-			{ -0.5f,  0.5f,  0.0f },
-			{  0.5f,  0.5f,  0.0f }
+
+
+		// Create an instance of the Importer class
+		Assimp::Importer importer;
+
+		// And have it read the given file with some example postprocessing
+		// Usually - if speed is not the most important aspect for you - you'll
+		// probably to request more postprocessing than we do in this example.
+		const aiScene* scene = importer.ReadFile("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\models\\monkey.dae",
+			aiProcess_CalcTangentSpace |
+			aiProcess_Triangulate |
+			aiProcess_JoinIdenticalVertices |
+			aiProcess_SortByPType);
+
+		// If the import failed, report it
+		if (nullptr != scene) {
+			std::cout << "import failed\n";
+		}
+
+		for (int i = 0; i < scene->mMeshes[0]->mNumVertices; ++i) {
+			float xCoord = scene->mMeshes[0]->mVertices[i].x;
+			float yCoord = scene->mMeshes[0]->mVertices[i].y;
+			float zCoord = scene->mMeshes[0]->mVertices[i].z;
+			model.vertices.push_back(Vertex{ xCoord, yCoord, zCoord });
 		};
-		uint32_t verticesSize = (uint32_t)(vertices.size() * sizeof(vertices[0]));
+		model.verticesSize = (uint32_t)(model.vertices.size() * sizeof(model.vertices[0]));
 
 		// Setup indices
-		std::vector<uint32_t> indices = { 0, 1, 2 };
-		uint32_t indicesSize = (uint32_t)(indices.size() * sizeof(indices[0]));
+		for (int i = 0; i < scene->mMeshes[0]->mNumFaces; ++i) {
+			uint32_t index1 = scene->mMeshes[0]->mFaces[i].mIndices[0];
+			uint32_t index2 = scene->mMeshes[0]->mFaces[i].mIndices[1];
+			uint32_t index3 = scene->mMeshes[0]->mFaces[i].mIndices[2];
+			model.indices.push_back(index1);
+			model.indices.push_back(index2);
+			model.indices.push_back(index3);
+		};
+		model.indicesSize = (uint32_t)(model.indices.size() * sizeof(model.indices[0]));
 
 		struct StagingBuffer {
 			VkDeviceMemory memory;
@@ -595,7 +626,7 @@ private:
 		// First copy vertices to host accessible vertex buffer memory
 		VkBufferCreateInfo vertexBufferInfo = {};
 		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		vertexBufferInfo.size = verticesSize;
+		vertexBufferInfo.size = model.verticesSize;
 		vertexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
 		vkCreateBuffer(logicalDevice, &vertexBufferInfo, nullptr, &stagingBuffers.vertices.buffer);
@@ -610,8 +641,8 @@ private:
 		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(logicalDevice, &memAlloc, nullptr, &stagingBuffers.vertices.memory);
 
-		vkMapMemory(logicalDevice, stagingBuffers.vertices.memory, 0, verticesSize, 0, &data);
-		memcpy(data, vertices.data(), verticesSize);
+		vkMapMemory(logicalDevice, stagingBuffers.vertices.memory, 0, model.verticesSize, 0, &data);
+		memcpy(data, model.vertices.data(), model.verticesSize);
 		vkUnmapMemory(logicalDevice, stagingBuffers.vertices.memory);
 		vkBindBufferMemory(logicalDevice, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0);
 
@@ -627,7 +658,7 @@ private:
 		// Next copy indices to host accessible index buffer memory
 		VkBufferCreateInfo indexBufferInfo = {};
 		indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		indexBufferInfo.size = indicesSize;
+		indexBufferInfo.size = model.indicesSize;
 		indexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
 		vkCreateBuffer(logicalDevice, &indexBufferInfo, nullptr, &stagingBuffers.indices.buffer);
@@ -635,8 +666,8 @@ private:
 		memAlloc.allocationSize = memReqs.size;
 		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(logicalDevice, &memAlloc, nullptr, &stagingBuffers.indices.memory);
-		vkMapMemory(logicalDevice, stagingBuffers.indices.memory, 0, indicesSize, 0, &data);
-		memcpy(data, indices.data(), indicesSize);
+		vkMapMemory(logicalDevice, stagingBuffers.indices.memory, 0, model.indicesSize, 0, &data);
+		memcpy(data, model.indices.data(), model.indicesSize);
 		vkUnmapMemory(logicalDevice, stagingBuffers.indices.memory);
 		vkBindBufferMemory(logicalDevice, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0);
 
@@ -657,9 +688,9 @@ private:
 		vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
 
 		VkBufferCopy copyRegion = {};
-		copyRegion.size = verticesSize;
+		copyRegion.size = model.verticesSize;
 		vkCmdCopyBuffer(copyCommandBuffer, stagingBuffers.vertices.buffer, vertexBuffer, 1, &copyRegion);
-		copyRegion.size = indicesSize;
+		copyRegion.size = model.indicesSize;
 		vkCmdCopyBuffer(copyCommandBuffer, stagingBuffers.indices.buffer, indexBuffer, 1, &copyRegion);
 
 		vkEndCommandBuffer(copyCommandBuffer);
@@ -684,7 +715,7 @@ private:
 
 		// Binding and attribute descriptions
 		vertexBindingDescription.binding = 0;
-		vertexBindingDescription.stride = sizeof(vertices[0]);
+		vertexBindingDescription.stride = sizeof(model.vertices[0]);
 		vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		// vec3 position
@@ -717,30 +748,30 @@ private:
 	}
 
 	void updateUniformData() {
-		glm::mat4 modelMatrix;
+
+		mainCamera.Init(90.0f, swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 1000.0f);
 
 		if (input.IsKeyHeldDown("w")) {
 			std::cout << "w key is being held down\n";
-			mainCamera.view += glm::translate(mainCamera.view, glm::vec3(0.0f, 0.0f, 0.1f));
+			mainCamera.view = glm::translate(mainCamera.view, glm::vec3(0.0f, 0.0f, 0.1f));
 		}
 
 		if (input.IsKeyHeldDown("a")) {
 			std::cout << "a key is being held down\n";
-			mainCamera.view += glm::translate(mainCamera.view, glm::vec3(-0.1f, 0.0f, 0.0f));
+			mainCamera.view = glm::translate(mainCamera.view, glm::vec3(0.1f, 0.0f, 0.0f));
 		}
 
 		if (input.IsKeyHeldDown("s")) {
 			std::cout << "s key is being held down\n";
-			mainCamera.view += glm::translate(mainCamera.view, glm::vec3(0.0f, 0.0f, -0.1f));
+			mainCamera.view = glm::translate(mainCamera.view, glm::vec3(0.0f, 0.0f, -0.1f));
 		}
 
 		if (input.IsKeyHeldDown("d")) {
 			std::cout << "d key is being held down\n";
-			mainCamera.view += glm::translate(mainCamera.view, glm::vec3(0.1f, 0.0f, 0.0f));
+			mainCamera.view = glm::translate(mainCamera.view, glm::vec3(-0.1f, 0.0f, 0.0f));
 		}
 
-
-		modelMatrix = glm::translate(modelMatrix, glm::vec3(0.5f / 3.0f, -0.5f / 3.0f, 0.0f));
+		modelMatrix = glm::rotate(modelMatrix, glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f));
 
 		uniformBufferData.transformationMatrix = mainCamera.projection * mainCamera.view * modelMatrix;
 
@@ -1335,7 +1366,7 @@ private:
 			VkDeviceSize offset = 0;
 			vkCmdBindVertexBuffers(graphicsCommandBuffers[i], 0, 1, &vertexBuffer, &offset);
 			vkCmdBindIndexBuffer(graphicsCommandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(graphicsCommandBuffers[i], 3, 1, 0, 0, 0);
+			vkCmdDrawIndexed(graphicsCommandBuffers[i], model.indicesSize, 1, 0, 0, 0);
 			vkCmdEndRenderPass(graphicsCommandBuffers[i]);
 
 			// If present and graphics queue families differ, then another barrier is required

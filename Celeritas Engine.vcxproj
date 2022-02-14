@@ -20,15 +20,16 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\engine\app_config.h" />
-    <ClInclude Include="src\engine\asset_importer.h" />
     <ClInclude Include="src\engine\camera.h" />
     <ClInclude Include="src\engine\input.h" />
+    <ClInclude Include="src\engine\model.h" />
     <ClInclude Include="src\engine\singleton.h" />
     <ClInclude Include="src\engine\vulkan_application.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\engine\camera.cpp" />
     <ClCompile Include="src\engine\input.cpp" />
+    <ClCompile Include="src\engine\model.cpp" />
     <ClCompile Include="src\engine\vulkan_application.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
