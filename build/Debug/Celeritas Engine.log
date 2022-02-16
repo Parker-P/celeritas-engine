@@ -1,5 +1,10 @@
-﻿  vulkan_application.cpp
-C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(587,21): warning C4018: '<': signed/unsigned mismatch
-C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(596,21): warning C4018: '<': signed/unsigned mismatch
-C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(1092,1): warning C4267: '=': conversion from 'size_t' to 'uint32_t', possible loss of data
+﻿  camera.cpp
+  input.cpp
+  model.cpp
+  vulkan_application.cpp
+C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(590,21): warning C4018: '<': signed/unsigned mismatch
+C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(599,21): warning C4018: '<': signed/unsigned mismatch
+C:\Users\Paolo Parker\source\repos\Celeritas Engine\src\engine\vulkan_application.cpp(1102,1): warning C4267: '=': conversion from 'size_t' to 'uint32_t', possible loss of data
+  Generating Code...
+LINK : warning LNK4098: defaultlib 'MSVCRT' conflicts with use of other libs; use /NODEFAULTLIB:library
   Celeritas Engine.vcxproj -> C:\Users\Paolo Parker\source\repos\Celeritas Engine\bin\Debug\Celeritas Engine.exe

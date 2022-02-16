@@ -1,5 +1,6 @@
-#include <GLFW/glfw3.h>
+#include <iostream>
 #include <string>
+#include <GLFW/glfw3.h>
 
 #include "singleton.h"
 #include "input.h"
@@ -62,8 +63,23 @@ void Input::key_callback(GLFWwindow* window, int key, int scancode, int action, 
 	}
 }
 
+void Input::cursor_position_callback(GLFWwindow* window, double xPos, double yPos) {
+	Input::Instance().mouseX = xPos;
+	Input::Instance().mouseY = yPos;
+	//std::cout << xPos << std::endl;
+	//std::cout << yPos << std::endl;
+}
+
 void Input::Init(GLFWwindow* window) {
+	// Keyboard init
 	glfwSetKeyCallback(window, key_callback);
+
+	// Mouse init
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	if (glfwRawMouseMotionSupported()) {
+		glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+	}
+	glfwSetCursorPosCallback(window, cursor_position_callback);
 }
 
 bool Input::IsKeyHeldDown(std::string key) {

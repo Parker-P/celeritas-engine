@@ -67,7 +67,9 @@ public:
 
 		window = glfwCreateWindow(WIDTH, HEIGHT, "Solar System Explorer", nullptr, nullptr);
 
+		input = Input::Instance();
 		input.Init(window);
+		mouseSensitivity = 0.1f;
 
 		glfwSetWindowSizeCallback(window, VulkanApplication::onWindowResized);
 
@@ -138,6 +140,7 @@ private:
 	Camera mainCamera;
 	glm::mat4 modelMatrix;
 	Model model;
+	float mouseSensitivity;
 
 	void setupVulkan() {
 		oldSwapChain = VK_NULL_HANDLE;
@@ -752,26 +755,33 @@ private:
 		mainCamera.Init(90.0f, swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 1000.0f);
 
 		if (input.IsKeyHeldDown("w")) {
-			std::cout << "w key is being held down\n";
+			//std::cout << "w key is being held down\n";
 			mainCamera.view = glm::translate(mainCamera.view, glm::vec3(0.0f, 0.0f, 0.1f));
 		}
 
 		if (input.IsKeyHeldDown("a")) {
-			std::cout << "a key is being held down\n";
+			//std::cout << "a key is being held down\n";
 			mainCamera.view = glm::translate(mainCamera.view, glm::vec3(0.1f, 0.0f, 0.0f));
 		}
 
 		if (input.IsKeyHeldDown("s")) {
-			std::cout << "s key is being held down\n";
+			//std::cout << "s key is being held down\n";
 			mainCamera.view = glm::translate(mainCamera.view, glm::vec3(0.0f, 0.0f, -0.1f));
 		}
 
 		if (input.IsKeyHeldDown("d")) {
-			std::cout << "d key is being held down\n";
+			//std::cout << "d key is being held down\n";
 			mainCamera.view = glm::translate(mainCamera.view, glm::vec3(-0.1f, 0.0f, 0.0f));
 		}
 
-		modelMatrix = glm::rotate(modelMatrix, glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f));
+		std::cout << "Mouse x is " << Input::Instance().mouseX << std::endl;
+		std::cout << "Mouse y is " << Input::Instance().mouseY << std::endl;
+
+		mainCamera.view = glm::rotate(mainCamera.view, 0.01f, glm::vec3(0.0f, 1.0f, 0.0f));
+		//mainCamera.view = glm::rotate(mainCamera.view, (float)input.mouseX * mouseSensitivity, glm::vec3(0.0f, 1.0f, 0.0f));
+		//mainCamera.view = glm::rotate(mainCamera.view, (float)input.mouseY * mouseSensitivity, glm::vec3(1.0f, 0.0f, 0.0f));
+
+		//modelMatrix = glm::rotate(modelMatrix, glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f));
 
 		uniformBufferData.transformationMatrix = mainCamera.projection * mainCamera.view * modelMatrix;
 
