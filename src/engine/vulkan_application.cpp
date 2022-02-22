@@ -751,8 +751,18 @@ private:
 	}
 
 	void updateUniformData() {
-
 		mainCamera.Init(90.0f, swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 1000.0f);
+
+		float yaw = Input::Instance().mouseX * mouseSensitivity;
+		float pitch = Input::Instance().mouseY * mouseSensitivity;
+		glm::vec3 cameraForward;
+		cameraForward.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+		cameraForward.y = sin(glm::radians(pitch));
+		cameraForward.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+		glm::vec3 cameraPosition(mainCamera.view[0][3], mainCamera.view[1][3], mainCamera.view[2][3]);
+		glm::vec3 cameraRight = glm::cross(cameraForward, glm::vec3(0.0f, 1.0f, 0.0f));
+		glm::vec3 cameraUp = glm::cross(cameraRight, cameraForward);
+		mainCamera.view = glm::lookAt(cameraPosition, cameraPosition + cameraForward, cameraUp);
 
 		if (input.IsKeyHeldDown("w")) {
 			//std::cout << "w key is being held down\n";
@@ -774,14 +784,16 @@ private:
 			mainCamera.view = glm::translate(mainCamera.view, glm::vec3(-0.1f, 0.0f, 0.0f));
 		}
 
-		std::cout << "Mouse x is " << Input::Instance().mouseX << std::endl;
-		std::cout << "Mouse y is " << Input::Instance().mouseY << std::endl;
+		//std::cout << "Mouse x is " << Input::Instance().mouseX << std::endl;
+		//std::cout << "Mouse y is " << Input::Instance().mouseY << std::endl;
 
-		mainCamera.view = glm::rotate(mainCamera.view, 0.01f, glm::vec3(0.0f, 1.0f, 0.0f));
+		//mainCamera.view = glm::rotate(mainCamera.view, 0.01f, glm::vec3(0.0f, 1.0f, 0.0f));
 		//mainCamera.view = glm::rotate(mainCamera.view, (float)input.mouseX * mouseSensitivity, glm::vec3(0.0f, 1.0f, 0.0f));
 		//mainCamera.view = glm::rotate(mainCamera.view, (float)input.mouseY * mouseSensitivity, glm::vec3(1.0f, 0.0f, 0.0f));
 
 		//modelMatrix = glm::rotate(modelMatrix, glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+		//glm::translate(modelMatrix, glm::vec3(0.0f, 0.0f, -0.1f));
 
 		uniformBufferData.transformationMatrix = mainCamera.projection * mainCamera.view * modelMatrix;
 
