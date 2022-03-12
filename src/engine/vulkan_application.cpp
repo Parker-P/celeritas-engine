@@ -7,8 +7,9 @@
 #include <algorithm>
 #include <chrono>
 #include <functional>
+#include <filesystem>
 
-// 
+// Math
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -17,6 +18,7 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
+// Project local classes
 #include "singleton.h"
 #include "input.h"
 #include "camera.h"
@@ -576,14 +578,14 @@ private:
 		// And have it read the given file with some example postprocessing
 		// Usually - if speed is not the most important aspect for you - you'll
 		// probably to request more postprocessing than we do in this example.
-		const aiScene* scene = importer.ReadFile("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\models\\monkey.dae",
+		const aiScene* scene = importer.ReadFile("C:\\Users\\paolo.parker\\source\\repos\\celeritas-engine\\models\\monkey.dae",
 			aiProcess_CalcTangentSpace |
 			aiProcess_Triangulate |
 			aiProcess_JoinIdenticalVertices |
 			aiProcess_SortByPType);
 
 		// If the import failed, report it
-		if (nullptr != scene) {
+		if (nullptr == scene) {
 			std::cout << "import failed\n";
 		}
 
@@ -753,7 +755,7 @@ private:
 	void updateUniformData() {
 		mainCamera.Init(90.0f, swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 1000.0f);
 
-		float yaw = Input::Instance().mouseX * mouseSensitivity;
+		/*float yaw = Input::Instance().mouseX * mouseSensitivity;
 		float pitch = Input::Instance().mouseY * mouseSensitivity;
 		glm::vec3 cameraForward;
 		cameraForward.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
@@ -762,7 +764,7 @@ private:
 		glm::vec3 cameraPosition(mainCamera.view[0][3], mainCamera.view[1][3], mainCamera.view[2][3]);
 		glm::vec3 cameraRight = glm::cross(cameraForward, glm::vec3(0.0f, 1.0f, 0.0f));
 		glm::vec3 cameraUp = glm::cross(cameraRight, cameraForward);
-		mainCamera.view = glm::lookAt(cameraPosition, cameraPosition + cameraForward, cameraUp);
+		mainCamera.view = glm::lookAt(cameraPosition, cameraPosition + cameraForward, cameraUp);*/
 
 		if (input.IsKeyHeldDown("w")) {
 			//std::cout << "w key is being held down\n";
@@ -1068,30 +1070,33 @@ private:
 
 	VkShaderModule createShaderModule(const std::string& filename) {
 		std::ifstream file(filename, std::ios::ate | std::ios::binary);
-		std::vector<char> fileBytes(file.tellg());
-		file.seekg(0, std::ios::beg);
-		file.read(fileBytes.data(), fileBytes.size());
-		file.close();
+		VkShaderModule shaderModule = nullptr;
+		if (file.is_open()) {
+			std::vector<char> fileBytes(file.tellg());
+			file.seekg(0, std::ios::beg);
+			file.read(fileBytes.data(), fileBytes.size());
+			file.close();
 
-		VkShaderModuleCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		createInfo.codeSize = fileBytes.size();
-		createInfo.pCode = (uint32_t*)fileBytes.data();
+			VkShaderModuleCreateInfo createInfo = {};
+			createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+			createInfo.codeSize = fileBytes.size();
+			createInfo.pCode = (uint32_t*)fileBytes.data();
 
-		VkShaderModule shaderModule;
-		if (vkCreateShaderModule(logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-			std::cerr << "failed to create shader module for " << filename << std::endl;
-			exit(1);
+			if (vkCreateShaderModule(logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+				std::cerr << "failed to create shader module for " << filename << std::endl;
+				exit(1);
+			}
+
+			std::cout << "created shader module for " << filename << std::endl;
 		}
-
-		std::cout << "created shader module for " << filename << std::endl;
-
+		else { std::cout << "failed to open file " + filename << std::endl; exit(0); }
+		
 		return shaderModule;
 	}
 
 	void createGraphicsPipeline() {
-		VkShaderModule vertexShaderModule = createShaderModule("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\engine\\vertex_shader.spv");
-		VkShaderModule fragmentShaderModule = createShaderModule("C:\\Users\\Paolo Parker\\source\\repos\\Celeritas Engine\\src\\engine\\fragment_shader.spv");
+		VkShaderModule vertexShaderModule = createShaderModule(R"#(C:\Users\paolo.parker\source\repos\celeritas-engine\src\engine\vertex_shader.spv)#");
+		VkShaderModule fragmentShaderModule = createShaderModule(R"#(C:\Users\paolo.parker\source\repos\celeritas-engine\src\engine\fragment_shader.spv)#");
 
 		// Set up shader stage info
 		VkPipelineShaderStageCreateInfo vertexShaderCreateInfo = {};
@@ -1436,8 +1441,8 @@ private:
 
 		// Wait for image to be available and draw
 		VkSubmitInfo submitInfo = {};
+		
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
 		submitInfo.waitSemaphoreCount = 1;
 		submitInfo.pWaitSemaphores = &imageAvailableSemaphore;
 
@@ -1451,7 +1456,7 @@ private:
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &graphicsCommandBuffers[imageIndex];
 
-		if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+		if (auto res = vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS) {
 			std::cerr << "failed to submit draw command buffer" << std::endl;
 			exit(1);
 		}
