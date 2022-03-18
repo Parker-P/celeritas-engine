@@ -753,50 +753,52 @@ private:
 	}
 
 	void updateUniformData() {
-		mainCamera.Init(90.0f, swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 1000.0f);
-
-		/*float yaw = Input::Instance().mouseX * mouseSensitivity;
+		float yaw = Input::Instance().mouseX * mouseSensitivity;
 		float pitch = Input::Instance().mouseY * mouseSensitivity;
 		glm::vec3 cameraForward;
 		cameraForward.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
 		cameraForward.y = sin(glm::radians(pitch));
 		cameraForward.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-		glm::vec3 cameraPosition(mainCamera.view[0][3], mainCamera.view[1][3], mainCamera.view[2][3]);
+		glm::vec3 cameraPosition = mainCamera.position;
 		glm::vec3 cameraRight = glm::cross(cameraForward, glm::vec3(0.0f, 1.0f, 0.0f));
 		glm::vec3 cameraUp = glm::cross(cameraRight, cameraForward);
-		mainCamera.view = glm::lookAt(cameraPosition, cameraPosition + cameraForward, cameraUp);*/
+		glm::normalize(cameraForward);
+		glm::normalize(cameraRight);
+		glm::normalize(cameraUp);
+		mainCamera.view = glm::lookAt(cameraPosition, cameraPosition + cameraForward, cameraUp);
 
 		if (input.IsKeyHeldDown("w")) {
 			//std::cout << "w key is being held down\n";
-			mainCamera.view = glm::translate(mainCamera.view, glm::vec3(0.0f, 0.0f, 0.1f));
+			mainCamera.position += cameraForward * 0.1f;
 		}
 
 		if (input.IsKeyHeldDown("a")) {
 			//std::cout << "a key is being held down\n";
-			mainCamera.view = glm::translate(mainCamera.view, glm::vec3(0.1f, 0.0f, 0.0f));
+			mainCamera.position += -cameraRight * 0.1f;
 		}
 
 		if (input.IsKeyHeldDown("s")) {
 			//std::cout << "s key is being held down\n";
-			mainCamera.view = glm::translate(mainCamera.view, glm::vec3(0.0f, 0.0f, -0.1f));
+			mainCamera.position += -cameraForward * 0.1f;
 		}
 
 		if (input.IsKeyHeldDown("d")) {
 			//std::cout << "d key is being held down\n";
-			mainCamera.view = glm::translate(mainCamera.view, glm::vec3(-0.1f, 0.0f, 0.0f));
+			mainCamera.position += cameraRight * 0.1f;
 		}
+
+		std::cout << mainCamera.position.x << ", " << mainCamera.position.y << ", " << mainCamera.position.z << std::endl;
 
 		//std::cout << "Mouse x is " << Input::Instance().mouseX << std::endl;
 		//std::cout << "Mouse y is " << Input::Instance().mouseY << std::endl;
-
 		//mainCamera.view = glm::rotate(mainCamera.view, 0.01f, glm::vec3(0.0f, 1.0f, 0.0f));
 		//mainCamera.view = glm::rotate(mainCamera.view, (float)input.mouseX * mouseSensitivity, glm::vec3(0.0f, 1.0f, 0.0f));
 		//mainCamera.view = glm::rotate(mainCamera.view, (float)input.mouseY * mouseSensitivity, glm::vec3(1.0f, 0.0f, 0.0f));
-
 		//modelMatrix = glm::rotate(modelMatrix, glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f));
-
 		//glm::translate(modelMatrix, glm::vec3(0.0f, 0.0f, -0.1f));
 
+		mainCamera.projection = glm::perspective(glm::radians(60.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 1000.0f);
+		//mainCamera.view = glm::translate(mainCamera.view, mainCamera.position);
 		uniformBufferData.transformationMatrix = mainCamera.projection * mainCamera.view * modelMatrix;
 
 		void* data;
@@ -1090,7 +1092,7 @@ private:
 			std::cout << "created shader module for " << filename << std::endl;
 		}
 		else { std::cout << "failed to open file " + filename << std::endl; exit(0); }
-		
+
 		return shaderModule;
 	}
 
@@ -1441,7 +1443,7 @@ private:
 
 		// Wait for image to be available and draw
 		VkSubmitInfo submitInfo = {};
-		
+
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.waitSemaphoreCount = 1;
 		submitInfo.pWaitSemaphores = &imageAvailableSemaphore;
