@@ -24,7 +24,11 @@
 #include "camera.h"
 #include "model.h"
 
-using namespace std::placeholders;
+#ifdef _MSC_PLATFORM_TOOLSET_v143
+	
+#else
+	
+#endif
 
 // Configuration
 const uint32_t WIDTH = 640;
