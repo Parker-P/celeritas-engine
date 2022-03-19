@@ -753,10 +753,13 @@ private:
 	}
 
 	void updateUniformData() {
+		// Get the mouse x and y. These values are stored cumulatively and will be used as degrees of rotation when calculating the cameraForward vector
 		float yaw = Input::Instance().mouseX * mouseSensitivity;
 		float pitch = Input::Instance().mouseY * mouseSensitivity;
+
+		// Calculate the camera vectors
 		glm::vec3 cameraForward;
-		cameraForward.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+		cameraForward.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch)); // Use yaw and pitch as degrees for calculation
 		cameraForward.y = sin(glm::radians(pitch));
 		cameraForward.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
 		glm::vec3 cameraPosition = mainCamera.position;
@@ -765,6 +768,9 @@ private:
 		glm::normalize(cameraForward);
 		glm::normalize(cameraRight);
 		glm::normalize(cameraUp);
+
+		// Create a transformation matrix that maps the world's X to cameraRight, the world's Y to cameraUp and the world's Z to cameraForward
+		// This way the vertex shader will put the vertices in the correct position by multiplying each vertex's position by the resulting matrix
 		mainCamera.view = glm::lookAt(cameraPosition, cameraPosition + cameraForward, cameraUp);
 
 		if (input.IsKeyHeldDown("w")) {
@@ -797,10 +803,11 @@ private:
 		//modelMatrix = glm::rotate(modelMatrix, glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f));
 		//glm::translate(modelMatrix, glm::vec3(0.0f, 0.0f, -0.1f));
 
+		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
 		mainCamera.projection = glm::perspective(glm::radians(60.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 1000.0f);
-		//mainCamera.view = glm::translate(mainCamera.view, mainCamera.position);
 		uniformBufferData.transformationMatrix = mainCamera.projection * mainCamera.view * modelMatrix;
 
+		// Send the uniform buffer data (which contains the combined transformation matrices) to the GPU
 		void* data;
 		vkMapMemory(logicalDevice, uniformBufferMemory, 0, sizeof(uniformBufferData), 0, &data);
 		memcpy(data, &uniformBufferData, sizeof(uniformBufferData));

@@ -1,7 +1,12 @@
-﻿  vulkan_application.cpp
-C:\Users\paolo.parker\source\repos\celeritas-engine\src\engine\vulkan_application.cpp(592,21): warning C4018: '<': signed/unsigned mismatch
-C:\Users\paolo.parker\source\repos\celeritas-engine\src\engine\vulkan_application.cpp(601,21): warning C4018: '<': signed/unsigned mismatch
-C:\Users\paolo.parker\source\repos\celeritas-engine\src\engine\vulkan_application.cpp(756,13): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
-C:\Users\paolo.parker\source\repos\celeritas-engine\src\engine\vulkan_application.cpp(757,15): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
-C:\Users\paolo.parker\source\repos\celeritas-engine\src\engine\vulkan_application.cpp(1121,1): warning C4267: '=': conversion from 'size_t' to 'uint32_t', possible loss of data
-  Celeritas Engine.vcxproj -> C:\Users\paolo.parker\source\repos\celeritas-engine\bin\Debug\Celeritas Engine.exe
+﻿  camera.cpp
+  input.cpp
+  model.cpp
+  vulkan_application.cpp
+C:\Users\Paolo Parker\source\repos\celeritas-engine\src\engine\vulkan_application.cpp(592,21): warning C4018: '<': signed/unsigned mismatch
+C:\Users\Paolo Parker\source\repos\celeritas-engine\src\engine\vulkan_application.cpp(601,21): warning C4018: '<': signed/unsigned mismatch
+C:\Users\Paolo Parker\source\repos\celeritas-engine\src\engine\vulkan_application.cpp(757,13): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\Paolo Parker\source\repos\celeritas-engine\src\engine\vulkan_application.cpp(758,15): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\Paolo Parker\source\repos\celeritas-engine\src\engine\vulkan_application.cpp(1128,1): warning C4267: '=': conversion from 'size_t' to 'uint32_t', possible loss of data
+  Generating Code...
+D:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(1087,5): error MSB6006: "link.exe" exited with code 1104.
+LINK : fatal error LNK1104: cannot open file 'assimp-vc142-mtd.lib'
