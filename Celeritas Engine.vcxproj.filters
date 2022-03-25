@@ -15,36 +15,36 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\engine\app_config.h">
+    <ClInclude Include="src\engine\AppConfig.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\vulkan_application.h">
+    <ClInclude Include="src\engine\VulkanApplication.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\input.h">
+    <ClInclude Include="src\engine\Input.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\singleton.h">
+    <ClInclude Include="src\engine\Singleton.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\camera.h">
+    <ClInclude Include="src\engine\Camera.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\model.h">
+    <ClInclude Include="src\engine\Model.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\engine\vulkan_application.cpp">
+    <ClCompile Include="src\engine\VulkanApplication.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\engine\input.cpp">
+    <ClCompile Include="src\engine\Input.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\engine\camera.cpp">
+    <ClCompile Include="src\engine\Camera.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\engine\model.cpp">
+    <ClCompile Include="src\engine\Model.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -19,16 +19,10 @@
 #include <assimp/postprocess.h>
 
 // Project local classes
-#include "singleton.h"
-#include "input.h"
-#include "camera.h"
-#include "model.h"
-
-#ifdef _MSC_PLATFORM_TOOLSET_v143
-	
-#else
-	
-#endif
+#include "Singleton.hpp"
+#include "Input.hpp"
+#include "Camera.hpp"
+#include "Model.hpp"
 
 // Configuration
 const uint32_t WIDTH = 640;
@@ -797,7 +791,7 @@ private:
 			mainCamera.position += cameraRight * 0.1f;
 		}
 
-		std::cout << mainCamera.position.x << ", " << mainCamera.position.y << ", " << mainCamera.position.z << std::endl;
+		//std::cout << mainCamera.position.x << ", " << mainCamera.position.y << ", " << mainCamera.position.z << std::endl;
 
 		//std::cout << "Mouse x is " << Input::Instance().mouseX << std::endl;
 		//std::cout << "Mouse y is " << Input::Instance().mouseY << std::endl;
