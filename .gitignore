@@ -34,7 +34,7 @@
 *.out
 *.app
 
-# Folders
+# Directories
 /build
 /x64
 /bin
