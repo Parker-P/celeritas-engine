@@ -23,6 +23,7 @@
 #include "Input.hpp"
 #include "Camera.hpp"
 #include "Model.hpp"
+#include "GltfLoader.hpp"
 
 // Configuration
 const uint32_t WIDTH = 640;
@@ -48,8 +49,9 @@ VkBool32 debugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT o
 
 bool windowResized = false;
 
-// Note: support swap chain recreation (not only required for resized windows!)
-// Note: window resize may not result in Vulkan telling that the swap chain should be recreated, should be handled explicitly!
+/// <summary>
+/// This is a class for a generic Vulkan application
+/// </summary>
 class VulkanApplication {
 public:
 	VulkanApplication() {
@@ -570,41 +572,43 @@ private:
 	void createVertexAndIndexBuffers() {
 
 
-		// Create an instance of the Importer class
-		Assimp::Importer importer;
+		//// Create an instance of the Importer class
+		//Assimp::Importer importer;
 
-		// And have it read the given file with some example postprocessing
-		// Usually - if speed is not the most important aspect for you - you'll
-		// probably to request more postprocessing than we do in this example.
-		const aiScene* scene = importer.ReadFile("C:\\Users\\paolo.parker\\source\\repos\\celeritas-engine\\models\\monkey.dae",
-			aiProcess_CalcTangentSpace |
-			aiProcess_Triangulate |
-			aiProcess_JoinIdenticalVertices |
-			aiProcess_SortByPType);
+		//// And have it read the given file with some example postprocessing
+		//// Usually - if speed is not the most important aspect for you - you'll
+		//// probably to request more postprocessing than we do in this example.
+		//const aiScene* scene = importer.ReadFile("C:\\Users\\paolo.parker\\source\\repos\\celeritas-engine\\models\\monkey.dae",
+		//	aiProcess_CalcTangentSpace |
+		//	aiProcess_Triangulate |
+		//	aiProcess_JoinIdenticalVertices |
+		//	aiProcess_SortByPType);
 
-		// If the import failed, report it
-		if (nullptr == scene) {
-			std::cout << "import failed\n";
-		}
+		//// If the import failed, report it
+		//if (nullptr == scene) {
+		//	std::cout << "import failed\n";
+		//}
 
-		for (int i = 0; i < scene->mMeshes[0]->mNumVertices; ++i) {
-			float xCoord = scene->mMeshes[0]->mVertices[i].x;
-			float yCoord = scene->mMeshes[0]->mVertices[i].y;
-			float zCoord = scene->mMeshes[0]->mVertices[i].z;
-			model.vertices.push_back(Vertex{ xCoord, yCoord, zCoord });
-		};
-		model.verticesSize = (uint32_t)(model.vertices.size() * sizeof(model.vertices[0]));
+		//for (int i = 0; i < scene->mMeshes[0]->mNumVertices; ++i) {
+		//	float xCoord = scene->mMeshes[0]->mVertices[i].x;
+		//	float yCoord = scene->mMeshes[0]->mVertices[i].y;
+		//	float zCoord = scene->mMeshes[0]->mVertices[i].z;
+		//	model.vertices.push_back(Vertex{ xCoord, yCoord, zCoord });
+		//};
+		//model.verticesSize = (uint32_t)(model.vertices.size() * sizeof(model.vertices[0]));
 
-		// Setup indices
-		for (int i = 0; i < scene->mMeshes[0]->mNumFaces; ++i) {
-			uint32_t index1 = scene->mMeshes[0]->mFaces[i].mIndices[0];
-			uint32_t index2 = scene->mMeshes[0]->mFaces[i].mIndices[1];
-			uint32_t index3 = scene->mMeshes[0]->mFaces[i].mIndices[2];
-			model.indices.push_back(index1);
-			model.indices.push_back(index2);
-			model.indices.push_back(index3);
-		};
-		model.indicesSize = (uint32_t)(model.indices.size() * sizeof(model.indices[0]));
+		//// Setup indices
+		//for (int i = 0; i < scene->mMeshes[0]->mNumFaces; ++i) {
+		//	uint32_t index1 = scene->mMeshes[0]->mFaces[i].mIndices[0];
+		//	uint32_t index2 = scene->mMeshes[0]->mFaces[i].mIndices[1];
+		//	uint32_t index3 = scene->mMeshes[0]->mFaces[i].mIndices[2];
+		//	model.indices.push_back(index1);
+		//	model.indices.push_back(index2);
+		//	model.indices.push_back(index3);
+		//};
+		//model.indicesSize = (uint32_t)(model.indices.size() * sizeof(model.indices[0]));
+
+		GltfLoader::Load(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
 
 		struct StagingBuffer {
 			VkDeviceMemory memory;
@@ -1102,8 +1106,8 @@ private:
 	}
 
 	void createGraphicsPipeline() {
-		VkShaderModule vertexShaderModule = createShaderModule(R"#(C:\Users\paolo.parker\source\repos\celeritas-engine\src\engine\vertex_shader.spv)#");
-		VkShaderModule fragmentShaderModule = createShaderModule(R"#(C:\Users\paolo.parker\source\repos\celeritas-engine\src\engine\fragment_shader.spv)#");
+		VkShaderModule vertexShaderModule = createShaderModule(std::filesystem::current_path().string() + R"(\src\engine\VertexShader.spv)");
+		VkShaderModule fragmentShaderModule = createShaderModule(std::filesystem::current_path().string() + R"(\src\engine\FragmentShader.spv)");
 
 		// Set up shader stage info
 		VkPipelineShaderStageCreateInfo vertexShaderCreateInfo = {};
