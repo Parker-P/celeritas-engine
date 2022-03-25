@@ -19,7 +19,6 @@
 # Compiled Dynamic libraries
 *.so
 *.dylib
-*.dll
 
 # Fortran module files
 *.mod
@@ -29,16 +28,18 @@
 *.lai
 *.la
 *.a
-*.lib
 
 # Executables
 *.exe
 *.out
 *.app
 
+# Folders
+/build
+/x64
+/bin
+/.vs
+/x64
+
 # End of https://www.toptal.com/developers/gitignore/api/c++
 *.tlog
-.vs/
-bin/
-build/
-x64/
