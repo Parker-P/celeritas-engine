@@ -25,9 +25,13 @@
 #include "model.h"
 
 #ifdef _MSC_PLATFORM_TOOLSET_v143
-	
+	#pragma comment(lib, "assimp-vc143-mt.lib")
 #else
-	
+	#pragma comment(lib, "assimp-vc142-mt.lib")
+#endif
+
+#ifdef _MODELS_DIRECTORY
+
 #endif
 
 // Configuration
@@ -140,8 +144,13 @@ private:
 	std::vector<VkCommandBuffer>	graphicsCommandBuffers;
 
 
-	// Misc
+	// Time
 	std::chrono::high_resolution_clock::time_point timeStart;
+	std::chrono::high_resolution_clock::time_point lastFrameTime;
+	std::filesystem::path projectPath = std::filesystem::current_path();
+	long long deltaTime; // The elapsed time since the last frame finished presenting to the screen in nanoseconds
+	
+	// Misc
 	Input input;
 	Camera mainCamera;
 	glm::mat4 modelMatrix;
@@ -173,9 +182,11 @@ private:
 
 	void mainLoop() {
 		while (!glfwWindowShouldClose(window)) {
+			deltaTime = (std::chrono::high_resolution_clock::now() - lastFrameTime).count();
 			updateUniformData();
 			draw();
 			glfwPollEvents();
+			lastFrameTime = std::chrono::high_resolution_clock::now();
 		}
 	}
 
@@ -582,15 +593,16 @@ private:
 		// And have it read the given file with some example postprocessing
 		// Usually - if speed is not the most important aspect for you - you'll
 		// probably to request more postprocessing than we do in this example.
-		const aiScene* scene = importer.ReadFile("C:\\Users\\paolo.parker\\source\\repos\\celeritas-engine\\models\\monkey.dae",
+		const aiScene* scene = importer.ReadFile(projectPath.string() + R"(\models\monkey.dae)",
 			aiProcess_CalcTangentSpace |
 			aiProcess_Triangulate |
 			aiProcess_JoinIdenticalVertices |
 			aiProcess_SortByPType);
 
-		// If the import failed, report it
+		// If the import failed, report it and close the program
 		if (nullptr == scene) {
 			std::cout << "import failed\n";
+			exit(1);
 		}
 
 		for (int i = 0; i < scene->mMeshes[0]->mNumVertices; ++i) {
@@ -763,7 +775,7 @@ private:
 
 		// Calculate the camera vectors
 		glm::vec3 cameraForward;
-		cameraForward.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch)); // Use yaw and pitch as degrees for calculation
+		cameraForward.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch)); // Use yaw and pitch as degrees for calculation of the forward vector
 		cameraForward.y = sin(glm::radians(pitch));
 		cameraForward.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
 		glm::vec3 cameraPosition = mainCamera.position;
@@ -773,7 +785,8 @@ private:
 		glm::normalize(cameraRight);
 		glm::normalize(cameraUp);
 
-		// Create a transformation matrix that maps the world's X to cameraRight, the world's Y to cameraUp and the world's Z to cameraForward
+		// Create a transformation matrix that maps the world's X to cameraRight, the world's Y to cameraUp and the world's Z to cameraForward.
+		// The lookAt function also uses the cameraPosition vector to apply translation in the homogeneous portion of the generated matrix.
 		// This way the vertex shader will put the vertices in the correct position by multiplying each vertex's position by the resulting matrix
 		mainCamera.view = glm::lookAt(cameraPosition, cameraPosition + cameraForward, cameraUp);
 
@@ -796,16 +809,6 @@ private:
 			//std::cout << "d key is being held down\n";
 			mainCamera.position += cameraRight * 0.1f;
 		}
-
-		std::cout << mainCamera.position.x << ", " << mainCamera.position.y << ", " << mainCamera.position.z << std::endl;
-
-		//std::cout << "Mouse x is " << Input::Instance().mouseX << std::endl;
-		//std::cout << "Mouse y is " << Input::Instance().mouseY << std::endl;
-		//mainCamera.view = glm::rotate(mainCamera.view, 0.01f, glm::vec3(0.0f, 1.0f, 0.0f));
-		//mainCamera.view = glm::rotate(mainCamera.view, (float)input.mouseX * mouseSensitivity, glm::vec3(0.0f, 1.0f, 0.0f));
-		//mainCamera.view = glm::rotate(mainCamera.view, (float)input.mouseY * mouseSensitivity, glm::vec3(1.0f, 0.0f, 0.0f));
-		//modelMatrix = glm::rotate(modelMatrix, glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f));
-		//glm::translate(modelMatrix, glm::vec3(0.0f, 0.0f, -0.1f));
 
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
 		mainCamera.projection = glm::perspective(glm::radians(60.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 1000.0f);
@@ -1108,8 +1111,8 @@ private:
 	}
 
 	void createGraphicsPipeline() {
-		VkShaderModule vertexShaderModule = createShaderModule(R"#(C:\Users\paolo.parker\source\repos\celeritas-engine\src\engine\vertex_shader.spv)#");
-		VkShaderModule fragmentShaderModule = createShaderModule(R"#(C:\Users\paolo.parker\source\repos\celeritas-engine\src\engine\fragment_shader.spv)#");
+		VkShaderModule vertexShaderModule = createShaderModule(projectPath.string() + R"(\src\engine\vertex_shader.spv)");
+		VkShaderModule fragmentShaderModule = createShaderModule(projectPath.string() + R"(\src\engine\fragment_shader.spv)");
 
 		// Set up shader stage info
 		VkPipelineShaderStageCreateInfo vertexShaderCreateInfo = {};
