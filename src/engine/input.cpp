@@ -2,8 +2,8 @@
 #include <string>
 #include <GLFW/glfw3.h>
 
-#include "singleton.h"
-#include "input.h"
+#include "Singleton.hpp"
+#include "Input.hpp"
 
 void Input::key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
 	// W
