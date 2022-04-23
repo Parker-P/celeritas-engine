@@ -2,7 +2,8 @@
 
 /// <summary>
 /// Represents binary gltf data.
-/// Specification at https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#glb-file-format-specification
+/// Specification at: https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#glb-file-format-specification
+/// File structure overview: https://github.com/KhronosGroup/glTF-Tutorials/blob/master/gltfTutorial/gltfTutorial_003_MinimalGltfFile.md
 /// </summary>
 class GltfData {
 public:
