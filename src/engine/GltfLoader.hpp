@@ -16,16 +16,16 @@ public:
 	
 	// Chunk 0 (JSON)
 	struct {
-		uint32_t chunkLength;
-		uint32_t chunkType;
-		char* data;
+		uint32_t chunkLength;	// How bug this buffer is
+		uint32_t chunkType;		// The type of data inside this buffer
+		char* data;				// The raw json data
 	} json;
 	
 	// Chunk 1 (Binary data)
 	struct {
-		uint32_t chunkLength;
-		uint32_t chunkType;
-		char* data;
+		uint32_t chunkLength;	// How bug this buffer is
+		uint32_t chunkType;		// The type of data inside this buffer
+		char* data;				// The raw gltf buffer
 	} binaryBuffer;
 };
 

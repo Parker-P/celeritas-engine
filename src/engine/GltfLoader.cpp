@@ -6,6 +6,8 @@
 
 #include "GltfLoader.hpp"
 #include "Json.h"
+#include "Scene.hpp"
+#include "Mesh.hpp"
 
 
 //uint32_t GltfLoader::GetIntValue(const char* string)
@@ -36,9 +38,9 @@ public:
 	// This struct describes where to find information about this mesh inside the GltfScene this mesh is in
 	struct Primitive {
 		struct {
-			int positionsAccessorIndex;
-			int normalsAccessorIndex;
-			int uvCoordsAccessorIndex;
+			int positionsAccessorIndex; // Index of where to find vertex positions in the accessors
+			int normalsAccessorIndex;	// Index of where to find vertex normals in the accessors
+			int uvCoordsAccessorIndex;	// Index of where to find uv coordinates in the accessors
 		} attributes;
 		int indicesAccessorIndex;
 	};
@@ -50,19 +52,19 @@ class GltfScene {
 public:
 
 	struct Accessor {
-		int bufferView;
+		int bufferViewIndex;
 		int	componentType;
 		int	count;
 		GltfDataType type;
 	};
 
 	struct BufferView {
-		int byteLength;
-		int	byteOffset;
+		int byteLength; // How big the data described by this bufferView is inside the raw gltf buffer
+		int	byteOffset; // Where the data starts inside the raw gltf data buffer
 	};
 
 	std::vector<GltfMesh> meshes;			// Tells you which mehses are in the scene
-	std::vector<Accessor> accessors;		// Tells you how to interpret mesh data
+	std::vector<Accessor> accessors;		// Tells you how to read and interpret primitive attributes such as vertex positions or vertex normals
 	std::vector<BufferView> bufferViews;	// Tells you where to find mesh data inside the raw gltf data buffer
 };
 
@@ -79,36 +81,36 @@ GltfData GltfLoader::Load(std::filesystem::path filename) {
 	std::fstream file(filename, std::ios::binary | std::ios::in);
 	if (file.is_open()) {
 		std::cout << "Reading file " << filename << "\n";
-		GltfData data{};
+		GltfData gltfData{};
 
 		// Header
 		unsigned int intSize = sizeof(uint32_t);
 		char* intBuffer = new char[intSize];
 		file.read(intBuffer, intSize);
-		data.header.magic = ToUInt32(intBuffer);
+		gltfData.header.magic = ToUInt32(intBuffer);
 		file.read(intBuffer, intSize);
-		data.header.version = ToUInt32(intBuffer);
+		gltfData.header.version = ToUInt32(intBuffer);
 		file.read(intBuffer, intSize);
-		data.header.fileLength = ToUInt32(intBuffer);
+		gltfData.header.fileLength = ToUInt32(intBuffer);
 
 		// JSON
 		file.read(intBuffer, intSize);
-		data.json.chunkLength = ToUInt32(intBuffer);
+		gltfData.json.chunkLength = ToUInt32(intBuffer);
 		file.read(intBuffer, intSize);
-		data.json.chunkType = ToUInt32(intBuffer);
-		data.json.data = new char[data.json.chunkLength];
-		file.read(data.json.data, data.json.chunkLength);
+		gltfData.json.chunkType = ToUInt32(intBuffer);
+		gltfData.json.data = new char[gltfData.json.chunkLength];
+		file.read(gltfData.json.data, gltfData.json.chunkLength);
 
 		// Binary
 		file.read(intBuffer, intSize);
-		data.binaryBuffer.chunkLength = ToUInt32(intBuffer);
+		gltfData.binaryBuffer.chunkLength = ToUInt32(intBuffer);
 		file.read(intBuffer, intSize);
-		data.binaryBuffer.chunkType = ToUInt32(intBuffer);
-		data.binaryBuffer.data = new char[data.binaryBuffer.chunkLength];
-		file.read(data.binaryBuffer.data, data.binaryBuffer.chunkLength);
+		gltfData.binaryBuffer.chunkType = ToUInt32(intBuffer);
+		gltfData.binaryBuffer.data = new char[gltfData.binaryBuffer.chunkLength];
+		file.read(gltfData.binaryBuffer.data, gltfData.binaryBuffer.chunkLength);
 
 		// Parse the JSON data
-		json::parsing::parse_results json = json::parsing::parse(data.json.data);
+		json::parsing::parse_results json = json::parsing::parse(gltfData.json.data);
 		json::jobject rootObj = json::jobject::parse(json.value);
 
 		// To get the vertex positions you need to:
@@ -164,20 +166,45 @@ GltfData GltfLoader::Load(std::filesystem::path filename) {
 		}
 
 		// Get accessors data
-		for (int j = 0; j < accessorsCount; ++j) {
-			auto accessorBufferViewIndex = (int)accessors.array(j).get("bufferView");
-			auto accessorComponentType = (int)accessors.array(j).get("componentType");
-			auto accessorCount = (int)accessors.array(j).get("count");
-			auto accessorType = (std::string)accessors.array(j).get("type");
+		for (int i = 0; i < accessorsCount; ++i) {
+			auto accessorBufferViewIndex = (int)accessors.array(i).get("bufferView");
+			auto accessorComponentType = (int)accessors.array(i).get("componentType");
+			auto accessorCount = (int)accessors.array(i).get("count");
+			auto accessorType = (std::string)accessors.array(i).get("type");
 			gltfScene.accessors.push_back({ accessorBufferViewIndex, accessorComponentType, accessorCount, GetDataType(accessorType) });
 		}
 
 		// Get bufferviews data
-		for (int j = 0; j < bufferViewsCount; ++j) {
+		for (int i = 0; i < bufferViewsCount; ++i) {
 
-			auto bufferViewLength = (int)bufferViews.array(j).get("byteLength");
-			auto bufferViewStart = (int)bufferViews.array(j).get("byteOffset");
+			auto bufferViewLength = (int)bufferViews.array(i).get("byteLength");
+			auto bufferViewStart = (int)bufferViews.array(i).get("byteOffset");
 			gltfScene.bufferViews.push_back({ bufferViewLength, bufferViewStart });
+		}
+
+		// Create a local scene from the gltf data
+		Scene scene;
+
+		// For each mesh
+		for (int i = 0; i < gltfScene.meshes.size(); ++i) {
+
+			// For each primitive
+			Mesh mesh;
+			for (int j = 0; j < gltfScene.meshes[i].primitives.size(); ++j) {
+
+				// Read positions, normals and uvs
+				auto vertexPositionsAccessorIndex = gltfScene.meshes[i].primitives[j].attributes.positionsAccessorIndex;
+				auto vertexNormalsAccessorIndex = gltfScene.meshes[i].primitives[j].attributes.normalsAccessorIndex;
+				auto uvCoordsAccessorIndex = gltfScene.meshes[i].primitives[j].attributes.uvCoordsAccessorIndex;
+				auto faceIndicesAccessorIndex = gltfScene.meshes[i].primitives[j].indicesAccessorIndex;
+
+				auto vertexPositionsBufferViewIndex = gltfScene.accessors[vertexPositionsAccessorIndex].bufferViewIndex;
+				auto vertexNormalsBufferViewIndex = gltfScene.accessors[vertexNormalsAccessorIndex].bufferViewIndex;
+				auto uvCoordsBufferViewIndex = gltfScene.accessors[uvCoordsAccessorIndex].bufferViewIndex;
+				auto faceIndicesBufferViewIndex = gltfScene.accessors[faceIndicesAccessorIndex].bufferViewIndex;
+
+				auto vertexPositions = gltfData.binaryBuffer.data[gltfScene.bufferViews[vertexNormalsBufferViewIndex].byteOffset];
+			}
 		}
 
 		//auto POSITION = attributes.get("POSITION");
