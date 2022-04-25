@@ -64,7 +64,7 @@ public:
 	};
 
 	std::vector<GltfMesh> meshes;			// Tells you which mehses are in the scene
-	std::vector<Accessor> accessors;		// Tells you how to read and interpret primitive attributes such as vertex positions or vertex normals
+	std::vector<Accessor> accessors;		// Tells you how to read and interpret primitive attributes such as vertex positions or vertex normals and which bufferView to find this data in
 	std::vector<BufferView> bufferViews;	// Tells you where to find mesh data inside the raw gltf data buffer
 };
 
