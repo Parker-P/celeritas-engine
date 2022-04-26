@@ -3,32 +3,37 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/detail/type_vec.hpp>
 
 #include "GltfLoader.hpp"
 #include "Json.h"
-#include "Scene.hpp"
 #include "Mesh.hpp"
+#include "Scene.hpp"
+#include "Utils.hpp"
 
+#pragma region AccessorDataTypes
+enum class GltfDataType { 
+	NONE, 
+	SCALAR,
+	VEC2, 
+	VEC3,
+	VEC4,
+	MAT2,
+	MAT3,
+	MAT4
+};
 
-//uint32_t GltfLoader::GetIntValue(const char* string)
-//{
-//	for(size_t i=0; )
-//	return uint32_t();
-//}
-
-/// <summary>
-/// Converts an array of characters to an unsigned 32-bit integer
-/// </summary>
-/// <returns>The converted number</returns>
-uint32_t ToUInt32(const char* charArray) {
-	uint32_t result = 0;
-	for (int i = 0; i < sizeof(uint32_t); ++i) {
-		result |= (int)charArray[i] << (i * 8);
-	}
-	return result;
-}
-
-enum class GltfDataType { NONE, VEC3, VEC2, SCALAR };
+enum class ComponentType {
+	SIGNED_BYTE = 5120,
+	UNSIGNED_BYTE = 5121,
+	SIGNED_SHORT = 5122,
+	UNSIGNED_SHORT = 5123,
+	UNSIGNED_INT = 5125,
+	FLOAT = 5126
+};
+#pragma endregion
 
 class GltfMesh {
 public:
@@ -68,15 +73,32 @@ public:
 	std::vector<BufferView> bufferViews;	// Tells you where to find mesh data inside the raw gltf data buffer
 };
 
-
-GltfDataType GetDataType(std::string type) {
-	if (type == "VEC3") { return GltfDataType::VEC3; }
-	if (type == "VEC2") { return GltfDataType::VEC2; }
-	if (type == "SCALAR") { return GltfDataType::SCALAR; }
-	return GltfDataType::NONE;
+#pragma region LocalUtilityFunctions
+/// <summary>
+/// Converts an array of characters to an unsigned 32-bit integer
+/// </summary>
+/// <returns>The converted number</returns>
+uint32_t ToUInt32(const char* charArray) {
+	uint32_t result = 0;
+	for (int i = 0; i < sizeof(uint32_t); ++i) {
+		result |= (int)charArray[i] << (i * 8);
+	}
+	return result;
 }
 
+GltfDataType GetDataType(std::string type) {
+	if (type == "SCALAR") { return GltfDataType::SCALAR; }
+	if (type == "VEC2") { return GltfDataType::VEC2; }
+	if (type == "VEC3") { return GltfDataType::VEC3; }
+	if (type == "VEC4") { return GltfDataType::VEC4; }
+	if (type == "MAT2") { return GltfDataType::MAT2; }
+	if (type == "MAT3") { return GltfDataType::MAT3; }
+	if (type == "MAT4") { return GltfDataType::MAT4; }
+	return GltfDataType::NONE;
+}
+#pragma endregion
 
+#pragma region GltfLoaderFunctionImplementations
 GltfData GltfLoader::Load(std::filesystem::path filename) {
 	std::fstream file(filename, std::ios::binary | std::ios::in);
 	if (file.is_open()) {
@@ -203,7 +225,15 @@ GltfData GltfLoader::Load(std::filesystem::path filename) {
 				auto uvCoordsBufferViewIndex = gltfScene.accessors[uvCoordsAccessorIndex].bufferViewIndex;
 				auto faceIndicesBufferViewIndex = gltfScene.accessors[faceIndicesAccessorIndex].bufferViewIndex;
 
-				auto vertexPositions = gltfData.binaryBuffer.data[gltfScene.bufferViews[vertexNormalsBufferViewIndex].byteOffset];
+				
+				if (Utils::AsInteger(ComponentType::FLOAT) == gltfScene.accessors[vertexPositionsAccessorIndex].componentType) {
+					std::vector<glm::vec3> vertexPositions;
+					vertexPositions.reserve(gltfScene.bufferViews[vertexPositionsBufferViewIndex].byteLength);
+					memcpy(vertexPositions.data(), &gltfData.binaryBuffer.data[gltfScene.bufferViews[vertexNormalsBufferViewIndex].byteOffset], gltfScene.bufferViews[vertexPositionsBufferViewIndex].byteLength);
+				}
+				else {
+					std::cout << "Vertex positions should be defined as floats" << std::endl;
+				}
 			}
 		}
 
@@ -214,3 +244,4 @@ GltfData GltfLoader::Load(std::filesystem::path filename) {
 	}
 	return GltfData();
 }
+#pragma endregion
