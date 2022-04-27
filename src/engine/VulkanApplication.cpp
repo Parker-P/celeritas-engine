@@ -23,6 +23,8 @@
 #include "Input.hpp"
 #include "Camera.hpp"
 #include "Model.hpp"
+#include "Mesh.hpp"
+#include "Scene.hpp"
 #include "GltfLoader.hpp"
 
 // Configuration
@@ -571,7 +573,7 @@ private:
 
 	void createVertexAndIndexBuffers() {
 
-
+		#pragma region PreviousImplementation
 		//// Create an instance of the Importer class
 		//Assimp::Importer importer;
 
@@ -607,8 +609,9 @@ private:
 		//	model.indices.push_back(index3);
 		//};
 		//model.indicesSize = (uint32_t)(model.indices.size() * sizeof(model.indices[0]));
+		#pragma endregion
 
-		GltfLoader::Load(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
+		Scene scene = GltfLoader::Load(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
 
 		struct StagingBuffer {
 			VkDeviceMemory memory;

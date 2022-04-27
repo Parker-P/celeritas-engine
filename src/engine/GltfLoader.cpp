@@ -7,71 +7,11 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/detail/type_vec.hpp>
 
-#include "GltfLoader.hpp"
 #include "Json.h"
 #include "Mesh.hpp"
 #include "Scene.hpp"
 #include "Utils.hpp"
-
-#pragma region AccessorDataTypes
-enum class GltfDataType { 
-	NONE, 
-	SCALAR,
-	VEC2, 
-	VEC3,
-	VEC4,
-	MAT2,
-	MAT3,
-	MAT4
-};
-
-enum class ComponentType {
-	SIGNED_BYTE = 5120,
-	UNSIGNED_BYTE = 5121,
-	SIGNED_SHORT = 5122,
-	UNSIGNED_SHORT = 5123,
-	UNSIGNED_INT = 5125,
-	FLOAT = 5126
-};
-#pragma endregion
-
-class GltfMesh {
-public:
-	int index; // The index of the mesh in the "meshes" array in the GLTF file
-	std::string name;
-
-	// This struct describes where to find information about this mesh inside the GltfScene this mesh is in
-	struct Primitive {
-		struct {
-			int positionsAccessorIndex; // Index of where to find vertex positions in the accessors
-			int normalsAccessorIndex;	// Index of where to find vertex normals in the accessors
-			int uvCoordsAccessorIndex;	// Index of where to find uv coordinates in the accessors
-		} attributes;
-		int indicesAccessorIndex;
-	};
-
-	std::vector<Primitive> primitives; // Describes the raw meshes that make up the mesh. For example this mesh could be made up of 2 separate cubes
-};
-
-class GltfScene {
-public:
-
-	struct Accessor {
-		int bufferViewIndex;
-		int	componentType;
-		int	count;
-		GltfDataType type;
-	};
-
-	struct BufferView {
-		int byteLength; // How big the data described by this bufferView is inside the raw gltf buffer
-		int	byteOffset; // Where the data starts inside the raw gltf data buffer
-	};
-
-	std::vector<GltfMesh> meshes;			// Tells you which mehses are in the scene
-	std::vector<Accessor> accessors;		// Tells you how to read and interpret primitive attributes such as vertex positions or vertex normals and which bufferView to find this data in
-	std::vector<BufferView> bufferViews;	// Tells you where to find mesh data inside the raw gltf data buffer
-};
+#include "GltfLoader.hpp"
 
 #pragma region LocalUtilityFunctions
 /// <summary>
@@ -99,7 +39,7 @@ GltfDataType GetDataType(std::string type) {
 #pragma endregion
 
 #pragma region GltfLoaderFunctionImplementations
-GltfData GltfLoader::Load(std::filesystem::path filename) {
+Scene GltfLoader::Load(std::filesystem::path filename) {
 	std::fstream file(filename, std::ios::binary | std::ios::in);
 	if (file.is_open()) {
 		std::cout << "Reading file " << filename << "\n";
@@ -225,23 +165,47 @@ GltfData GltfLoader::Load(std::filesystem::path filename) {
 				auto uvCoordsBufferViewIndex = gltfScene.accessors[uvCoordsAccessorIndex].bufferViewIndex;
 				auto faceIndicesBufferViewIndex = gltfScene.accessors[faceIndicesAccessorIndex].bufferViewIndex;
 
-				
-				if (Utils::AsInteger(ComponentType::FLOAT) == gltfScene.accessors[vertexPositionsAccessorIndex].componentType) {
-					std::vector<glm::vec3> vertexPositions;
-					vertexPositions.reserve(gltfScene.accessors[vertexPositionsAccessorIndex].count);
-					char arr[4];
-					arr[0] = gltfData.binaryBuffer.data[0];
-					arr[1] = gltfData.binaryBuffer.data[1];
-					arr[2] = gltfData.binaryBuffer.data[2];
-					arr[3] = gltfData.binaryBuffer.data[3];
-					auto num = atoi("aaaa");
-					auto n = (float)0b11000010000000000000000000000000;
+				std::vector<glm::vec3> vertexPositions;
+				std::vector<glm::vec3> vertexNormals;
+				std::vector<glm::vec2> uvCoords;
+				std::vector<short> faceIndices;
 
-					memcpy(vertexPositions.data(), &gltfData.binaryBuffer.data[gltfScene.bufferViews[vertexNormalsBufferViewIndex].byteOffset], gltfScene.bufferViews[vertexPositionsBufferViewIndex].byteLength);
+				// Read vertex positions
+				if (Utils::AsInteger(ComponentType::FLOAT) == gltfScene.accessors[vertexPositionsAccessorIndex].componentType) {
+					vertexPositions.resize(gltfScene.accessors[vertexPositionsAccessorIndex].count);
+					memcpy(&vertexPositions[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[vertexPositionsBufferViewIndex].byteOffset], gltfScene.bufferViews[vertexPositionsBufferViewIndex].byteLength);
+					/*float vec3_1[3];
+					float vec3_2[3];
+					float vec3_3[3];
+					float vec3_4[3];
+					memcpy(vec3_1, &gltfData.binaryBuffer.data[0], 12);
+					memcpy(vec3_2, &gltfData.binaryBuffer.data[12], 12);
+					memcpy(vec3_3, &gltfData.binaryBuffer.data[24], 12);
+					memcpy(vec3_4, &gltfData.binaryBuffer.data[36], 12);*/
 				}
-				else {
-					std::cout << "Vertex positions should be defined as floats" << std::endl;
+
+				if (Utils::AsInteger(ComponentType::FLOAT) == gltfScene.accessors[vertexNormalsAccessorIndex].componentType) {
+					vertexNormals.resize(gltfScene.accessors[vertexNormalsAccessorIndex].count);
+					memcpy(&vertexNormals[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[vertexNormalsBufferViewIndex].byteOffset], gltfScene.bufferViews[vertexNormalsBufferViewIndex].byteLength);
 				}
+
+				if (Utils::AsInteger(ComponentType::FLOAT) == gltfScene.accessors[uvCoordsAccessorIndex].componentType) {
+					uvCoords.resize(gltfScene.accessors[uvCoordsAccessorIndex].count);
+					memcpy(&uvCoords[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[uvCoordsBufferViewIndex].byteOffset], gltfScene.bufferViews[uvCoordsBufferViewIndex].byteLength);
+				}
+
+				if (Utils::AsInteger(ComponentType::UNSIGNED_SHORT) == gltfScene.accessors[faceIndicesAccessorIndex].componentType) {
+					faceIndices.resize(gltfScene.accessors[faceIndicesAccessorIndex].count);
+					memcpy(&faceIndices[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset], gltfScene.bufferViews[faceIndicesBufferViewIndex].byteLength);
+				}
+
+				mesh.name = gltfScene.meshes[i].name;
+				mesh.vertexPositions = vertexPositions;
+				mesh.normals = vertexNormals;
+				mesh.uvCoords = uvCoords;
+				mesh.faceIndices = faceIndices;
+
+				scene.meshes.push_back(mesh);
 			}
 		}
 
@@ -249,7 +213,9 @@ GltfData GltfLoader::Load(std::filesystem::path filename) {
 		/*auto attributes = primitives["attributes"];
 		auto POSITION = attributes.get("POSITION");*/
 		std::cout << std::endl;
+
+		return scene;
 	}
-	return GltfData();
+	return Scene();
 }
 #pragma endregion
