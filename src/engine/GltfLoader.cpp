@@ -228,7 +228,15 @@ GltfData GltfLoader::Load(std::filesystem::path filename) {
 				
 				if (Utils::AsInteger(ComponentType::FLOAT) == gltfScene.accessors[vertexPositionsAccessorIndex].componentType) {
 					std::vector<glm::vec3> vertexPositions;
-					vertexPositions.reserve(gltfScene.bufferViews[vertexPositionsBufferViewIndex].byteLength);
+					vertexPositions.reserve(gltfScene.accessors[vertexPositionsAccessorIndex].count);
+					char arr[4];
+					arr[0] = gltfData.binaryBuffer.data[0];
+					arr[1] = gltfData.binaryBuffer.data[1];
+					arr[2] = gltfData.binaryBuffer.data[2];
+					arr[3] = gltfData.binaryBuffer.data[3];
+					auto num = atoi("aaaa");
+					auto n = (float)0b11000010000000000000000000000000;
+
 					memcpy(vertexPositions.data(), &gltfData.binaryBuffer.data[gltfScene.bufferViews[vertexNormalsBufferViewIndex].byteOffset], gltfScene.bufferViews[vertexPositionsBufferViewIndex].byteLength);
 				}
 				else {
