@@ -24,7 +24,6 @@
     <ClCompile Include="src\engine\Input.cpp" />
     <ClCompile Include="src\engine\Json.cpp" />
     <ClCompile Include="src\engine\Mesh.cpp" />
-    <ClCompile Include="src\engine\Model.cpp" />
     <ClCompile Include="src\engine\Scene.cpp" />
     <ClCompile Include="src\engine\VulkanApplication.cpp" />
   </ItemGroup>
@@ -34,7 +33,6 @@
     <ClInclude Include="src\engine\Input.hpp" />
     <ClInclude Include="src\engine\Json.h" />
     <ClInclude Include="src\engine\Mesh.hpp" />
-    <ClInclude Include="src\engine\Model.hpp" />
     <ClInclude Include="src\engine\Scene.hpp" />
     <ClInclude Include="src\engine\Singleton.hpp" />
     <ClInclude Include="src\engine\Utils.hpp" />

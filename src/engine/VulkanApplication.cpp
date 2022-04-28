@@ -22,7 +22,6 @@
 #include "Singleton.hpp"
 #include "Input.hpp"
 #include "Camera.hpp"
-#include "Model.hpp"
 #include "Mesh.hpp"
 #include "Scene.hpp"
 #include "GltfLoader.hpp"
@@ -140,10 +139,10 @@ private:
 
 	// Misc
 	std::chrono::high_resolution_clock::time_point timeStart;
+	Scene scene;
 	Input input;
 	Camera mainCamera;
 	glm::mat4 modelMatrix;
-	Model model;
 	float mouseSensitivity;
 
 	void setupVulkan() {
@@ -611,7 +610,7 @@ private:
 		//model.indicesSize = (uint32_t)(model.indices.size() * sizeof(model.indices[0]));
 		#pragma endregion
 
-		Scene scene = GltfLoader::Load(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
+		scene = GltfLoader::Load(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
 
 		struct StagingBuffer {
 			VkDeviceMemory memory;
@@ -623,7 +622,7 @@ private:
 			StagingBuffer indices;
 		} stagingBuffers;
 
-		// Allocate command buffer for copy operation
+		// Allocate a command buffer for the copy operations to follow
 		VkCommandBufferAllocateInfo cmdBufInfo = {};
 		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		cmdBufInfo.commandPool = commandPool;
@@ -636,7 +635,7 @@ private:
 		// First copy vertices to host accessible vertex buffer memory
 		VkBufferCreateInfo vertexBufferInfo = {};
 		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		vertexBufferInfo.size = model.verticesSize;
+		vertexBufferInfo.size = scene.meshes[0].faceIndices.size();
 		vertexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
 		vkCreateBuffer(logicalDevice, &vertexBufferInfo, nullptr, &stagingBuffers.vertices.buffer);
@@ -651,8 +650,9 @@ private:
 		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(logicalDevice, &memAlloc, nullptr, &stagingBuffers.vertices.memory);
 
-		vkMapMemory(logicalDevice, stagingBuffers.vertices.memory, 0, model.verticesSize, 0, &data);
-		memcpy(data, model.vertices.data(), model.verticesSize);
+		auto verticesSize = sizeof(decltype(scene.meshes[0].vertexPositions)::value_type) * scene.meshes[0].vertexPositions.size();
+		vkMapMemory(logicalDevice, stagingBuffers.vertices.memory, 0, verticesSize, 0, &data);
+		memcpy(data, scene.meshes[0].vertexPositions.data(), 3072);
 		vkUnmapMemory(logicalDevice, stagingBuffers.vertices.memory);
 		vkBindBufferMemory(logicalDevice, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0);
 
@@ -668,7 +668,7 @@ private:
 		// Next copy indices to host accessible index buffer memory
 		VkBufferCreateInfo indexBufferInfo = {};
 		indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		indexBufferInfo.size = model.indicesSize;
+		indexBufferInfo.size = scene.meshes[0].faceIndices.size();
 		indexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
 		vkCreateBuffer(logicalDevice, &indexBufferInfo, nullptr, &stagingBuffers.indices.buffer);
@@ -676,8 +676,10 @@ private:
 		memAlloc.allocationSize = memReqs.size;
 		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(logicalDevice, &memAlloc, nullptr, &stagingBuffers.indices.memory);
-		vkMapMemory(logicalDevice, stagingBuffers.indices.memory, 0, model.indicesSize, 0, &data);
-		memcpy(data, model.indices.data(), model.indicesSize);
+
+		auto indicesSize = sizeof(decltype(scene.meshes[0].faceIndices)::value_type) * scene.meshes[0].faceIndices.size();
+		vkMapMemory(logicalDevice, stagingBuffers.indices.memory, 0, scene.meshes[0].faceIndices.size(), 0, &data);
+		memcpy(data, scene.meshes[0].faceIndices.data(), scene.meshes[0].faceIndices.size());
 		vkUnmapMemory(logicalDevice, stagingBuffers.indices.memory);
 		vkBindBufferMemory(logicalDevice, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0);
 
@@ -698,9 +700,9 @@ private:
 		vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
 
 		VkBufferCopy copyRegion = {};
-		copyRegion.size = model.verticesSize;
+		copyRegion.size = scene.meshes[0].vertexPositions.size();
 		vkCmdCopyBuffer(copyCommandBuffer, stagingBuffers.vertices.buffer, vertexBuffer, 1, &copyRegion);
-		copyRegion.size = model.indicesSize;
+		copyRegion.size = scene.meshes[0].faceIndices.size();
 		vkCmdCopyBuffer(copyCommandBuffer, stagingBuffers.indices.buffer, indexBuffer, 1, &copyRegion);
 
 		vkEndCommandBuffer(copyCommandBuffer);
@@ -725,7 +727,7 @@ private:
 
 		// Binding and attribute descriptions
 		vertexBindingDescription.binding = 0;
-		vertexBindingDescription.stride = sizeof(model.vertices[0]);
+		vertexBindingDescription.stride = sizeof(decltype(scene.meshes[0].vertexPositions)::value_type);
 		vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		// vec3 position
@@ -1407,7 +1409,7 @@ private:
 			VkDeviceSize offset = 0;
 			vkCmdBindVertexBuffers(graphicsCommandBuffers[i], 0, 1, &vertexBuffer, &offset);
 			vkCmdBindIndexBuffer(graphicsCommandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(graphicsCommandBuffers[i], model.indicesSize, 1, 0, 0, 0);
+			vkCmdDrawIndexed(graphicsCommandBuffers[i], scene.meshes[0].faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(graphicsCommandBuffers[i]);
 
 			// If present and graphics queue families differ, then another barrier is required

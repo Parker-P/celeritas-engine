@@ -154,7 +154,7 @@ Scene GltfLoader::Load(std::filesystem::path filename) {
 			Mesh mesh;
 			for (int j = 0; j < gltfScene.meshes[i].primitives.size(); ++j) {
 
-				// Read positions, normals and uvs
+				// Read positions, normals, uvs and face indices
 				auto vertexPositionsAccessorIndex = gltfScene.meshes[i].primitives[j].attributes.positionsAccessorIndex;
 				auto vertexNormalsAccessorIndex = gltfScene.meshes[i].primitives[j].attributes.normalsAccessorIndex;
 				auto uvCoordsAccessorIndex = gltfScene.meshes[i].primitives[j].attributes.uvCoordsAccessorIndex;
@@ -170,18 +170,9 @@ Scene GltfLoader::Load(std::filesystem::path filename) {
 				std::vector<glm::vec2> uvCoords;
 				std::vector<short> faceIndices;
 
-				// Read vertex positions
 				if (Utils::AsInteger(ComponentType::FLOAT) == gltfScene.accessors[vertexPositionsAccessorIndex].componentType) {
 					vertexPositions.resize(gltfScene.accessors[vertexPositionsAccessorIndex].count);
 					memcpy(&vertexPositions[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[vertexPositionsBufferViewIndex].byteOffset], gltfScene.bufferViews[vertexPositionsBufferViewIndex].byteLength);
-					/*float vec3_1[3];
-					float vec3_2[3];
-					float vec3_3[3];
-					float vec3_4[3];
-					memcpy(vec3_1, &gltfData.binaryBuffer.data[0], 12);
-					memcpy(vec3_2, &gltfData.binaryBuffer.data[12], 12);
-					memcpy(vec3_3, &gltfData.binaryBuffer.data[24], 12);
-					memcpy(vec3_4, &gltfData.binaryBuffer.data[36], 12);*/
 				}
 
 				if (Utils::AsInteger(ComponentType::FLOAT) == gltfScene.accessors[vertexNormalsAccessorIndex].componentType) {
@@ -208,12 +199,6 @@ Scene GltfLoader::Load(std::filesystem::path filename) {
 				scene.meshes.push_back(mesh);
 			}
 		}
-
-		//auto POSITION = attributes.get("POSITION");
-		/*auto attributes = primitives["attributes"];
-		auto POSITION = attributes.get("POSITION");*/
-		std::cout << std::endl;
-
 		return scene;
 	}
 	return Scene();
