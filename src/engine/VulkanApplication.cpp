@@ -157,8 +157,8 @@ private:
 		createSemaphores();
 		createCommandPool();
 		createVertexAndIndexBuffers();
-		createUniformBuffer();
 		createSwapChain();
+		createUniformBuffer();
 		createRenderPass();
 		createImageViews();
 		createFramebuffers();
@@ -650,9 +650,8 @@ private:
 		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(logicalDevice, &memAlloc, nullptr, &stagingBuffers.vertices.memory);
 
-		auto verticesSize = sizeof(decltype(scene.meshes[0].vertexPositions)::value_type) * scene.meshes[0].vertexPositions.size();
-		vkMapMemory(logicalDevice, stagingBuffers.vertices.memory, 0, verticesSize, 0, &data);
-		memcpy(data, scene.meshes[0].vertexPositions.data(), 3072);
+		vkMapMemory(logicalDevice, stagingBuffers.vertices.memory, 0, scene.meshes[0].vertexPositions.size(), 0, &data);
+		memcpy(data, scene.meshes[0].vertexPositions.data(), scene.meshes[0].vertexPositions.size());
 		vkUnmapMemory(logicalDevice, stagingBuffers.vertices.memory);
 		vkBindBufferMemory(logicalDevice, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0);
 
@@ -677,7 +676,6 @@ private:
 		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(logicalDevice, &memAlloc, nullptr, &stagingBuffers.indices.memory);
 
-		auto indicesSize = sizeof(decltype(scene.meshes[0].faceIndices)::value_type) * scene.meshes[0].faceIndices.size();
 		vkMapMemory(logicalDevice, stagingBuffers.indices.memory, 0, scene.meshes[0].faceIndices.size(), 0, &data);
 		memcpy(data, scene.meshes[0].faceIndices.data(), scene.meshes[0].faceIndices.size());
 		vkUnmapMemory(logicalDevice, stagingBuffers.indices.memory);
@@ -811,7 +809,9 @@ private:
 		//glm::translate(modelMatrix, glm::vec3(0.0f, 0.0f, -0.1f));
 
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
-		mainCamera.projection = glm::perspective(glm::radians(60.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 1000.0f);
+		auto aspectRatio = std::bit_cast<float, uint32_t>(swapChainExtent.width) / std::bit_cast<float, uint32_t>(swapChainExtent.height);
+		mainCamera.projection = glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f);
+		//mainCamera.projection = glm::perspective(glm::radians(60.0f), std::bit_cast<float, uint32_t>(swapChainExtent.width) / (float)swapChainExtent.height, 0.1f, 1000.0f);
 		uniformBufferData.transformationMatrix = mainCamera.projection * mainCamera.view * modelMatrix;
 
 		// Send the uniform buffer data (which contains the combined transformation matrices) to the GPU
@@ -1071,7 +1071,7 @@ private:
 			createInfo.renderPass = renderPass;
 			createInfo.attachmentCount = 1;
 			createInfo.pAttachments = &swapChainImageViews[i];
-			createInfo.width = swapChainExtent.width;
+			createInfo.width = std::bit_cast<float, uint32_t>(swapChainExtent.width);
 			createInfo.height = swapChainExtent.height;
 			createInfo.layers = 1;
 
@@ -1145,16 +1145,16 @@ private:
 		VkViewport viewport = {};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
-		viewport.width = (float)swapChainExtent.width;
-		viewport.height = (float)swapChainExtent.height;
+		viewport.width = std::bit_cast<float, uint32_t>(swapChainExtent.width);
+		viewport.height = std::bit_cast<float, uint32_t>(swapChainExtent.height);
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 
 		VkRect2D scissor = {};
 		scissor.offset.x = 0;
 		scissor.offset.y = 0;
-		scissor.extent.width = swapChainExtent.width;
-		scissor.extent.height = swapChainExtent.height;
+		scissor.extent.width = std::bit_cast<float, uint32_t>(swapChainExtent.width);
+		scissor.extent.height = std::bit_cast<float, uint32_t>(swapChainExtent.height);
 
 		// Note: scissor test is always enabled (although dynamic scissor is possible)
 		// Number of viewports must match number of scissors
