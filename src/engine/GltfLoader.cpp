@@ -168,24 +168,24 @@ Scene GltfLoader::Load(std::filesystem::path filename) {
 				std::vector<glm::vec3> vertexPositions;
 				std::vector<glm::vec3> vertexNormals;
 				std::vector<glm::vec2> uvCoords;
-				std::vector<short> faceIndices;
+				std::vector<unsigned short> faceIndices;
 
-				if (Utils::AsInteger(ComponentType::FLOAT) == gltfScene.accessors[vertexPositionsAccessorIndex].componentType) {
+				if (Utils::AsInteger(GltfComponentType::FLOAT) == gltfScene.accessors[vertexPositionsAccessorIndex].componentType) {
 					vertexPositions.resize(gltfScene.accessors[vertexPositionsAccessorIndex].count);
 					memcpy(&vertexPositions[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[vertexPositionsBufferViewIndex].byteOffset], gltfScene.bufferViews[vertexPositionsBufferViewIndex].byteLength);
 				}
 
-				if (Utils::AsInteger(ComponentType::FLOAT) == gltfScene.accessors[vertexNormalsAccessorIndex].componentType) {
+				if (Utils::AsInteger(GltfComponentType::FLOAT) == gltfScene.accessors[vertexNormalsAccessorIndex].componentType) {
 					vertexNormals.resize(gltfScene.accessors[vertexNormalsAccessorIndex].count);
 					memcpy(&vertexNormals[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[vertexNormalsBufferViewIndex].byteOffset], gltfScene.bufferViews[vertexNormalsBufferViewIndex].byteLength);
 				}
 
-				if (Utils::AsInteger(ComponentType::FLOAT) == gltfScene.accessors[uvCoordsAccessorIndex].componentType) {
+				if (Utils::AsInteger(GltfComponentType::FLOAT) == gltfScene.accessors[uvCoordsAccessorIndex].componentType) {
 					uvCoords.resize(gltfScene.accessors[uvCoordsAccessorIndex].count);
 					memcpy(&uvCoords[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[uvCoordsBufferViewIndex].byteOffset], gltfScene.bufferViews[uvCoordsBufferViewIndex].byteLength);
 				}
 
-				if (Utils::AsInteger(ComponentType::UNSIGNED_SHORT) == gltfScene.accessors[faceIndicesAccessorIndex].componentType) {
+				if (Utils::AsInteger(GltfComponentType::UNSIGNED_SHORT) == gltfScene.accessors[faceIndicesAccessorIndex].componentType) {
 					faceIndices.resize(gltfScene.accessors[faceIndicesAccessorIndex].count);
 					memcpy(&faceIndices[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset], gltfScene.bufferViews[faceIndicesBufferViewIndex].byteLength);
 				}

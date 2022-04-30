@@ -1405,14 +1405,28 @@ private:
 			renderPassBeginInfo.clearValueCount = 1;
 			renderPassBeginInfo.pClearValues = &clearColor;
 
+
+			#pragma region RenderPassCommandRecording
 			vkCmdBeginRenderPass(graphicsCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdBindDescriptorSets(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 			vkCmdBindPipeline(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 			VkDeviceSize offset = 0;
 			vkCmdBindVertexBuffers(graphicsCommandBuffers[i], 0, 1, &vertexBuffer, &offset);
-			vkCmdBindIndexBuffer(graphicsCommandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
+			// Get the value type of vertex indices. Typically unsigned int (32-bit) but could also be 16-bit. Gltf for example uses 16-bit.
+			VkIndexType indexType = VK_INDEX_TYPE_NONE_KHR;
+			if (std::is_same_v<decltype(scene.meshes[0].faceIndices)::value_type, unsigned short>) {
+				indexType = VK_INDEX_TYPE_UINT16;
+			}
+			if (std::is_same_v<decltype(scene.meshes[0].faceIndices)::value_type, unsigned int>) {
+				indexType = VK_INDEX_TYPE_UINT32;
+			}
+			vkCmdBindIndexBuffer(graphicsCommandBuffers[i], indexBuffer, 0, indexType);
+
 			vkCmdDrawIndexed(graphicsCommandBuffers[i], scene.meshes[0].faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(graphicsCommandBuffers[i]);
+			#pragma endregion
+
 
 			// If present and graphics queue families differ, then another barrier is required
 			if (presentQueueFamily != graphicsQueueFamily) {

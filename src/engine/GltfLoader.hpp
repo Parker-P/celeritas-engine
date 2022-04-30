@@ -12,7 +12,7 @@ enum class GltfDataType {
 	MAT4
 };
 
-enum class ComponentType {
+enum class GltfComponentType {
 	SIGNED_BYTE = 5120,
 	UNSIGNED_BYTE = 5121,
 	SIGNED_SHORT = 5122,
