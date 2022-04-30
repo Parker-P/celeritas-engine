@@ -19,6 +19,7 @@
 #include "Camera.hpp"
 #include "Mesh.hpp"
 #include "Scene.hpp"
+#include "Utils.hpp"
 #include "GltfLoader.hpp"
 
 // Configuration
@@ -135,10 +136,6 @@ private:
 	// Misc
 	std::chrono::high_resolution_clock::time_point timeStart;
 	Scene scene;
-
-	// Temp
-	std::vector<glm::vec3> vertexPositions;
-	std::vector<uint16_t> faceIndices;
 
 	Input input;
 	Camera mainCamera;
@@ -612,15 +609,8 @@ private:
 
 		#pragma region SceneLoading
 		scene = GltfLoader::Load(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
-		vertexPositions.push_back(glm::vec3{ -0.5f, -0.5f,  0.0f });
-		vertexPositions.push_back(glm::vec3{ -0.5f,  0.5f,  0.0f });
-		vertexPositions.push_back(glm::vec3{ 0.5f,  0.5f,  0.0f });
-		faceIndices = { 0, 1, 2 };
-
-		uint32_t vertexPositionsSize = sizeof(decltype(vertexPositions)::value_type) * vertexPositions.size();
-		//auto vertexPositionsSize = sizeof(decltype(scene.meshes[0].vertexPositions)::value_type)* scene.meshes[0].vertexPositions.size();
-		uint32_t faceIndicesSize = sizeof(decltype(faceIndices)::value_type) * faceIndices.size();
-		//auto faceIndicesSize = sizeof(decltype(scene.meshes[0].faceIndices)::value_type) * scene.meshes[0].faceIndices.size();
+		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(scene.meshes[0].vertexPositions);
+		auto faceIndicesSize = Utils::GetVectorSizeInBytes(scene.meshes[0].faceIndices);
 		#pragma endregion
 
 		#pragma region Prep
@@ -665,8 +655,7 @@ private:
 		vkAllocateMemory(logicalDevice, &memAlloc, nullptr, &stagingBuffers.vertices.memory);
 
 		vkMapMemory(logicalDevice, stagingBuffers.vertices.memory, 0, vertexPositionsSize, 0, &data);
-		//memcpy(data, scene.meshes[0].vertexPositions.data(), vertexPositionsSize);
-		memcpy(data, vertexPositions.data(), vertexPositionsSize);
+		memcpy(data, scene.meshes[0].vertexPositions.data(), vertexPositionsSize);
 		vkUnmapMemory(logicalDevice, stagingBuffers.vertices.memory);
 		vkBindBufferMemory(logicalDevice, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0);
 
@@ -694,8 +683,7 @@ private:
 		vkAllocateMemory(logicalDevice, &memAlloc, nullptr, &stagingBuffers.indices.memory);
 
 		vkMapMemory(logicalDevice, stagingBuffers.indices.memory, 0, faceIndicesSize, 0, &data);
-		//memcpy(data, scene.meshes[0].faceIndices.data(), faceIndicesSize);
-		memcpy(data, faceIndices.data(), faceIndicesSize);
+		memcpy(data, scene.meshes[0].faceIndices.data(), faceIndicesSize);
 		vkUnmapMemory(logicalDevice, stagingBuffers.indices.memory);
 		vkBindBufferMemory(logicalDevice, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0);
 
@@ -718,10 +706,8 @@ private:
 		vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
 
 		VkBufferCopy copyRegion = {};
-		//copyRegion.size = scene.meshes[0].vertexPositions.size();
 		copyRegion.size = vertexPositionsSize;
 		vkCmdCopyBuffer(copyCommandBuffer, stagingBuffers.vertices.buffer, vertexBuffer, 1, &copyRegion);
-		//copyRegion.size = scene.meshes[0].faceIndices.size();
 		copyRegion.size = faceIndicesSize;
 		vkCmdCopyBuffer(copyCommandBuffer, stagingBuffers.indices.buffer, indexBuffer, 1, &copyRegion);
 
@@ -1134,7 +1120,7 @@ private:
 
 		// Binding and attribute descriptions
 		vertexBindingDescription.binding = 0;
-		vertexBindingDescription.stride = sizeof(decltype(vertexPositions)::value_type);
+		vertexBindingDescription.stride = sizeof(scene.meshes[0].vertexPositions[0]);
 		vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		// Describe how the shader should read vertex attributes
@@ -1425,8 +1411,7 @@ private:
 			VkDeviceSize offset = 0;
 			vkCmdBindVertexBuffers(graphicsCommandBuffers[i], 0, 1, &vertexBuffer, &offset);
 			vkCmdBindIndexBuffer(graphicsCommandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
-			//vkCmdDrawIndexed(graphicsCommandBuffers[i], scene.meshes[0].faceIndices.size(), 1, 0, 0, 0);
-			vkCmdDrawIndexed(graphicsCommandBuffers[i], 3, 1, 0, 0, 0);
+			vkCmdDrawIndexed(graphicsCommandBuffers[i], scene.meshes[0].faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(graphicsCommandBuffers[i]);
 
 			// If present and graphics queue families differ, then another barrier is required

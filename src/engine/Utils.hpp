@@ -14,4 +14,13 @@ public:
 	{
 		return static_cast<typename std::underlying_type<Enumeration>::type>(value);
 	}
+
+	/// <summary>
+	/// Returns the size of a vector in bytes
+	/// </summary>
+	template <typename T>
+	static size_t GetVectorSizeInBytes(std::vector<T> vector)
+	{
+		return sizeof(decltype(vector)::value_type) * vector.size();
+	}
 };
