@@ -13,11 +13,6 @@
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 
-// Assimp
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
-
 // Project local classes
 #include "Singleton.hpp"
 #include "Input.hpp"
@@ -29,7 +24,7 @@
 // Configuration
 const uint32_t WIDTH = 640;
 const uint32_t HEIGHT = 480;
-const bool enableValidationLayers = false;
+const bool enableValidationLayers = true;
 const std::vector<const char*> validationLayers = {
 	"VK_LAYER_KHRONOS_validation"
 };
@@ -140,6 +135,11 @@ private:
 	// Misc
 	std::chrono::high_resolution_clock::time_point timeStart;
 	Scene scene;
+
+	// Temp
+	std::vector<glm::vec3> vertexPositions;
+	std::vector<uint16_t> faceIndices;
+
 	Input input;
 	Camera mainCamera;
 	glm::mat4 modelMatrix;
@@ -610,8 +610,20 @@ private:
 		//model.indicesSize = (uint32_t)(model.indices.size() * sizeof(model.indices[0]));
 		#pragma endregion
 
+		#pragma region SceneLoading
 		scene = GltfLoader::Load(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
+		vertexPositions.push_back(glm::vec3{ -0.5f, -0.5f,  0.0f });
+		vertexPositions.push_back(glm::vec3{ -0.5f,  0.5f,  0.0f });
+		vertexPositions.push_back(glm::vec3{ 0.5f,  0.5f,  0.0f });
+		faceIndices = { 0, 1, 2 };
 
+		uint32_t vertexPositionsSize = sizeof(decltype(vertexPositions)::value_type) * vertexPositions.size();
+		//auto vertexPositionsSize = sizeof(decltype(scene.meshes[0].vertexPositions)::value_type)* scene.meshes[0].vertexPositions.size();
+		uint32_t faceIndicesSize = sizeof(decltype(faceIndices)::value_type) * faceIndices.size();
+		//auto faceIndicesSize = sizeof(decltype(scene.meshes[0].faceIndices)::value_type) * scene.meshes[0].faceIndices.size();
+		#pragma endregion
+
+		#pragma region Prep
 		struct StagingBuffer {
 			VkDeviceMemory memory;
 			VkBuffer buffer;
@@ -631,11 +643,13 @@ private:
 
 		VkCommandBuffer copyCommandBuffer;
 		vkAllocateCommandBuffers(logicalDevice, &cmdBufInfo, &copyCommandBuffer);
+		#pragma endregion
 
+		#pragma region VertexPositionsToGpu
 		// First copy vertices to host accessible vertex buffer memory
 		VkBufferCreateInfo vertexBufferInfo = {};
 		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		vertexBufferInfo.size = scene.meshes[0].faceIndices.size();
+		vertexBufferInfo.size = vertexPositionsSize;
 		vertexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
 		vkCreateBuffer(logicalDevice, &vertexBufferInfo, nullptr, &stagingBuffers.vertices.buffer);
@@ -650,8 +664,9 @@ private:
 		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(logicalDevice, &memAlloc, nullptr, &stagingBuffers.vertices.memory);
 
-		vkMapMemory(logicalDevice, stagingBuffers.vertices.memory, 0, scene.meshes[0].vertexPositions.size(), 0, &data);
-		memcpy(data, scene.meshes[0].vertexPositions.data(), scene.meshes[0].vertexPositions.size());
+		vkMapMemory(logicalDevice, stagingBuffers.vertices.memory, 0, vertexPositionsSize, 0, &data);
+		//memcpy(data, scene.meshes[0].vertexPositions.data(), vertexPositionsSize);
+		memcpy(data, vertexPositions.data(), vertexPositionsSize);
 		vkUnmapMemory(logicalDevice, stagingBuffers.vertices.memory);
 		vkBindBufferMemory(logicalDevice, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0);
 
@@ -667,17 +682,20 @@ private:
 		// Next copy indices to host accessible index buffer memory
 		VkBufferCreateInfo indexBufferInfo = {};
 		indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		indexBufferInfo.size = scene.meshes[0].faceIndices.size();
+		indexBufferInfo.size = faceIndicesSize;
 		indexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		#pragma endregion
 
+		#pragma region FaceIndicesToGpu
 		vkCreateBuffer(logicalDevice, &indexBufferInfo, nullptr, &stagingBuffers.indices.buffer);
 		vkGetBufferMemoryRequirements(logicalDevice, stagingBuffers.indices.buffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
 		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(logicalDevice, &memAlloc, nullptr, &stagingBuffers.indices.memory);
 
-		vkMapMemory(logicalDevice, stagingBuffers.indices.memory, 0, scene.meshes[0].faceIndices.size(), 0, &data);
-		memcpy(data, scene.meshes[0].faceIndices.data(), scene.meshes[0].faceIndices.size());
+		vkMapMemory(logicalDevice, stagingBuffers.indices.memory, 0, faceIndicesSize, 0, &data);
+		//memcpy(data, scene.meshes[0].faceIndices.data(), faceIndicesSize);
+		memcpy(data, faceIndices.data(), faceIndicesSize);
 		vkUnmapMemory(logicalDevice, stagingBuffers.indices.memory);
 		vkBindBufferMemory(logicalDevice, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0);
 
@@ -694,13 +712,17 @@ private:
 		VkCommandBufferBeginInfo bufferBeginInfo = {};
 		bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		bufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		#pragma endregion
 
+		#pragma region CommandBufferCreationAndExecution
 		vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
 
 		VkBufferCopy copyRegion = {};
-		copyRegion.size = scene.meshes[0].vertexPositions.size();
+		//copyRegion.size = scene.meshes[0].vertexPositions.size();
+		copyRegion.size = vertexPositionsSize;
 		vkCmdCopyBuffer(copyCommandBuffer, stagingBuffers.vertices.buffer, vertexBuffer, 1, &copyRegion);
-		copyRegion.size = scene.meshes[0].faceIndices.size();
+		//copyRegion.size = scene.meshes[0].faceIndices.size();
+		copyRegion.size = faceIndicesSize;
 		vkCmdCopyBuffer(copyCommandBuffer, stagingBuffers.indices.buffer, indexBuffer, 1, &copyRegion);
 
 		vkEndCommandBuffer(copyCommandBuffer);
@@ -715,24 +737,14 @@ private:
 		vkQueueWaitIdle(graphicsQueue);
 
 		vkFreeCommandBuffers(logicalDevice, commandPool, 1, &copyCommandBuffer);
-
+		#pragma endregion
+		
 		vkDestroyBuffer(logicalDevice, stagingBuffers.vertices.buffer, nullptr);
 		vkFreeMemory(logicalDevice, stagingBuffers.vertices.memory, nullptr);
 		vkDestroyBuffer(logicalDevice, stagingBuffers.indices.buffer, nullptr);
 		vkFreeMemory(logicalDevice, stagingBuffers.indices.memory, nullptr);
 
 		std::cout << "set up vertex and index buffers" << std::endl;
-
-		// Binding and attribute descriptions
-		vertexBindingDescription.binding = 0;
-		vertexBindingDescription.stride = sizeof(decltype(scene.meshes[0].vertexPositions)::value_type);
-		vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-		// vec3 position
-		vertexAttributeDescriptions.resize(1);
-		vertexAttributeDescriptions[0].binding = 0;
-		vertexAttributeDescriptions[0].location = 0;
-		vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 	}
 
 	void createUniformBuffer() {
@@ -799,19 +811,12 @@ private:
 		}
 
 		//std::cout << mainCamera.position.x << ", " << mainCamera.position.y << ", " << mainCamera.position.z << std::endl;
-
 		//std::cout << "Mouse x is " << Input::Instance().mouseX << std::endl;
 		//std::cout << "Mouse y is " << Input::Instance().mouseY << std::endl;
-		//mainCamera.view = glm::rotate(mainCamera.view, 0.01f, glm::vec3(0.0f, 1.0f, 0.0f));
-		//mainCamera.view = glm::rotate(mainCamera.view, (float)input.mouseX * mouseSensitivity, glm::vec3(0.0f, 1.0f, 0.0f));
-		//mainCamera.view = glm::rotate(mainCamera.view, (float)input.mouseY * mouseSensitivity, glm::vec3(1.0f, 0.0f, 0.0f));
-		//modelMatrix = glm::rotate(modelMatrix, glm::radians(0.1f), glm::vec3(0.0f, 1.0f, 0.0f));
-		//glm::translate(modelMatrix, glm::vec3(0.0f, 0.0f, -0.1f));
 
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
 		auto aspectRatio = std::bit_cast<float, uint32_t>(swapChainExtent.width) / std::bit_cast<float, uint32_t>(swapChainExtent.height);
 		mainCamera.projection = glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f);
-		//mainCamera.projection = glm::perspective(glm::radians(60.0f), std::bit_cast<float, uint32_t>(swapChainExtent.width) / (float)swapChainExtent.height, 0.1f, 1000.0f);
 		uniformBufferData.transformationMatrix = mainCamera.projection * mainCamera.view * modelMatrix;
 
 		// Send the uniform buffer data (which contains the combined transformation matrices) to the GPU
@@ -1071,7 +1076,7 @@ private:
 			createInfo.renderPass = renderPass;
 			createInfo.attachmentCount = 1;
 			createInfo.pAttachments = &swapChainImageViews[i];
-			createInfo.width = std::bit_cast<float, uint32_t>(swapChainExtent.width);
+			createInfo.width = swapChainExtent.width;
 			createInfo.height = swapChainExtent.height;
 			createInfo.layers = 1;
 
@@ -1127,6 +1132,17 @@ private:
 		fragmentShaderCreateInfo.pName = "main";
 		VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderCreateInfo, fragmentShaderCreateInfo };
 
+		// Binding and attribute descriptions
+		vertexBindingDescription.binding = 0;
+		vertexBindingDescription.stride = sizeof(decltype(vertexPositions)::value_type);
+		vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		// Describe how the shader should read vertex attributes
+		vertexAttributeDescriptions.resize(1);
+		vertexAttributeDescriptions[0].binding = 0;
+		vertexAttributeDescriptions[0].location = 0;
+		vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+
 		// Describe vertex input
 		VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo = {};
 		vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1145,16 +1161,16 @@ private:
 		VkViewport viewport = {};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
-		viewport.width = std::bit_cast<float, uint32_t>(swapChainExtent.width);
-		viewport.height = std::bit_cast<float, uint32_t>(swapChainExtent.height);
+		viewport.width = 640.0f; // swapchainExtent wants uint32_t as value for both width and height. Need to find a way to convert from uint32_t to float. bit::cast is not working
+		viewport.height = 480.0f;
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 
 		VkRect2D scissor = {};
 		scissor.offset.x = 0;
 		scissor.offset.y = 0;
-		scissor.extent.width = std::bit_cast<float, uint32_t>(swapChainExtent.width);
-		scissor.extent.height = std::bit_cast<float, uint32_t>(swapChainExtent.height);
+		scissor.extent.width = swapChainExtent.width;
+		scissor.extent.height = swapChainExtent.height;
 
 		// Note: scissor test is always enabled (although dynamic scissor is possible)
 		// Number of viewports must match number of scissors
@@ -1215,7 +1231,7 @@ private:
 		colorBlendCreateInfo.blendConstants[3] = 0.0f;
 
 		// Describe pipeline layout
-		// Note: this describes the mapping between memory and shader resources (descriptor sets)
+		// Note: this describes the mapping between memory and shader resources (descriptor sets), which contain the information you want to send to the shaders
 		// This is for uniform buffers and samplers
 		VkDescriptorSetLayoutBinding layoutBinding = {};
 		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1408,8 +1424,9 @@ private:
 			vkCmdBindPipeline(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 			VkDeviceSize offset = 0;
 			vkCmdBindVertexBuffers(graphicsCommandBuffers[i], 0, 1, &vertexBuffer, &offset);
-			vkCmdBindIndexBuffer(graphicsCommandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(graphicsCommandBuffers[i], scene.meshes[0].faceIndices.size(), 1, 0, 0, 0);
+			vkCmdBindIndexBuffer(graphicsCommandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+			//vkCmdDrawIndexed(graphicsCommandBuffers[i], scene.meshes[0].faceIndices.size(), 1, 0, 0, 0);
+			vkCmdDrawIndexed(graphicsCommandBuffers[i], 3, 1, 0, 0, 0);
 			vkCmdEndRenderPass(graphicsCommandBuffers[i]);
 
 			// If present and graphics queue families differ, then another barrier is required
