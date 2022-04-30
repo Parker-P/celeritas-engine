@@ -12,6 +12,9 @@
 *.o
 *.obj
 
+# Compiled shaders
+.spv
+
 # Precompiled Headers
 *.gch
 *.pch
