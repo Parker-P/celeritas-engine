@@ -55,7 +55,7 @@ public:
 		_timeStart = std::chrono::high_resolution_clock::now();
 	}
 
-	void run() {
+	void Run() {
 		// Note: dynamically loading loader may be a better idea to fail gracefully when Vulkan is not supported
 
 		// Create window for Vulkan
@@ -70,7 +70,7 @@ public:
 		_input.Init(_window);
 		_mouseSensitivity = 0.1f;
 
-		glfwSetWindowSizeCallback(_window, VulkanApplication::onWindowResized);
+		glfwSetWindowSizeCallback(_window, VulkanApplication::OnWindowResized);
 
 		// Use Vulkan
 		SetupVulkan();
@@ -133,15 +133,20 @@ private:
 	std::vector<VkCommandBuffer>	_graphicsCommandBuffers;
 
 
+	// Time
+	std::chrono::high_resolution_clock::time_point	_timeStart;
+	std::chrono::high_resolution_clock::time_point	_lastFrameTime; // Time last frame started
+	double										_deltaTime;		// The time since last frame started in milliseconds
+
 	// Misc
-	std::chrono::high_resolution_clock::time_point _timeStart;
-	std::chrono::high_resolution_clock _deltaTime;
 	Scene _scene;
 
 	Input _input;
 	Camera _mainCamera;
 	glm::mat4 _modelMatrix;
 	float _mouseSensitivity;
+
+	void CalculateDeltaTime() { _deltaTime = (std::chrono::high_resolution_clock::now() - _lastFrameTime).count() / 1000000.0; }
 
 	void SetupVulkan() {
 		_oldSwapChain = VK_NULL_HANDLE;
@@ -168,17 +173,18 @@ private:
 
 	void MainLoop() {
 		while (!glfwWindowShouldClose(_window)) {
+			CalculateDeltaTime();
 			UpdateUniformData();
 			Draw();
 			glfwPollEvents();
 		}
 	}
 
-	static void onWindowResized(GLFWwindow* window, int width, int height) {
+	static void OnWindowResized(GLFWwindow* window, int width, int height) {
 		windowResized = true;
 	}
 
-	void onWindowSizeChanged() {
+	void OnWindowSizeChanged() {
 		windowResized = false;
 
 		// Only recreate objects that are affected by framebuffer size changes
@@ -652,7 +658,7 @@ private:
 
 		vkGetBufferMemoryRequirements(_logicalDevice, stagingBuffers.vertices.buffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
-		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
+		GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &stagingBuffers.vertices.memory);
 
 		vkMapMemory(_logicalDevice, stagingBuffers.vertices.memory, 0, vertexPositionsSize, 0, &data);
@@ -665,7 +671,7 @@ private:
 		vkCreateBuffer(_logicalDevice, &vertexBufferInfo, nullptr, &_vertexBuffer);
 		vkGetBufferMemoryRequirements(_logicalDevice, _vertexBuffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
-		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memAlloc.memoryTypeIndex);
+		GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &_vertexBufferMemory);
 		vkBindBufferMemory(_logicalDevice, _vertexBuffer, _vertexBufferMemory, 0);
 
@@ -680,7 +686,7 @@ private:
 		vkCreateBuffer(_logicalDevice, &indexBufferInfo, nullptr, &stagingBuffers.indices.buffer);
 		vkGetBufferMemoryRequirements(_logicalDevice, stagingBuffers.indices.buffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
-		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
+		GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &stagingBuffers.indices.memory);
 
 		vkMapMemory(_logicalDevice, stagingBuffers.indices.memory, 0, faceIndicesSize, 0, &data);
@@ -693,7 +699,7 @@ private:
 		vkCreateBuffer(_logicalDevice, &indexBufferInfo, nullptr, &_indexBuffer);
 		vkGetBufferMemoryRequirements(_logicalDevice, _indexBuffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
-		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memAlloc.memoryTypeIndex);
+		GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &_indexBufferMemory);
 		vkBindBufferMemory(_logicalDevice, _indexBuffer, _indexBufferMemory, 0);
 
@@ -748,7 +754,7 @@ private:
 		VkMemoryAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = memReqs.size;
-		getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &allocInfo.memoryTypeIndex);
+		GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &allocInfo.memoryTypeIndex);
 
 		vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &_uniformBufferMemory);
 		vkBindBufferMemory(_logicalDevice, _uniformBuffer, _uniformBufferMemory, 0);
@@ -814,7 +820,7 @@ private:
 	}
 
 	// Find device memory that is supported by the requirements (typeBits) and meets the desired properties
-	VkBool32 getMemoryType(uint32_t typeBits, VkFlags properties, uint32_t* typeIndex) {
+	VkBool32 GetMemoryType(uint32_t typeBits, VkFlags properties, uint32_t* typeIndex) {
 		for (uint32_t i = 0; i < 32; i++) {
 			if ((typeBits & 1) == 1) {
 				if ((_deviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
@@ -870,10 +876,10 @@ private:
 		std::cout << "using " << imageCount << " images for swap chain" << std::endl;
 
 		// Select a surface format
-		VkSurfaceFormatKHR surfaceFormat = chooseSurfaceFormat(surfaceFormats);
+		VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat(surfaceFormats);
 
 		// Select swap chain size
-		_swapChainExtent = chooseSwapExtent(surfaceCapabilities);
+		_swapChainExtent = ChooseSwapExtent(surfaceCapabilities);
 
 		// Determine transformation to use (preferring no transform)
 		VkSurfaceTransformFlagBitsKHR surfaceTransform;
@@ -885,7 +891,7 @@ private:
 		}
 
 		// Choose presentation mode (preferring MAILBOX ~= triple buffering)
-		VkPresentModeKHR presentMode = choosePresentMode(presentModes);
+		VkPresentModeKHR presentMode = ChoosePresentMode(presentModes);
 
 		// Finally, create the swap chain
 		VkSwapchainCreateInfoKHR createInfo = {};
@@ -940,7 +946,7 @@ private:
 		std::cout << "acquired swap chain images" << std::endl;
 	}
 
-	VkSurfaceFormatKHR chooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
+	VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
 		// We can either choose any format
 		if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED) {
 			return{ VK_FORMAT_R8G8B8A8_UNORM, VK_COLORSPACE_SRGB_NONLINEAR_KHR };
@@ -957,7 +963,7 @@ private:
 		return availableFormats[0];
 	}
 
-	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities) {
+	VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities) {
 		if (surfaceCapabilities.currentExtent.width == -1) {
 			VkExtent2D swapChainExtent = {};
 
@@ -971,7 +977,7 @@ private:
 		}
 	}
 
-	VkPresentModeKHR choosePresentMode(const std::vector<VkPresentModeKHR> presentModes) {
+	VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes) {
 		for (const auto& presentMode : presentModes) {
 			if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
 				return presentMode;
@@ -1464,7 +1470,7 @@ private:
 
 		// Unless surface is out of date right now, defer swap chain recreation until end of this frame
 		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
-			onWindowSizeChanged();
+			OnWindowSizeChanged();
 			return;
 		}
 		else if (res != VK_SUCCESS) {
@@ -1508,7 +1514,7 @@ private:
 		res = vkQueuePresentKHR(_presentQueue, &presentInfo);
 
 		if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
-			onWindowSizeChanged();
+			OnWindowSizeChanged();
 		}
 		else if (res != VK_SUCCESS) {
 			std::cerr << "failed to submit present command buffer" << std::endl;
@@ -1519,7 +1525,7 @@ private:
 
 int main() {
 	VulkanApplication app;
-	app.run();
+	app.Run();
 
 	return 0;
 }
