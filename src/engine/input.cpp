@@ -5,102 +5,102 @@
 #include "Singleton.hpp"
 #include "Input.hpp"
 
-void Input::key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+void Input::KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
 	// W
 	if (key == GLFW_KEY_W) {
 		if (action == GLFW_PRESS) {
-			Instance().wasWPressed = true;
-			Instance().isWHeldDown = true;
+			Instance()._wasWPressed = true;
+			Instance()._isWHeldDown = true;
 		}
 		else if (action == GLFW_REPEAT) {
-			Instance().isWHeldDown = true;
+			Instance()._isWHeldDown = true;
 		}
 		else {
-			Instance().isWHeldDown = false;
+			Instance()._isWHeldDown = false;
 		}
 	}
 
 	// A
 	if (key == GLFW_KEY_A) {
 		if (action == GLFW_PRESS) {
-			Instance().wasAPressed = true;
-			Instance().isAHeldDown = true;
+			Instance()._wasAPressed = true;
+			Instance()._isAHeldDown = true;
 		}
 		else if (action == GLFW_REPEAT) {
-			Instance().isAHeldDown = true;
+			Instance()._isAHeldDown = true;
 		}
 		else {
-			Instance().isAHeldDown = false;
+			Instance()._isAHeldDown = false;
 		}
 	}
 
 	// S
 	if (key == GLFW_KEY_S) {
 		if (action == GLFW_PRESS) {
-			Instance().wasSPressed = true;
-			Instance().isSHeldDown = true;
+			Instance()._wasSPressed = true;
+			Instance()._isSHeldDown = true;
 		}
 		else if (action == GLFW_REPEAT) {
-			Instance().isSHeldDown = true;
+			Instance()._isSHeldDown = true;
 		}
 		else {
-			Instance().isSHeldDown = false;
+			Instance()._isSHeldDown = false;
 		}
 	}
 
 	// D
 	if (key == GLFW_KEY_D) {
 		if (action == GLFW_PRESS) {
-			Instance().wasDPressed = true;
-			Instance().isDHeldDown = true;
+			Instance()._wasDPressed = true;
+			Instance()._isDHeldDown = true;
 		}
 		else if (action == GLFW_REPEAT) {
-			Instance().isDHeldDown = true;
+			Instance()._isDHeldDown = true;
 		}
 		else {
-			Instance().isDHeldDown = false;
+			Instance()._isDHeldDown = false;
 		}
 	}
 }
 
-void Input::cursor_position_callback(GLFWwindow* window, double xPos, double yPos) {
-	Input::Instance().mouseX = xPos;
-	Input::Instance().mouseY = yPos;
+void Input::CursorPositionCallback(GLFWwindow* window, double xPos, double yPos) {
+	Input::Instance()._mouseX = xPos;
+	Input::Instance()._mouseY = yPos;
 	//std::cout << xPos << std::endl;
 	//std::cout << yPos << std::endl;
 }
 
 void Input::Init(GLFWwindow* window) {
 	// Keyboard init
-	glfwSetKeyCallback(window, key_callback);
+	glfwSetKeyCallback(window, KeyCallback);
 
 	// Mouse init
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	if (glfwRawMouseMotionSupported()) {
 		glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
 	}
-	glfwSetCursorPosCallback(window, cursor_position_callback);
+	glfwSetCursorPosCallback(window, CursorPositionCallback);
 }
 
 bool Input::IsKeyHeldDown(std::string key) {
 	// W
 	if (key == "w" || key == "w") {
-		return Instance().isWHeldDown;
+		return Instance()._isWHeldDown;
 	}
 
 	// A
 	if (key == "a" || key == "A") {
-		return Instance().isAHeldDown;
+		return Instance()._isAHeldDown;
 	}
 
 	// S
 	if (key == "s" || key == "S") {
-		return Instance().isSHeldDown;
+		return Instance()._isSHeldDown;
 	}
 
 	// D
 	if (key == "d" || key == "D") {
-		return Instance().isDHeldDown;
+		return Instance()._isDHeldDown;
 	}
 	return false;
 }
@@ -108,32 +108,32 @@ bool Input::IsKeyHeldDown(std::string key) {
 bool Input::WasKeyPressed(std::string key) {
 	// W
 	if (key == "w" || key == "W") {
-		if (Instance().wasWPressed) {
-			Instance().wasWPressed = false;
+		if (Instance()._wasWPressed) {
+			Instance()._wasWPressed = false;
 			return true;
 		}
 	}
 
 	// A
 	if (key == "a" || key == "A") {
-		if (Instance().wasAPressed) {
-			Instance().wasAPressed = false;
+		if (Instance()._wasAPressed) {
+			Instance()._wasAPressed = false;
 			return true;
 		}
 	}
 
 	// S
 	if (key == "s" || key == "S") {
-		if (Instance().wasSPressed) {
-			Instance().wasSPressed = false;
+		if (Instance()._wasSPressed) {
+			Instance()._wasSPressed = false;
 			return true;
 		}
 	}
 
 	// D
 	if (key == "d" || key == "D") {
-		if (Instance().wasDPressed) {
-			Instance().wasDPressed = false;
+		if (Instance()._wasDPressed) {
+			Instance()._wasDPressed = false;
 			return true;
 		}
 	}

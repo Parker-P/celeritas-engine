@@ -3,30 +3,30 @@
 class Input : public Singleton<Input> {
 
 	// W
-	bool isWHeldDown;
-	bool wasWPressed;
+	bool _isWHeldDown;
+	bool _wasWPressed;
 
 	// A
-	bool isAHeldDown;
-	bool wasAPressed;
+	bool _isAHeldDown;
+	bool _wasAPressed;
 
 	// S
-	bool isSHeldDown;
-	bool wasSPressed;
+	bool _isSHeldDown;
+	bool _wasSPressed;
 
 	// D
-	bool isDHeldDown;
-	bool wasDPressed;
+	bool _isDHeldDown;
+	bool _wasDPressed;
 
 
 public:
 
 	// Mouse
-	double mouseX;
-	double mouseY;
+	double _mouseX;
+	double _mouseY;
 
-	static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
-	static void cursor_position_callback(GLFWwindow* window, double xPos, double yPos);
+	static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+	static void CursorPositionCallback(GLFWwindow* window, double xPos, double yPos);
 
 	void Init(GLFWwindow* window);
 	bool IsKeyHeldDown(std::string);

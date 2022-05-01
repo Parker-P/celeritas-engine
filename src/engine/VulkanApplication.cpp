@@ -610,8 +610,8 @@ private:
 
 		#pragma region SceneLoading
 		_scene = GltfLoader::Load(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
-		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_scene.meshes[0].vertexPositions);
-		auto faceIndicesSize = Utils::GetVectorSizeInBytes(_scene.meshes[0].faceIndices);
+		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._vertexPositions);
+		auto faceIndicesSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._faceIndices);
 		#pragma endregion
 
 		#pragma region Prep
@@ -656,7 +656,7 @@ private:
 		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &stagingBuffers.vertices.memory);
 
 		vkMapMemory(_logicalDevice, stagingBuffers.vertices.memory, 0, vertexPositionsSize, 0, &data);
-		memcpy(data, _scene.meshes[0].vertexPositions.data(), vertexPositionsSize);
+		memcpy(data, _scene._meshes[0]._vertexPositions.data(), vertexPositionsSize);
 		vkUnmapMemory(_logicalDevice, stagingBuffers.vertices.memory);
 		vkBindBufferMemory(_logicalDevice, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0);
 
@@ -684,7 +684,7 @@ private:
 		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &stagingBuffers.indices.memory);
 
 		vkMapMemory(_logicalDevice, stagingBuffers.indices.memory, 0, faceIndicesSize, 0, &data);
-		memcpy(data, _scene.meshes[0].faceIndices.data(), faceIndicesSize);
+		memcpy(data, _scene._meshes[0]._faceIndices.data(), faceIndicesSize);
 		vkUnmapMemory(_logicalDevice, stagingBuffers.indices.memory);
 		vkBindBufferMemory(_logicalDevice, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0);
 
@@ -758,15 +758,15 @@ private:
 
 	void updateUniformData() {
 		// Get the mouse x and y. These values are stored cumulatively and will be used as degrees of rotation when calculating the cameraForward vector
-		float yaw = Input::Instance().mouseX * _mouseSensitivity;
-		float pitch = Input::Instance().mouseY * _mouseSensitivity;
+		float yaw = Input::Instance()._mouseX * _mouseSensitivity;
+		float pitch = Input::Instance()._mouseY * _mouseSensitivity;
 
 		// Calculate the camera vectors
 		glm::vec3 cameraForward;
 		cameraForward.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch)); // Use yaw and pitch as degrees for calculation
 		cameraForward.y = sin(glm::radians(pitch));
 		cameraForward.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-		glm::vec3 cameraPosition = _mainCamera.position;
+		glm::vec3 cameraPosition = _mainCamera._position;
 		glm::vec3 cameraRight = glm::cross(cameraForward, glm::vec3(0.0f, 1.0f, 0.0f));
 		glm::vec3 cameraUp = glm::cross(cameraRight, cameraForward);
 		glm::normalize(cameraForward);
@@ -775,36 +775,36 @@ private:
 
 		// Create a transformation matrix that maps the world's X to cameraRight, the world's Y to cameraUp and the world's Z to cameraForward
 		// This way the vertex shader will put the vertices in the correct position by multiplying each vertex's position by the resulting matrix
-		_mainCamera.view = glm::lookAt(cameraPosition, cameraPosition + cameraForward, cameraUp);
+		_mainCamera._view = glm::lookAt(cameraPosition, cameraPosition + cameraForward, cameraUp);
 
 		if (_input.IsKeyHeldDown("w")) {
 			//std::cout << "w key is being held down\n";
-			_mainCamera.position += cameraForward * 0.1f;
+			_mainCamera._position += cameraForward * 0.1f;
 		}
 
 		if (_input.IsKeyHeldDown("a")) {
 			//std::cout << "a key is being held down\n";
-			_mainCamera.position += -cameraRight * 0.1f;
+			_mainCamera._position += -cameraRight * 0.1f;
 		}
 
 		if (_input.IsKeyHeldDown("s")) {
 			//std::cout << "s key is being held down\n";
-			_mainCamera.position += -cameraForward * 0.1f;
+			_mainCamera._position += -cameraForward * 0.1f;
 		}
 
 		if (_input.IsKeyHeldDown("d")) {
 			//std::cout << "d key is being held down\n";
-			_mainCamera.position += cameraRight * 0.1f;
+			_mainCamera._position += cameraRight * 0.1f;
 		}
 
-		std::cout << _mainCamera.position.x << ", " << _mainCamera.position.y << ", " << _mainCamera.position.z << std::endl;
-		std::cout << "Mouse x is " << Input::Instance().mouseX << std::endl;
-		std::cout << "Mouse y is " << Input::Instance().mouseY << std::endl;
+		std::cout << _mainCamera._position.x << ", " << _mainCamera._position.y << ", " << _mainCamera._position.z << std::endl;
+		std::cout << "Mouse x is " << Input::Instance()._mouseX << std::endl;
+		std::cout << "Mouse y is " << Input::Instance()._mouseY << std::endl;
 
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
 		auto aspectRatio = std::bit_cast<float, uint32_t>(_swapChainExtent.width) / std::bit_cast<float, uint32_t>(_swapChainExtent.height);
-		_mainCamera.projection = glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f);
-		_uniformBufferData.transformationMatrix = _mainCamera.projection * _mainCamera.view * _modelMatrix;
+		_mainCamera._projection = glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f);
+		_uniformBufferData.transformationMatrix = _mainCamera._projection * _mainCamera._view * _modelMatrix;
 
 		// Send the uniform buffer data (which contains the combined transformation matrices) to the GPU
 		void* data;
@@ -1121,7 +1121,7 @@ private:
 
 		// Binding and attribute descriptions
 		_vertexBindingDescription.binding = 0;
-		_vertexBindingDescription.stride = sizeof(_scene.meshes[0].vertexPositions[0]);
+		_vertexBindingDescription.stride = sizeof(_scene._meshes[0]._vertexPositions[0]);
 		_vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		// Describe how the shader should read vertex attributes
@@ -1416,15 +1416,15 @@ private:
 
 			// Get the value type of vertex indices. Typically unsigned int (32-bit) but could also be 16-bit. Gltf for example uses 16-bit.
 			VkIndexType indexType = VK_INDEX_TYPE_NONE_KHR;
-			if (std::is_same_v<decltype(_scene.meshes[0].faceIndices)::value_type, unsigned short>) {
+			if (std::is_same_v<decltype(_scene._meshes[0]._faceIndices)::value_type, unsigned short>) {
 				indexType = VK_INDEX_TYPE_UINT16;
 			}
-			if (std::is_same_v<decltype(_scene.meshes[0].faceIndices)::value_type, unsigned int>) {
+			if (std::is_same_v<decltype(_scene._meshes[0]._faceIndices)::value_type, unsigned int>) {
 				indexType = VK_INDEX_TYPE_UINT32;
 			}
 			vkCmdBindIndexBuffer(_graphicsCommandBuffers[i], _indexBuffer, 0, indexType);
 
-			vkCmdDrawIndexed(_graphicsCommandBuffers[i], _scene.meshes[0].faceIndices.size(), 1, 0, 0, 0);
+			vkCmdDrawIndexed(_graphicsCommandBuffers[i], _scene._meshes[0]._faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(_graphicsCommandBuffers[i]);
 			#pragma endregion
 

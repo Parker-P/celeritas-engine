@@ -190,13 +190,13 @@ Scene GltfLoader::Load(std::filesystem::path filename) {
 					memcpy(&faceIndices[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset], gltfScene.bufferViews[faceIndicesBufferViewIndex].byteLength);
 				}
 
-				mesh.name = gltfScene.meshes[i].name;
-				mesh.vertexPositions = vertexPositions;
-				mesh.normals = vertexNormals;
-				mesh.uvCoords = uvCoords;
-				mesh.faceIndices = faceIndices;
+				mesh._name = gltfScene.meshes[i].name;
+				mesh._vertexPositions = vertexPositions;
+				mesh._normals = vertexNormals;
+				mesh._uvCoords = uvCoords;
+				mesh._faceIndices = faceIndices;
 
-				scene.meshes.push_back(mesh);
+				scene._meshes.push_back(mesh);
 			}
 		}
 		return scene;

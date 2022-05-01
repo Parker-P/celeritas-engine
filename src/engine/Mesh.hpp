@@ -1,8 +1,8 @@
 class Mesh {
 public:
-	std::string						name;
-	std::vector<glm::vec3>			vertexPositions;
-	std::vector<glm::vec3>			normals;
-	std::vector<glm::vec2>			uvCoords;
-	std::vector<unsigned short>		faceIndices;
+	std::string						_name;
+	std::vector<glm::vec3>			_vertexPositions;
+	std::vector<glm::vec3>			_normals;
+	std::vector<glm::vec2>			_uvCoords;
+	std::vector<unsigned short>		_faceIndices;
 };

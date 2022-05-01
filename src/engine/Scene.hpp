@@ -1,4 +1,4 @@
 class Scene {
 public:
-	std::vector<Mesh> meshes;
+	std::vector<Mesh> _meshes;
 };

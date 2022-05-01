@@ -3,10 +3,10 @@
 class Camera {
 public:
 
-	bool init = false;
-	glm::vec3 position;
-	glm::mat4 view;
-	glm::mat4 projection;
+	//bool _init = false;
+	glm::vec3 _position;
+	glm::mat4 _view;
+	glm::mat4 _projection;
 
 	/// <summary>
 	/// Initializes a camera.
