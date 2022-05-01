@@ -146,7 +146,10 @@ private:
 	glm::mat4 _modelMatrix;
 	float _mouseSensitivity;
 
-	void CalculateDeltaTime() { _deltaTime = (std::chrono::high_resolution_clock::now() - _lastFrameTime).count() / 1000000.0; }
+	void CalculateDeltaTime() { 
+		auto tmp = (std::chrono::high_resolution_clock::now() - _lastFrameTime).count();
+		_lastFrameTime = std::chrono::high_resolution_clock::now();
+		_deltaTime = tmp * 0.000001; }
 
 	void SetupVulkan() {
 		_oldSwapChain = VK_NULL_HANDLE;
@@ -763,6 +766,9 @@ private:
 	}
 
 	void UpdateUniformData() {
+
+		std::cout << _deltaTime << std::endl;
+
 		// Get the mouse x and y. These values are stored cumulatively and will be used as degrees of rotation when calculating the cameraForward vector
 		float yaw = Input::Instance()._mouseX * _mouseSensitivity;
 		float pitch = Input::Instance()._mouseY * _mouseSensitivity;
@@ -785,27 +791,27 @@ private:
 
 		if (_input.IsKeyHeldDown("w")) {
 			//std::cout << "w key is being held down\n";
-			_mainCamera._position += cameraForward * 0.1f;
+			_mainCamera._position += cameraForward * 0.009f * (float)_deltaTime;
 		}
 
 		if (_input.IsKeyHeldDown("a")) {
 			//std::cout << "a key is being held down\n";
-			_mainCamera._position += -cameraRight * 0.1f;
+			_mainCamera._position += -cameraRight * 0.009f * (float)_deltaTime;
 		}
 
 		if (_input.IsKeyHeldDown("s")) {
 			//std::cout << "s key is being held down\n";
-			_mainCamera._position += -cameraForward * 0.1f;
+			_mainCamera._position += -cameraForward * 0.009f * (float)_deltaTime;
 		}
 
 		if (_input.IsKeyHeldDown("d")) {
 			//std::cout << "d key is being held down\n";
-			_mainCamera._position += cameraRight * 0.1f;
+			_mainCamera._position += cameraRight * 0.009f * (float)_deltaTime;
 		}
 
-		std::cout << _mainCamera._position.x << ", " << _mainCamera._position.y << ", " << _mainCamera._position.z << std::endl;
+		/*std::cout << _mainCamera._position.x << ", " << _mainCamera._position.y << ", " << _mainCamera._position.z << std::endl;
 		std::cout << "Mouse x is " << Input::Instance()._mouseX << std::endl;
-		std::cout << "Mouse y is " << Input::Instance()._mouseY << std::endl;
+		std::cout << "Mouse y is " << Input::Instance()._mouseY << std::endl;*/
 
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
 		auto aspectRatio = std::bit_cast<float, uint32_t>(_swapChainExtent.width) / std::bit_cast<float, uint32_t>(_swapChainExtent.height);
