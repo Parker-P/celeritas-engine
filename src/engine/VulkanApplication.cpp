@@ -168,8 +168,8 @@ private:
 
 	void MainLoop() {
 		while (!glfwWindowShouldClose(_window)) {
-			updateUniformData();
-			draw();
+			UpdateUniformData();
+			Draw();
 			glfwPollEvents();
 		}
 	}
@@ -753,10 +753,10 @@ private:
 		vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &_uniformBufferMemory);
 		vkBindBufferMemory(_logicalDevice, _uniformBuffer, _uniformBufferMemory, 0);
 
-		updateUniformData();
+		UpdateUniformData();
 	}
 
-	void updateUniformData() {
+	void UpdateUniformData() {
 		// Get the mouse x and y. These values are stored cumulatively and will be used as degrees of rotation when calculating the cameraForward vector
 		float yaw = Input::Instance()._mouseX * _mouseSensitivity;
 		float pitch = Input::Instance()._mouseY * _mouseSensitivity;
@@ -1457,7 +1457,7 @@ private:
 		vkDestroyPipelineLayout(_logicalDevice, _pipelineLayout, nullptr);
 	}
 
-	void draw() {
+	void Draw() {
 		// Acquire image
 		uint32_t imageIndex;
 		VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapChain, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
