@@ -17,6 +17,14 @@ class Input : public Singleton<Input> {
 	// D
 	bool _isDHeldDown;
 	bool _wasDPressed;
+	
+	// Q
+	bool _isQHeldDown;
+	bool _wasQPressed;
+	
+	// E
+	bool _isEHeldDown;
+	bool _wasEPressed;
 
 
 public:

@@ -7,6 +7,7 @@ public:
 	glm::vec3 _position;
 	glm::mat4 _view;
 	glm::mat4 _projection;
+	float _roll;
 
 	/// <summary>
 	/// Initializes a camera.

@@ -767,23 +767,26 @@ private:
 
 	void UpdateUniformData() {
 
-		std::cout << _deltaTime << std::endl;
-
 		// Get the mouse x and y. These values are stored cumulatively and will be used as degrees of rotation when calculating the cameraForward vector
 		float yaw = Input::Instance()._mouseX * _mouseSensitivity;
 		float pitch = Input::Instance()._mouseY * _mouseSensitivity;
 
-		// Calculate the camera vectors
+		// Calculate the cameraForward vector based on yaw and pitch
 		glm::vec3 cameraForward;
-		cameraForward.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch)); // Use yaw and pitch as degrees for calculation
+		cameraForward.x = sin(glm::radians(yaw)) * cos(glm::radians(pitch)); // Use yaw and pitch as degrees for calculation
 		cameraForward.y = sin(glm::radians(pitch));
-		cameraForward.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-		glm::vec3 cameraPosition = _mainCamera._position;
-		glm::vec3 cameraRight = glm::cross(cameraForward, glm::vec3(0.0f, 1.0f, 0.0f));
-		glm::vec3 cameraUp = glm::cross(cameraRight, cameraForward);
-		glm::normalize(cameraForward);
-		glm::normalize(cameraRight);
-		glm::normalize(cameraUp);
+		cameraForward.z = -(cos(glm::radians(yaw)) * cos(glm::radians(pitch)));
+
+		// Calculate the cameraUp vector based on yaw, pitch and roll
+		glm::vec3 cameraUp;
+		cameraUp.x = cos(glm::radians(_mainCamera._roll)) * cos(glm::radians(pitch));
+		cameraUp.y = sin(glm::radians(_mainCamera._roll));
+		cameraUp.z = cos(glm::radians(pitch));
+
+		auto cameraPosition = _mainCamera._position;
+		auto cameraRight = glm::cross(cameraForward, cameraUp);
+
+		std::cout << _mainCamera._roll << std::endl;
 
 		// Create a transformation matrix that maps the world's X to cameraRight, the world's Y to cameraUp and the world's Z to cameraForward
 		// This way the vertex shader will put the vertices in the correct position by multiplying each vertex's position by the resulting matrix
@@ -807,6 +810,16 @@ private:
 		if (_input.IsKeyHeldDown("d")) {
 			//std::cout << "d key is being held down\n";
 			_mainCamera._position += cameraRight * 0.009f * (float)_deltaTime;
+		}
+
+		if (_input.IsKeyHeldDown("q")) {
+			//std::cout << "d key is being held down\n";
+			_mainCamera._roll -= 1.0f * (float)_deltaTime;
+		}
+
+		if (_input.IsKeyHeldDown("e")) {
+			//std::cout << "d key is being held down\n";
+			_mainCamera._roll += 1.0f * (float)_deltaTime;
 		}
 
 		/*std::cout << _mainCamera._position.x << ", " << _mainCamera._position.y << ", " << _mainCamera._position.z << std::endl;

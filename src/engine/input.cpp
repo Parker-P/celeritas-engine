@@ -61,6 +61,34 @@ void Input::KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
 			Instance()._isDHeldDown = false;
 		}
 	}
+
+	// Q
+	if (key == GLFW_KEY_Q) {
+		if (action == GLFW_PRESS) {
+			Instance()._wasQPressed = true;
+			Instance()._isQHeldDown = true;
+		}
+		else if (action == GLFW_REPEAT) {
+			Instance()._isQHeldDown = true;
+		}
+		else {
+			Instance()._isQHeldDown = false;
+		}
+	}
+
+	// E
+	if (key == GLFW_KEY_E) {
+		if (action == GLFW_PRESS) {
+			Instance()._wasEPressed = true;
+			Instance()._isEHeldDown = true;
+		}
+		else if (action == GLFW_REPEAT) {
+			Instance()._isEHeldDown = true;
+		}
+		else {
+			Instance()._isEHeldDown = false;
+		}
+	}
 }
 
 void Input::CursorPositionCallback(GLFWwindow* window, double xPos, double yPos) {
@@ -84,7 +112,7 @@ void Input::Init(GLFWwindow* window) {
 
 bool Input::IsKeyHeldDown(std::string key) {
 	// W
-	if (key == "w" || key == "w") {
+	if (key == "w" || key == "W") {
 		return Instance()._isWHeldDown;
 	}
 
@@ -101,6 +129,16 @@ bool Input::IsKeyHeldDown(std::string key) {
 	// D
 	if (key == "d" || key == "D") {
 		return Instance()._isDHeldDown;
+	}
+	
+	// Q
+	if (key == "q" || key == "Q") {
+		return Instance()._isQHeldDown;
+	}
+	
+	// E
+	if (key == "e" || key == "E") {
+		return Instance()._isEHeldDown;
 	}
 	return false;
 }
