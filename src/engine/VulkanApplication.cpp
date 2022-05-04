@@ -1,4 +1,7 @@
 #define GLFW_INCLUDE_VULKAN
+
+#include <windows.h>
+
 // STL
 #include <iostream>
 #include <fstream>
@@ -74,8 +77,8 @@ public:
 
 		// Use Vulkan
 		SetupVulkan();
-
-		MainLoop();
+		system("cls");
+		MainLoop();;
 
 		Cleanup(true);
 	}
@@ -765,6 +768,18 @@ private:
 		UpdateUniformData();
 	}
 
+	void clearscreen()
+	{
+		HANDLE hOut;
+		COORD Position;
+
+		hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+
+		Position.X = 0;
+		Position.Y = 0;
+		SetConsoleCursorPosition(hOut, Position);
+	}
+
 	void UpdateUniformData() {
 
 		// Get the mouse x and y. These values are stored cumulatively and will be used as degrees of rotation when calculating the cameraForward vector
@@ -779,14 +794,34 @@ private:
 
 		// Calculate the cameraUp vector based on yaw, pitch and roll
 		glm::vec3 cameraUp;
-		cameraUp.x = cos(glm::radians(_mainCamera._roll)) * cos(glm::radians(pitch));
-		cameraUp.y = sin(glm::radians(_mainCamera._roll));
-		cameraUp.z = cos(glm::radians(pitch));
+		cameraUp.x = sin(glm::radians(_mainCamera._roll)) * cos(glm::radians(pitch));
+		cameraUp.y = cos(glm::radians(_mainCamera._roll)) * cos(glm::radians(pitch));
+		cameraUp.z = -(sin(glm::radians(pitch)) * sin(glm::radians(_mainCamera._roll)));
+
+		glm::normalize(cameraForward);
+		glm::normalize(cameraUp);
+
+		std::cout << "Yaw is " << yaw << std::endl;
+		std::cout << "Pitch is " << pitch << std::endl;
+		std::cout << "Roll is " << _mainCamera._roll << std::endl;
+
+		std::cout << "cameraForward is (" << cameraForward.x << "," << cameraForward.y << "," << cameraForward.z << ")" << std::endl;
+		std::cout << "cameraUp is (" << cameraUp.x << "," << cameraUp.y << "," << cameraUp.z << ")" << std::endl;
+
+		auto cross = glm::cross(cameraForward, cameraUp);
+		std::cout << "Cross product is (" << cross.x << "," << cross.y << "," << cross.z << ")" << std::endl;
+
+		auto dot = glm::dot(cameraForward, cameraUp);
+		std::cout << "Dot product is " << dot << std::endl;
+
+		clearscreen();
+
+		cameraUp = glm::normalize(cameraUp);
 
 		auto cameraPosition = _mainCamera._position;
 		auto cameraRight = glm::cross(cameraForward, cameraUp);
 
-		std::cout << _mainCamera._roll << std::endl;
+		//std::cout << _mainCamera._roll << std::endl;
 
 		// Create a transformation matrix that maps the world's X to cameraRight, the world's Y to cameraUp and the world's Z to cameraForward
 		// This way the vertex shader will put the vertices in the correct position by multiplying each vertex's position by the resulting matrix
@@ -814,12 +849,12 @@ private:
 
 		if (_input.IsKeyHeldDown("q")) {
 			//std::cout << "d key is being held down\n";
-			_mainCamera._roll -= 1.0f * (float)_deltaTime;
+			_mainCamera._roll += 1.0f * 0.1f * (float)_deltaTime;
 		}
 
 		if (_input.IsKeyHeldDown("e")) {
 			//std::cout << "d key is being held down\n";
-			_mainCamera._roll += 1.0f * (float)_deltaTime;
+			_mainCamera._roll -= 1.0f * 0.1f * (float)_deltaTime;
 		}
 
 		/*std::cout << _mainCamera._position.x << ", " << _mainCamera._position.y << ", " << _mainCamera._position.z << std::endl;
