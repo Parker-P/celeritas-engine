@@ -783,45 +783,69 @@ private:
 	void UpdateUniformData() {
 
 		// Get the mouse x and y. These values are stored cumulatively and will be used as degrees of rotation when calculating the cameraForward vector
-		float yaw = Input::Instance()._mouseX * _mouseSensitivity;
-		float pitch = Input::Instance()._mouseY * _mouseSensitivity;
+		float yaw = Input::Instance()._mouseX * _mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
+		float pitch = Input::Instance()._mouseY * _mouseSensitivity; // Same as above. Around the X axis (for pitch) the positive rotation is looking upwards
+
+#pragma region PreviousImpl
 
 		// Calculate the cameraForward vector based on yaw and pitch
-		glm::vec3 cameraForward;
-		cameraForward.x = sin(glm::radians(yaw)) * cos(glm::radians(pitch)); // Use yaw and pitch as degrees for calculation
-		cameraForward.y = sin(glm::radians(pitch));
-		cameraForward.z = -(cos(glm::radians(yaw)) * cos(glm::radians(pitch)));
+		//glm::vec3 cameraForward;
+		//cameraForward.x = sin(glm::radians(yaw)) * cos(glm::radians(pitch)); // Use yaw and pitch as degrees for calculation
+		//cameraForward.y = sin(glm::radians(pitch));
+		//cameraForward.z = -(cos(glm::radians(yaw)) * cos(glm::radians(pitch)));
 
-		// Calculate the cameraUp vector based on yaw, pitch and roll
-		glm::vec3 cameraUp;
-		cameraUp.x = sin(glm::radians(_mainCamera._roll)) * cos(glm::radians(pitch));
-		cameraUp.y = cos(glm::radians(_mainCamera._roll)) * cos(glm::radians(pitch));
-		cameraUp.z = -(sin(glm::radians(pitch)) * sin(glm::radians(_mainCamera._roll)));
+		//// Calculate the cameraUp vector based on yaw, pitch and roll
+		//glm::vec3 cameraUp;
+		//cameraUp.x = sin(glm::radians(_mainCamera._roll)) * cos(glm::radians(pitch)) * cos(glm::radians(yaw));
+		//cameraUp.y = cos(glm::radians(_mainCamera._roll)) * cos(glm::radians(pitch));
+		//cameraUp.z = sin(glm::radians(pitch)) * sin(glm::radians(_mainCamera._roll)) * sin(glm::radians(yaw));
 
-		glm::normalize(cameraForward);
-		glm::normalize(cameraUp);
+		//auto cameraRight = glm::cross(cameraForward, cameraUp);
 
-		std::cout << "Yaw is " << yaw << std::endl;
-		std::cout << "Pitch is " << pitch << std::endl;
-		std::cout << "Roll is " << _mainCamera._roll << std::endl;
+		//glm::normalize(cameraForward);
+		//glm::normalize(cameraUp);
 
-		std::cout << "cameraForward is (" << cameraForward.x << "," << cameraForward.y << "," << cameraForward.z << ")" << std::endl;
-		std::cout << "cameraUp is (" << cameraUp.x << "," << cameraUp.y << "," << cameraUp.z << ")" << std::endl;
+		//std::cout << "Yaw is " << yaw << std::endl;
+		//std::cout << "Pitch is " << pitch << std::endl;
+		//std::cout << "Roll is " << _mainCamera._roll << std::endl;
 
-		auto cross = glm::cross(cameraForward, cameraUp);
+		//std::cout << "cameraForward is (" << cameraForward.x << "," << cameraForward.y << "," << cameraForward.z << ")" << std::endl;
+		//std::cout << "cameraUp is (" << cameraUp.x << "," << cameraUp.y << "," << cameraUp.z << ")" << std::endl;
+
+		//auto cross = glm::cross(cameraForward, cameraUp);
+		//std::cout << "Cross product is (" << cross.x << "," << cross.y << "," << cross.z << ")" << std::endl;
+
+		//auto dot = glm::dot(cameraForward, cameraUp);
+		//std::cout << "Dot product is " << dot << std::endl;
+
+		//clearscreen();
+
+		//cameraUp = glm::normalize(cameraUp);
+
+		//auto cameraPosition = _mainCamera._position;
+
+		////std::cout << _mainCamera._roll << std::endl;
+#pragma endregion
+
+		auto pitchRot = glm::rotate(glm::mat4(), glm::radians(pitch), glm::vec3(1.0f, .0f, .0f));
+		auto yawRot = glm::rotate(glm::mat4(), glm::radians(yaw), glm::vec3(.0f, 1.0f, .0f));
+		auto rollRot = glm::rotate(glm::mat4(), glm::radians(_mainCamera._roll), glm::vec3(.0f, .0f, 1.0f));
+
+		auto cameraTransform = rollRot * yawRot * pitchRot; // Multiplication order matters here
+
+		auto cameraRight = -glm::vec3(cameraTransform[0][0], cameraTransform[1][0], cameraTransform[2][0]);
+		auto cameraUp = glm::vec3(cameraTransform[0][1], cameraTransform[1][1], cameraTransform[2][1]);
+		auto cameraForward = glm::vec3(cameraTransform[0][2], cameraTransform[1][2], cameraTransform[2][2]);
+
+		/*auto cross = glm::cross(cameraForward, cameraRight);
 		std::cout << "Cross product is (" << cross.x << "," << cross.y << "," << cross.z << ")" << std::endl;
 
-		auto dot = glm::dot(cameraForward, cameraUp);
+		auto dot = glm::dot(cameraForward, cameraRight);
 		std::cout << "Dot product is " << dot << std::endl;
 
-		clearscreen();
-
-		cameraUp = glm::normalize(cameraUp);
+		std::cout << "cameraUp is (" << cameraUp.x << "," << cameraUp.y << "," << cameraUp.z << ")" << std::endl;*/
 
 		auto cameraPosition = _mainCamera._position;
-		auto cameraRight = glm::cross(cameraForward, cameraUp);
-
-		//std::cout << _mainCamera._roll << std::endl;
 
 		// Create a transformation matrix that maps the world's X to cameraRight, the world's Y to cameraUp and the world's Z to cameraForward
 		// This way the vertex shader will put the vertices in the correct position by multiplying each vertex's position by the resulting matrix
