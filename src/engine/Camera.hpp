@@ -4,10 +4,14 @@ class Camera {
 public:
 
 	//bool _init = false;
+	glm::mat4x4 _rotation = glm::mat4x4();
+	glm::vec3 _cameraRight = glm::vec3(1.0f, 0.0f, 0.0f);
+	glm::vec3 _cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+	glm::vec3 _cameraForward = glm::vec3(0.0f, 0.0f, -1.0f);
+
 	glm::vec3 _position;
 	glm::mat4 _view;
 	glm::mat4 _projection;
-	float _roll;
 
 	/// <summary>
 	/// Initializes a camera.
