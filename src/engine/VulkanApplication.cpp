@@ -807,12 +807,12 @@ private:
 
 		if (_input.IsKeyHeldDown("q")) {
 			//std::cout << "d key is being held down\n";
-			_roll += 1.0f * 0.1f * (float)_deltaTime;
+			_roll -= 1.0f * 0.1f * (float)_deltaTime;
 		}
 
 		if (_input.IsKeyHeldDown("e")) {
 			//std::cout << "d key is being held down\n";
-			_roll -= 1.0f * 0.1f * (float)_deltaTime;
+			_roll += 1.0f * 0.1f * (float)_deltaTime;
 		}
 
 		_deltaYaw = _yaw - _lastYaw;
@@ -843,6 +843,8 @@ private:
 		_mainCamera._cameraUp = glm::vec3(_mainCamera._rotation[0][1], _mainCamera._rotation[1][1], _mainCamera._rotation[2][1]);
 		_mainCamera._cameraForward = glm::vec3(_mainCamera._rotation[0][2], _mainCamera._rotation[1][2], _mainCamera._rotation[2][2]);
 		_mainCamera._cameraRight = glm::vec3(_mainCamera._rotation[0][0], _mainCamera._rotation[1][0], _mainCamera._rotation[2][0]);
+
+		//std::cout << "Camera right is (" << _mainCamera._cameraRight.x << "," << _mainCamera._cameraRight.y << "," << _mainCamera._cameraRight.z << ")" << std::endl;
 
 #pragma region PreviousImpl
 
@@ -899,7 +901,7 @@ private:
 
 		if (_input.IsKeyHeldDown("a")) {
 			//std::cout << "a key is being held down\n";
-			_mainCamera._position += -_mainCamera._cameraRight * 0.009f * (float)_deltaTime;
+			_mainCamera._position += _mainCamera._cameraRight * 0.009f * (float)_deltaTime;
 		}
 
 		if (_input.IsKeyHeldDown("s")) {
@@ -909,7 +911,7 @@ private:
 
 		if (_input.IsKeyHeldDown("d")) {
 			//std::cout << "d key is being held down\n";
-			_mainCamera._position += _mainCamera._cameraRight * 0.009f * (float)_deltaTime;
+			_mainCamera._position += -_mainCamera._cameraRight * 0.009f * (float)_deltaTime;
 		}
 
 		/*std::cout << _mainCamera._position.x << ", " << _mainCamera._position.y << ", " << _mainCamera._position.z << std::endl;
