@@ -1,7 +1,5 @@
 #define GLFW_INCLUDE_VULKAN
 
-#include <windows.h>
-
 // STL
 #include <iostream>
 #include <fstream>
@@ -15,6 +13,7 @@
 // Math
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include "glm/gtc/quaternion.hpp"
 
 // Project local classes
 #include "Singleton.hpp"
@@ -77,7 +76,6 @@ public:
 
 		// Use Vulkan
 		SetupVulkan();
-		system("cls");
 		MainLoop();;
 
 		Cleanup(true);
@@ -149,10 +147,11 @@ private:
 	glm::mat4 _modelMatrix;
 	float _mouseSensitivity;
 
-	void CalculateDeltaTime() { 
+	void CalculateDeltaTime() {
 		auto tmp = (std::chrono::high_resolution_clock::now() - _lastFrameTime).count();
 		_lastFrameTime = std::chrono::high_resolution_clock::now();
-		_deltaTime = tmp * 0.000001; }
+		_deltaTime = tmp * 0.000001;
+	}
 
 	void SetupVulkan() {
 		_oldSwapChain = VK_NULL_HANDLE;
@@ -582,7 +581,7 @@ private:
 
 	void CreateVertexAndIndexBuffers() {
 
-		#pragma region PreviousImplementation
+#pragma region PreviousImplementation
 		//// Create an _instance of the Importer class
 		//Assimp::Importer importer;
 
@@ -618,15 +617,15 @@ private:
 		//	model.indices.push_back(index3);
 		//};
 		//model.indicesSize = (uint32_t)(model.indices.size() * sizeof(model.indices[0]));
-		#pragma endregion
+#pragma endregion
 
-		#pragma region SceneLoading
+#pragma region SceneLoading
 		_scene = GltfLoader::Load(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
 		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._vertexPositions);
 		auto faceIndicesSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._faceIndices);
-		#pragma endregion
+#pragma endregion
 
-		#pragma region Prep
+#pragma region Prep
 		struct StagingBuffer {
 			VkDeviceMemory memory;
 			VkBuffer buffer;
@@ -646,9 +645,9 @@ private:
 
 		VkCommandBuffer copyCommandBuffer;
 		vkAllocateCommandBuffers(_logicalDevice, &cmdBufInfo, &copyCommandBuffer);
-		#pragma endregion
+#pragma endregion
 
-		#pragma region VertexPositionsToGpu
+#pragma region VertexPositionsToGpu
 		// First copy vertices to host accessible vertex buffer memory
 		VkBufferCreateInfo vertexBufferInfo = {};
 		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -686,9 +685,9 @@ private:
 		indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		indexBufferInfo.size = faceIndicesSize;
 		indexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		#pragma endregion
+#pragma endregion
 
-		#pragma region FaceIndicesToGpu
+#pragma region FaceIndicesToGpu
 		vkCreateBuffer(_logicalDevice, &indexBufferInfo, nullptr, &stagingBuffers.indices.buffer);
 		vkGetBufferMemoryRequirements(_logicalDevice, stagingBuffers.indices.buffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
@@ -713,9 +712,9 @@ private:
 		VkCommandBufferBeginInfo bufferBeginInfo = {};
 		bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		bufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-		#pragma endregion
+#pragma endregion
 
-		#pragma region CommandBufferCreationAndExecution
+#pragma region CommandBufferCreationAndExecution
 		vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
 
 		VkBufferCopy copyRegion = {};
@@ -736,8 +735,8 @@ private:
 		vkQueueWaitIdle(_graphicsQueue);
 
 		vkFreeCommandBuffers(_logicalDevice, _commandPool, 1, &copyCommandBuffer);
-		#pragma endregion
-		
+#pragma endregion
+
 		vkDestroyBuffer(_logicalDevice, stagingBuffers.vertices.buffer, nullptr);
 		vkFreeMemory(_logicalDevice, stagingBuffers.vertices.memory, nullptr);
 		vkDestroyBuffer(_logicalDevice, stagingBuffers.indices.buffer, nullptr);
@@ -768,23 +767,11 @@ private:
 		UpdateUniformData();
 	}
 
-	void clearscreen()
-	{
-		HANDLE hOut;
-		COORD Position;
-
-		hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-
-		Position.X = 0;
-		Position.Y = 0;
-		SetConsoleCursorPosition(hOut, Position);
-	}
-
 	void UpdateUniformData() {
 
 		// Get the mouse x and y. These values are stored cumulatively and will be used as degrees of rotation when calculating the cameraForward vector
-		float yaw = Input::Instance()._mouseX * _mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
 		float pitch = Input::Instance()._mouseY * _mouseSensitivity; // Same as above. Around the X axis (for pitch) the positive rotation is looking upwards
+		float yaw = Input::Instance()._mouseX * _mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
 
 #pragma region PreviousImpl
 
@@ -827,15 +814,17 @@ private:
 		////std::cout << _mainCamera._roll << std::endl;
 #pragma endregion
 
-		auto pitchRot = glm::rotate(glm::mat4(), glm::radians(pitch), glm::vec3(1.0f, .0f, .0f));
-		auto yawRot = glm::rotate(glm::mat4(), glm::radians(yaw), glm::vec3(.0f, 1.0f, .0f));
-		auto rollRot = glm::rotate(glm::mat4(), glm::radians(_mainCamera._roll), glm::vec3(.0f, .0f, 1.0f));
+		//auto pitchRot = glm::rotate(glm::mat4(), glm::radians(pitch), glm::vec3(1.0f, .0f, .0f));
+		//auto yawRot = glm::rotate(glm::mat4(), glm::radians(yaw), glm::vec3(.0f, 1.0f, .0f));
+		//auto rollRot = glm::rotate(glm::mat4(), glm::radians(_mainCamera._roll), glm::vec3(.0f, .0f, 1.0f));
 
-		auto cameraTransform = rollRot * yawRot * pitchRot; // Multiplication order matters here
+		//
 
-		auto cameraRight = -glm::vec3(cameraTransform[0][0], cameraTransform[1][0], cameraTransform[2][0]);
-		auto cameraUp = glm::vec3(cameraTransform[0][1], cameraTransform[1][1], cameraTransform[2][1]);
-		auto cameraForward = glm::vec3(cameraTransform[0][2], cameraTransform[1][2], cameraTransform[2][2]);
+		//auto cameraTransform = pitchRot * yawRot; // Multiplication order matters here
+
+		//auto cameraRight = -glm::vec3(cameraTransform[0][0], cameraTransform[1][0], cameraTransform[2][0]);
+		//auto cameraUp = glm::vec3(cameraTransform[0][1], cameraTransform[1][1], cameraTransform[2][1]);
+		//auto cameraForward = glm::vec3(cameraTransform[0][2], cameraTransform[1][2], cameraTransform[2][2]);
 
 		/*auto cross = glm::cross(cameraForward, cameraRight);
 		std::cout << "Cross product is (" << cross.x << "," << cross.y << "," << cross.z << ")" << std::endl;
@@ -844,6 +833,22 @@ private:
 		std::cout << "Dot product is " << dot << std::endl;
 
 		std::cout << "cameraUp is (" << cameraUp.x << "," << cameraUp.y << "," << cameraUp.z << ")" << std::endl;*/
+
+		glm::vec3 cameraForward;
+		cameraForward.x = sin(glm::radians(yaw)) * cos(glm::radians(pitch)); // Use yaw and pitch as degrees for calculation
+		cameraForward.y = sin(glm::radians(pitch));
+		cameraForward.z = -(cos(glm::radians(yaw)) * cos(glm::radians(pitch)));
+
+		glm::vec3 cameraRight;
+		cameraRight.x = cos(glm::radians(yaw));
+		cameraRight.y = 0.0f;
+		cameraRight.z = sin(glm::radians(yaw));
+
+		auto cameraUp = glm::cross(cameraForward, )
+
+		glm::rotate(glm::quat(), _mainCamera._roll, cameraForward);
+		
+		
 
 		auto cameraPosition = _mainCamera._position;
 
@@ -1491,7 +1496,7 @@ private:
 			renderPassBeginInfo.pClearValues = &clearColor;
 
 
-			#pragma region RenderPassCommandRecording
+#pragma region RenderPassCommandRecording
 			vkCmdBeginRenderPass(_graphicsCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdBindDescriptorSets(_graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelineLayout, 0, 1, &_descriptorSet, 0, nullptr);
 			vkCmdBindPipeline(_graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
@@ -1510,7 +1515,7 @@ private:
 
 			vkCmdDrawIndexed(_graphicsCommandBuffers[i], _scene._meshes[0]._faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(_graphicsCommandBuffers[i]);
-			#pragma endregion
+#pragma endregion
 
 
 			// If present and graphics queue families differ, then another barrier is required
