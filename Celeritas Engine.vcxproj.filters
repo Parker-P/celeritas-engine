@@ -45,7 +45,28 @@
     <ClInclude Include="src\engine\Mesh.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\Model.hpp">
+    <ClInclude Include="src\engine\Scene.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Singleton.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Utils.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\VulkanApplication.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\GameObject.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\GltfLoader.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Input.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Mesh.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\Scene.hpp">
@@ -78,8 +99,8 @@
     <ClInclude Include="src\*\*.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\*\*.hpp">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\engine\GameObject.cpp">
+      <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\GltfLoader.cpp">
       <Filter>Source Files</Filter>
@@ -93,16 +114,10 @@
     <ClInclude Include="src\engine\Mesh.cpp">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\Model.cpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\engine\Scene.cpp">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\VulkanApplication.cpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\*\*.cpp">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="src\*\*.cpp">
@@ -366,6 +381,18 @@
     <ClInclude Include="src\engine\VulkanApplication.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\engine\GameObject.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Transform.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Settings.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Time.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\engine\Camera.cpp">
@@ -387,6 +414,18 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\engine\VulkanApplication.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\GameObject.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\Transform.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\Settings.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\Time.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

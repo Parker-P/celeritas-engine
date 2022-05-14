@@ -18,7 +18,10 @@
 
 // Project local classes
 #include "Singleton.hpp"
+#include "Time.hpp"
 #include "Input.hpp"
+#include "Transform.hpp"
+#include "GameObject.hpp"
 #include "Camera.hpp"
 #include "Mesh.hpp"
 #include "Scene.hpp"
@@ -141,18 +144,6 @@ private:
 	std::chrono::high_resolution_clock::time_point	_lastFrameTime; // Time last frame started
 	double											_deltaTime;		// The time since last frame started in milliseconds
 
-	// Temp
-	float _lastYaw;
-	float _lastPitch;
-	float _lastRoll;
-	float _deltaYaw;
-	float _deltaPitch;
-	float _deltaRoll;
-
-	float _yaw = Input::Instance()._mouseX * _mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
-	float _pitch = Input::Instance()._mouseY * _mouseSensitivity; // Same as above. Around the X axis (for pitch) the positive rotation is looking upwards
-	float _roll;
-
 	// Misc
 	Scene _scene;
 	Input _input;
@@ -160,10 +151,11 @@ private:
 	glm::mat4 _modelMatrix;
 	float _mouseSensitivity;
 
-	void CalculateDeltaTime() { 
+	void CalculateDeltaTime() {
 		auto tmp = (std::chrono::high_resolution_clock::now() - _lastFrameTime).count();
 		_lastFrameTime = std::chrono::high_resolution_clock::now();
-		_deltaTime = tmp * 0.000001; }
+		Time::Instance()._deltaTime = tmp * 0.000001;
+	}
 
 	void SetupVulkan() {
 		_oldSwapChain = VK_NULL_HANDLE;
@@ -793,6 +785,7 @@ private:
 
 	void UpdateUniformData() {
 
+		/*
 		// Steps:
 		// 1) Get the values of yaw, pitch and roll on a frame to frame basis (the deltas of each frame)
 		// 2) (Maybe) Store camera vectors in world space inside the camera class
@@ -845,8 +838,8 @@ private:
 		_mainCamera._cameraRight = glm::vec3(_mainCamera._rotation[0][0], _mainCamera._rotation[1][0], _mainCamera._rotation[2][0]);
 
 		//std::cout << "Camera right is (" << _mainCamera._cameraRight.x << "," << _mainCamera._cameraRight.y << "," << _mainCamera._cameraRight.z << ")" << std::endl;
-
-#pragma region PreviousImpl
+		*/
+		#pragma region PreviousImpl
 
 		// Calculate the cameraForward vector based on yaw and pitch
 		//glm::vec3 cameraForward;
@@ -885,34 +878,12 @@ private:
 		//auto cameraPosition = _mainCamera._position;
 
 		////std::cout << _mainCamera._roll << std::endl;
-#pragma endregion
+		#pragma endregion
 
-
-		auto cameraPosition = _mainCamera._position;
+		_mainCamera.Update();
 
 		// Create a transformation matrix that maps the world's X to cameraRight, the world's Y to cameraUp and the world's Z to cameraForward
 		// This way the vertex shader will put the vertices in the correct position by multiplying each vertex's position by the resulting matrix
-		_mainCamera._view = glm::lookAt(cameraPosition, cameraPosition + _mainCamera._cameraForward, _mainCamera._cameraUp);
-
-		if (_input.IsKeyHeldDown("w")) {
-			//std::cout << "w key is being held down\n";
-			_mainCamera._position += _mainCamera._cameraForward * 0.009f * (float)_deltaTime;
-		}
-
-		if (_input.IsKeyHeldDown("a")) {
-			//std::cout << "a key is being held down\n";
-			_mainCamera._position += _mainCamera._cameraRight * 0.009f * (float)_deltaTime;
-		}
-
-		if (_input.IsKeyHeldDown("s")) {
-			//std::cout << "s key is being held down\n";
-			_mainCamera._position += -_mainCamera._cameraForward * 0.009f * (float)_deltaTime;
-		}
-
-		if (_input.IsKeyHeldDown("d")) {
-			//std::cout << "d key is being held down\n";
-			_mainCamera._position += -_mainCamera._cameraRight * 0.009f * (float)_deltaTime;
-		}
 
 		/*std::cout << _mainCamera._position.x << ", " << _mainCamera._position.y << ", " << _mainCamera._position.z << std::endl;
 		std::cout << "Mouse x is " << Input::Instance()._mouseX << std::endl;
@@ -920,8 +891,8 @@ private:
 
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
 		auto aspectRatio = std::bit_cast<float, uint32_t>(_swapChainExtent.width) / std::bit_cast<float, uint32_t>(_swapChainExtent.height);
-		_mainCamera._projection = glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f);
-		_uniformBufferData.transformationMatrix = _mainCamera._projection * _mainCamera._view * _modelMatrix;
+		_mainCamera._projection._transformation = glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f);
+		_uniformBufferData.transformationMatrix = _mainCamera._projection.Transformation() * _mainCamera._view.Transformation() * _modelMatrix;
 
 		// Send the uniform buffer data (which contains the combined transformation matrices) to the GPU
 		void* data;

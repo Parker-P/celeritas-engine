@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -20,21 +20,29 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\engine\Camera.cpp" />
+    <ClCompile Include="src\engine\GameObject.cpp" />
     <ClCompile Include="src\engine\GltfLoader.cpp" />
     <ClCompile Include="src\engine\Input.cpp" />
     <ClCompile Include="src\engine\Json.cpp" />
     <ClCompile Include="src\engine\Mesh.cpp" />
     <ClCompile Include="src\engine\Scene.cpp" />
+    <ClCompile Include="src\engine\Settings.cpp" />
+    <ClCompile Include="src\engine\Time.cpp" />
+    <ClCompile Include="src\engine\Transform.cpp" />
     <ClCompile Include="src\engine\VulkanApplication.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\engine\Camera.hpp" />
+    <ClInclude Include="src\engine\GameObject.hpp" />
     <ClInclude Include="src\engine\GltfLoader.hpp" />
     <ClInclude Include="src\engine\Input.hpp" />
     <ClInclude Include="src\engine\Json.h" />
     <ClInclude Include="src\engine\Mesh.hpp" />
     <ClInclude Include="src\engine\Scene.hpp" />
+    <ClInclude Include="src\engine\Settings.hpp" />
     <ClInclude Include="src\engine\Singleton.hpp" />
+    <ClInclude Include="src\engine\Time.hpp" />
+    <ClInclude Include="src\engine\Transform.hpp" />
     <ClInclude Include="src\engine\Utils.hpp" />
     <ClInclude Include="src\engine\VulkanApplication.hpp" />
   </ItemGroup>

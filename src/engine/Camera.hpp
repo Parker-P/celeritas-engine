@@ -1,17 +1,25 @@
 #pragma once
 
-class Camera {
+class Camera : public GameObject {
 public:
+	GameObject _proxy;
 
-	//bool _init = false;
-	glm::mat4x4 _rotation = glm::mat4x4();
-	glm::vec3 _cameraRight = glm::vec3(1.0f, 0.0f, 0.0f);
-	glm::vec3 _cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-	glm::vec3 _cameraForward = glm::vec3(0.0f, 0.0f, -1.0f);
+	Transform _view;
+	Transform _projection;
 
-	glm::vec3 _position;
-	glm::mat4 _view;
-	glm::mat4 _projection;
+	// Temp
+	float _lastYaw;
+	float _lastPitch;
+	float _lastRoll;
+	float _deltaYaw;
+	float _deltaPitch;
+	float _deltaRoll;
+
+	float _yaw;
+	float _pitch;
+	float _roll;
+
+	void Update();
 
 	/// <summary>
 	/// Initializes a camera.
