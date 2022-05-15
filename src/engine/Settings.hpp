@@ -2,5 +2,5 @@
 
 class Settings : public Singleton<Settings> {
 public:
-	static float _mouseSensitivity;
+	float _mouseSensitivity = 0.1f;
 };

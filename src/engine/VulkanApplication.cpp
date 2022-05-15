@@ -74,7 +74,6 @@ public:
 
 		_input = Input::Instance();
 		_input.Init(_window);
-		_mouseSensitivity = 0.1f;
 
 		glfwSetWindowSizeCallback(_window, VulkanApplication::OnWindowResized);
 
@@ -149,7 +148,6 @@ private:
 	Input _input;
 	Camera _mainCamera;
 	glm::mat4 _modelMatrix;
-	float _mouseSensitivity;
 
 	void CalculateDeltaTime() {
 		auto tmp = (std::chrono::high_resolution_clock::now() - _lastFrameTime).count();
@@ -892,7 +890,7 @@ private:
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
 		auto aspectRatio = std::bit_cast<float, uint32_t>(_swapChainExtent.width) / std::bit_cast<float, uint32_t>(_swapChainExtent.height);
 		_mainCamera._projection._transformation = glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f);
-		_uniformBufferData.transformationMatrix = _mainCamera._projection.Transformation() * _mainCamera._view.Transformation() * _modelMatrix;
+		_uniformBufferData.transformationMatrix = _mainCamera._projection._transformation * _mainCamera._view._transformation * _modelMatrix;
 
 		// Send the uniform buffer data (which contains the combined transformation matrices) to the GPU
 		void* data;

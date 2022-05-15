@@ -29,4 +29,21 @@ public:
 	/// Returns a vector in world space that is the world's Z axis rotated by the _rotation transformation matrix.
 	/// </summary>
 	glm::vec3 Forward();
+
+	/// <summary>
+	/// Translate this transform by "offset". This will modify the fourth column of the _position matrix
+	/// </summary>
+	void Translate(const glm::vec3& offset) {
+		_position[0][3] += offset.x;
+		_position[1][3] += offset.y;
+		_position[2][3] += offset.z;
+	}
+
+	void SetPosition(glm::vec3& position) {
+		_position += glm::mat4x4(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(position, 1.0f));
+	}
+
+	glm::vec3 Position() {
+		return glm::vec3(_position[0][3], _position[1][3], _position[2][3]);
+	}
 };
