@@ -1,17 +1,17 @@
 #pragma once
 
 class Transform {
-public:
-	glm::mat4x4 _transformation;
-	glm::mat4x4 _position;
-	glm::mat4x4 _rotation;
-	glm::mat4x4 _scale;
+	glm::mat4x4 _transformation; // The homogeneous transformation matrix for this transform
+	glm::mat4x4 _scale; // The scale is stored separately as it would be impossible to tell from _transformation alone
 
+public:
 	/// <summary>
 	/// Returns the combined transformation matrix of position, rotation and scale
 	/// </summary>
 	/// <returns></returns>
 	glm::mat4x4 Transformation();
+
+	void SetTransformation(const glm::mat4x4 transformation);
 
 	/// <summary>
 	/// Returns a vector in world space that is the world's X axis rotated by the _rotation transformation matrix.
@@ -33,17 +33,12 @@ public:
 	/// <summary>
 	/// Translate this transform by "offset". This will modify the fourth column of the _position matrix
 	/// </summary>
-	void Translate(const glm::vec3& offset) {
-		_position[0][3] += offset.x;
-		_position[1][3] += offset.y;
-		_position[2][3] += offset.z;
-	}
+	void Translate(const glm::vec3& offset);
 
-	void SetPosition(glm::vec3& position) {
-		_position += glm::mat4x4(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(position, 1.0f));
-	}
+	void Rotate(const glm::vec3& axis, const float& angle);
 
-	glm::vec3 Position() {
-		return glm::vec3(_position[0][3], _position[1][3], _position[2][3]);
-	}
+	glm::vec3 Position();
+
+	void SetPosition(glm::vec3& position);
+
 };

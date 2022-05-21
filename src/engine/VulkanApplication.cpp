@@ -889,8 +889,8 @@ private:
 
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
 		auto aspectRatio = std::bit_cast<float, uint32_t>(_swapChainExtent.width) / std::bit_cast<float, uint32_t>(_swapChainExtent.height);
-		_mainCamera._projection._transformation = glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f);
-		_uniformBufferData.transformationMatrix = _mainCamera._projection._transformation * _mainCamera._view._transformation * _modelMatrix;
+		_mainCamera._projection.SetTransformation(glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f));
+		_uniformBufferData.transformationMatrix = _mainCamera._projection.Transformation() * _mainCamera._view.Transformation() * _modelMatrix;
 
 		// Send the uniform buffer data (which contains the combined transformation matrices) to the GPU
 		void* data;

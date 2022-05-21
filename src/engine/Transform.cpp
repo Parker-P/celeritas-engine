@@ -5,24 +5,51 @@
 #include "Transform.hpp"
 
 glm::mat4x4 Transform::Transformation() {
-	_transformation = _scale * _position * _rotation;
 	return _transformation;
+}
+
+void Transform::SetTransformation(const glm::mat4x4 transformation) {
+	_transformation = transformation;
 }
 
 glm::vec3 Transform::Right()
 {
-	glm::vec4 right = _rotation * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+	glm::vec4 right = _transformation * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
 	return glm::vec3(right.x, right.y, right.z);
 }
 
 glm::vec3 Transform::Up()
 {
-	glm::vec4 up = _rotation * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
+	glm::vec4 up = _transformation * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
 	return glm::vec3(up.x, up.y, up.z);
 }
 
 glm::vec3 Transform::Forward()
 {
-	glm::vec4 forward = _rotation * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f);
+	glm::vec4 forward = _transformation * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f);
 	return glm::vec3(forward.x, forward.y, forward.z);
+}
+
+/// <summary>
+/// Translate this transform by "offset". This will modify the fourth column of the _position matrix
+/// </summary>
+void Transform::Translate(const glm::vec3& offset) {
+	_transformation[0][3] += offset.x;
+	_transformation[1][3] += offset.y;
+	_transformation[2][3] += offset.z;
+}
+
+/// <summary>
+/// Translate this transform by "offset". This will modify the fourth column of the _position matrix
+/// </summary>
+void Transform::Rotate(const glm::vec3& axis, const float& angle) {
+	_transformation = glm::rotate(_transformation, angle, axis);
+}
+
+void Transform::SetPosition(glm::vec3& position) {
+	_transformation += glm::mat4x4(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(position, 1.0f));
+}
+
+glm::vec3 Transform::Position() {
+	return glm::vec3(_transformation[0][3], _transformation[1][3], _transformation[2][3]);
 }
