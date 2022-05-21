@@ -84,7 +84,9 @@ void Camera::Update()
 	glm::vec3 const proxyRight = _proxy._transform.Right();
 	glm::vec3 const proxyUp = _proxy._transform.Up();
 
-	// We invert the z axis because vulkan's viewport coordinate system is left handed and we are using a right handed coordinate system
+	// Vulkan's coordinate system is: X points to the right, Y points down, Z points towards you
+	// This means that it's a 
+	// We invert the z axis because vulkan's viewport coordinate system is left handed (the x axis points to the left) and we are using a right handed coordinate system
 	glm::mat4x4 view;
 	view[0][0] = proxyRight.x;
 	view[1][0] = proxyRight.y;

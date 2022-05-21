@@ -27,6 +27,7 @@
 #include "Scene.hpp"
 #include "Utils.hpp"
 #include "GltfLoader.hpp"
+#include "Transform.hpp"
 
 // Configuration
 const uint32_t WIDTH = 640;
@@ -887,10 +888,20 @@ private:
 		std::cout << "Mouse x is " << Input::Instance()._mouseX << std::endl;
 		std::cout << "Mouse y is " << Input::Instance()._mouseY << std::endl;*/
 
+		
+
+		Transform worldToVulkan;
+		worldToVulkan.SetTransformation(glm::mat4x4{
+			glm::vec4(1.0f, 0.0f, 0.0f, 0.0f),		// Column 1
+			glm::vec4(0.0f, -1.0f, 0.0f, 0.0f),		// Column 2
+			glm::vec4(0.0f, 0.0f, 1.0f, 0.0f),		// Column 3
+			glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)		// Column 4
+			});
+
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
 		auto aspectRatio = std::bit_cast<float, uint32_t>(_swapChainExtent.width) / std::bit_cast<float, uint32_t>(_swapChainExtent.height);
 		_mainCamera._projection.SetTransformation(glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f));
-		_uniformBufferData.transformationMatrix = _mainCamera._projection.Transformation() * _mainCamera._view.Transformation() * _modelMatrix;
+		_uniformBufferData.transformationMatrix = worldToVulkan.Transformation() * _mainCamera._projection.Transformation() * _mainCamera._view.Transformation() * _modelMatrix;
 
 		// Send the uniform buffer data (which contains the combined transformation matrices) to the GPU
 		void* data;
