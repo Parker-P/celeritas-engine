@@ -889,7 +889,9 @@ private:
 		std::cout << "Mouse y is " << Input::Instance()._mouseY << std::endl;*/
 
 		
-
+		// Vulkan's coordinate system is:
+		// X points right, Y points down, Z points towards you
+		// You want X to point right, Y to point up, and Z to point away from you
 		Transform worldToVulkan;
 		worldToVulkan.SetTransformation(glm::mat4x4{
 			glm::vec4(1.0f, 0.0f, 0.0f, 0.0f),		// Column 1

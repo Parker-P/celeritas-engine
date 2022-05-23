@@ -88,12 +88,12 @@ void Camera::Update()
 	// This means that it's a 
 	// We invert the z axis because vulkan's viewport coordinate system is left handed (the x axis points to the left) and we are using a right handed coordinate system
 	glm::mat4x4 view;
-	view[0][0] = proxyRight.x;
-	view[1][0] = proxyRight.y;
-	view[2][0] = proxyRight.z;
-	view[0][1] = proxyUp.x;
-	view[1][1] = proxyUp.y;
-	view[2][1] = proxyUp.z;
+	view[0][0] = -proxyRight.x;
+	view[1][0] = -proxyRight.y;
+	view[2][0] = -proxyRight.z;
+	view[0][1] = -proxyUp.x;
+	view[1][1] = -proxyUp.y;
+	view[2][1] = -proxyUp.z;
 	view[0][2] = -proxyForward.x;
 	view[1][2] = -proxyForward.y;
 	view[2][2] = -proxyForward.z;
@@ -102,7 +102,7 @@ void Camera::Update()
 	view[2][3] = -proxyPosition.z;*/
 	view[3][0] = -glm::dot(proxyRight, proxyPosition);
 	view[3][1] = -glm::dot(proxyUp, proxyPosition);
-	view[3][2] = dot(proxyForward, proxyPosition);
+	view[3][2] = -glm::dot(proxyForward, proxyPosition);
 
 	_view.SetTransformation(view);
 
