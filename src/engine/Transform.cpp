@@ -31,7 +31,7 @@ glm::vec3 Transform::Forward()
 }
 
 /// <summary>
-/// Translate this transform by "offset". This will modify the fourth column of the _position matrix
+/// Translate this transform by "offset". This will modify the fourth column of the _transformation matrix
 /// </summary>
 void Transform::Translate(const glm::vec3& offset) {
 	_transformation[0][3] += offset.x;
@@ -40,7 +40,7 @@ void Transform::Translate(const glm::vec3& offset) {
 }
 
 /// <summary>
-/// Translate this transform by "offset". This will modify the fourth column of the _position matrix
+/// Rotate this transform by "angle" around "axis". This will modify the first 3 rows and columns of the _transformation matrix
 /// </summary>
 void Transform::Rotate(const glm::vec3& axis, const float& angle) {
 	_transformation = glm::rotate(_transformation, angle, axis);
