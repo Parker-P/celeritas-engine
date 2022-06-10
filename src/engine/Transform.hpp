@@ -6,7 +6,7 @@ class Transform {
 
 public:
 	/// <summary>
-	/// Returns the combined transformation matrix of position, rotation and scale
+	/// Returns the combined transformation matrix that defines position, rotation and scale
 	/// </summary>
 	/// <returns></returns>
 	glm::mat4x4 Transformation();
@@ -14,8 +14,8 @@ public:
 	void SetTransformation(const glm::mat4x4 transformation);
 
 	/// <summary>
-	/// Returns a vector in world space that is the world's X axis rotated by the _rotation transformation matrix.
-	/// The function is called "Right" because a camera is always pointing towards the -Z axis (in world space)
+	/// Returns a vector in world space that is the world's X axis rotated by the _transformation transformation matrix.
+	/// The function is called "Right" because a camera is always pointing towards the Z axis (in world space)
 	/// so the X axis is to the "right" of the camera
 	/// </summary>
 	glm::vec3 Right();
@@ -35,7 +35,7 @@ public:
 	/// </summary>
 	void Translate(const glm::vec3& offset);
 
-	void Rotate(const glm::vec3& axis, const float& angle);
+	void Rotate(const glm::vec3& axis, const float& angleDegrees);
 
 	glm::vec3 Position();
 

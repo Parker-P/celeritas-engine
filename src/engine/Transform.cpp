@@ -40,10 +40,10 @@ void Transform::Translate(const glm::vec3& offset) {
 }
 
 /// <summary>
-/// Translate this transform by "offset". This will modify the fourth column of the _position matrix
+/// Rotate this transform by "angle" (defined in degrees) around "axis"
 /// </summary>
-void Transform::Rotate(const glm::vec3& axis, const float& angle) {
-	_transformation = glm::rotate(_transformation, angle, axis);
+void Transform::Rotate(const glm::vec3& axis, const float& angleDegrees) {
+	_transformation = glm::rotate(_transformation, glm::radians(angleDegrees), axis);
 }
 
 void Transform::SetPosition(glm::vec3& position) {

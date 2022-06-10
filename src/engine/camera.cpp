@@ -2,6 +2,7 @@
 #include <iostream>
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/ext.hpp>
 
 #include "Singleton.hpp"
 #include "Time.hpp"
@@ -19,9 +20,20 @@
 //	projection = glm::perspective(glm::radians(FOV), aspectRatio, nearClipPlaneDistance, farClipPlaneDistance);
 //}
 
+std::string Format(float value){
+	return (value >= 0.0f) ? " " + std::to_string(value) : std::to_string(value);
+}
+
+std::ostream& operator << (std::ostream& stream, const glm::mat4& matrix) {
+	stream << Format(matrix[0][0]) << ", " << Format(matrix[0][1]) << ", " << Format(matrix[0][2]) << ", " << Format(matrix[0][3]) << "\n";
+	stream << Format(matrix[1][0]) << ", " << Format(matrix[1][1]) << ", " << Format(matrix[1][2]) << ", " << Format(matrix[1][3]) << "\n";
+	stream << Format(matrix[2][0]) << ", " << Format(matrix[2][1]) << ", " << Format(matrix[2][2]) << ", " << Format(matrix[2][3]) << "\n";
+	stream << Format(matrix[3][0]) << ", " << Format(matrix[3][1]) << ", " << Format(matrix[3][2]) << ", " << Format(matrix[3][3]);
+	return stream;
+}
 
 std::ostream& operator<< (std::ostream& stream, const glm::vec3& vector) {
-	return stream << vector.x << vector.y << vector.z;
+	return stream << "(" << vector.x << ", " << vector.y << ", " << vector.z << ")";
 }
 
 std::ostream& operator<< (std::ostream& stream, const glm::vec3&& vector) {
@@ -32,6 +44,8 @@ void Camera::Update()
 {
 	_yaw = Input::Instance()._mouseX * Settings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
 	_pitch = Input::Instance()._mouseY * Settings::Instance()._mouseSensitivity; // Same as above. Around the X axis (for pitch) the positive rotation is looking upwards
+
+	auto _mouseSens = Settings::Instance()._mouseSensitivity;
 
 	if (Input::Instance().IsKeyHeldDown("q")) {
 		_roll -= 0.1f * (float)Time::Instance()._deltaTime;
@@ -66,20 +80,26 @@ void Camera::Update()
 	_lastRoll = _roll;
 
 	// First apply roll rotation
-	_proxy._transform.Rotate(_proxy._transform.Forward(), glm::radians(_deltaRoll));
+	_proxy._transform.Rotate(_proxy._transform.Forward(), _deltaRoll * _mouseSens);
 
 	// Then apply yaw rotation
-	_proxy._transform.Rotate(_proxy._transform.Up(), glm::radians(_deltaYaw));
+	_proxy._transform.Rotate(_proxy._transform.Up(), _deltaYaw * _mouseSens);
 
 	// Then pitch
-	_proxy._transform.Rotate(_proxy._transform.Right(), glm::radians(_deltaPitch));
+	_proxy._transform.Rotate(_proxy._transform.Right(), _deltaPitch * _mouseSens);
 
-	std::cout << "Proxy right is " << _proxy._transform.Right() << std::endl;
+	/*std::cout << "Proxy right is " << _proxy._transform.Right() << std::endl;
 	std::cout << "Proxy up is " << _proxy._transform.Up() << std::endl;
-	std::cout << "Proxy forward is " << _proxy._transform.Forward() << std::endl;
+	std::cout << "Proxy forward is " << _proxy._transform.Forward() << std::endl;*/
+
 
 	// Generate the view matrix. This is the matrix that will transform the position of the vertices in the shader
 	auto proxyPosition = _proxy._transform.Position();
+
+	std::cout << _proxy._transform.Transformation() << "\n";
+
+	std::cout << "Proxy position is " << proxyPosition << "\n";
+
 	glm::vec3 const proxyForward = _proxy._transform.Forward();
 	glm::vec3 const proxyRight = _proxy._transform.Right();
 	glm::vec3 const proxyUp = _proxy._transform.Up();
@@ -88,21 +108,29 @@ void Camera::Update()
 	// This means that it's a 
 	// We invert the z axis because vulkan's viewport coordinate system is left handed (the x axis points to the left) and we are using a right handed coordinate system
 	glm::mat4x4 view;
+
+	// Transforms the X axis from world space into camera space
 	view[0][0] = -proxyRight.x;
 	view[1][0] = -proxyRight.y;
 	view[2][0] = -proxyRight.z;
+	 
+	// Transforms the Y axis from world space into camera space
 	view[0][1] = -proxyUp.x;
 	view[1][1] = -proxyUp.y;
 	view[2][1] = -proxyUp.z;
+	 
+	// Transforms the Z axis from world space into camera space
 	view[0][2] = -proxyForward.x;
 	view[1][2] = -proxyForward.y;
 	view[2][2] = -proxyForward.z;
-	/*view[0][3] = -proxyPosition.x;
-	view[1][3] = -proxyPosition.y;
-	view[2][3] = -proxyPosition.z;*/
-	view[3][0] = -glm::dot(proxyRight, proxyPosition);
+	 
+	// Makes 
+	view[3][0] = -glm::dot(proxyRight, proxyPosition); // The vertex shader will divide 
 	view[3][1] = -glm::dot(proxyUp, proxyPosition);
 	view[3][2] = -glm::dot(proxyForward, proxyPosition);
+
+	std::cout << "View matrix is: \n"
+	std::cout << view << "\n";
 
 	_view.SetTransformation(view);
 

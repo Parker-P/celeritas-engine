@@ -584,7 +584,7 @@ private:
 
 	void CreateVertexAndIndexBuffers() {
 
-		#pragma region PreviousImplementation
+#pragma region PreviousImplementation
 		//// Create an _instance of the Importer class
 		//Assimp::Importer importer;
 
@@ -620,15 +620,15 @@ private:
 		//	model.indices.push_back(index3);
 		//};
 		//model.indicesSize = (uint32_t)(model.indices.size() * sizeof(model.indices[0]));
-		#pragma endregion
+#pragma endregion
 
-		#pragma region SceneLoading
+#pragma region SceneLoading
 		_scene = GltfLoader::Load(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
 		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._vertexPositions);
 		auto faceIndicesSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._faceIndices);
-		#pragma endregion
+#pragma endregion
 
-		#pragma region Prep
+#pragma region Prep
 		struct StagingBuffer {
 			VkDeviceMemory memory;
 			VkBuffer buffer;
@@ -648,9 +648,9 @@ private:
 
 		VkCommandBuffer copyCommandBuffer;
 		vkAllocateCommandBuffers(_logicalDevice, &cmdBufInfo, &copyCommandBuffer);
-		#pragma endregion
+#pragma endregion
 
-		#pragma region VertexPositionsToGpu
+#pragma region VertexPositionsToGpu
 		// First copy vertices to host accessible vertex buffer memory
 		VkBufferCreateInfo vertexBufferInfo = {};
 		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -688,9 +688,9 @@ private:
 		indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		indexBufferInfo.size = faceIndicesSize;
 		indexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		#pragma endregion
+#pragma endregion
 
-		#pragma region FaceIndicesToGpu
+#pragma region FaceIndicesToGpu
 		vkCreateBuffer(_logicalDevice, &indexBufferInfo, nullptr, &stagingBuffers.indices.buffer);
 		vkGetBufferMemoryRequirements(_logicalDevice, stagingBuffers.indices.buffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
@@ -715,9 +715,9 @@ private:
 		VkCommandBufferBeginInfo bufferBeginInfo = {};
 		bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		bufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-		#pragma endregion
+#pragma endregion
 
-		#pragma region CommandBufferCreationAndExecution
+#pragma region CommandBufferCreationAndExecution
 		vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
 
 		VkBufferCopy copyRegion = {};
@@ -738,8 +738,8 @@ private:
 		vkQueueWaitIdle(_graphicsQueue);
 
 		vkFreeCommandBuffers(_logicalDevice, _commandPool, 1, &copyCommandBuffer);
-		#pragma endregion
-		
+#pragma endregion
+
 		vkDestroyBuffer(_logicalDevice, stagingBuffers.vertices.buffer, nullptr);
 		vkFreeMemory(_logicalDevice, stagingBuffers.vertices.memory, nullptr);
 		vkDestroyBuffer(_logicalDevice, stagingBuffers.indices.buffer, nullptr);
@@ -838,7 +838,7 @@ private:
 
 		//std::cout << "Camera right is (" << _mainCamera._cameraRight.x << "," << _mainCamera._cameraRight.y << "," << _mainCamera._cameraRight.z << ")" << std::endl;
 		*/
-		#pragma region PreviousImpl
+#pragma region PreviousImpl
 
 		// Calculate the cameraForward vector based on yaw and pitch
 		//glm::vec3 cameraForward;
@@ -877,7 +877,7 @@ private:
 		//auto cameraPosition = _mainCamera._position;
 
 		////std::cout << _mainCamera._roll << std::endl;
-		#pragma endregion
+#pragma endregion
 
 		_mainCamera.Update();
 
@@ -888,16 +888,16 @@ private:
 		std::cout << "Mouse x is " << Input::Instance()._mouseX << std::endl;
 		std::cout << "Mouse y is " << Input::Instance()._mouseY << std::endl;*/
 
-		
+
 		// Vulkan's coordinate system is:
 		// X points right, Y points down, Z points towards you
 		// You want X to point right, Y to point up, and Z to point away from you
 		Transform worldToVulkan;
 		worldToVulkan.SetTransformation(glm::mat4x4{
-			glm::vec4(1.0f, 0.0f, 0.0f, 0.0f),		// Column 1
+			glm::vec4(1.0f,  0.0f, 0.0f, 0.0f),		// Column 1
 			glm::vec4(0.0f, -1.0f, 0.0f, 0.0f),		// Column 2
-			glm::vec4(0.0f, 0.0f, 1.0f, 0.0f),		// Column 3
-			glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)		// Column 4
+			glm::vec4(0.0f,  0.0f, 1.0f, 0.0f),		// Column 3
+			glm::vec4(0.0f,  0.0f, 0.0f, 1.0f)		// Column 4
 			});
 
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
@@ -1506,7 +1506,7 @@ private:
 			renderPassBeginInfo.pClearValues = &clearColor;
 
 
-			#pragma region RenderPassCommandRecording
+#pragma region RenderPassCommandRecording
 			vkCmdBeginRenderPass(_graphicsCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdBindDescriptorSets(_graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelineLayout, 0, 1, &_descriptorSet, 0, nullptr);
 			vkCmdBindPipeline(_graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
@@ -1525,7 +1525,7 @@ private:
 
 			vkCmdDrawIndexed(_graphicsCommandBuffers[i], _scene._meshes[0]._faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(_graphicsCommandBuffers[i]);
-			#pragma endregion
+#pragma endregion
 
 
 			// If present and graphics queue families differ, then another barrier is required
