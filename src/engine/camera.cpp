@@ -129,7 +129,7 @@ void Camera::Update()
 	view[3][1] = -glm::dot(proxyUp, proxyPosition);
 	view[3][2] = -glm::dot(proxyForward, proxyPosition);
 
-	std::cout << "View matrix is: \n"
+	std::cout << "View matrix is: \n";
 	std::cout << view << "\n";
 
 	_view.SetTransformation(view);
