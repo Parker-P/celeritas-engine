@@ -19,6 +19,7 @@
 //	position = glm::vec3(0.0f, 0.0f, 0.0f);
 //	projection = glm::perspective(glm::radians(FOV), aspectRatio, nearClipPlaneDistance, farClipPlaneDistance);
 //}
+//
 
 std::string Format(float value){
 	return (value >= 0.0f) ? " " + std::to_string(value) : std::to_string(value);
