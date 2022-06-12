@@ -84,10 +84,11 @@ void Camera::Update()
 	//_proxy._transform.Rotate(_proxy._transform.Forward(), _deltaRoll);
 
 	// Then apply yaw rotation
-	_proxy._transform.Rotate(_proxy._transform.Up(), _deltaYaw);
+	//_proxy._transform.Rotate(_proxy._transform.Up(), _deltaYaw);
+	_proxy._transform.Rotate(glm::vec3(0.9f, 0.7f, 0.2f), _deltaYaw);
 
 	// Then pitch
-	_proxy._transform.Rotate(_proxy._transform.Right(), _deltaPitch);
+	//_proxy._transform.Rotate(_proxy._transform.Right(), _deltaPitch);
 
 	system("cls");
 	std::cout << "---------------------------------" << "\n";
@@ -110,7 +111,9 @@ void Camera::Update()
 	// Vulkan's viewport coordinate system is right handed (the x axis points to the right with respect to the z and y axes)
 	// and we are using a right handed coordinate system
 	//glm::mat4x4 view;
-	glm::mat4x4 view = glm::lookAt(proxyPosition, proxyPosition + proxyForward, proxyUp);
+	//glm::mat4x4 view = glm::lookAt(proxyPosition, proxyPosition + proxyForward, proxyUp);
+	//glm::mat4x4 view;
+	glm::mat4x4 view = glm::inverse(_proxy._transform.Transformation());
 
 	// Transforms the X axis from world space into camera space
 	//view[0][0] = -proxyRight.x;
@@ -126,11 +129,11 @@ void Camera::Update()
 	//view[0][2] = -proxyForward.x;
 	//view[1][2] = -proxyForward.y;
 	//view[2][2] = -proxyForward.z;
-	// 
-	//// Makes 
-	//view[3][0] = -glm::dot(proxyRight, proxyPosition); // The vertex shader will divide the X vector of th
-	//view[3][1] = -glm::dot(proxyUp, proxyPosition);
-	//view[3][2] = -glm::dot(proxyForward, proxyPosition);
+	
+	// Makes 
+	view[3][0] = -glm::dot(proxyRight, proxyPosition); // The vertex shader will divide each component of the X vector of this transformation by this value
+	view[3][1] = -glm::dot(proxyUp, proxyPosition);
+	view[3][2] = -glm::dot(proxyForward, proxyPosition);
 
 	/*std::cout << "View matrix is: \n" << view << "\n";
 	std::cout << "Proxy position is \n" << _proxy._transform.Transformation() << "\n";*/

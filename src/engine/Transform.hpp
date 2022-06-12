@@ -6,7 +6,7 @@ class Transform {
 
 public:
 	/// <summary>
-	/// Returns the combined transformation matrix that defines position, rotation and scale
+	/// Returns the homogeneous transformation matrix that defines position, rotation and scale
 	/// </summary>
 	/// <returns></returns>
 	glm::mat4x4 Transformation();
