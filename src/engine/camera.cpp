@@ -81,26 +81,27 @@ void Camera::Update()
 	_lastRoll = _roll;
 
 	// First apply roll rotation
-	_proxy._transform.Rotate(_proxy._transform.Forward(), _deltaRoll * _mouseSens);
+	//_proxy._transform.Rotate(_proxy._transform.Forward(), _deltaRoll);
 
 	// Then apply yaw rotation
-	_proxy._transform.Rotate(_proxy._transform.Up(), _deltaYaw * _mouseSens);
+	_proxy._transform.Rotate(_proxy._transform.Up(), _deltaYaw);
 
 	// Then pitch
-	_proxy._transform.Rotate(_proxy._transform.Right(), _deltaPitch * _mouseSens);
+	_proxy._transform.Rotate(_proxy._transform.Right(), _deltaPitch);
+
+	system("cls");
+	std::cout << "---------------------------------" << "\n";
+	std::cout << "Cumulative yaw is " << _yaw << "\n";
+	std::cout << "Delta yaw is " << _deltaYaw << "\n";
+	std::cout << "The \"right\" vector is " << _proxy._transform.Right() << "\n";
+	std::cout << "The transformation matrix is \n" << _proxy._transform.Transformation() << "\n";
 
 	/*std::cout << "Proxy right is " << _proxy._transform.Right() << std::endl;
 	std::cout << "Proxy up is " << _proxy._transform.Up() << std::endl;
 	std::cout << "Proxy forward is " << _proxy._transform.Forward() << std::endl;*/
 
-
 	// Generate the view matrix. This is the matrix that will transform the position of the vertices in the shader
 	auto proxyPosition = _proxy._transform.Position();
-
-	std::cout << _proxy._transform.Transformation() << "\n";
-
-	std::cout << "Proxy position is " << proxyPosition << "\n";
-
 	glm::vec3 const proxyForward = _proxy._transform.Forward();
 	glm::vec3 const proxyRight = _proxy._transform.Right();
 	glm::vec3 const proxyUp = _proxy._transform.Up();
@@ -108,30 +109,32 @@ void Camera::Update()
 	// Vulkan's coordinate system is: X points to the right, Y points down, Z points towards you
 	// Vulkan's viewport coordinate system is right handed (the x axis points to the right with respect to the z and y axes)
 	// and we are using a right handed coordinate system
-	glm::mat4x4 view;
+	//glm::mat4x4 view;
+	glm::mat4x4 view = glm::lookAt(proxyPosition, proxyPosition + proxyForward, proxyUp);
 
 	// Transforms the X axis from world space into camera space
-	view[0][0] = -proxyRight.x;
-	view[1][0] = -proxyRight.y;
-	view[2][0] = -proxyRight.z;
-	 
-	// Transforms the Y axis from world space into camera space
-	view[0][1] = -proxyUp.x;
-	view[1][1] = -proxyUp.y;
-	view[2][1] = -proxyUp.z;
-	 
-	// Transforms the Z axis from world space into camera space
-	view[0][2] = -proxyForward.x;
-	view[1][2] = -proxyForward.y;
-	view[2][2] = -proxyForward.z;
-	 
-	// Makes 
-	view[3][0] = -glm::dot(proxyRight, proxyPosition); // The vertex shader will divide 
-	view[3][1] = -glm::dot(proxyUp, proxyPosition);
-	view[3][2] = -glm::dot(proxyForward, proxyPosition);
+	//view[0][0] = -proxyRight.x;
+	//view[1][0] = -proxyRight.y;
+	//view[2][0] = -proxyRight.z;
+	// 
+	//// Transforms the Y axis from world space into camera space
+	//view[0][1] = -proxyUp.x;
+	//view[1][1] = -proxyUp.y;
+	//view[2][1] = -proxyUp.z;
+	// 
+	//// Transforms the Z axis from world space into camera space
+	//view[0][2] = -proxyForward.x;
+	//view[1][2] = -proxyForward.y;
+	//view[2][2] = -proxyForward.z;
+	// 
+	//// Makes 
+	//view[3][0] = -glm::dot(proxyRight, proxyPosition); // The vertex shader will divide the X vector of th
+	//view[3][1] = -glm::dot(proxyUp, proxyPosition);
+	//view[3][2] = -glm::dot(proxyForward, proxyPosition);
 
-	std::cout << "View matrix is: \n";
-	std::cout << view << "\n";
+	/*std::cout << "View matrix is: \n" << view << "\n";
+	std::cout << "Proxy position is \n" << _proxy._transform.Transformation() << "\n";*/
+
 
 	_view.SetTransformation(view);
 

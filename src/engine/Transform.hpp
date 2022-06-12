@@ -2,7 +2,7 @@
 
 class Transform {
 	glm::mat4x4 _transformation; // The homogeneous transformation matrix for this transform
-	glm::mat4x4 _scale; // The scale is stored separately as it would be impossible to tell from _transformation alone
+	glm::mat4x4 _scale; // The scale is stored separately as it would be impossible to tell from _transformation alone as it mixes with rotation values
 
 public:
 	/// <summary>
@@ -35,6 +35,10 @@ public:
 	/// </summary>
 	void Translate(const glm::vec3& offset);
 
+
+	/// <summary>
+	/// Rotate this transform by "angle" (defined in degrees) around "axis" independent of position
+	/// </summary>
 	void Rotate(const glm::vec3& axis, const float& angleDegrees);
 
 	glm::vec3 Position();
