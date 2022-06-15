@@ -21,26 +21,6 @@
 //}
 //
 
-std::string Format(float value){
-	return (value >= 0.0f) ? " " + std::to_string(value) : std::to_string(value);
-}
-
-std::ostream& operator << (std::ostream& stream, const glm::mat4& matrix) {
-	stream << Format(matrix[0][0]) << ", " << Format(matrix[0][1]) << ", " << Format(matrix[0][2]) << ", " << Format(matrix[0][3]) << "\n";
-	stream << Format(matrix[1][0]) << ", " << Format(matrix[1][1]) << ", " << Format(matrix[1][2]) << ", " << Format(matrix[1][3]) << "\n";
-	stream << Format(matrix[2][0]) << ", " << Format(matrix[2][1]) << ", " << Format(matrix[2][2]) << ", " << Format(matrix[2][3]) << "\n";
-	stream << Format(matrix[3][0]) << ", " << Format(matrix[3][1]) << ", " << Format(matrix[3][2]) << ", " << Format(matrix[3][3]);
-	return stream;
-}
-
-std::ostream& operator<< (std::ostream& stream, const glm::vec3& vector) {
-	return stream << "(" << vector.x << ", " << vector.y << ", " << vector.z << ")";
-}
-
-std::ostream& operator<< (std::ostream& stream, const glm::vec3&& vector) {
-	return stream << "(" << vector.x << ", " << vector.y << ", " << vector.z << ")";
-}
-
 void Camera::Update()
 {
 	_yaw = Input::Instance()._mouseX * Settings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
@@ -84,7 +64,8 @@ void Camera::Update()
 	_proxy._transform.Rotate(_proxy._transform.Forward(), _deltaRoll);
 
 	// Then apply yaw rotation
-	_proxy._transform.Rotate(_proxy._transform.Up(), _deltaYaw);
+	//_proxy._transform.Rotate(_proxy._transform.Up(), _deltaYaw);
+	_proxy._transform.Rotate(glm::vec3(0.0f, 1.0f, 0.0f), _deltaYaw);
 	//_proxy._transform.Rotate(glm::vec3(0.9f, 0.7f, 0.2f), _deltaYaw);
 	//_proxy._transform.Rotate(glm::vec3(1.0f, 0.0f, 0.0f), 90.0f);
 
