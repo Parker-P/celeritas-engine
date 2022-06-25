@@ -4,6 +4,26 @@
 #include <vector>
 #include <type_traits>
 
+inline std::string Format(float value) {
+	return (value >= 0.0f) ? " " + std::to_string(value) : std::to_string(value);
+}
+
+inline std::ostream& operator << (std::ostream& stream, const glm::mat4& matrix) {
+	stream << Format(matrix[0][0]) << ", " << Format(matrix[0][1]) << ", " << Format(matrix[0][2]) << ", " << Format(matrix[0][3]) << "\n";
+	stream << Format(matrix[1][0]) << ", " << Format(matrix[1][1]) << ", " << Format(matrix[1][2]) << ", " << Format(matrix[1][3]) << "\n";
+	stream << Format(matrix[2][0]) << ", " << Format(matrix[2][1]) << ", " << Format(matrix[2][2]) << ", " << Format(matrix[2][3]) << "\n";
+	stream << Format(matrix[3][0]) << ", " << Format(matrix[3][1]) << ", " << Format(matrix[3][2]) << ", " << Format(matrix[3][3]);
+	return stream;
+}
+
+inline std::ostream& operator<< (std::ostream& stream, const glm::vec3& vector) {
+	return stream << "(" << vector.x << ", " << vector.y << ", " << vector.z << ")";
+}
+
+inline std::ostream& operator<< (std::ostream& stream, const glm::vec3&& vector) {
+	return stream << "(" << vector.x << ", " << vector.y << ", " << vector.z << ")";
+}
+
 class Utils {
 public:
 

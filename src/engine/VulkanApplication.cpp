@@ -907,6 +907,8 @@ private:
 		_modelMatrix[2][3] = 1.0f;
 		_uniformBufferData.transformationMatrix = _mainCamera._projection.Transformation() * /*worldToVulkan.Transformation() * _mainCamera._view.Transformation() **/ _modelMatrix;
 
+		std::cout << _mainCamera._projection.Transformation();
+
 		// Send the uniform buffer data (which contains the combined transformation matrices) to the GPU
 		void* data;
 		vkMapMemory(_logicalDevice, _uniformBufferMemory, 0, sizeof(_uniformBufferData), 0, &data);
