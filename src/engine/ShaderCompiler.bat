@@ -1,3 +1,5 @@
-%VULKAN_SDK%\Bin\glslc.exe "vertex_shader.vert" -o "vertex_shader.spv"
-%VULKAN_SDK%\Bin\glslc.exe "fragment_shader.frag" -o "fragment_shader.spv"
+@echo off
+%VULKAN_SDK%\Bin\glslc.exe "VertexShader.vert" -o "VertexShader.spv"
+%VULKAN_SDK%\Bin\glslc.exe "FragmentShader.frag" -o "FragmentShader.spv"
+echo Compilation complete...
 pause

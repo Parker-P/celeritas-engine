@@ -21,7 +21,7 @@
 //}
 //
 
-std::string Format(float value){
+std::string Format(float value) {
 	return (value >= 0.0f) ? " " + std::to_string(value) : std::to_string(value);
 }
 
@@ -120,17 +120,17 @@ void Camera::Update()
 	view[0][0] = -proxyRight.x;
 	view[1][0] = -proxyRight.y;
 	view[2][0] = -proxyRight.z;
-	 
+
 	// Transforms the Y axis from world space into camera space
 	view[0][1] = -proxyUp.x;
 	view[1][1] = -proxyUp.y;
 	view[2][1] = -proxyUp.z;
-	 
+
 	// Transforms the Z axis from world space into camera space
 	view[0][2] = -proxyForward.x;
 	view[1][2] = -proxyForward.y;
 	view[2][2] = -proxyForward.z;
-	
+
 	// Makes 
 	view[3][0] = -glm::dot(proxyRight, proxyPosition); // The vertex shader will divide each component of the X vector of this transformation by this value
 	view[3][1] = -glm::dot(proxyUp, proxyPosition);
@@ -149,4 +149,14 @@ void Camera::Update()
 	std::cout << _view._transformation[2][0] << " " << _view._transformation[2][1] << " " << _view._transformation[2][2] << " " << _view._transformation[2][3] << std::endl;
 	std::cout << _view._transformation[3][0] << " " << _view._transformation[3][1] << " " << _view._transformation[3][2] << " " << _view._transformation[3][3] << std::endl;
 	std::cout << std::endl;*/
+}
+
+void Camera::GenerateProjectionTransform(const float& viewportWidth, const float& viewportHeight, const float& horizontalFovDegrees, const float& nearClipDistance, const float& farClipDistance) {
+	glm::mat4 projection;
+	projection[0][0] = nearClipDistance;
+	projection[1][1] = nearClipDistance;
+	projection[2][2] = (nearClipDistance) + farClipDistance;
+	projection[2][3] = -((nearClipDistance) * farClipDistance);
+	projection[3][2] = 1.0f;
+	projection[3][3] = 0.0f;
 }

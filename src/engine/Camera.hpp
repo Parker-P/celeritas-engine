@@ -21,6 +21,8 @@ public:
 
 	void Update();
 
+	void GenerateProjectionTransform(const float& viewportWidth, const float& viewportHeight, const float& horizontalFovDegrees, const float& nearClipDistance, const float& farClipDistance);
+
 	/// <summary>
 	/// Initializes a camera.
 	/// </summary>
