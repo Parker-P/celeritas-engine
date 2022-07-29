@@ -2,8 +2,6 @@
 
 class Camera : public GameObject {
 public:
-	GameObject _proxy;
-
 	Transform _view;
 	Transform _projection;
 

@@ -896,18 +896,23 @@ private:
 		worldToVulkan.SetTransformation(glm::mat4x4{
 			glm::vec4(1.0f,  0.0f, 0.0f, 0.0f),		// Column 1
 			glm::vec4(0.0f, -1.0f, 0.0f, 0.0f),		// Column 2
-			glm::vec4(0.0f,  0.0f, -1.0f, 0.0f),	// Column 3
+			glm::vec4(0.0f,  0.0f, 1.0f, 0.0f),	// Column 3
 			glm::vec4(0.0f,  0.0f, 0.0f, 1.0f)		// Column 4
 			});
 
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
 		auto aspectRatio = std::bit_cast<float, uint32_t>(_swapChainExtent.width) / std::bit_cast<float, uint32_t>(_swapChainExtent.height);
-		//_mainCamera._projection.SetTransformation(glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f));
-		_mainCamera.GenerateProjectionTransform(std::bit_cast<float, uint32_t>(_swapChainExtent.width), std::bit_cast<float, uint32_t>(_swapChainExtent.height), 60.0f, 0.1f, 1000.0f);
-		_modelMatrix[2][3] = 1.0f;
-		_uniformBufferData.transformationMatrix = _mainCamera._projection.Transformation() * /*worldToVulkan.Transformation() * _mainCamera._view.Transformation() **/ _modelMatrix;
+		_mainCamera._projection.SetTransformation(glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f));
+		//_mainCamera.GenerateProjectionTransform(std::bit_cast<float, uint32_t>(_swapChainExtent.width), std::bit_cast<float, uint32_t>(_swapChainExtent.height), 60.0f, 0.1f, 1000.0f);
+		/*glm::perspective*/
+		// Remember, column is the first index, row is the second index
+		//_modelMatrix[3][0] = 5.0f;
+		//_modelMatrix[3][1] = 5.0f;
+		_modelMatrix[3][2] = 5.0f;
+		_uniformBufferData.transformationMatrix = _mainCamera._projection.Transformation() * worldToVulkan.Transformation() * _mainCamera._view.Transformation() * _modelMatrix;
 
-		std::cout << _mainCamera._projection.Transformation();
+		std::cout << "--------------------------------------\n";
+		std::cout << _mainCamera._projection.Transformation() << std::endl;
 
 		// Send the uniform buffer data (which contains the combined transformation matrices) to the GPU
 		void* data;

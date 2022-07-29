@@ -12,6 +12,8 @@ public:
 	glm::mat4x4 Transformation();
 
 	void SetTransformation(const glm::mat4x4 transformation);
+	
+	glm::mat4x4 GetTransformation();
 
 	/// <summary>
 	/// Returns a vector in world space that is the world's X axis rotated by the _transformation transformation matrix.

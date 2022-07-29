@@ -14,6 +14,11 @@ void Transform::SetTransformation(const glm::mat4x4 transformation) {
 	_transformation = transformation;
 }
 
+glm::mat4x4 Transform::GetTransformation()
+{
+	return _transformation;
+}
+
 glm::vec3 Transform::Right() {
 	glm::vec4 right = _transformation * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
 	return glm::vec3(right.x, right.y, right.z);
@@ -30,9 +35,9 @@ glm::vec3 Transform::Forward() {
 }
 
 void Transform::Translate(const glm::vec3& offset) {
-	_transformation[0][3] += offset.x;
-	_transformation[1][3] += offset.y;
-	_transformation[2][3] += offset.z;
+	_transformation[3][0] += offset.x;
+	_transformation[3][1] += offset.y;
+	_transformation[3][2] += offset.z;
 }
 
 void Transform::Rotate(const glm::vec3& axis, const float& angleDegrees) {
@@ -45,32 +50,32 @@ void Transform::Rotate(const glm::vec3& axis, const float& angleDegrees) {
 	glm::quat rotation(cosine, axis.x * sine, axis.y * sine, axis.z * sine);
 
 	// Rotate each individual axis of the transformation by the quaternion
-	auto newX = rotation * glm::vec3(_transformation[0][0], _transformation[1][0], _transformation[2][0]);
-	auto newY = rotation * glm::vec3(_transformation[0][1], _transformation[1][1], _transformation[2][1]);
-	auto newZ = rotation * glm::vec3(_transformation[0][2], _transformation[1][2], _transformation[2][2]);
+	auto newX = rotation * glm::vec3(_transformation[0][0], _transformation[0][1], _transformation[0][2]);
+	auto newY = rotation * glm::vec3(_transformation[1][0], _transformation[1][1], _transformation[1][2]);
+	auto newZ = rotation * glm::vec3(_transformation[2][0], _transformation[2][1], _transformation[2][2]);
 
 	// Set the new axes starting with X
 	_transformation[0][0] = newX.x;
-	_transformation[1][0] = newX.y;
-	_transformation[2][0] = newX.z;
+	_transformation[0][1] = newX.y;
+	_transformation[0][2] = newX.z;
 
 	// Then Y
-	_transformation[0][1] = newY.x;
+	_transformation[1][0] = newY.x;
 	_transformation[1][1] = newY.y;
-	_transformation[2][1] = newY.z;
+	_transformation[1][2] = newY.z;
 
 	// And finally Z
-	_transformation[0][2] = newZ.x;
-	_transformation[1][2] = newZ.y;
+	_transformation[2][0] = newZ.x;
+	_transformation[2][1] = newZ.y;
 	_transformation[2][2] = newZ.z;
 }
 
 void Transform::SetPosition(glm::vec3& position) {
-	_transformation[0][3] = position.x;
-	_transformation[1][3] = position.y;
-	_transformation[2][3] = position.z;
+	_transformation[3][0] = position.x;
+	_transformation[3][1] = position.y;
+	_transformation[3][2] = position.z;
 }
 
 glm::vec3 Transform::Position() {
-	return glm::vec3(_transformation[0][3], _transformation[1][3], _transformation[2][3]);
+	return glm::vec3(_transformation[3][0], _transformation[3][1], _transformation[3][2]);
 }
