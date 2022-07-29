@@ -23,8 +23,8 @@
 
 void Camera::Update()
 {
-	_yaw = Input::Instance()._mouseX * Settings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
-	_pitch = Input::Instance()._mouseY * Settings::Instance()._mouseSensitivity; // Same as above. Around the X axis (for pitch) the positive rotation is looking upwards
+	_yaw = -Input::Instance()._mouseX * Settings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
+	_pitch = -Input::Instance()._mouseY * Settings::Instance()._mouseSensitivity; // Same as above. Around the X axis (for pitch) the positive rotation is looking upwards
 
 	auto _mouseSens = Settings::Instance()._mouseSensitivity;
 
@@ -64,37 +64,21 @@ void Camera::Update()
 	_transform.Rotate(_transform.Forward(), _deltaRoll);
 
 	// Then apply yaw rotation
-	//_proxy._transform.Rotate(_proxy._transform.Up(), _deltaYaw);
 	_transform.Rotate(_transform.Up(), _deltaYaw);
-	//_proxy._transform.Rotate(glm::vec3(1.0f, 0.0f, 0.0f), 90.0f);
 
 	// Then pitch
 	_transform.Rotate(_transform.Right(), _deltaPitch);
 
-	//system("cls");
-	/*std::cout << "---------------------------------" << "\n";
-	std::cout << "Cumulative yaw is " << _yaw << "\n";
-	std::cout << "Delta yaw is " << _deltaYaw << "\n";
-	std::cout << "The \"right\" vector is " << _proxy._transform.Right() << "\n";
-	std::cout << "The transformation matrix is \n" << _proxy._transform.Transformation() << "\n";*/
-
-	/*std::cout << "Proxy right is " << _proxy._transform.Right() << std::endl;
-	std::cout << "Proxy up is " << _proxy._transform.Up() << std::endl;
-	std::cout << "Proxy forward is " << _proxy._transform.Forward() << std::endl;*/
 
 	// Generate the view matrix. This is the matrix that will transform the position of the vertices in the shader
-	auto proxyPosition = _transform.Position();
+	/*auto proxyPosition = _transform.Position();
 	glm::vec3 const cameraForward = _transform.Forward();
 	glm::vec3 const cameraRight = _transform.Right();
-	glm::vec3 const cameraUp = _transform.Up();
+	glm::vec3 const cameraUp = _transform.Up();*/
 
 	// Vulkan's coordinate system is: X points to the right, Y points down, Z points towards you
 	// Vulkan's viewport coordinate system is right handed (the x axis points to the right with respect to the z and y axes)
 	// and we are doing all our calculations assuming +Z is forward and +X is right, so using a left-handed coordinate system
-	//glm::mat4x4 view;
-	//glm::mat4x4 view = glm::lookAt(proxyPosition, proxyPosition + proxyForward, proxyUp);
-	glm::mat4x4 view;
-	//glm::mat4x4 view = glm::inverse(_proxy._transform.Transformation());
 
 	// We use the inverse of the camera transformation matrix because this matrix will be applied to each vertex of each object in the scene in the vertex shader.
 	// There is no such thing as a camera, because in the end we use the position of the vertices to draw stuff on screen. We can only modify the position of the
@@ -105,10 +89,9 @@ void Camera::Update()
 	// somewhat in the upper area of its screen. If we want to see vertex V as if we viewed it from the camera, we would have to move
 	// vertex V 10 units forward from its current position. If instead of moving the camera BACK 10 units we move vertex V FORWARD 10 units, 
 	// we get the exact same effect as if we actually had a camera and moved it backwards. That's it, very simple idea behind the view matrix.
-	view = glm::inverse(_transform.GetTransformation());
 
 	// _view.SetTransformation(glm::lookAt(proxyPosition, proxyPosition + proxyForward, proxyUp));
-	_view.SetTransformation(view);
+	_view.SetTransformation(glm::inverse(_transform.GetTransformation()));
 }
 
 void Camera::GenerateProjectionTransform(const float& viewportWidth, const float& viewportHeight, const float& horizontalFovDegrees, const float& nearClipDistance, const float& farClipDistance) {
@@ -126,15 +109,5 @@ void Camera::GenerateProjectionTransform(const float& viewportWidth, const float
 	// of the window. It's a very simple idea but the nature of how GPUs and vertex shaders work make the math a little hard to understand. There are plenty of good
 	// math explanations on the net.
 	
-	glm::mat4 projection;
-	
-	projection[0][0] = (viewportWidth / 2.0f) + nearClipDistance;
-	projection[1][1] = (viewportHeight / 2.0f) + nearClipDistance;
-	projection[2][2] = (nearClipDistance) + farClipDistance;
-	projection[2][3] = -((nearClipDistance) * farClipDistance);
-	projection[3][2] = 1.0f;
-	projection[3][3] = 0.0f;
-
-	//_projection.SetTransformation(projection);
 	_projection.SetTransformation(glm::perspectiveFov(glm::radians(horizontalFovDegrees), viewportWidth, viewportHeight, nearClipDistance, farClipDistance));
 }

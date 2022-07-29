@@ -784,110 +784,10 @@ private:
 
 	void UpdateUniformData() {
 
-		/*
-		// Steps:
-		// 1) Get the values of yaw, pitch and roll on a frame to frame basis (the deltas of each frame)
-		// 2) (Maybe) Store camera vectors in world space inside the camera class
-		// 3) Modify the camera vectors thinking in a frame-by-frame way using the deltas instead of the cumulative values
-		// 4) Store the accumulated rotation in a matrix
-
-		// ****** STEP 1 ******
-
-		// Get the mouse x and y. These values are stored cumulatively and will be used as degrees of rotation when calculating the cameraForward vector
-		_yaw = Input::Instance()._mouseX * _mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
-		_pitch = Input::Instance()._mouseY * _mouseSensitivity; // Same as above. Around the X axis (for pitch) the positive rotation is looking upwards
-
-		if (_input.IsKeyHeldDown("q")) {
-			//std::cout << "d key is being held down\n";
-			_roll -= 1.0f * 0.1f * (float)_deltaTime;
-		}
-
-		if (_input.IsKeyHeldDown("e")) {
-			//std::cout << "d key is being held down\n";
-			_roll += 1.0f * 0.1f * (float)_deltaTime;
-		}
-
-		_deltaYaw = _yaw - _lastYaw;
-		_deltaPitch = _pitch - _lastPitch;
-		_deltaRoll = _roll - _lastRoll;
-
-		_lastYaw = _yaw;
-		_lastPitch = _pitch;
-		_lastRoll = _roll;
-
-		// ****** STEP 2 (Maybe) ******
-		// Blank
-
-		// ****** STEP 3 ******
-
-		// First apply roll rotation
-		_mainCamera._cameraForward = glm::vec3(_mainCamera._rotation[0][2], _mainCamera._rotation[1][2], _mainCamera._rotation[2][2]);
-		_mainCamera._rotation = glm::rotate(_mainCamera._rotation, glm::radians(_deltaRoll), _mainCamera._cameraForward);
-
-		// Then apply yaw rotation
-		_mainCamera._cameraUp = glm::vec3(_mainCamera._rotation[0][1], _mainCamera._rotation[1][1], _mainCamera._rotation[2][1]);
-		_mainCamera._rotation = glm::rotate(_mainCamera._rotation, glm::radians(_deltaYaw), _mainCamera._cameraUp);
-
-		// Then pitch
-		_mainCamera._cameraRight = glm::vec3(_mainCamera._rotation[0][0], _mainCamera._rotation[1][0], _mainCamera._rotation[2][0]);
-		_mainCamera._rotation = glm::rotate(_mainCamera._rotation, glm::radians(_deltaPitch), _mainCamera._cameraRight);
-
-		_mainCamera._cameraUp = glm::vec3(_mainCamera._rotation[0][1], _mainCamera._rotation[1][1], _mainCamera._rotation[2][1]);
-		_mainCamera._cameraForward = glm::vec3(_mainCamera._rotation[0][2], _mainCamera._rotation[1][2], _mainCamera._rotation[2][2]);
-		_mainCamera._cameraRight = glm::vec3(_mainCamera._rotation[0][0], _mainCamera._rotation[1][0], _mainCamera._rotation[2][0]);
-
-		//std::cout << "Camera right is (" << _mainCamera._cameraRight.x << "," << _mainCamera._cameraRight.y << "," << _mainCamera._cameraRight.z << ")" << std::endl;
-		*/
-#pragma region PreviousImpl
-
-		// Calculate the cameraForward vector based on yaw and pitch
-		//glm::vec3 cameraForward;
-		//cameraForward.x = sin(glm::radians(yaw)) * cos(glm::radians(pitch)); // Use yaw and pitch as degrees for calculation
-		//cameraForward.y = sin(glm::radians(pitch));
-		//cameraForward.z = -(cos(glm::radians(yaw)) * cos(glm::radians(pitch)));
-
-		//// Calculate the cameraUp vector based on yaw, pitch and roll
-		//glm::vec3 cameraUp;
-		//cameraUp.x = sin(glm::radians(_mainCamera._roll)) * cos(glm::radians(pitch)) * cos(glm::radians(yaw));
-		//cameraUp.y = cos(glm::radians(_mainCamera._roll)) * cos(glm::radians(pitch));
-		//cameraUp.z = sin(glm::radians(pitch)) * sin(glm::radians(_mainCamera._roll)) * sin(glm::radians(yaw));
-
-		//auto cameraRight = glm::cross(cameraForward, cameraUp);
-
-		//glm::normalize(cameraForward);
-		//glm::normalize(cameraUp);
-
-		//std::cout << "Yaw is " << yaw << std::endl;
-		//std::cout << "Pitch is " << pitch << std::endl;
-		//std::cout << "Roll is " << _mainCamera._roll << std::endl;
-
-		//std::cout << "cameraForward is (" << cameraForward.x << "," << cameraForward.y << "," << cameraForward.z << ")" << std::endl;
-		//std::cout << "cameraUp is (" << cameraUp.x << "," << cameraUp.y << "," << cameraUp.z << ")" << std::endl;
-
-		//auto cross = glm::cross(cameraForward, cameraUp);
-		//std::cout << "Cross product is (" << cross.x << "," << cross.y << "," << cross.z << ")" << std::endl;
-
-		//auto dot = glm::dot(cameraForward, cameraUp);
-		//std::cout << "Dot product is " << dot << std::endl;
-
-		//clearscreen();
-
-		//cameraUp = glm::normalize(cameraUp);
-
-		//auto cameraPosition = _mainCamera._position;
-
-		////std::cout << _mainCamera._roll << std::endl;
-#pragma endregion
-
 		_mainCamera.Update();
 
 		// Create a transformation matrix that maps the world's X to cameraRight, the world's Y to cameraUp and the world's Z to cameraForward
 		// This way the vertex shader will put the vertices in the correct position by multiplying each vertex's position by the resulting matrix
-
-		/*std::cout << _mainCamera._position.x << ", " << _mainCamera._position.y << ", " << _mainCamera._position.z << std::endl;
-		std::cout << "Mouse x is " << Input::Instance()._mouseX << std::endl;
-		std::cout << "Mouse y is " << Input::Instance()._mouseY << std::endl;*/
-
 
 		// Vulkan's coordinate system is:
 		// X points right, Y points down, Z points towards you
@@ -903,16 +803,10 @@ private:
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
 		auto aspectRatio = std::bit_cast<float, uint32_t>(_swapChainExtent.width) / std::bit_cast<float, uint32_t>(_swapChainExtent.height);
 		_mainCamera._projection.SetTransformation(glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f));
-		//_mainCamera.GenerateProjectionTransform(std::bit_cast<float, uint32_t>(_swapChainExtent.width), std::bit_cast<float, uint32_t>(_swapChainExtent.height), 60.0f, 0.1f, 1000.0f);
-		/*glm::perspective*/
 		// Remember, column is the first index, row is the second index
-		//_modelMatrix[3][0] = 5.0f;
-		//_modelMatrix[3][1] = 5.0f;
 		_modelMatrix[3][2] = 5.0f;
 		_uniformBufferData.transformationMatrix = _mainCamera._projection.Transformation() * worldToVulkan.Transformation() * _mainCamera._view.Transformation() * _modelMatrix;
 
-		std::cout << "--------------------------------------\n";
-		std::cout << _mainCamera._projection.Transformation() << std::endl;
 
 		// Send the uniform buffer data (which contains the combined transformation matrices) to the GPU
 		void* data;
