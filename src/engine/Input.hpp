@@ -1,31 +1,20 @@
 #pragma once
 
+class Key {
+	bool _isHeldDown;
+	bool _wasPressed;
+public:
+	static std::string _code;
+};
+
 class Input : public Singleton<Input> {
 
-	// W
-	bool _isWHeldDown;
-	bool _wasWPressed;
-
-	// A
-	bool _isAHeldDown;
-	bool _wasAPressed;
-
-	// S
-	bool _isSHeldDown;
-	bool _wasSPressed;
-
-	// D
-	bool _isDHeldDown;
-	bool _wasDPressed;
-	
-	// Q
-	bool _isQHeldDown;
-	bool _wasQPressed;
-	
-	// E
-	bool _isEHeldDown;
-	bool _wasEPressed;
-
+	Key W;
+	Key A;
+	Key S;
+	Key D;
+	Key Q;
+	Key E;
 
 public:
 
@@ -39,4 +28,10 @@ public:
 	void Init(GLFWwindow* window);
 	bool IsKeyHeldDown(std::string);
 	bool WasKeyPressed(std::string);
+};
+
+class KeyCombo {
+	std::vector<Key> _keys;
+public:
+	bool IsActive();
 };

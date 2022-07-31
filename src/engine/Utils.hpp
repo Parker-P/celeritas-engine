@@ -54,12 +54,16 @@ public:
 	/// </summary>
 	template <typename FromType, typename ToType>
 	static std::optional<ToType> Convert(FromType value) {
+		ToType convertedValue;
 		if (std::is_same_v<FromType, uint32_t>) {
 			if (std::is_same_v<ToType, float>) {
-				for(unsigned short i=0; i<32; ++i)
-				
-				ToType* converted = new ToType(13.0f);
-				return *converted;
+				int intermediateValue = 0;
+				for (unsigned short i = 32; i > 0; --i) {
+					unsigned char ithBitFromRight = (value >> i) & 1;
+					intermediateValue |= (ithBitFromRight << i);
+				}
+				convertedValue = static_cast<float>(intermediateValue);
+				return convertedValue;
 			}
 		}
 

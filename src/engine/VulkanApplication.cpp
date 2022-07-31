@@ -1101,14 +1101,8 @@ private:
 		VkViewport viewport = {};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
-
-		auto value = Utils::Convert<uint32_t, float>(_swapChainExtent.width);
-
-		viewport.width = 640.0f;
-		std::cout << std::bitset<32>(_swapChainExtent.width) << std::endl;
-
-		viewport.width = (float)std::bitset<32>(_swapChainExtent.width).to_ulong(); // swapchainExtent wants uint32_t as value for both width and height. Need to find a way to convert from uint32_t to float. bit::cast is not working
-		viewport.height = std::bit_cast<float>(_swapChainExtent.height);
+		viewport.width = Utils::Convert<uint32_t, float>(_swapChainExtent.width).value();
+		viewport.height = Utils::Convert<uint32_t, float>(_swapChainExtent.height).value();
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 

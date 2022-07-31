@@ -1,10 +1,20 @@
 #include <iostream>
 #include <string>
 #include <GLFW/glfw3.h>
+#include <vector>
+#include <map>
 
 #include "Singleton.hpp"
 #include "Input.hpp"
 
+#pragma region KeyComboFunctions
+bool KeyCombo::IsActive()
+{
+	return false;
+}
+#pragma endregion
+
+#pragma region InputFunctions
 void Input::KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
 	// W
 	if (key == GLFW_KEY_W) {
@@ -177,3 +187,4 @@ bool Input::WasKeyPressed(std::string key) {
 	}
 	return false;
 }
+#pragma endregion
