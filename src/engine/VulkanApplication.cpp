@@ -28,6 +28,7 @@
 #include "Utils.hpp"
 #include "GltfLoader.hpp"
 #include "Transform.hpp"
+#include <bitset>
 
 // Configuration
 const uint32_t WIDTH = 640;
@@ -204,10 +205,9 @@ private:
 	}
 
 	void Cleanup(bool fullClean) {
+		
 		vkDeviceWaitIdle(_logicalDevice);
-
 		vkFreeCommandBuffers(_logicalDevice, _commandPool, (uint32_t)_graphicsCommandBuffers.size(), _graphicsCommandBuffers.data());
-
 		vkDestroyPipeline(_logicalDevice, _graphicsPipeline, nullptr);
 		vkDestroyRenderPass(_logicalDevice, _renderPass, nullptr);
 
@@ -249,7 +249,7 @@ private:
 
 			vkDestroyInstance(_instance, nullptr);
 		}
-	}
+	} // Cleanup
 
 	bool checkValidationLayerSupport() {
 		uint32_t layerCount;
@@ -777,7 +777,12 @@ private:
 		return false;
 	}
 
+	/// <summary>
+	/// Creates the swapchain. The swapchain is essentially an image manager. 
+	/// The general purpose of the swap chain is to synchronize the presentation of images with the refresh rate of the screen.
+	/// </summary>
 	void CreateSwapChain() {
+
 		// Find surface capabilities
 		VkSurfaceCapabilitiesKHR surfaceCapabilities;
 		if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_physicalDevice, _windowSurface, &surfaceCapabilities) != VK_SUCCESS) {
@@ -888,7 +893,7 @@ private:
 		}
 
 		std::cout << "acquired swap chain images" << std::endl;
-	}
+	} // CreateSwapChain
 
 	VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
 		// We can either choose any format
@@ -1005,8 +1010,6 @@ private:
 	void CreateFramebuffers() {
 		_swapChainFramebuffers.resize(_swapChainImages.size());
 
-		// Note: Framebuffer is basically a specific choice of attachments for a render pass
-		// That means all attachments must have the same dimensions, interesting restriction
 		for (size_t i = 0; i < _swapChainImages.size(); i++) {
 			VkFramebufferCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -1098,8 +1101,14 @@ private:
 		VkViewport viewport = {};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
-		viewport.width = 640.0f; // swapchainExtent wants uint32_t as value for both width and height. Need to find a way to convert from uint32_t to float. bit::cast is not working
-		viewport.height = 480.0f;
+
+		auto value = Utils::Convert<uint32_t, float>(_swapChainExtent.width);
+
+		viewport.width = 640.0f;
+		std::cout << std::bitset<32>(_swapChainExtent.width) << std::endl;
+
+		viewport.width = (float)std::bitset<32>(_swapChainExtent.width).to_ulong(); // swapchainExtent wants uint32_t as value for both width and height. Need to find a way to convert from uint32_t to float. bit::cast is not working
+		viewport.height = std::bit_cast<float>(_swapChainExtent.height);
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 

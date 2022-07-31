@@ -2,6 +2,8 @@
 #include <iostream>
 #include <ostream>
 #include <vector>
+#include <optional>
+#include <bitset>
 #include <type_traits>
 
 inline std::string Format(float value) {
@@ -45,6 +47,23 @@ public:
 	static inline size_t GetVectorSizeInBytes(std::vector<T> vector)
 	{
 		return sizeof(decltype(vector)::value_type) * vector.size();
+	}
+
+	/// <summary>
+	/// Convert values. Returns the converted value or nullopt if value could not be converted.
+	/// </summary>
+	template <typename FromType, typename ToType>
+	static std::optional<ToType> Convert(FromType value) {
+		if (std::is_same_v<FromType, uint32_t>) {
+			if (std::is_same_v<ToType, float>) {
+				for(unsigned short i=0; i<32; ++i)
+				
+				ToType* converted = new ToType(13.0f);
+				return *converted;
+			}
+		}
+
+		return std::nullopt;
 	}
 
 	/// <summary>

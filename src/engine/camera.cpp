@@ -52,9 +52,9 @@ void Camera::Update()
 		_transform.Translate(_transform.Right() * 0.009f * (float)Time::Instance()._deltaTime);
 	}
 
-	_deltaYaw = _yaw - _lastYaw;
-	_deltaPitch = _pitch - _lastPitch;
-	_deltaRoll = _roll - _lastRoll;
+	_deltaYaw = -(_yaw - _lastYaw);
+	_deltaPitch = -(_pitch - _lastPitch);
+	_deltaRoll = -(_roll - _lastRoll);
 
 	_lastYaw = _yaw;
 	_lastPitch = _pitch;
