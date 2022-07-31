@@ -23,8 +23,8 @@
 
 void Camera::Update()
 {
-	_yaw = -Input::Instance()._mouseX * Settings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
-	_pitch = -Input::Instance()._mouseY * Settings::Instance()._mouseSensitivity; // Same as above. Around the X axis (for pitch) the positive rotation is looking upwards
+	_yaw = Input::Instance()._mouseX * Settings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
+	_pitch = Input::Instance()._mouseY * Settings::Instance()._mouseSensitivity; // Same as above. Around the X axis (for pitch) the positive rotation is looking upwards
 
 	auto _mouseSens = Settings::Instance()._mouseSensitivity;
 
@@ -61,20 +61,13 @@ void Camera::Update()
 	_lastRoll = _roll;
 
 	// First apply roll rotation
-	_transform.Rotate(_transform.Forward(), _deltaRoll);
+	_transform.Rotate(_transform.Forward(), -_deltaRoll);
 
 	// Then apply yaw rotation
-	_transform.Rotate(_transform.Up(), _deltaYaw);
+	_transform.Rotate(_transform.Up(), -_deltaYaw);
 
 	// Then pitch
-	_transform.Rotate(_transform.Right(), _deltaPitch);
-
-
-	// Generate the view matrix. This is the matrix that will transform the position of the vertices in the shader
-	/*auto proxyPosition = _transform.Position();
-	glm::vec3 const cameraForward = _transform.Forward();
-	glm::vec3 const cameraRight = _transform.Right();
-	glm::vec3 const cameraUp = _transform.Up();*/
+	_transform.Rotate(_transform.Right(), -_deltaPitch);
 
 	// Vulkan's coordinate system is: X points to the right, Y points down, Z points towards you
 	// Vulkan's viewport coordinate system is right handed (the x axis points to the right with respect to the z and y axes)
@@ -90,7 +83,6 @@ void Camera::Update()
 	// vertex V 10 units forward from its current position. If instead of moving the camera BACK 10 units we move vertex V FORWARD 10 units, 
 	// we get the exact same effect as if we actually had a camera and moved it backwards. That's it, very simple idea behind the view matrix.
 
-	// _view.SetTransformation(glm::lookAt(proxyPosition, proxyPosition + proxyForward, proxyUp));
 	_view.SetTransformation(glm::inverse(_transform.GetTransformation()));
 }
 

@@ -68,10 +68,9 @@ public:
 		// Create window for Vulkan
 		glfwInit();
 
-
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-		_window = glfwCreateWindow(WIDTH, HEIGHT, "Solar System Explorer", nullptr, nullptr);
+		_window = glfwCreateWindow(WIDTH, HEIGHT, "Hold The Line!", nullptr, nullptr);
 
 		_input = Input::Instance();
 		_input.Init(_window);
@@ -80,9 +79,7 @@ public:
 
 		// Use Vulkan
 		SetupVulkan();
-		system("cls");
 		MainLoop();;
-
 		Cleanup(true);
 	}
 
@@ -140,7 +137,7 @@ private:
 
 
 	// Time
-	std::chrono::high_resolution_clock::time_point	_timeStart;
+	std::chrono::high_resolution_clock::time_point	_timeStart;		// The time the app was started
 	std::chrono::high_resolution_clock::time_point	_lastFrameTime; // Time last frame started
 	double											_deltaTime;		// The time since last frame started in milliseconds
 
@@ -281,9 +278,9 @@ private:
 	void CreateInstance() {
 		VkApplicationInfo appInfo = {};
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-		appInfo.pApplicationName = "VulkanClear";
+		appInfo.pApplicationName = "Hold The Line!";
 		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.pEngineName = "ClearScreenEngine";
+		appInfo.pEngineName = "Celeritas Engine";
 		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
 		appInfo.apiVersion = VK_API_VERSION_1_0;
 
@@ -584,45 +581,8 @@ private:
 
 	void CreateVertexAndIndexBuffers() {
 
-#pragma region PreviousImplementation
-		//// Create an _instance of the Importer class
-		//Assimp::Importer importer;
-
-		//// And have it read the given file with some example postprocessing
-		//// Usually - if speed is not the most important aspect for you - you'll
-		//// probably to request more postprocessing than we do in this example.
-		//const aiScene* scene = importer.ReadFile("C:\\Users\\paolo.parker\\source\\repos\\celeritas-engine\\models\\monkey.dae",
-		//	aiProcess_CalcTangentSpace |
-		//	aiProcess_Triangulate |
-		//	aiProcess_JoinIdenticalVertices |
-		//	aiProcess_SortByPType);
-
-		//// If the import failed, report it
-		//if (nullptr == scene) {
-		//	std::cout << "import failed\n";
-		//}
-
-		//for (int i = 0; i < scene->mMeshes[0]->mNumVertices; ++i) {
-		//	float xCoord = scene->mMeshes[0]->mVertices[i].x;
-		//	float yCoord = scene->mMeshes[0]->mVertices[i].y;
-		//	float zCoord = scene->mMeshes[0]->mVertices[i].z;
-		//	model.vertices.push_back(Vertex{ xCoord, yCoord, zCoord });
-		//};
-		//model.verticesSize = (uint32_t)(model.vertices.size() * sizeof(model.vertices[0]));
-
-		//// Setup indices
-		//for (int i = 0; i < scene->mMeshes[0]->mNumFaces; ++i) {
-		//	uint32_t index1 = scene->mMeshes[0]->mFaces[i].mIndices[0];
-		//	uint32_t index2 = scene->mMeshes[0]->mFaces[i].mIndices[1];
-		//	uint32_t index3 = scene->mMeshes[0]->mFaces[i].mIndices[2];
-		//	model.indices.push_back(index1);
-		//	model.indices.push_back(index2);
-		//	model.indices.push_back(index3);
-		//};
-		//model.indicesSize = (uint32_t)(model.indices.size() * sizeof(model.indices[0]));
-#pragma endregion
-
 #pragma region SceneLoading
+		// Load the scene
 		_scene = GltfLoader::Load(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
 		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._vertexPositions);
 		auto faceIndicesSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._faceIndices);
@@ -770,24 +730,12 @@ private:
 		UpdateUniformData();
 	}
 
-	void clearscreen()
-	{
-		HANDLE hOut;
-		COORD Position;
-
-		hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-
-		Position.X = 0;
-		Position.Y = 0;
-		SetConsoleCursorPosition(hOut, Position);
-	}
-
+	/// <summary>
+	/// Update the data that will be sent to the shaders
+	/// </summary>
 	void UpdateUniformData() {
 
 		_mainCamera.Update();
-
-		// Create a transformation matrix that maps the world's X to cameraRight, the world's Y to cameraUp and the world's Z to cameraForward
-		// This way the vertex shader will put the vertices in the correct position by multiplying each vertex's position by the resulting matrix
 
 		// Vulkan's coordinate system is:
 		// X points right, Y points down, Z points towards you
@@ -796,7 +744,7 @@ private:
 		worldToVulkan.SetTransformation(glm::mat4x4{
 			glm::vec4(1.0f,  0.0f, 0.0f, 0.0f),		// Column 1
 			glm::vec4(0.0f, -1.0f, 0.0f, 0.0f),		// Column 2
-			glm::vec4(0.0f,  0.0f, 1.0f, 0.0f),	// Column 3
+			glm::vec4(0.0f,  0.0f, -1.0f, 0.0f),	// Column 3
 			glm::vec4(0.0f,  0.0f, 0.0f, 1.0f)		// Column 4
 			});
 
