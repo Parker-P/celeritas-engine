@@ -32,6 +32,7 @@
     <ClCompile Include="src\engine\VulkanApplication.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="KeyBinds.hpp" />
     <ClInclude Include="src\engine\Camera.hpp" />
     <ClInclude Include="src\engine\GameObject.hpp" />
     <ClInclude Include="src\engine\GltfLoader.hpp" />
