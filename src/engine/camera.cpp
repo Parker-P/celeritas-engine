@@ -3,6 +3,8 @@
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/ext.hpp>
+#include <vector>
+#include <map>
 
 #include "Singleton.hpp"
 #include "Time.hpp"
@@ -23,38 +25,42 @@
 
 void Camera::Update()
 {
-	_yaw = Input::Instance()._mouseX * Settings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
-	_pitch = Input::Instance()._mouseY * Settings::Instance()._mouseSensitivity; // Same as above. Around the X axis (for pitch) the positive rotation is looking upwards
+	auto& input = Input::Instance();
+	auto& time = Time::Instance();
+
+	_yaw = input._mouseX * Settings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
+	_pitch = input._mouseY * Settings::Instance()._mouseSensitivity; // Same as above. Around the X axis (for pitch) the positive rotation is looking upwards
 
 	auto _mouseSens = Settings::Instance()._mouseSensitivity;
+	
 
-	if (Input::Instance().IsKeyHeldDown("q")) {
+	if (input.IsKeyHeldDown(GLFW_KEY_Q)) {
 		_roll -= 0.1f * (float)Time::Instance()._deltaTime;
 	}
 
-	if (Input::Instance().IsKeyHeldDown("e")) {
+	if (input.IsKeyHeldDown(GLFW_KEY_E)) {
 		_roll += 0.1f * (float)Time::Instance()._deltaTime;
 	}
 
-	if (Input::Instance().IsKeyHeldDown("w")) {
-		_transform.Translate(_transform.Forward() * 0.009f * (float)Time::Instance()._deltaTime);
+	if (input.IsKeyHeldDown(GLFW_KEY_W)) {
+		_transform.Translate(_transform.Forward() * 0.009f * (float)time._deltaTime);
 	}
 
-	if (Input::Instance().IsKeyHeldDown("a")) {
-		_transform.Translate(-_transform.Right() * 0.009f * (float)Time::Instance()._deltaTime);
+	if (input.IsKeyHeldDown(GLFW_KEY_A)) {
+		_transform.Translate(-_transform.Right() * 0.009f * (float)time._deltaTime);
 	}
 
-	if (Input::Instance().IsKeyHeldDown("s")) {
-		_transform.Translate(-_transform.Forward() * 0.009f * (float)Time::Instance()._deltaTime);
+	if (input.IsKeyHeldDown(GLFW_KEY_S)) {
+		_transform.Translate(-_transform.Forward() * 0.009f * (float)time._deltaTime);
 	}
 
-	if (Input::Instance().IsKeyHeldDown("d")) {
-		_transform.Translate(_transform.Right() * 0.009f * (float)Time::Instance()._deltaTime);
+	if (input.IsKeyHeldDown(GLFW_KEY_D)) {
+		_transform.Translate(_transform.Right() * 0.009f * (float)time._deltaTime);
 	}
 
-	_deltaYaw = -(_yaw - _lastYaw);
-	_deltaPitch = -(_pitch - _lastPitch);
-	_deltaRoll = -(_roll - _lastRoll);
+	float _deltaYaw = -(_yaw - _lastYaw);
+	float _deltaPitch = -(_pitch - _lastPitch);
+	float _deltaRoll = -(_roll - _lastRoll);
 
 	_lastYaw = _yaw;
 	_lastPitch = _pitch;
@@ -72,6 +78,8 @@ void Camera::Update()
 	// Vulkan's coordinate system is: X points to the right, Y points down, Z points towards you
 	// Vulkan's viewport coordinate system is right handed (the x axis points to the right with respect to the z and y axes)
 	// and we are doing all our calculations assuming +Z is forward and +X is right, so using a left-handed coordinate system
+	// Supposedly, this is because the screen renders it's images starting from the top left and ending at the bottom right,
+	// Infact coordinates (0,0) in Vulkan correspond to the top left of the screen
 
 	// We use the inverse of the camera transformation matrix because this matrix will be applied to each vertex of each object in the scene in the vertex shader.
 	// There is no such thing as a camera, because in the end we use the position of the vertices to draw stuff on screen. We can only modify the position of the

@@ -24,6 +24,7 @@
     <ClCompile Include="src\engine\GltfLoader.cpp" />
     <ClCompile Include="src\engine\Input.cpp" />
     <ClCompile Include="src\engine\Json.cpp" />
+    <ClCompile Include="src\engine\KeyBinds.cpp" />
     <ClCompile Include="src\engine\Mesh.cpp" />
     <ClCompile Include="src\engine\Scene.cpp" />
     <ClCompile Include="src\engine\Settings.cpp" />
@@ -32,12 +33,12 @@
     <ClCompile Include="src\engine\VulkanApplication.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="KeyBinds.hpp" />
     <ClInclude Include="src\engine\Camera.hpp" />
     <ClInclude Include="src\engine\GameObject.hpp" />
     <ClInclude Include="src\engine\GltfLoader.hpp" />
     <ClInclude Include="src\engine\Input.hpp" />
     <ClInclude Include="src\engine\Json.h" />
+    <ClInclude Include="src\engine\KeyBinds.hpp" />
     <ClInclude Include="src\engine\Mesh.hpp" />
     <ClInclude Include="src\engine\Scene.hpp" />
     <ClInclude Include="src\engine\Settings.hpp" />

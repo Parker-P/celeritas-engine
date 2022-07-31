@@ -9,9 +9,6 @@ public:
 	float _lastYaw;
 	float _lastPitch;
 	float _lastRoll;
-	float _deltaYaw;
-	float _deltaPitch;
-	float _deltaRoll;
 
 	float _yaw;
 	float _pitch;

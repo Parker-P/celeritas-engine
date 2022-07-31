@@ -1,22 +1,33 @@
 #pragma once
 
 class Key {
+public:
 	bool _isHeldDown;
 	bool _wasPressed;
+	int _code;
+	Key() = default;
+	Key(int code) : _code(code), _isHeldDown(false), _wasPressed(false) {}
+};
+
+class KeyCombo {
 public:
-	static std::string _code;
+	std::vector<Key> _keys;
+	bool IsActive();
 };
 
 class Input : public Singleton<Input> {
-
-	Key W;
-	Key A;
-	Key S;
-	Key D;
-	Key Q;
-	Key E;
-
 public:
+	std::map<int, Key> _keys;
+
+	/*Key W		{ GLFW_KEY_W };
+	Key A		{ GLFW_KEY_A };
+	Key S		{ GLFW_KEY_S };
+	Key D		{ GLFW_KEY_D };
+	Key Q		{ GLFW_KEY_Q };
+	Key E		{ GLFW_KEY_E };
+	Key SPACE	{ GLFW_KEY_SPACE };
+	Key ESC		{ GLFW_KEY_ESCAPE };
+	Key CTRL	{ GLFW_KEY_LEFT_CONTROL };*/
 
 	// Mouse
 	double _mouseX;
@@ -26,12 +37,6 @@ public:
 	static void CursorPositionCallback(GLFWwindow* window, double xPos, double yPos);
 
 	void Init(GLFWwindow* window);
-	bool IsKeyHeldDown(std::string);
-	bool WasKeyPressed(std::string);
-};
-
-class KeyCombo {
-	std::vector<Key> _keys;
-public:
-	bool IsActive();
+	bool IsKeyHeldDown(int glfwKeyCode);
+	bool WasKeyPressed(int glfwKeyCode);
 };

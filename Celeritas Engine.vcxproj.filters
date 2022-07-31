@@ -147,7 +147,37 @@
     <ClInclude Include="src\engine\VulkanApplication.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\*\*.hpp">
+    <ClInclude Include="src\engine\GameObject.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\GltfLoader.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Input.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Mesh.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Scene.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Settings.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Singleton.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Time.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Transform.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\Utils.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\VulkanApplication.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\*\*.hpp">
@@ -187,9 +217,6 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\VulkanApplication.cpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\*\*.cpp">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="src\*\*.cpp">
@@ -310,9 +337,6 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\Mesh.cpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Model.cpp">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\Scene.cpp">
@@ -444,7 +468,7 @@
     <ClInclude Include="src\engine\Time.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="KeyBinds.hpp">
+    <ClInclude Include="src\engine\KeyBinds.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -480,6 +504,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\engine\Time.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\KeyBinds.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
