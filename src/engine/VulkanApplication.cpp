@@ -180,6 +180,9 @@ private:
 
 	void MainLoop() {
 		while (!glfwWindowShouldClose(_window)) {
+			if (_input.Instance().WasKeyPressed(GLFW_KEY_ESCAPE)) {
+				_input.Instance().ToggleCursor(_window);
+			}
 			CalculateDeltaTime();
 			UpdateUniformData();
 			Draw();

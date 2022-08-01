@@ -58,6 +58,14 @@ void Camera::Update()
 		_transform.Translate(_transform.Right() * 0.009f * (float)time._deltaTime);
 	}
 
+	if (input.IsKeyHeldDown(GLFW_KEY_SPACE)) {
+		_transform.Translate(_transform.Up() * 0.009f * (float)time._deltaTime);
+	}
+
+	if (input.IsKeyHeldDown(GLFW_KEY_LEFT_CONTROL)) {
+		_transform.Translate(-_transform.Up() * 0.009f * (float)time._deltaTime);
+	}
+
 	float _deltaYaw = -(_yaw - _lastYaw);
 	float _deltaPitch = -(_pitch - _lastPitch);
 	float _deltaRoll = -(_roll - _lastRoll);

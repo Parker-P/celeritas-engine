@@ -29,7 +29,7 @@ void Input::Init(GLFWwindow* window) {
 }
 
 void Input::KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-	
+
 	Instance()._keys.try_emplace(key, Key(key));
 
 	if (action == GLFW_PRESS) {
@@ -45,8 +45,10 @@ void Input::KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
 }
 
 void Input::CursorPositionCallback(GLFWwindow* window, double xPos, double yPos) {
-	Input::Instance()._mouseX = xPos;
-	Input::Instance()._mouseY = yPos;
+	if (!Input::Instance()._cursorEnabled) {
+		Input::Instance()._mouseX = xPos;
+		Input::Instance()._mouseY = yPos;
+	}
 }
 
 bool Input::IsKeyHeldDown(int glfwKeyCode) {
@@ -60,5 +62,15 @@ bool Input::WasKeyPressed(int glfwKeyCode) {
 	bool wasPressed = _keys[glfwKeyCode]._wasPressed;
 	_keys[glfwKeyCode]._wasPressed = false;
 	return wasPressed;
+}
+
+void Input::ToggleCursor(GLFWwindow* window) {
+	if (_cursorEnabled) {
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	}
+	else {
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+	}
+	_cursorEnabled = !_cursorEnabled;
 }
 #pragma endregion
