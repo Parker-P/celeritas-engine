@@ -1,4 +1,8 @@
 {
+  "DebugMode": "true",
+  "ValidationLayers": [
+    "VK_LAYER_KHRONOS_validation"
+  ],
   "WindowSize": {
     "Width": 1920,
     "Height": 1080

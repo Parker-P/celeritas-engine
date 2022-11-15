@@ -1,8 +1,9 @@
 #pragma once
 
-class Settings
+class Settings : public Singleton<Settings>
 {
-	static uint32_t _windowWidth;
-	static uint32_t _windowHeight;
-	static float _mouseSensitivity;
+public:
+	uint32_t _windowWidth;
+	uint32_t _windowHeight;
+	float _mouseSensitivity;
 };

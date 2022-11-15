@@ -89,9 +89,9 @@ namespace Engine::Vulkan
 		double											_deltaTime;		// The time since last frame started in milliseconds
 
 		// Misc
-		Scene _scene;
+		Scenes::Scene _scene;
 		Input::KeyboardMouse _input;
-		Camera _mainCamera;
+		Scenes::Camera _mainCamera;
 		glm::mat4 _modelMatrix;
 
 		void InitializeWindow();

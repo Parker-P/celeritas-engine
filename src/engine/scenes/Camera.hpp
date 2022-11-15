@@ -1,5 +1,5 @@
 #pragma once
-namespace Engine::Vulkan
+namespace Engine::Scenes
 {
 	class Camera : public GameObject
 	{

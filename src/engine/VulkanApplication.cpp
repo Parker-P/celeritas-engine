@@ -21,6 +21,7 @@
 // Project local classes
 #include "utils/Json.h"
 #include "structural/Singleton.hpp"
+#include "settings/Paths.hpp"
 #include "engine/Time.hpp"
 #include "engine/input/Input.hpp"
 #include "engine/math/Transform.hpp"
@@ -31,7 +32,7 @@
 #include "utils/Utils.hpp"
 #include "engine/scenes/GltfLoader.hpp"
 #include "engine/math/Transform.hpp"
-#include "VulkanApplication.hpp"
+#include "engine/VulkanApplication.hpp"
 
 namespace Engine::Vulkan
 {
@@ -79,7 +80,7 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::LoadSettings()
 	{
-		std::wstring settingsFilePath = std::filesystem::current_path().c_str() + std::wstring(L"\\src\\engine\\Settings.json");
+		std::wstring settingsFilePath = Settings::Paths::_settings();
 		auto text = Utils::ReadTextFile(settingsFilePath);
 
 		json::parsing::parse_results json = json::parsing::parse(text.data());

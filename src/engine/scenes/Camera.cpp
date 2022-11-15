@@ -21,7 +21,7 @@
 //	projection = glm::perspective(glm::radians(FOV), aspectRatio, nearClipPlaneDistance, farClipPlaneDistance);
 //}
 //
-namespace Engine::Vulkan
+namespace Engine::Scenes
 {
 	void Camera::Update()
 	{

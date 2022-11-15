@@ -33,7 +33,7 @@
     <ClCompile Include="src\engine\VulkanApplication.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\utils\Paths.hpp" />
+    <ClInclude Include="src\settings\Paths.hpp" />
     <ClInclude Include="src\engine\scenes\Camera.hpp" />
     <ClInclude Include="src\engine\scenes\GameObject.hpp" />
     <ClInclude Include="src\engine\scenes\GltfLoader.hpp" />
@@ -50,8 +50,7 @@
     <ClInclude Include="src\engine\VulkanApplication.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\settings\EngineSettings.json" />
-    <None Include="src\settings\GameSettings.json" />
+    <None Include="src\settings\Settings.json" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -157,7 +156,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_MSC_PLATFORM_TOOLSET_$(PlatformToolset);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\\Include;C:\code\celeritas-engine\src;C:\code\celeritas-engine\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
@@ -174,8 +173,8 @@
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\VertexShader.vert" -o "$(SolutionDir)src\engine\VertexShader.spv"
-$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\FragmentShader.frag" -o "$(SolutionDir)src\engine\FragmentShader.spv"</Command>
+      <Command>$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\VertexShader.vert" -o "$(SolutionDir)src\engine\shaders\VertexShader.spv"
+$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\FragmentShader.frag" -o "$(SolutionDir)src\engine\shaders\FragmentShader.spv"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -187,7 +186,7 @@ $(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\FragmentShader.frag" -o "$
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\\Include;C:\code\celeritas-engine\src;C:\code\celeritas-engine\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
@@ -200,8 +199,8 @@ $(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\FragmentShader.frag" -o "$
       <AdditionalDependencies>assimp-vc142-mtd.lib;vulkan-1.lib;glfw3.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\vertex_shader.vert" -o "$(SolutionDir)src\engine\vertex_shader.spv"
-$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\fragment_shader.frag" -o "$(SolutionDir)src\engine\fragment_shader.spv"</Command>
+      <Command>$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\VertexShader.vert" -o "$(SolutionDir)src\engine\shaders\VertexShader.spv"
+$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\FragmentShader.frag" -o "$(SolutionDir)src\engine\shaders\FragmentShader.spv"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
