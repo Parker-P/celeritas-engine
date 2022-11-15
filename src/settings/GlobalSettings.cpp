@@ -36,9 +36,10 @@ namespace Settings
 		_validationLayers.reserve(validationLayers.size());
 
 		for (int i = 0; i < validationLayers.size(); ++i) {
-			std::string str = validationLayers.array(i).as_string();
-			auto cpy = str.c_str();
-			_validationLayers.emplace_back(cpy);
+			auto str = validationLayers.array(i).as_string();
+			char* ch = new char; 
+			memcpy(ch, validationLayers.array(i).as_string().data(), str.length());
+			_validationLayers.emplace_back(ch);
 		}
 
 		auto windowSize = json::jobject::parse(rootObj.get("WindowSize"));

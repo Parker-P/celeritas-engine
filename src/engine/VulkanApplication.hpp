@@ -167,7 +167,7 @@ namespace Engine::Vulkan
 
 		void CreateFramebuffers();
 
-		VkShaderModule createShaderModule(const std::string& filename);
+		VkShaderModule CreateShaderModule(const std::filesystem::path& absolutePath);
 
 		void CreateGraphicsPipeline();
 

@@ -54,7 +54,6 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::Run()
 	{
-		// Note: dynamically loading loader may be a better idea to fail gracefully when Vulkan is not supported
 		_timeStart = std::chrono::high_resolution_clock::now();
 
 		// Create window for Vulkan
@@ -940,7 +939,7 @@ namespace Engine::Vulkan
 	{
 		_swapChainImageViews.resize(_swapChainImages.size());
 
-		// Create an image view for every image in the swap chain
+		// Create an image view for every image in the swap chain.
 		for (size_t i = 0; i < _swapChainImages.size(); i++) {
 			VkImageViewCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -989,9 +988,9 @@ namespace Engine::Vulkan
 		std::cout << "created framebuffers for swap chain image views" << std::endl;
 	}
 
-	VkShaderModule VulkanApplication::createShaderModule(const std::string& filename)
+	VkShaderModule VulkanApplication::CreateShaderModule(const std::filesystem::path& absolutePath)
 	{
-		std::ifstream file(filename, std::ios::ate | std::ios::binary);
+		std::ifstream file(absolutePath.c_str(), std::ios::ate | std::ios::binary);
 		VkShaderModule shaderModule = nullptr;
 		if (file.is_open()) {
 			std::vector<char> fileBytes(file.tellg());
@@ -1005,21 +1004,24 @@ namespace Engine::Vulkan
 			createInfo.pCode = (uint32_t*)fileBytes.data();
 
 			if (vkCreateShaderModule(_logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-				std::cerr << "failed to create shader module for " << filename << std::endl;
+				std::wcerr << "failed to create shader module for " << absolutePath.c_str() << std::endl;
 				exit(1);
 			}
 
-			std::cout << "created shader module for " << filename << std::endl;
+			std::wcout << "created shader module for " << absolutePath.c_str() << std::endl;
 		}
-		else { std::cout << "failed to open file " + filename << std::endl; exit(0); }
+		else {
+			std::wcout << "failed to open file " << absolutePath.c_str() << std::endl;
+			exit(0); 
+		}
 
 		return shaderModule;
 	}
 
 	void VulkanApplication::CreateGraphicsPipeline()
 	{
-		VkShaderModule vertexShaderModule = createShaderModule(std::filesystem::current_path().string() + R"(\src\engine\VertexShader.spv)");
-		VkShaderModule fragmentShaderModule = createShaderModule(std::filesystem::current_path().string() + R"(\src\engine\FragmentShader.spv)");
+		VkShaderModule vertexShaderModule = CreateShaderModule(Settings::Paths::_vertexShaderPath());
+		VkShaderModule fragmentShaderModule = CreateShaderModule(Settings::Paths::_fragmentShaderPath());
 
 		// Set up shader stage info
 		VkPipelineShaderStageCreateInfo vertexShaderCreateInfo = {};
