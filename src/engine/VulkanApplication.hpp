@@ -20,15 +20,8 @@ namespace Engine::Vulkan
 
 	private:
 
-		// Game settings
-		uint32_t WIDTH;
-		uint32_t HEIGHT;
-
-		// Engine settings
-		bool enableValidationLayers = true;
-		std::vector<const char*> validationLayers = {
-			"VK_LAYER_KHRONOS_validation"
-		};
+		// Settings
+		Settings::GlobalSettings& _settings = Settings::GlobalSettings::Instance();
 
 		// Window
 		GLFWwindow* _window;
@@ -94,12 +87,24 @@ namespace Engine::Vulkan
 		Scenes::Camera _mainCamera;
 		glm::mat4 _modelMatrix;
 
+		/// <summary>
+		/// Initializes the window.
+		/// </summary>
 		void InitializeWindow();
 
+		/// <summary>
+		/// Loads global settings from the json file.
+		/// </summary>
 		void LoadSettings();
 
+		/// <summary>
+		/// Calculates the time elapsed since rendering the last frame.
+		/// </summary>
 		void CalculateDeltaTime();
 
+		/// <summary>
+		/// Initializes the engine.
+		/// </summary>
 		void SetupVulkan();
 
 		void MainLoop();

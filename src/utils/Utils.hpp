@@ -55,48 +55,98 @@ namespace Utils
 		return sizeof(decltype(vector)::value_type) * vector.size();
 	}
 
-	/// <summary>
-	/// Convert values. Returns the converted value or nullopt if value could not be converted.
-	/// </summary>
-	template <typename FromType, typename ToType>
-	inline std::optional<ToType> Convert(FromType value)
+	class Converter
 	{
-		ToType convertedValue;
-		if (std::is_same_v<FromType, uint32_t>) {
-			if (std::is_same_v<ToType, float>) {
-				int intermediateValue = 0;
-				for (unsigned short i = 32; i > 0; --i) {
-					unsigned char ithBitFromRight = (value >> i) & 1;
-					intermediateValue |= (ithBitFromRight << i);
+	public:
+		/// <summary>
+		/// Convert values. Returns the converted value.
+		/// </summary>
+		template <typename FromType, typename ToType>
+		static inline ToType Convert(FromType value)
+		{
+			return Convert<ToType>(value);
+		}
+
+		/// <summary>
+		/// Converts uint32_t to float.
+		/// </summary>
+		/// <param name="value"></param>
+		/// <returns></returns>
+		template<> 
+		static inline float Convert(uint32_t value)
+		{
+			int intermediateValue = 0;
+			for (unsigned short i = 32; i > 0; --i) {
+				unsigned char ithBitFromRight = ((uint32_t)value >> i) & 1;
+				intermediateValue |= (ithBitFromRight << i);
+			}
+			return static_cast<float>(intermediateValue);
+		}
+
+		/// <summary>
+		/// Converts string to bool.
+		/// </summary>
+		/// <param name="value"></param>
+		/// <returns>true if the value is either "true" (case insensitive) or 1, false otherwise.</returns>
+		template<>
+		static inline bool Convert(std::string value)
+		{
+			std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return std::tolower(c); });
+			if (value == "true" || value == "1")
+			{
+				return true;
+			}
+			return false;
+		}
+
+		/// <summary>
+		/// Converts string to int.
+		/// </summary>
+		/// <param name="value"></param>
+		/// <returns></returns>
+		template<>
+		static inline int Convert(std::string value)
+		{
+			return std::stoi(value);
+		}
+
+		/// <summary>
+		/// Converts string to float.
+		/// </summary>
+		/// <param name="value"></param>
+		/// <returns></returns>
+		template<>
+		static inline float Convert(std::string value)
+		{
+			return std::stof(value);
+		}
+	};
+
+	class File
+	{
+	public:
+
+		/// <summary>
+		/// Reads an ASCII or UNICODE text file.
+		/// </summary>
+		/// <param name="absolutePath"></param>
+		/// <returns></returns>
+		static inline std::string ReadAllText(std::filesystem::path absolutePath)
+		{
+			std::fstream textFile{ absolutePath, std::ios::in };
+			std::string fileText{};
+
+			if (textFile.is_open()) {
+				char nextChar = textFile.get();
+
+				while (nextChar >= 0) {
+					fileText += nextChar;
+					nextChar = textFile.get();
 				}
-				convertedValue = static_cast<float>(intermediateValue);
-				return convertedValue;
 			}
+			return fileText;
 		}
-
-		return std::nullopt;
-	}
-
-	/*namespace File
-	{
-		
-	}*/
-
-	inline std::string ReadTextFile(std::filesystem::path absolutePath)
-	{
-		std::fstream textFile{ absolutePath, std::ios::in };
-		std::string fileText{};
-
-		if (textFile.is_open()) {
-			char nextChar = textFile.get();
-
-			while (nextChar >= 0) {
-				fileText += nextChar;
-				nextChar = textFile.get();
-			}
-		}
-		return fileText;
-	}
+	};
 
 	/// <summary>
 	/// Prints a message to a stream given a function that does the printing and a message. 

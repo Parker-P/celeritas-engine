@@ -21,6 +21,7 @@
 // Project local classes
 #include "utils/Json.h"
 #include "structural/Singleton.hpp"
+#include "settings/GlobalSettings.hpp"
 #include "settings/Paths.hpp"
 #include "engine/Time.hpp"
 #include "engine/input/Input.hpp"
@@ -59,7 +60,7 @@ namespace Engine::Vulkan
 		// Create window for Vulkan
 		LoadSettings();
 		InitializeWindow();
-		
+
 		_input = Input::KeyboardMouse::Instance();
 		_input.Init(_window);
 
@@ -67,7 +68,7 @@ namespace Engine::Vulkan
 
 		// Use Vulkan
 		SetupVulkan();
-		MainLoop();;
+		MainLoop();
 		Cleanup(true);
 	}
 
@@ -75,18 +76,12 @@ namespace Engine::Vulkan
 	{
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		_window = glfwCreateWindow(WIDTH, HEIGHT, "Hold The Line!", nullptr, nullptr);
+		_window = glfwCreateWindow(_settings._windowWidth, _settings._windowHeight, "Hold The Line!", nullptr, nullptr);
 	}
 
 	void VulkanApplication::LoadSettings()
 	{
-		std::wstring settingsFilePath = Settings::Paths::_settings();
-		auto text = Utils::ReadTextFile(settingsFilePath);
-
-		json::parsing::parse_results json = json::parsing::parse(text.data());
-		json::jobject rootObj = json::jobject::parse(json.value);
-
-		auto meshes = json::jobject::parse(rootObj.get("meshes"));
+		_settings.Load(Settings::Paths::_settings());
 	}
 
 	void VulkanApplication::CalculateDeltaTime()
@@ -192,7 +187,7 @@ namespace Engine::Vulkan
 
 			vkDestroySurfaceKHR(_instance, _windowSurface, nullptr);
 
-			if (enableValidationLayers) {
+			if (_settings._enableValidationLayers) {
 				PFN_vkDestroyDebugReportCallbackEXT DestroyDebugReportCallback = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(_instance, "vkDestroyDebugReportCallbackEXT");
 				DestroyDebugReportCallback(_instance, _callback, nullptr);
 			}
@@ -209,7 +204,7 @@ namespace Engine::Vulkan
 		std::vector<VkLayerProperties> availableLayers(layerCount);
 		vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
-		for (const char* layerName : validationLayers) {
+		for (const char* layerName : _settings._validationLayers) {
 			bool layerFound = false;
 
 			for (const auto& layerProperties : availableLayers) {
@@ -246,7 +241,7 @@ namespace Engine::Vulkan
 			extensions.push_back(glfwExtensions[i]);
 		}
 
-		if (enableValidationLayers) {
+		if (_settings._enableValidationLayers) {
 			extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 		}
 
@@ -274,10 +269,10 @@ namespace Engine::Vulkan
 		createInfo.enabledExtensionCount = (uint32_t)extensions.size();
 		createInfo.ppEnabledExtensionNames = extensions.data();
 
-		if (enableValidationLayers) {
+		if (_settings._enableValidationLayers) {
 			if (CheckValidationLayerSupport()) {
 				createInfo.enabledLayerCount = 1;
-				createInfo.ppEnabledLayerNames = validationLayers.data();
+				createInfo.ppEnabledLayerNames = _settings._validationLayers.data();
 			}
 		}
 
@@ -464,9 +459,9 @@ namespace Engine::Vulkan
 		deviceCreateInfo.ppEnabledExtensionNames = &deviceExtensions;
 		deviceCreateInfo.pEnabledFeatures = &enabledFeatures;
 
-		if (enableValidationLayers) {
+		if (_settings._enableValidationLayers) {
 			deviceCreateInfo.enabledLayerCount = 1;
-			deviceCreateInfo.ppEnabledLayerNames = validationLayers.data();
+			deviceCreateInfo.ppEnabledLayerNames = _settings._validationLayers.data();
 		}
 
 		if (vkCreateDevice(_physicalDevice, &deviceCreateInfo, nullptr, &_logicalDevice) != VK_SUCCESS) {
@@ -487,7 +482,7 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateDebugCallback()
 	{
-		if (enableValidationLayers) {
+		if (_settings._enableValidationLayers) {
 			VkDebugReportCallbackCreateInfoEXT createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
 			createInfo.pfnCallback = (PFN_vkDebugReportCallbackEXT)debugCallback;
@@ -877,8 +872,8 @@ namespace Engine::Vulkan
 		if (surfaceCapabilities.currentExtent.width == -1) {
 			VkExtent2D swapChainExtent = {};
 
-			swapChainExtent.width = std::min(std::max(WIDTH, surfaceCapabilities.minImageExtent.width), surfaceCapabilities.maxImageExtent.width);
-			swapChainExtent.height = std::min(std::max(HEIGHT, surfaceCapabilities.minImageExtent.height), surfaceCapabilities.maxImageExtent.height);
+			swapChainExtent.width = std::min(std::max(_settings._windowWidth, surfaceCapabilities.minImageExtent.width), surfaceCapabilities.maxImageExtent.width);
+			swapChainExtent.height = std::min(std::max(_settings._windowHeight, surfaceCapabilities.minImageExtent.height), surfaceCapabilities.maxImageExtent.height);
 
 			return swapChainExtent;
 		}
@@ -1068,8 +1063,8 @@ namespace Engine::Vulkan
 		VkViewport viewport = {};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
-		viewport.width = Utils::Convert<uint32_t, float>(_swapChainExtent.width).value();
-		viewport.height = Utils::Convert<uint32_t, float>(_swapChainExtent.height).value();
+		viewport.width = Utils::Converter::Convert<uint32_t, float>(_swapChainExtent.width);
+		viewport.height = Utils::Converter::Convert<uint32_t, float>(_swapChainExtent.height);
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 

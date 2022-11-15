@@ -105,7 +105,7 @@
     <ClInclude Include="src\engine\Scene.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\settings\Settings.hpp">
+    <ClInclude Include="src\settings\GlobalSettings.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\Singleton.hpp">
@@ -518,11 +518,11 @@
     <ClCompile Include="src\game\input\KeyBinds.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\settings\Settings.cpp">
+    <ClCompile Include="src\settings\GlobalSettings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\settings\Settings.json" />
+    <None Include="src\settings\GlobalSettings.json" />
   </ItemGroup>
 </Project>

@@ -1,5 +1,5 @@
 {
-  "DebugMode": "true",
+  "EnableValidationLayers": "true",
   "ValidationLayers": [
     "VK_LAYER_KHRONOS_validation"
   ],

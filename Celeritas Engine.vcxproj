@@ -27,7 +27,7 @@
     <ClCompile Include="src\game\input\KeyBinds.cpp" />
     <ClCompile Include="src\engine\scenes\Mesh.cpp" />
     <ClCompile Include="src\engine\scenes\Scene.cpp" />
-    <ClCompile Include="src\settings\Settings.cpp" />
+    <ClCompile Include="src\settings\GlobalSettings.cpp" />
     <ClCompile Include="src\engine\Time.cpp" />
     <ClCompile Include="src\engine\math\Transform.cpp" />
     <ClCompile Include="src\engine\VulkanApplication.cpp" />
@@ -42,7 +42,7 @@
     <ClInclude Include="src\game\input\KeyBinds.hpp" />
     <ClInclude Include="src\engine\scenes\Mesh.hpp" />
     <ClInclude Include="src\engine\scenes\Scene.hpp" />
-    <ClInclude Include="src\settings\Settings.hpp" />
+    <ClInclude Include="src\settings\GlobalSettings.hpp" />
     <ClInclude Include="src\structural\Singleton.hpp" />
     <ClInclude Include="src\engine\Time.hpp" />
     <ClInclude Include="src\engine\math\Transform.hpp" />
@@ -50,7 +50,7 @@
     <ClInclude Include="src\engine\VulkanApplication.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\settings\Settings.json" />
+    <None Include="src\settings\GlobalSettings.json" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

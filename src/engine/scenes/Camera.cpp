@@ -1,5 +1,6 @@
 #include <string>
 #include <iostream>
+#include <filesystem>
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/ext.hpp>
@@ -8,7 +9,7 @@
 
 #include "structural/Singleton.hpp"
 #include "engine/Time.hpp"
-#include "settings/Settings.hpp"
+#include "settings/GlobalSettings.hpp"
 #include "engine/input/Input.hpp"
 #include "engine/math/Transform.hpp"
 #include "engine/scenes/GameObject.hpp"
@@ -28,10 +29,10 @@ namespace Engine::Scenes
 		auto& input = Input::KeyboardMouse::Instance();
 		auto& time = Time::Instance();
 
-		_yaw = input._mouseX * Settings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
-		_pitch = input._mouseY * Settings::Instance()._mouseSensitivity; // Same as above. Around the X axis (for pitch) the positive rotation is looking upwards
+		_yaw = input._mouseX * Settings::GlobalSettings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
+		_pitch = input._mouseY * Settings::GlobalSettings::Instance()._mouseSensitivity; // Same as above. Around the X axis (for pitch) the positive rotation is looking upwards
 
-		auto _mouseSens = Settings::Instance()._mouseSensitivity;
+		auto _mouseSens = Settings::GlobalSettings::Instance()._mouseSensitivity;
 
 
 		if (input.IsKeyHeldDown(GLFW_KEY_Q)) {
