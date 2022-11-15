@@ -6,154 +6,172 @@
 // Styleguide used for this project: https://google.github.io/styleguide/cppguide.html
 // Original project was: https://gist.github.com/Overv/7ac07356037592a121225172d7d78f2d
 
-/// <summary>
-/// This is a class for a generic Vulkan application
-/// </summary>
-class VulkanApplication
+
+namespace Engine::Vulkan
 {
-public:
-
-	void Run();
-
-private:
-	// Window
-	GLFWwindow* _window;
-
-	// Basic vulkan stuff
-	VkInstance							_instance;
-	VkSurfaceKHR						_windowSurface;
-	VkPhysicalDevice					_physicalDevice;
-	VkDevice							_logicalDevice;
-	VkDebugReportCallbackEXT			_callback;
-	VkQueue								_graphicsQueue;
-	uint32_t							_graphicsQueueFamily;
-	VkQueue								_presentQueue;
-	uint32_t							_presentQueueFamily;
-	VkPhysicalDeviceMemoryProperties	_deviceMemoryProperties;
-	VkSemaphore							_imageAvailableSemaphore;
-	VkSemaphore							_renderingFinishedSemaphore;
-	VkRenderPass						_renderPass;
-	VkPipeline							_graphicsPipeline;
-
-	// Vertex and index buffers
-	VkBuffer										_vertexBuffer;
-	VkDeviceMemory									_vertexBufferMemory;
-	VkBuffer										_indexBuffer;
-	VkDeviceMemory									_indexBufferMemory;
-	VkVertexInputBindingDescription					_vertexBindingDescription;
-	std::vector<VkVertexInputAttributeDescription>	_vertexAttributeDescriptions;
-
-	// Shader resources (descriptor sets and push constants)
-	VkBuffer				_uniformBuffer;
-	VkDeviceMemory			_uniformBufferMemory;
-	VkDescriptorSetLayout	_descriptorSetLayout;
-	VkDescriptorPool		_descriptorPool;
-	VkDescriptorSet			_descriptorSet;
-	VkPipelineLayout		_pipelineLayout;
-	struct
+	/// <summary>
+	/// This is a class for a generic Vulkan application
+	/// </summary>
+	class VulkanApplication
 	{
-		glm::mat4 transformationMatrix;
-	}						_uniformBufferData;
+	public:
 
-	// Swap chain
-	VkExtent2D					_swapChainExtent;
-	VkFormat					_swapChainFormat;
-	VkSwapchainKHR				_oldSwapChain;
-	VkSwapchainKHR				_swapChain;
-	std::vector<VkImage>		_swapChainImages;
-	std::vector<VkImageView>	_swapChainImageViews;
-	std::vector<VkFramebuffer>	_swapChainFramebuffers;
+		void Run();
 
-	// Vulkan commands
-	VkCommandPool					_commandPool;
-	std::vector<VkCommandBuffer>	_graphicsCommandBuffers;
+	private:
+
+		// Game settings
+		uint32_t WIDTH;
+		uint32_t HEIGHT;
+
+		// Engine settings
+		bool enableValidationLayers = true;
+		std::vector<const char*> validationLayers = {
+			"VK_LAYER_KHRONOS_validation"
+		};
+
+		// Window
+		GLFWwindow* _window;
+
+		// Basic vulkan stuff
+		VkInstance							_instance;
+		VkSurfaceKHR						_windowSurface;
+		VkPhysicalDevice					_physicalDevice;
+		VkDevice							_logicalDevice;
+		VkDebugReportCallbackEXT			_callback;
+		VkQueue								_graphicsQueue;
+		uint32_t							_graphicsQueueFamily;
+		VkQueue								_presentQueue;
+		uint32_t							_presentQueueFamily;
+		VkPhysicalDeviceMemoryProperties	_deviceMemoryProperties;
+		VkSemaphore							_imageAvailableSemaphore;
+		VkSemaphore							_renderingFinishedSemaphore;
+		VkRenderPass						_renderPass;
+		VkPipeline							_graphicsPipeline;
+
+		// Vertex and index buffers
+		VkBuffer										_vertexBuffer;
+		VkDeviceMemory									_vertexBufferMemory;
+		VkBuffer										_indexBuffer;
+		VkDeviceMemory									_indexBufferMemory;
+		VkVertexInputBindingDescription					_vertexBindingDescription;
+		std::vector<VkVertexInputAttributeDescription>	_vertexAttributeDescriptions;
+
+		// Shader resources (descriptor sets and push constants)
+		VkBuffer				_uniformBuffer;
+		VkDeviceMemory			_uniformBufferMemory;
+		VkDescriptorSetLayout	_descriptorSetLayout;
+		VkDescriptorPool		_descriptorPool;
+		VkDescriptorSet			_descriptorSet;
+		VkPipelineLayout		_pipelineLayout;
+		struct
+		{
+			glm::mat4 transformationMatrix;
+		}						_uniformBufferData;
+
+		// Swap chain
+		VkExtent2D					_swapChainExtent;
+		VkFormat					_swapChainFormat;
+		VkSwapchainKHR				_oldSwapChain;
+		VkSwapchainKHR				_swapChain;
+		std::vector<VkImage>		_swapChainImages;
+		std::vector<VkImageView>	_swapChainImageViews;
+		std::vector<VkFramebuffer>	_swapChainFramebuffers;
+
+		// Vulkan commands
+		VkCommandPool					_commandPool;
+		std::vector<VkCommandBuffer>	_graphicsCommandBuffers;
 
 
-	// Time
-	std::chrono::high_resolution_clock::time_point	_timeStart;		// The time the app was started
-	std::chrono::high_resolution_clock::time_point	_lastFrameTime; // Time last frame started
-	double											_deltaTime;		// The time since last frame started in milliseconds
+		// Time
+		std::chrono::high_resolution_clock::time_point	_timeStart;		// The time the app was started
+		std::chrono::high_resolution_clock::time_point	_lastFrameTime; // Time last frame started
+		double											_deltaTime;		// The time since last frame started in milliseconds
 
-	// Misc
-	Scene _scene;
-	Input _input;
-	Camera _mainCamera;
-	glm::mat4 _modelMatrix;
+		// Misc
+		Scene _scene;
+		Input::KeyboardMouse _input;
+		Camera _mainCamera;
+		glm::mat4 _modelMatrix;
 
-	void CalculateDeltaTime();
+		void InitializeWindow();
 
-	void SetupVulkan();
+		void LoadSettings();
 
-	void MainLoop();
+		void CalculateDeltaTime();
 
-	static void OnWindowResized(GLFWwindow* window, int width, int height);
+		void SetupVulkan();
 
-	void OnWindowSizeChanged();
+		void MainLoop();
 
-	void Cleanup(bool fullClean);
+		static void OnWindowResized(GLFWwindow* window, int width, int height);
 
-	bool checkValidationLayerSupport();
+		void OnWindowSizeChanged();
 
-	void CreateInstance();
+		void Cleanup(bool fullClean);
 
-	void CreateWindowSurface();
+		bool CheckValidationLayerSupport();
 
-	void FindPhysicalDevice();
+		void CreateInstance();
 
-	void CheckSwapChainSupport();
+		void CreateWindowSurface();
 
-	void FindQueueFamilies();
+		void FindPhysicalDevice();
 
-	void CreateLogicalDevice();
+		void CheckSwapChainSupport();
 
-	void CreateDebugCallback();
+		void FindQueueFamilies();
 
-	void CreateSemaphores();
+		void CreateLogicalDevice();
 
-	void CreateCommandPool();
+		void CreateDebugCallback();
 
-	void CreateVertexAndIndexBuffers();
+		void CreateSemaphores();
 
-	void CreateUniformBuffer();
+		void CreateCommandPool();
 
-	/// <summary>
-	/// Update the data that will be sent to the shaders
-	/// </summary>
-	void UpdateUniformData();
+		void CreateVertexAndIndexBuffers();
 
-	/// <summary>
-	/// Find device memory that is supported by the requirements (typeBits) and meets the desired properties
-	/// </summary>
-	VkBool32 GetMemoryType(uint32_t typeBits, VkFlags properties, uint32_t* typeIndex);
+		void CreateUniformBuffer();
 
-	/// <summary>
-	/// Creates the swapchain. The swapchain is essentially an image manager. 
-	/// The general purpose of the swap chain is to synchronize the presentation of images with the refresh rate of the screen.
-	/// </summary>
-	void CreateSwapChain();
+		/// <summary>
+		/// Update the data that will be sent to the shaders
+		/// </summary>
+		void UpdateUniformData();
 
-	VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+		/// <summary>
+		/// Find device memory that is supported by the requirements (typeBits) and meets the desired properties
+		/// </summary>
+		VkBool32 GetMemoryType(uint32_t typeBits, VkFlags properties, uint32_t* typeIndex);
 
-	VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
+		/// <summary>
+		/// Creates the swapchain. The swapchain is essentially an image manager. 
+		/// The general purpose of the swap chain is to synchronize the presentation of images with the refresh rate of the screen.
+		/// </summary>
+		void CreateSwapChain();
 
-	VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
+		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 
-	void CreateRenderPass();
+		VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
 
-	void CreateImageViews();
+		VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
 
-	void CreateFramebuffers();
+		void CreateRenderPass();
 
-	VkShaderModule createShaderModule(const std::string& filename);
+		void CreateImageViews();
 
-	void CreateGraphicsPipeline();
+		void CreateFramebuffers();
 
-	void CreateDescriptorPool();
+		VkShaderModule createShaderModule(const std::string& filename);
 
-	void CreateDescriptorSets();
+		void CreateGraphicsPipeline();
 
-	void CreateCommandBuffers();
+		void CreateDescriptorPool();
 
-	void Draw();
-};
+		void CreateDescriptorSets();
 
+		void CreateCommandBuffers();
+
+		void Draw();
+	};
+}

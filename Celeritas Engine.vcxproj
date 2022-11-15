@@ -19,34 +19,39 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\engine\Camera.cpp" />
-    <ClCompile Include="src\engine\GameObject.cpp" />
-    <ClCompile Include="src\engine\GltfLoader.cpp" />
-    <ClCompile Include="src\engine\Input.cpp" />
-    <ClCompile Include="src\engine\Json.cpp" />
-    <ClCompile Include="src\engine\KeyBinds.cpp" />
-    <ClCompile Include="src\engine\Mesh.cpp" />
-    <ClCompile Include="src\engine\Scene.cpp" />
-    <ClCompile Include="src\engine\Settings.cpp" />
+    <ClCompile Include="src\engine\scenes\Camera.cpp" />
+    <ClCompile Include="src\engine\scenes\GameObject.cpp" />
+    <ClCompile Include="src\engine\scenes\GltfLoader.cpp" />
+    <ClCompile Include="src\engine\input\Input.cpp" />
+    <ClCompile Include="src\utils\Json.cpp" />
+    <ClCompile Include="src\game\input\KeyBinds.cpp" />
+    <ClCompile Include="src\engine\scenes\Mesh.cpp" />
+    <ClCompile Include="src\engine\scenes\Scene.cpp" />
+    <ClCompile Include="src\settings\Settings.cpp" />
     <ClCompile Include="src\engine\Time.cpp" />
-    <ClCompile Include="src\engine\Transform.cpp" />
+    <ClCompile Include="src\engine\math\Transform.cpp" />
     <ClCompile Include="src\engine\VulkanApplication.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\engine\Camera.hpp" />
-    <ClInclude Include="src\engine\GameObject.hpp" />
-    <ClInclude Include="src\engine\GltfLoader.hpp" />
-    <ClInclude Include="src\engine\Input.hpp" />
-    <ClInclude Include="src\engine\Json.h" />
-    <ClInclude Include="src\engine\KeyBinds.hpp" />
-    <ClInclude Include="src\engine\Mesh.hpp" />
-    <ClInclude Include="src\engine\Scene.hpp" />
-    <ClInclude Include="src\engine\Settings.hpp" />
-    <ClInclude Include="src\engine\Singleton.hpp" />
+    <ClInclude Include="src\utils\Paths.hpp" />
+    <ClInclude Include="src\engine\scenes\Camera.hpp" />
+    <ClInclude Include="src\engine\scenes\GameObject.hpp" />
+    <ClInclude Include="src\engine\scenes\GltfLoader.hpp" />
+    <ClInclude Include="src\engine\input\Input.hpp" />
+    <ClInclude Include="src\utils\Json.h" />
+    <ClInclude Include="src\game\input\KeyBinds.hpp" />
+    <ClInclude Include="src\engine\scenes\Mesh.hpp" />
+    <ClInclude Include="src\engine\scenes\Scene.hpp" />
+    <ClInclude Include="src\settings\Settings.hpp" />
+    <ClInclude Include="src\structural\Singleton.hpp" />
     <ClInclude Include="src\engine\Time.hpp" />
-    <ClInclude Include="src\engine\Transform.hpp" />
-    <ClInclude Include="src\engine\Utils.hpp" />
+    <ClInclude Include="src\engine\math\Transform.hpp" />
+    <ClInclude Include="src\utils\Utils.hpp" />
     <ClInclude Include="src\engine\VulkanApplication.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\settings\EngineSettings.json" />
+    <None Include="src\settings\GameSettings.json" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -122,6 +127,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\\Include;C:\code\celeritas-engine\src;C:\code\celeritas-engine\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -136,6 +142,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\\Include;C:\code\celeritas-engine\src;C:\code\celeritas-engine\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -150,7 +157,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_MSC_PLATFORM_TOOLSET_$(PlatformToolset);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\VulkanSDK\1.3.211.0\Include;$(VK_SDK_PATH)\Include;$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\\Include;C:\code\celeritas-engine\src;C:\code\celeritas-engine\include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
@@ -180,7 +187,7 @@ $(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\FragmentShader.frag" -o "$
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\Include;$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VK_SDK_PATH)\\Include;C:\code\celeritas-engine\src;C:\code\celeritas-engine\include</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
