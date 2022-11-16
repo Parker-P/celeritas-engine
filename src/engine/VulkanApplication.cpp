@@ -55,17 +55,9 @@ namespace Engine::Vulkan
 	void VulkanApplication::Run()
 	{
 		_timeStart = std::chrono::high_resolution_clock::now();
-
-		// Create window for Vulkan
-		LoadSettings();
+		_settings.Load(Settings::Paths::_settings());
 		InitializeWindow();
-
-		_input = Input::KeyboardMouse::Instance();
 		_input.Init(_window);
-
-		glfwSetWindowSizeCallback(_window, VulkanApplication::OnWindowResized);
-
-		// Use Vulkan
 		SetupVulkan();
 		MainLoop();
 		Cleanup(true);
@@ -76,18 +68,14 @@ namespace Engine::Vulkan
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 		_window = glfwCreateWindow(_settings._windowWidth, _settings._windowHeight, "Hold The Line!", nullptr, nullptr);
-	}
-
-	void VulkanApplication::LoadSettings()
-	{
-		_settings.Load(Settings::Paths::_settings());
+		glfwSetWindowSizeCallback(_window, VulkanApplication::OnWindowResized);
 	}
 
 	void VulkanApplication::CalculateDeltaTime()
 	{
 		auto tmp = (std::chrono::high_resolution_clock::now() - _lastFrameTime).count();
 		_lastFrameTime = std::chrono::high_resolution_clock::now();
-		Time::Instance()._deltaTime = tmp * 0.000001;
+		Time::Instance()._deltaTime = tmp * 0.000001f;
 	}
 
 	void VulkanApplication::SetupVulkan()
@@ -1052,7 +1040,7 @@ namespace Engine::Vulkan
 		vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 		vertexInputCreateInfo.vertexBindingDescriptionCount = 1;
 		vertexInputCreateInfo.pVertexBindingDescriptions = &_vertexBindingDescription;
-		vertexInputCreateInfo.vertexAttributeDescriptionCount = _vertexAttributeDescriptions.size();
+		vertexInputCreateInfo.vertexAttributeDescriptionCount = (uint32_t)_vertexAttributeDescriptions.size();
 		vertexInputCreateInfo.pVertexAttributeDescriptions = _vertexAttributeDescriptions.data();
 
 		// Describe input assembly
@@ -1344,7 +1332,7 @@ namespace Engine::Vulkan
 			}
 			vkCmdBindIndexBuffer(_graphicsCommandBuffers[i], _indexBuffer, 0, indexType);
 
-			vkCmdDrawIndexed(_graphicsCommandBuffers[i], _scene._meshes[0]._faceIndices.size(), 1, 0, 0, 0);
+			vkCmdDrawIndexed(_graphicsCommandBuffers[i], (uint32_t)_scene._meshes[0]._faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(_graphicsCommandBuffers[i]);
 #pragma endregion
 

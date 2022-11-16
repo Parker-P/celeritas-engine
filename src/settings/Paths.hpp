@@ -24,14 +24,14 @@ namespace Settings
 		static inline auto _settings = []() -> std::filesystem::path { return _rootPath() /= L"src\\settings\\GlobalSettings.json"; };
 		
 		/// <summary>
-		/// Function returning the path to the vertex shader file.
+		/// Function returning the path to the compiled vertex shader file.
 		/// </summary>
-		static inline auto _vertexShaderPath = []() -> std::filesystem::path { return _rootPath() /= L"src\\engine\\shaders\\VertexShader.vert"; };
+		static inline auto _vertexShaderPath = []() -> std::filesystem::path { return _rootPath() /= L"src\\engine\\shaders\\VertexShader.spv"; };
 		
 		/// <summary>
-		/// Function returning the path to the vertex fragment file.
+		/// Function returning the path to the compiled fragment shader file.
 		/// </summary>
-		static inline auto _fragmentShaderPath = []() -> std::filesystem::path { return _rootPath() /= L"src\\engine\\shaders\\FragmentShader.frag"; };
+		static inline auto _fragmentShaderPath = []() -> std::filesystem::path { return _rootPath() /= L"src\\engine\\shaders\\FragmentShader.spv"; };
 	};
 }
 

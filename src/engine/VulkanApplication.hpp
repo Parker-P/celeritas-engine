@@ -20,9 +20,6 @@ namespace Engine::Vulkan
 
 	private:
 
-		// Settings
-		Settings::GlobalSettings& _settings = Settings::GlobalSettings::Instance();
-
 		// Window
 		GLFWwindow* _window;
 
@@ -75,15 +72,15 @@ namespace Engine::Vulkan
 		VkCommandPool					_commandPool;
 		std::vector<VkCommandBuffer>	_graphicsCommandBuffers;
 
-
 		// Time
 		std::chrono::high_resolution_clock::time_point	_timeStart;		// The time the app was started
 		std::chrono::high_resolution_clock::time_point	_lastFrameTime; // Time last frame started
 		double											_deltaTime;		// The time since last frame started in milliseconds
 
-		// Misc
+		// Game
+		Input::KeyboardMouse& _input = Input::KeyboardMouse::Instance();
+		Settings::GlobalSettings& _settings = Settings::GlobalSettings::Instance();
 		Scenes::Scene _scene;
-		Input::KeyboardMouse _input;
 		Scenes::Camera _mainCamera;
 		glm::mat4 _modelMatrix;
 
@@ -91,11 +88,6 @@ namespace Engine::Vulkan
 		/// Initializes the window.
 		/// </summary>
 		void InitializeWindow();
-
-		/// <summary>
-		/// Loads global settings from the json file.
-		/// </summary>
-		void LoadSettings();
 
 		/// <summary>
 		/// Calculates the time elapsed since rendering the last frame.

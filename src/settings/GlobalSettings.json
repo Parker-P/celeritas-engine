@@ -1,13 +1,14 @@
 {
   "EnableValidationLayers": "true",
   "ValidationLayers": [
-    "VK_LAYER_KHRONOS_validation"
+    "VK_LAYER_KHRONOS_validation",
+    "second_validation_layer"
   ],
   "WindowSize": {
-    "Width": 1920,
-    "Height": 1080
+    "Width": 800,
+    "Height": 600
   },
   "Input": {
-    "MouseSensitivity": 0.1
+    "MouseSensitivity": 1.0
   }
 }

@@ -33,13 +33,15 @@ namespace Settings
 		_enableValidationLayers = Utils::Converter::Convert<std::string, bool>(TrimEnds(evlJson));
 
 		auto validationLayers = json::jobject::parse(rootObj.get("ValidationLayers"));
-		_validationLayers.reserve(validationLayers.size());
+		_validationLayers.resize(validationLayers.size());
 
 		for (int i = 0; i < validationLayers.size(); ++i) {
 			auto str = validationLayers.array(i).as_string();
-			char* ch = new char; 
-			memcpy(ch, validationLayers.array(i).as_string().data(), str.length());
-			_validationLayers.emplace_back(ch);
+			auto length = strlen(str.data()) + 1;
+			char* ch = new char[length];
+			ch[length] = 0;
+			memcpy(ch, str.data(), length);
+			_validationLayers[i] = ch;
 		}
 
 		auto windowSize = json::jobject::parse(rootObj.get("WindowSize"));

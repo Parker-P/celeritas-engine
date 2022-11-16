@@ -11,7 +11,7 @@ namespace Settings
 		float _mouseSensitivity;
 
 		/// <summary>
-		/// Loads settings from the json file.
+		/// Loads global settings from the json file.
 		/// </summary>
 		void Load(const std::filesystem::path& pathToJson);
 	};
