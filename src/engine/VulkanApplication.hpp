@@ -6,11 +6,10 @@
 // Styleguide used for this project: https://google.github.io/styleguide/cppguide.html
 // Original project was: https://gist.github.com/Overv/7ac07356037592a121225172d7d78f2d
 
-
 namespace Engine::Vulkan
 {
 	/// <summary>
-	/// This is a class for a generic Vulkan application
+	/// Represents the Vulkan application.
 	/// </summary>
 	class VulkanApplication
 	{
@@ -132,12 +131,12 @@ namespace Engine::Vulkan
 		void CreateUniformBuffer();
 
 		/// <summary>
-		/// Update the data that will be sent to the shaders
+		/// Update the data that will be sent to the shaders.
 		/// </summary>
 		void UpdateUniformData();
 
 		/// <summary>
-		/// Find device memory that is supported by the requirements (typeBits) and meets the desired properties
+		/// Find device memory that is supported by the requirements (typeBits) and meets the desired properties.
 		/// </summary>
 		VkBool32 GetMemoryType(uint32_t typeBits, VkFlags properties, uint32_t* typeIndex);
 

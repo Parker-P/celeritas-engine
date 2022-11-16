@@ -678,13 +678,12 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::UpdateUniformData()
 	{
-
 		_mainCamera.Update();
 
 		// Vulkan's coordinate system is:
 		// X points right, Y points down, Z points towards you
 		// You want X to point right, Y to point up, and Z to point away from you
-		Transform worldToVulkan;
+		Math::Transform worldToVulkan;
 		worldToVulkan.SetTransformation(glm::mat4x4{
 			glm::vec4(1.0f,  0.0f, 0.0f, 0.0f),		// Column 1
 			glm::vec4(0.0f, -1.0f, 0.0f, 0.0f),		// Column 2

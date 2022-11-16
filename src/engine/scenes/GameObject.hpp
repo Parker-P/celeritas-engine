@@ -4,6 +4,6 @@ namespace Engine::Scenes
 	class GameObject
 	{
 	public:
-		Transform _transform;
+		Math::Transform _transform;
 	};
 }

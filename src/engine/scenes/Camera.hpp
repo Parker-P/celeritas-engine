@@ -4,8 +4,8 @@ namespace Engine::Scenes
 	class Camera : public GameObject
 	{
 	public:
-		Transform _view;
-		Transform _projection;
+		Math::Transform _view;
+		Math::Transform _projection;
 
 		// Temp
 		float _lastYaw;
