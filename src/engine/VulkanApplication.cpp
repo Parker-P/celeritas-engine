@@ -722,7 +722,6 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateSwapChain()
 	{
-
 		// Find surface capabilities
 		VkSurfaceCapabilitiesKHR surfaceCapabilities;
 		if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_physicalDevice, _windowSurface, &surfaceCapabilities) != VK_SUCCESS) {
@@ -1010,7 +1009,7 @@ namespace Engine::Vulkan
 		VkShaderModule vertexShaderModule = CreateShaderModule(Settings::Paths::_vertexShaderPath());
 		VkShaderModule fragmentShaderModule = CreateShaderModule(Settings::Paths::_fragmentShaderPath());
 
-		// Set up shader stage info
+		// Set up shader stage info.
 		VkPipelineShaderStageCreateInfo vertexShaderCreateInfo = {};
 		vertexShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		vertexShaderCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -1023,18 +1022,30 @@ namespace Engine::Vulkan
 		fragmentShaderCreateInfo.pName = "main";
 		VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderCreateInfo, fragmentShaderCreateInfo };
 
-		// Binding and attribute descriptions
+		// Binding and attribute descriptions.
 		_vertexBindingDescription.binding = 0;
-		_vertexBindingDescription.stride = sizeof(_scene._meshes[0]._vertexPositions[0]);
+		_vertexBindingDescription.stride = sizeof(Scenes::Vertex);
 		_vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-		// Describe how the shader should read vertex attributes
-		_vertexAttributeDescriptions.resize(1);
+		// Describe how the shader should read vertex attributes.
+		// Object-space positions.
+		_vertexAttributeDescriptions.resize(3);
+		_vertexAttributeDescriptions[0].binding = 0;
+		_vertexAttributeDescriptions[0].location = 0;
+		_vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+		_vertexAttributeDescriptions[0].offset = VK_FORMAT_R32G32B32_SFLOAT;
+
+		// Normals.
 		_vertexAttributeDescriptions[0].binding = 0;
 		_vertexAttributeDescriptions[0].location = 0;
 		_vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 
-		// Describe vertex input
+		// UV coordinates.
+		_vertexAttributeDescriptions[0].binding = 0;
+		_vertexAttributeDescriptions[0].location = 0;
+		_vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+
+		// Describe vertex input.
 		VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo = {};
 		vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 		vertexInputCreateInfo.vertexBindingDescriptionCount = 1;

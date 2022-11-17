@@ -15,7 +15,7 @@ namespace Settings
 
 	public:
 
-		// I.N. Always use backward slashes for Windows, otherwise file reading may file because of inconsistend path separators.
+		// I.N. Always use backward slashes for Windows, otherwise file reading may fail because of inconsistent path separators.
 		// i.e. don't use C:\path/to\file, always use C:\path\to\file.
 
 		/// <summary>

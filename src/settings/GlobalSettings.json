@@ -5,10 +5,10 @@
     "second_validation_layer"
   ],
   "WindowSize": {
-    "Width": 800,
-    "Height": 600
+    "Width": 1280,
+    "Height": 720
   },
   "Input": {
-    "MouseSensitivity": 1.0
+    "MouseSensitivity": 0.1
   }
 }
