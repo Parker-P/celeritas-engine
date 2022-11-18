@@ -526,7 +526,7 @@ namespace Engine::Vulkan
 #pragma region SceneLoading
 		// Load the scene
 		_scene = Scenes::GltfLoader::Load(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
-		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._vertexPositions);
+		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._vertices);
 		auto faceIndicesSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._faceIndices);
 #pragma endregion
 
@@ -554,7 +554,7 @@ namespace Engine::Vulkan
 		vkAllocateCommandBuffers(_logicalDevice, &cmdBufInfo, &copyCommandBuffer);
 #pragma endregion
 
-#pragma region VertexPositionsToGpu
+#pragma region VerticesToVertexBuffer
 		// First copy vertices to host accessible vertex buffer memory
 		VkBufferCreateInfo vertexBufferInfo = {};
 		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -574,7 +574,7 @@ namespace Engine::Vulkan
 		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &stagingBuffers.vertices.memory);
 
 		vkMapMemory(_logicalDevice, stagingBuffers.vertices.memory, 0, vertexPositionsSize, 0, &data);
-		memcpy(data, _scene._meshes[0]._vertexPositions.data(), vertexPositionsSize);
+		memcpy(data, _scene._meshes[0]._vertices.data(), vertexPositionsSize);
 		vkUnmapMemory(_logicalDevice, stagingBuffers.vertices.memory);
 		vkBindBufferMemory(_logicalDevice, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0);
 
@@ -594,7 +594,7 @@ namespace Engine::Vulkan
 		indexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 #pragma endregion
 
-#pragma region FaceIndicesToGpu
+#pragma region FaceIndicesToIndexBuffer
 		vkCreateBuffer(_logicalDevice, &indexBufferInfo, nullptr, &stagingBuffers.indices.buffer);
 		vkGetBufferMemoryRequirements(_logicalDevice, stagingBuffers.indices.buffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
@@ -1024,12 +1024,12 @@ namespace Engine::Vulkan
 		fragmentShaderCreateInfo.pName = "fragmentShader";
 		VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderCreateInfo, fragmentShaderCreateInfo };
 
-		// Binding and attribute descriptions.
+		// Vertex attribute binding - gives the vertex shader more info about a particular vertex buffer, denoted by the binding number. See binding for more info.
 		_vertexBindingDescription.binding = 0; // Buffer identifier.
 		_vertexBindingDescription.stride = sizeof(Vertex); // Size of each element in the buffer.
 		_vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-		// Describe how the shader should read vertex attributes.
+		// Describe how the shader should read vertex attributes when getting a vertex from the vertex buffer.
 		// Object-space positions.
 		_vertexAttributeDescriptions.resize(3);
 		_vertexAttributeDescriptions[0].location = 0;
@@ -1057,7 +1057,7 @@ namespace Engine::Vulkan
 		vertexInputCreateInfo.vertexAttributeDescriptionCount = (uint32_t)_vertexAttributeDescriptions.size();
 		vertexInputCreateInfo.pVertexAttributeDescriptions = _vertexAttributeDescriptions.data();
 
-		// Describe input assembly
+		// Describe input assembly - this allows Vulkan to know how many indices make up a face for the vkCmdDrawIndexed function.
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyCreateInfo = {};
 		inputAssemblyCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		inputAssemblyCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;

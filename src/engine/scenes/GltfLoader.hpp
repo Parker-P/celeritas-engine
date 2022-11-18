@@ -28,6 +28,9 @@ namespace Engine::Scenes
 
 #pragma region LocalTypes
 
+	/**
+	 * @brief Represents a mesh in a gltf file, that can be made up of primitives.
+	 */
 	class GltfMesh
 	{
 	public:
@@ -46,6 +49,9 @@ namespace Engine::Scenes
 		 */
 		struct Primitive
 		{
+			/**
+			 * @brief Vertex attributes' accessors.
+			 */
 			struct
 			{
 				/**
@@ -62,12 +68,17 @@ namespace Engine::Scenes
 				 * @brief Index of where to find uv coordinates in the accessors.
 				 */
 				int uvCoordsAccessorIndex;
-			} attributes;
+
+			} vertexAttributes;
+
+			/**
+			 * @brief .
+			 */
 			int indicesAccessorIndex;
 		};
 
 		/**
-		 * @brief Describes the raw meshes that make up the mesh. For example this mesh could be made up of 2 separate cubes.
+		 * @brief Describes the raw shapes that make up the mesh. For example this mesh could be made up of 2 separate cubes.
 		 */
 		std::vector<Primitive> primitives;
 	};
@@ -76,14 +87,36 @@ namespace Engine::Scenes
 	{
 	public:
 
+		/**
+		 * @brief An accessor object refers to a bufferView and contains properties that define the type and layout of the data of this bufferView.
+		 */
 		struct Accessor
 		{
+			/**
+			 * @brief Index into the buffer view.
+			 */
 			int bufferViewIndex;
+
+			/**
+			 * @brief .
+			 */
 			int	componentType;
+
+			/**
+			 * @brief .
+			 */
 			int	count;
+
+			/**
+			 * @brief .
+			 */
 			GltfDataType type;
 		};
 
+		/**
+		 * @brief A buffer represents a block of raw binary data, without an inherent structure or meaning.
+		 * It is the accessor's job to define what each bufferView contains.
+		 */
 		struct BufferView
 		{
 			/**
@@ -131,6 +164,10 @@ namespace Engine::Scenes
 			 * @brief Makes the file identifiable as a gltf file, it's a data format identifier.
 			 */
 			uint32_t magic;
+
+			/**
+			 * @brief Gltf version standard this data conforms to.
+			 */
 			uint32_t version;
 
 			/**
@@ -139,6 +176,9 @@ namespace Engine::Scenes
 			uint32_t fileLength;
 		} header;
 
+		/**
+		 * @brief Describes a generic gltf buffer that will typically contain either JSON or binary data.
+		 */
 		struct GltfBuffer {
 			/**
 			 * @brief Buffer size in bytes.
@@ -146,7 +186,7 @@ namespace Engine::Scenes
 			uint32_t chunkLength;
 
 			/**
-			 * @brief The type of data inside this buffer.
+			 * @brief The type of data inside this buffer. Number 1313821514 indicates type JSON type, number 5130562 indicates binary type.
 			 */
 			uint32_t chunkType;
 

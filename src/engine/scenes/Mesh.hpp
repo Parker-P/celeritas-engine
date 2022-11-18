@@ -20,17 +20,17 @@ namespace Engine::Scenes
 		/**
 		 * @brief Attribute describing the object space position of the vertex.
 		 */
-		std::vector<glm::vec3> _vertexPositions;
+		glm::vec3 _position;
 
 		/**
 		 * @brief Attribute describing the object space normal vector of the vertex.
 		 */
-		std::vector<glm::vec3> _normals;
+		glm::vec3 _normal;
 
 		/**
 		 * @brief Attribute describing the UV coordinates of the vertex.
 		 */
-		std::vector<glm::vec2> _uvCoords;
+		glm::vec2 _uvCoord;
 		
 		/**
 		 * @brief Calculates the offset in bytes of a given attribute given its type.

@@ -1,13 +1,13 @@
 #version 450
 
-// Input attributes coming from the vertex buffer, stored somewhere in VRAM.
+// Input attributes coming from a vertex buffer.
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec3 inUv;
 
 layout(location = 0) out vec3 fragColor;
 
-// Variables coming from descriptor sets, bound at graphics pipeline creation time.
+// Variables coming from descriptor sets.
 layout(set = 0, binding = 0) uniform TransformationMatrices {
 	mat4 transformationMatrix;
 } transformationMatrices;

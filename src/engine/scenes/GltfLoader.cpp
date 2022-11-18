@@ -20,7 +20,7 @@ namespace Engine::Scenes
 	/**
 	 * @brief Converts an array of characters to an unsigned 32-bit integer.
 	 * @param charArray
-	 * @return 
+	 * @return
 	 */
 	uint32_t ToUInt32(const char* charArray)
 	{
@@ -49,7 +49,7 @@ namespace Engine::Scenes
 	{
 		std::fstream file(filename, std::ios::binary | std::ios::in);
 		if (file.is_open()) {
-			std::cout << "Reading file " << filename << "\n";
+			std::cout << "Loading scene " << filename << "\n";
 			GltfData gltfData{};
 
 			// Header
@@ -64,6 +64,7 @@ namespace Engine::Scenes
 
 			// JSON
 			file.read(intBuffer, intSize);
+
 			gltfData.json.chunkLength = ToUInt32(intBuffer);
 			file.read(intBuffer, intSize);
 			gltfData.json.chunkType = ToUInt32(intBuffer);
@@ -85,9 +86,9 @@ namespace Engine::Scenes
 			// To get the vertex positions you need to:
 			// 1) access the "meshes" array and read the "attributes" array inside 
 			//    of the mesh you want to load (a gltf file could contain multiple 
-			//    meshes as it describes a scene)
+			//    meshes as it describes a scene).
 			// 2) find the "POSITIONS" attribute inside of it and get its value.
-			//    this value will be the value used in the next step
+			//    this value will be the value used in the next step.
 			// 3) access the "accessors" array and use the value you got in step 2
 			//    as index. accessors[index] will contain the information needed
 			//    to interpret the data you will read. You will need all the fields
@@ -162,9 +163,9 @@ namespace Engine::Scenes
 				for (int j = 0; j < gltfScene.meshes[i].primitives.size(); ++j) {
 
 					// Read positions, normals, uvs and face indices
-					auto vertexPositionsAccessorIndex = gltfScene.meshes[i].primitives[j].attributes.positionsAccessorIndex;
-					auto vertexNormalsAccessorIndex = gltfScene.meshes[i].primitives[j].attributes.normalsAccessorIndex;
-					auto uvCoordsAccessorIndex = gltfScene.meshes[i].primitives[j].attributes.uvCoordsAccessorIndex;
+					auto vertexPositionsAccessorIndex = gltfScene.meshes[i].primitives[j].vertexAttributes.positionsAccessorIndex;
+					auto vertexNormalsAccessorIndex = gltfScene.meshes[i].primitives[j].vertexAttributes.normalsAccessorIndex;
+					auto uvCoordsAccessorIndex = gltfScene.meshes[i].primitives[j].vertexAttributes.uvCoordsAccessorIndex;
 					auto faceIndicesAccessorIndex = gltfScene.meshes[i].primitives[j].indicesAccessorIndex;
 
 					auto vertexPositionsBufferViewIndex = gltfScene.accessors[vertexPositionsAccessorIndex].bufferViewIndex;
@@ -198,12 +199,25 @@ namespace Engine::Scenes
 					}
 
 					mesh._name = gltfScene.meshes[i].name;
-					mesh._vertexPositions = vertexPositions;
-					mesh._normals = vertexNormals;
-					mesh._uvCoords = uvCoords;
-					mesh._faceIndices = faceIndices;
 
-					scene._meshes.push_back(mesh);
+					// This is where you will want to touch in the future to add multi-UV-map support.
+					auto size = vertexPositions.size();
+					if (vertexNormals.size() == size && uvCoords.size() == size) {
+						std::vector<Scenes::Vertex> vertices;
+						vertices.reserve(vertexPositions.size());
+
+						for (int i = 0; i < vertexPositions.size(); ++i) {
+							vertices.emplace_back(Scenes::Vertex{ vertexPositions[i], vertexNormals[i], uvCoords[i] });
+						}
+
+						mesh._vertices = vertices;
+						mesh._faceIndices = faceIndices;
+
+						scene._meshes.push_back(mesh);
+					}
+					else {
+						Utils::Print("Size of vertex positions, normals and uvs must be the same");
+					}
 				}
 			}
 			return scene;

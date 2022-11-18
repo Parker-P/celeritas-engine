@@ -14,9 +14,10 @@ namespace Engine::Scenes
         case AttributeType::Position:
             return 0;
         case AttributeType::Normal:
-            return sizeof(_vertexPositions);
+            return sizeof(_position);
         case AttributeType::UV:
-            return sizeof(_vertexPositions) + sizeof(_normals);
+            return sizeof(_position) + sizeof(_normal);
+        default: return 0;
         }
     }
 }

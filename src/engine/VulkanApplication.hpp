@@ -65,7 +65,7 @@ namespace Engine::Vulkan
 		/**
 		 * Since we are only using one vertex buffer, this variable contains:
 		 * 1) binding: the binding number of the vertex buffer defined when calling vkCmdBindVertexBuffers;
-		 * 2) stride: the offset in bytes between each set of vertex attributes in the buffer identified by the binding number above;
+		 * 2) stride: the offset in bytes between each set of vertex attributes in the vertex buffer identified by the binding number above;
 		 * 3) inputRate: unknown (info hard to find on this)
 		 * 
 		 * Detailed explanation:
