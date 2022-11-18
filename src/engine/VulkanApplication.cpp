@@ -91,13 +91,10 @@ namespace Engine::Vulkan
 		CreateCommandPool();
 		CreateVertexAndIndexBuffers();
 		CreateSwapChain();
-		CreateUniformBuffer();
 		CreateRenderPass();
 		CreateImageViews();
 		CreateFramebuffers();
 		CreateGraphicsPipeline();
-		CreateDescriptorPool();
-		CreateDescriptorSets();
 		CreateCommandBuffers();
 	}
 
@@ -1112,8 +1109,8 @@ namespace Engine::Vulkan
 		multisampleCreateInfo.alphaToCoverageEnable = VK_FALSE;
 		multisampleCreateInfo.alphaToOneEnable = VK_FALSE;
 
-		// Describing color blending
-		// Note: all paramaters except blendEnable and colorWriteMask are irrelevant here
+		// Describing color blending.
+		// Note: all paramaters except blendEnable and colorWriteMask are irrelevant here.
 		VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
 		colorBlendAttachmentState.blendEnable = VK_FALSE;
 		colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
@@ -1136,40 +1133,17 @@ namespace Engine::Vulkan
 		colorBlendCreateInfo.blendConstants[2] = 0.0f;
 		colorBlendCreateInfo.blendConstants[3] = 0.0f;
 
-		// Describe pipeline layout
-		// Note: this describes the mapping between memory and shader resources (descriptor sets), which contain the information you want to send to the shaders
-		// This is for uniform buffers and samplers
-		VkDescriptorSetLayoutBinding layoutBinding = {};
-		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		// Describe pipeline layout.
+		// This describes the mapping between memory and shader resources (descriptor sets), which contain the information you want to send to the shaders.
+		// This is for uniform buffers and samplers.
 
-		VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = {};
-		descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptorLayoutCreateInfo.bindingCount = 1;
-		descriptorLayoutCreateInfo.pBindings = &layoutBinding;
-
-		if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &_descriptorSetLayout) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor layout" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created descriptor layout" << std::endl;
-		}
-
-		VkPipelineLayoutCreateInfo layoutCreateInfo = {};
-		layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		layoutCreateInfo.setLayoutCount = 1;
-		layoutCreateInfo.pSetLayouts = &_descriptorSetLayout;
-
-		if (vkCreatePipelineLayout(_logicalDevice, &layoutCreateInfo, nullptr, &_pipelineLayout) != VK_SUCCESS) {
-			std::cerr << "failed to create pipeline layout" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created pipeline layout" << std::endl;
-		}
-
+		int descriptorCount = 4;
+		CreateDescriptorSetLayout(descriptorCount);
+		CreateDescriptorPool(descriptorCount);
+		CreateUniformBuffer();
+		CreateDescriptorSet();
+		CreatePipelineLayout();
+		
 		// Create the graphics pipeline
 		VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
 		pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -1200,18 +1174,21 @@ namespace Engine::Vulkan
 		vkDestroyShaderModule(_logicalDevice, fragmentShaderModule, nullptr);
 	}
 
-	void VulkanApplication::CreateDescriptorPool()
+	void VulkanApplication::CreateDescriptorPool(const uint32_t& descriptorCount)
 	{
-		// This describes how many descriptor sets we'll create from this pool for each type
+		// This describes how many descriptor sets we'll create from this pool for each type.
 		VkDescriptorPoolSize typeCount;
 		typeCount.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		typeCount.descriptorCount = 1;
+		typeCount.descriptorCount = descriptorCount;
 
+		// maxSets is the maximum number of descriptor sets that can be allocated from the pool.
+		// poolSizeCount is the number of elements in pPoolSizes.
+		// pPoolSizes is a pointer to an array of VkDescriptorPoolSize structures, each containing a descriptor type and number of descriptors of that type to be allocated in the pool.
 		VkDescriptorPoolCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		createInfo.maxSets = 1;
 		createInfo.poolSizeCount = 1;
 		createInfo.pPoolSizes = &typeCount;
-		createInfo.maxSets = 1;
 
 		if (vkCreateDescriptorPool(_logicalDevice, &createInfo, nullptr, &_descriptorPool) != VK_SUCCESS) {
 			std::cerr << "failed to create descriptor pool" << std::endl;
@@ -1222,7 +1199,7 @@ namespace Engine::Vulkan
 		}
 	}
 
-	void VulkanApplication::CreateDescriptorSets()
+	void VulkanApplication::CreateDescriptorSet()
 	{
 		// There needs to be one descriptor set per binding point in the shader
 		VkDescriptorSetAllocateInfo allocInfo = {};
@@ -1239,21 +1216,66 @@ namespace Engine::Vulkan
 			std::cout << "created descriptor set" << std::endl;
 		}
 
-		// Update descriptor set with uniform binding
-		VkDescriptorBufferInfo descriptorBufferInfo = {};
-		descriptorBufferInfo.buffer = _uniformBuffer;
-		descriptorBufferInfo.offset = 0;
-		descriptorBufferInfo.range = sizeof(_uniformBufferData);
+		// This creates the actual descriptor.
+		auto transformationMatricesDescriptorBuffer = CreateDescriptorBuffer(_uniformBuffer);
 
+		// pBufferInfo is a pointer to the start of an array of descriptors.
 		VkWriteDescriptorSet writeDescriptorSet = {};
 		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		writeDescriptorSet.dstSet = _descriptorSet;
 		writeDescriptorSet.descriptorCount = 1;
 		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		writeDescriptorSet.pBufferInfo = &descriptorBufferInfo;
+		writeDescriptorSet.pBufferInfo = &transformationMatricesDescriptorBuffer;
 		writeDescriptorSet.dstBinding = 0;
 
 		vkUpdateDescriptorSets(_logicalDevice, 1, &writeDescriptorSet, 0, nullptr);
+	}
+
+	VkDescriptorBufferInfo VulkanApplication::CreateDescriptorBuffer(const VkBuffer& buffer)
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = _uniformBuffer;
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = sizeof(_uniformBufferData);
+		return descriptorBufferInfo;
+	}
+
+	void VulkanApplication::CreateDescriptorSetLayout(const uint32_t& descriptorCount)
+	{
+		// This tells Vulkan how many descriptors we want to use.
+		VkDescriptorSetLayoutBinding layoutBinding = {};
+		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		layoutBinding.descriptorCount = descriptorCount;
+		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+		VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = {};
+		descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		descriptorLayoutCreateInfo.bindingCount = 1;
+		descriptorLayoutCreateInfo.pBindings = &layoutBinding;
+
+		if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &_descriptorSetLayout) != VK_SUCCESS) {
+			std::cerr << "failed to create descriptor layout" << std::endl;
+			exit(1);
+		}
+		else {
+			std::cout << "created descriptor layout" << std::endl;
+		}
+	}
+
+	void VulkanApplication::CreatePipelineLayout()
+	{
+		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutCreateInfo.setLayoutCount = 1;
+		pipelineLayoutCreateInfo.pSetLayouts = &_descriptorSetLayout;
+
+		if (vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_pipelineLayout) != VK_SUCCESS) {
+			std::cerr << "failed to create pipeline layout" << std::endl;
+			exit(1);
+		}
+		else {
+			std::cout << "created pipeline layout" << std::endl;
+		}
 	}
 
 	void VulkanApplication::CreateCommandBuffers()
