@@ -2,46 +2,62 @@
 
 namespace Engine::Scenes
 {
-	/// <summary>
-	/// Represents vertex attributes.
-	/// </summary>
+	/**
+	 * @brief Represents vertex attributes.
+	 */
 	class Vertex 
 	{
 	public:
-		/// <summary>
-		/// Attribute describing the object space position of the vertex.
-		/// </summary>
+		
+		/**
+		 * @brief Used to identify vertex attribute types.
+		 */
+		enum class AttributeType 
+		{
+			Position, Normal, UV
+		};
+
+		/**
+		 * @brief Attribute describing the object space position of the vertex.
+		 */
 		std::vector<glm::vec3> _vertexPositions;
 
-		/// <summary>
-		/// Attribute describing the object space normal vector of the vertex.
-		/// </summary>
+		/**
+		 * @brief Attribute describing the object space normal vector of the vertex.
+		 */
 		std::vector<glm::vec3> _normals;
 
-		/// <summary>
-		/// Attribute describing the UV coordinates of the vertex.
-		/// </summary>
+		/**
+		 * @brief Attribute describing the UV coordinates of the vertex.
+		 */
 		std::vector<glm::vec2> _uvCoords;
+		
+		/**
+		 * @brief Calculates the offset in bytes of a given attribute given its type.
+		 * @param attributeType
+		 * @return The offset in bytes of the given type within the Vertex class.
+		 */
+		static size_t OffsetOf(const AttributeType& attributeType);
 	};
 
 	class Mesh
 	{
 	public:
 
-		/// <summary>
-		/// Name of the mesh.
-		/// </summary>
+		/**
+		 * @brief Name of the mesh.
+		 */
 		std::string	_name;
 
-		/// <summary>
-		/// Array of vertices that make up the mesh.
-		/// </summary>
+		/**
+		 * @brief Array of vertices that make up the mesh.
+		 */
 		std::vector<Vertex> _vertices;
 		
-		/// <summary>
-		/// List of indices, where each index corresponds to a vertex defined in the _vertices array above.
-		/// A face (triangle) is defined by three consecutive indices in this array.
-		/// </summary>
+		/**
+		 * @brief List of indices, where each index corresponds to a vertex defined in the _vertices array above.
+		 * A face (triangle) is defined by three consecutive indices in this array.
+		 */
 		std::vector<unsigned short> _faceIndices;
 	};
 }

@@ -37,8 +37,9 @@
 
 namespace Engine::Vulkan
 {
-	// Debug callback
-	VkBool32 DebugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData)
+	bool windowResized = false;
+
+	VkBool32 VulkanApplication::DebugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData)
 	{
 		if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
 			std::cerr << "ERROR: [" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg << std::endl;
@@ -49,8 +50,6 @@ namespace Engine::Vulkan
 
 		return VK_FALSE;
 	}
-
-	bool windowResized = false;
 
 	void VulkanApplication::Run()
 	{
@@ -1006,6 +1005,8 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateGraphicsPipeline()
 	{
+		using Vertex = Scenes::Vertex;
+
 		VkShaderModule vertexShaderModule = CreateShaderModule(Settings::Paths::_vertexShaderPath());
 		VkShaderModule fragmentShaderModule = CreateShaderModule(Settings::Paths::_fragmentShaderPath());
 
@@ -1014,36 +1015,39 @@ namespace Engine::Vulkan
 		vertexShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		vertexShaderCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
 		vertexShaderCreateInfo.module = vertexShaderModule;
-		vertexShaderCreateInfo.pName = "main";
+		vertexShaderCreateInfo.pName = "vertexShader";
+
 		VkPipelineShaderStageCreateInfo fragmentShaderCreateInfo = {};
 		fragmentShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		fragmentShaderCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
 		fragmentShaderCreateInfo.module = fragmentShaderModule;
-		fragmentShaderCreateInfo.pName = "main";
+		fragmentShaderCreateInfo.pName = "fragmentShader";
 		VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderCreateInfo, fragmentShaderCreateInfo };
 
 		// Binding and attribute descriptions.
-		_vertexBindingDescription.binding = 0;
-		_vertexBindingDescription.stride = sizeof(Scenes::Vertex);
+		_vertexBindingDescription.binding = 0; // Buffer identifier.
+		_vertexBindingDescription.stride = sizeof(Vertex); // Size of each element in the buffer.
 		_vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		// Describe how the shader should read vertex attributes.
 		// Object-space positions.
 		_vertexAttributeDescriptions.resize(3);
-		_vertexAttributeDescriptions[0].binding = 0;
 		_vertexAttributeDescriptions[0].location = 0;
+		_vertexAttributeDescriptions[0].binding = 0;
 		_vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-		_vertexAttributeDescriptions[0].offset = VK_FORMAT_R32G32B32_SFLOAT;
+		_vertexAttributeDescriptions[0].offset = Vertex::OffsetOf(Vertex::AttributeType::Position);
 
 		// Normals.
-		_vertexAttributeDescriptions[0].binding = 0;
-		_vertexAttributeDescriptions[0].location = 0;
-		_vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+		_vertexAttributeDescriptions[1].location = 1;
+		_vertexAttributeDescriptions[1].binding = 0;
+		_vertexAttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		_vertexAttributeDescriptions[1].offset = Vertex::OffsetOf(Vertex::AttributeType::Normal);
 
 		// UV coordinates.
-		_vertexAttributeDescriptions[0].binding = 0;
-		_vertexAttributeDescriptions[0].location = 0;
-		_vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+		_vertexAttributeDescriptions[2].location = 2;
+		_vertexAttributeDescriptions[2].binding = 0;
+		_vertexAttributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+		_vertexAttributeDescriptions[2].offset = Vertex::OffsetOf(Vertex::AttributeType::UV);
 
 		// Describe vertex input.
 		VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo = {};

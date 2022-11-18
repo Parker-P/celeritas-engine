@@ -17,10 +17,11 @@ namespace Engine::Scenes
 {
 
 #pragma region LocalUtilityFunctions
-	/// <summary>
-	/// Converts an array of characters to an unsigned 32-bit integer
-	/// </summary>
-	/// <returns>The converted number</returns>
+	/**
+	 * @brief Converts an array of characters to an unsigned 32-bit integer.
+	 * @param charArray
+	 * @return 
+	 */
 	uint32_t ToUInt32(const char* charArray)
 	{
 		uint32_t result = 0;

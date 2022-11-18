@@ -35,10 +35,11 @@ namespace Utils
 		return stream << "(" << vector.x << ", " << vector.y << ", " << vector.z << ")";
 	}
 
-	/// <summary>
-	/// Get the value of an enum as an integer
-	/// </summary>
-	/// <returns></returns>
+	/**
+	 * @brief Get the value of an enum as an integer.
+	 * @param value
+	 * @return 
+	 */
 	template <typename Enumeration>
 	inline auto AsInteger(Enumeration const value)
 		-> typename std::underlying_type<Enumeration>::type
@@ -46,9 +47,11 @@ namespace Utils
 		return static_cast<typename std::underlying_type<Enumeration>::type>(value);
 	}
 
-	/// <summary>
-	/// Returns the size of a vector in bytes
-	/// </summary>
+	/**
+	 * @brief Returns the size of a vector in bytes.
+	 * @param vector
+	 * @return 
+	 */
 	template <typename T>
 	inline size_t GetVectorSizeInBytes(std::vector<T> vector)
 	{
@@ -58,20 +61,23 @@ namespace Utils
 	class Converter
 	{
 	public:
-		/// <summary>
-		/// Convert values. Returns the converted value.
-		/// </summary>
+
+		/**
+		 * @brief Convert values. Returns the converted value.
+		 * @param value
+		 * @return 
+		 */
 		template <typename FromType, typename ToType>
 		static inline ToType Convert(FromType value)
 		{
 			return Convert<ToType>(value);
 		}
 
-		/// <summary>
-		/// Converts uint32_t to float.
-		/// </summary>
-		/// <param name="value"></param>
-		/// <returns></returns>
+		/**
+		 * @brief Converts uint32_t to float.
+		 * @param value
+		 * @return 
+		 */
 		template<> 
 		static inline float Convert(uint32_t value)
 		{
@@ -83,11 +89,11 @@ namespace Utils
 			return static_cast<float>(intermediateValue);
 		}
 
-		/// <summary>
-		/// Converts string to bool.
-		/// </summary>
-		/// <param name="value"></param>
-		/// <returns>true if the value is either "true" (case insensitive) or 1, false otherwise.</returns>
+		/**
+		 * @brief Converts string to bool.
+		 * @param value
+		 * @return true if the value is either "true" (case insensitive) or 1, false otherwise.
+		 */
 		template<>
 		static inline bool Convert(std::string value)
 		{
@@ -98,23 +104,23 @@ namespace Utils
 			}
 			return false;
 		}
-
-		/// <summary>
-		/// Converts string to int.
-		/// </summary>
-		/// <param name="value"></param>
-		/// <returns></returns>
+		
+		/**
+		 * @brief Converts string to int.
+		 * @param value
+		 * @return 
+		 */
 		template<>
 		static inline int Convert(std::string value)
 		{
 			return std::stoi(value);
 		}
 
-		/// <summary>
-		/// Converts string to float.
-		/// </summary>
-		/// <param name="value"></param>
-		/// <returns></returns>
+		/**
+		 * @brief Converts string to float.
+		 * @param value
+		 * @return 
+		 */
 		template<>
 		static inline float Convert(std::string value)
 		{
@@ -126,11 +132,11 @@ namespace Utils
 	{
 	public:
 
-		/// <summary>
-		/// Reads an ASCII or UNICODE text file.
-		/// </summary>
-		/// <param name="absolutePath"></param>
-		/// <returns></returns>
+		/**
+		 * @brief Reads an ASCII or UNICODE text file.
+		 * @param absolutePath
+		 * @return The text the file contains as a std::string.
+		 */
 		static inline std::string ReadAllText(std::filesystem::path absolutePath)
 		{
 			std::fstream textFile{ absolutePath, std::ios::in };
@@ -148,10 +154,12 @@ namespace Utils
 		}
 	};
 
-	/// <summary>
-	/// Prints a message to a stream given a function that does the printing and a message. 
-	/// Default function prints to standard output (console).
-	/// </summary>
+	/**
+	 * @brief Prints a message to a stream given a function that does the printing and a message. 
+	 * Default function prints to standard output (console).
+	 * @param message The message to print.
+	 * @param logFunction Logging function. Defaults to a function printing to the console window.
+	 */
 	inline void Print(const std::string& message, void(*logFunction) (const std::string&) = [](const std::string& message) { std::cout << message << std::endl; })
 	{
 		logFunction(message);

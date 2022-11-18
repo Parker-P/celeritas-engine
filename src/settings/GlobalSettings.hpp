@@ -10,9 +10,10 @@ namespace Settings
 		uint32_t _windowHeight;
 		float _mouseSensitivity;
 
-		/// <summary>
-		/// Loads global settings from the json file.
-		/// </summary>
+		/**
+		 * @brief Loads global settings from the json file.
+		 * @param pathToJson
+		 */
 		void Load(const std::filesystem::path& pathToJson);
 	};
 }

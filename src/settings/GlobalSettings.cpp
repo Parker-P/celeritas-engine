@@ -8,11 +8,11 @@
 
 namespace Settings
 {
-	/// <summary>
-	/// Trims the ends of a string by removing the first and last characters from it.
-	/// </summary>
-	/// <param name="quotedString"></param>
-	/// <returns>A new string with the 2 ends trimmed by one character.</returns>
+	/**
+	 * @brief Trims the ends of a string by removing the first and last characters from it.
+	 * @param quotedString
+	 * @return A new string with the 2 ends trimmed by one character.
+	 */
 	std::string TrimEnds(std::string quotedString)
 	{
 		auto length = quotedString.length();

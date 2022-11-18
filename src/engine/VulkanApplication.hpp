@@ -8,9 +8,9 @@
 
 namespace Engine::Vulkan
 {
-	/// <summary>
-	/// Represents the Vulkan application.
-	/// </summary>
+	/**
+	 * @brief Represents the Vulkan application.
+	 */
 	class VulkanApplication
 	{
 	public:
@@ -19,10 +19,8 @@ namespace Engine::Vulkan
 
 	private:
 
-		// Window
 		GLFWwindow* _window;
 
-		// Basic vulkan stuff
 		VkInstance							_instance;
 		VkSurfaceKHR						_windowSurface;
 		VkPhysicalDevice					_physicalDevice;
@@ -38,76 +36,77 @@ namespace Engine::Vulkan
 		VkRenderPass						_renderPass;
 		VkPipeline							_graphicsPipeline;
 
-		// Vertex and index buffers
-
-		/// <summary>
-		/// Buffer that stores vertex attributes. A vertex attribute is a piece of data
-		/// that decorates the vertex with more information, so that the vertex shader can
-		/// do more work based on it. For example a vertex attribute could be a position or a normal vector.
-		/// Based on the normal vector, the vertex shader can perform lighting calculations by computing
-		/// the angle between the source of light and the normal.
-		/// </summary>
+		/**
+		 * @brief Buffer that stores vertex attributes. A vertex attribute is a piece of data
+		 * that decorates the vertex with more information, so that the vertex shader can
+		 * do more work based on it. For example a vertex attribute could be a position or a normal vector.
+		 * Based on the normal vector, the vertex shader can perform lighting calculations by computing
+		 * the angle between the source of the light and the normal..
+		 */
 		VkBuffer _vertexBuffer;
 
-		/// <summary>
-		/// 
-		/// </summary>
+		/**
+		 * @brief .
+		 */
 		VkDeviceMemory _vertexBufferMemory;
 
-		/// <summary>
-		/// 
-		/// </summary>
+		/**
+		 * @brief Buffer that stores indices that point into the vertex buffer. This buffer is used by Vulkan when drawing 
+		 * using the vkCmdDrawIndexed command. This buffer gives Vulkan information about the order in which to draw
+		 * vertices.
+		 */
 		VkBuffer _indexBuffer;
 
-		/// <summary>
-		/// 
-		/// </summary>
+		/**
+		 * @brief .
+		 */
 		VkDeviceMemory _indexBufferMemory;
 
-		/// <summary>
-		/// Preface:
-		/// Vertex shaders can define input variables, which receive vertex attribute data transferred from 
-		/// one or more VkBuffer(s) by drawing commands. Vertex attribute data can be anything, but it's usually
-		/// things like its position, normal and uv coordinates. Vertex shader input variables are bound to vertex buffers
-		/// via an indirect binding, where the vertex shader associates a vertex input attribute number with 
-		/// each variable: the "location" decorator. Vertex input attributes (location) are associated to vertex input 
-		/// bindings (binding) on a per-pipeline basis, and vertex input bindings (binding) are associated with specific buffers 
-		/// (VkBuffer) on a per-draw basis via the vkCmdBindVertexBuffers command. Vertex input attribute and vertex input 
-		/// binding descriptions also contain format information controlling how data is extracted from buffer 
-		/// memory and converted to the format expected by the vertex shader.
-		/// 
-		/// In short:
-		/// Each vertex buffer is identified by a binding number, defined when calling vkCmdBindVertexBuffers.
-		/// Each attribute inside a vertex buffer is identified by a location number, defined when creating a pipeline in a VkVertexInputBindingDescription struct.
-		/// 
-		/// Since we are only using one vertex buffer, this variable contains:
-		/// 1) binding: the binding number of the vertex buffer defined when calling vkCmdBindVertexBuffers;
-		/// 2) stride: the offset in bytes between each set of vertex attributes in the buffer identified by the binding number above;
-		/// 3) inputRate: unknown (info hard to find on this)
-		/// </summary>
+		/**
+		 * Since we are only using one vertex buffer, this variable contains:
+		 * 1) binding: the binding number of the vertex buffer defined when calling vkCmdBindVertexBuffers;
+		 * 2) stride: the offset in bytes between each set of vertex attributes in the buffer identified by the binding number above;
+		 * 3) inputRate: unknown (info hard to find on this)
+		 * 
+		 * Detailed explanation:
+		 * Vertex shaders can define input variables, which receive vertex attribute data transferred from 
+		 * one or more VkBuffer(s) by drawing commands. Vertex attribute data can be anything, but it's usually
+		 * things like its position, normal and uv coordinates. Vertex shader input variables are bound to vertex buffers
+		 * via an indirect binding, where the vertex shader associates a vertex input attribute number with 
+		 * each variable: the "location" decorator. Vertex input attributes (location) are associated to vertex input 
+		 * bindings (binding) on a per-pipeline basis, and vertex input bindings (binding) are associated with specific buffers 
+		 * (VkBuffer) on a per-draw basis via the vkCmdBindVertexBuffers command. Vertex input attribute and vertex input 
+		 * binding descriptions also contain format information controlling how data is extracted from buffer 
+		 * memory and converted to the format expected by the vertex shader.
+		 * 
+		 * In short:
+		 * Each vertex buffer is identified by a binding number, defined when calling vkCmdBindVertexBuffers.
+		 * Each attribute inside a vertex buffer is identified by a location number, defined when creating a pipeline in a VkVertexInputBindingDescription struct..
+		 */
 		VkVertexInputBindingDescription	_vertexBindingDescription;
 
-		/// <summary>
-		/// Preface:
-		/// Vertex shaders can define input variables, which receive vertex attribute data transferred from 
-		/// one or more VkBuffer(s) by drawing commands. Vertex shader input variables are bound to these buffers 
-		/// via an indirect binding, where the vertex shader associates a vertex input attribute number with 
-		/// each variable: the "location" decorator. Vertex input attributes (location) are associated to vertex input 
-		/// bindings (binding) on a per-pipeline basis, and vertex input bindings (binding) are associated with specific buffers 
-		/// (VkBuffer) on a per-draw basis via the vkCmdBindVertexBuffers command. Vertex input attribute and vertex input 
-		/// binding descriptions also contain format information controlling how data is extracted from buffer 
-		/// memory and converted to the format expected by the vertex shader.
-		/// 
-		/// In short:
-		/// Each vertex buffer is identified by a binding number, defined when calling vkCmdBindVertexBuffers.
-		/// Each attribute inside a vertex buffer is identified by a location number, defined here.
-		/// 
-		/// Each VkVertexInputAttributeDescription contains:
-		/// 1) location: identifier for the vertex attribute.
-		/// 2) binding: the binding number of the vertex buffer defined when calling vkCmdBindVertexBuffers;
-		/// 3) format: the format of this variable/variable;
-		/// 4) offset: the offset in bytes within the vertex buffer identified by "binding".
-		/// </summary>
+		/**
+		 * Each VkVertexInputAttributeDescription contains:
+		 * 1) location: identifier for the vertex attribute; also defined in the vertex shader definition of the attribute;
+		 * 2) binding: the binding number of the vertex buffer defined when calling vkCmdBindVertexBuffers;
+		 * 3) format: the format of this attribute/variable, VkFormat;
+		 * 4) offset: the offset of the attribute in bytes within the set of vertex attributes.
+		 * 
+		 * Detailed explanation:
+		 * Vertex shaders can define input variables, which receive vertex attribute data transferred from
+		 * one or more VkBuffer(s) by drawing commands. Vertex attribute data can be anything, but it's usually
+		 * things like its position, normal and uv coordinates. Vertex shader input variables are bound to vertex buffers
+		 * via an indirect binding, where the vertex shader associates a vertex input attribute number with
+		 * each variable: the "location" decorator. Vertex input attributes (location) are associated to vertex input
+		 * bindings (binding) on a per-pipeline basis, and vertex input bindings (binding) are associated with specific buffers
+		 * (VkBuffer) on a per-draw basis via the vkCmdBindVertexBuffers command. Vertex input attribute and vertex input
+		 * binding descriptions also contain format information controlling how data is extracted from buffer
+		 * memory and converted to the format expected by the vertex shader.
+		 * 
+		 * In short:
+		 * Each vertex buffer is identified by a binding number, defined when calling vkCmdBindVertexBuffers.
+		 * Each attribute inside a vertex buffer is identified by a location number, defined here.
+		 */
 		std::vector<VkVertexInputAttributeDescription> _vertexAttributeDescriptions;
 
 		// Shader resources (descriptor sets and push constants)
@@ -147,25 +146,53 @@ namespace Engine::Vulkan
 		Scenes::Camera _mainCamera;
 		glm::mat4 _modelMatrix;
 
-		/// <summary>
-		/// Initializes the window.
-		/// </summary>
+		/*
+		 * Function called by Vulkan's validation layers once an error has occourred.
+		 *
+		 * @param flags
+		 * @param objType
+		 * @param srcObject
+		 * @param location
+		 * @param msgCode
+		 * @param pLayerPrefix
+		 * @param pMsg
+		 * @param pUserData
+		 * @return
+		 */
+		static VkBool32 DebugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData);
+
+		/**
+		 * Initializes the window.
+		 */
 		void InitializeWindow();
 
-		/// <summary>
-		/// Calculates the time elapsed since rendering the last frame.
-		/// </summary>
+		/**
+		 * Calculates the time elapsed since rendering the last frame..
+		 */
 		void CalculateDeltaTime();
 
-		/// <summary>
-		/// Initializes the engine.
-		/// </summary>
+		/**
+		 * @brief Initializes the engine.
+		 */
 		void SetupVulkan();
 
+		/**
+		 * @brief Main loop used for each frame update.
+		 */
 		void MainLoop();
 
+		/**
+		 * Callback for when the window is resized.
+		 * 
+		 * @param window
+		 * @param width
+		 * @param height
+		 */
 		static void OnWindowResized(GLFWwindow* window, int width, int height);
 
+		/**
+		 * @brief .
+		 */
 		void OnWindowSizeChanged();
 
 		void Cleanup(bool fullClean);
@@ -194,20 +221,24 @@ namespace Engine::Vulkan
 
 		void CreateUniformBuffer();
 
-		/// <summary>
-		/// Update the data that will be sent to the shaders.
-		/// </summary>
+		/**
+		 * @brief Update the data that will be sent to the shaders.
+		 */
 		void UpdateUniformData();
 
-		/// <summary>
-		/// Find device memory that is supported by the requirements (typeBits) and meets the desired properties.
-		/// </summary>
+		/**
+		 * @brief Find device memory that is supported by the requirements (typeBits) and meets the desired properties.
+		 * @param typeBits
+		 * @param properties
+		 * @param typeIndex
+		 * @return 
+		 */
 		VkBool32 GetMemoryType(uint32_t typeBits, VkFlags properties, uint32_t* typeIndex);
 
-		/// <summary>
-		/// Creates the swapchain. The swapchain is essentially an image manager. 
-		/// The general purpose of the swap chain is to synchronize the presentation of images with the refresh rate of the screen.
-		/// </summary>
+		/**
+		 * @brief Creates the swapchain. 
+		 * @see _swapChain
+		 */
 		void CreateSwapChain();
 
 		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);

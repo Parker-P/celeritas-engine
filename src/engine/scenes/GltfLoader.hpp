@@ -31,22 +31,45 @@ namespace Engine::Scenes
 	class GltfMesh
 	{
 	public:
-		int index; // The index of the mesh in the "meshes" array in the GLTF file
+		/**
+		 * @brief The index of the mesh in the "meshes" array in the GLTF file.
+		 */
+		int index;
+
+		/**
+		 * @brief Name of the mesh as parsed from the file.
+		 */
 		std::string name;
 
-		// This struct describes where to find information about this mesh inside the GltfScene this mesh is in
+		/**
+		 * @brief This struct describes where to find information about this mesh inside the GltfScene this mesh is in.
+		 */
 		struct Primitive
 		{
 			struct
 			{
-				int positionsAccessorIndex; // Index of where to find vertex positions in the accessors
-				int normalsAccessorIndex;	// Index of where to find vertex normals in the accessors
-				int uvCoordsAccessorIndex;	// Index of where to find uv coordinates in the accessors
+				/**
+				 * @brief Index of where to find vertex positions in the accessors.
+				 */
+				int positionsAccessorIndex;
+				
+				/**
+				 * @brief Index of where to find vertex normals in the accessors.
+				 */
+				int normalsAccessorIndex;
+
+				/**
+				 * @brief Index of where to find uv coordinates in the accessors.
+				 */
+				int uvCoordsAccessorIndex;
 			} attributes;
 			int indicesAccessorIndex;
 		};
 
-		std::vector<Primitive> primitives; // Describes the raw meshes that make up the mesh. For example this mesh could be made up of 2 separate cubes
+		/**
+		 * @brief Describes the raw meshes that make up the mesh. For example this mesh could be made up of 2 separate cubes.
+		 */
+		std::vector<Primitive> primitives;
 	};
 
 	class GltfScene
@@ -63,63 +86,101 @@ namespace Engine::Scenes
 
 		struct BufferView
 		{
-			int byteLength; // How big the data described by this bufferView is inside the raw gltf buffer
-			int	byteOffset; // Where the data starts inside the raw gltf data buffer
+			/**
+			 * @brief How big the data described by this bufferView is inside the raw gltf buffer.
+			 */
+			int byteLength;
+
+			/**
+			 * @brief Where the data starts inside the raw gltf data buffer.
+			 */
+			int	byteOffset;
 		};
 
-		std::vector<GltfMesh> meshes;			// Tells you which mehses are in the scene
-		std::vector<Accessor> accessors;		// Tells you how to read and interpret primitive attributes such as vertex positions or vertex normals and which bufferView to find this data in
-		std::vector<BufferView> bufferViews;	// Tells you where to find mesh data inside the raw gltf data buffer
+		/**
+		 * @brief Tells you which mehses are in the scene.
+		 */
+		std::vector<GltfMesh> meshes;
+
+		/**
+		 * @brief Tells you how to read and interpret primitive attributes such as vertex positions or vertex normals and which bufferView to find this data in.
+		 */
+		std::vector<Accessor> accessors;
+
+		/**
+		 * @brief Tells you where to find mesh data inside the raw gltf data buffer.
+		 */
+		std::vector<BufferView> bufferViews;
 	};
 
-	/// <summary>
-	/// Represents binary gltf data.
-	/// Specification at: https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#glb-file-format-specification
-	/// File structure overview: https://github.com/KhronosGroup/glTF-Tutorials/blob/master/gltfTutorial/gltfTutorial_003_MinimalGltfFile.md
-	/// </summary>
+	/**
+	 * @brief Represents binary gltf data.
+	 * Specification at: @see [file.specification](https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html#glb-file-format-specification)
+	 * File structure overview: @see [file.structure]https://github.com/KhronosGroup/glTF-Tutorials/blob/master/gltfTutorial/gltfTutorial_003_MinimalGltfFile.md.
+	 */
 	class GltfData
 	{
 	public:
-		// Header
+		
+		/**
+		 * @brief Header.
+		 */
 		struct
 		{
-			uint32_t magic;			// Makes the file identifiable as a gltf file, it's a data format identifier
+			/**
+			 * @brief Makes the file identifiable as a gltf file, it's a data format identifier.
+			 */
+			uint32_t magic;
 			uint32_t version;
-			uint32_t fileLength;	// File size in bytes
+
+			/**
+			 * @brief File size in bytes.
+			 */
+			uint32_t fileLength;
 		} header;
 
-		// Chunk 0 (JSON)
-		struct
-		{
-			uint32_t chunkLength;	// How bug this buffer is
-			uint32_t chunkType;		// The type of data inside this buffer
-			char* data;				// The raw json data
-		} json;
+		struct GltfBuffer {
+			/**
+			 * @brief Buffer size in bytes.
+			 */
+			uint32_t chunkLength;
 
-		// Chunk 1 (Binary data)
-		struct
-		{
-			uint32_t chunkLength;	// How bug this buffer is
-			uint32_t chunkType;		// The type of data inside this buffer
-			char* data;				// The raw gltf buffer
-		} binaryBuffer;
+			/**
+			 * @brief The type of data inside this buffer.
+			 */
+			uint32_t chunkType;
+
+			/**
+			 * @brief The raw json data.
+			 */
+			char* data;
+		};
+
+		/**
+		 * @brief Chunk 0 (JSON).
+		 */
+		GltfBuffer json;
+
+		/**
+		 * @brief Chunk 1 (Binary data).
+		 */
+		GltfBuffer binaryBuffer;
 	};
 
 
 #pragma endregion
 
-	/// <summary>
-	/// Class used to load .glb or .gltf 3D files
-	/// </summary>
+	/**
+	 * @brief Class used to load .glb or .gltf 3D scene files.
+	 */
 	class GltfLoader
 	{
-		/// <summary>
-		/// Sums the integer value of each character of string into one integer
-		/// </summary>
-		/// <param name="string">The string to convert to integer</param>
-		/// <returns>The sum of the values</returns>
-		//static uint32_t GetIntValue(const char* string);
 	public:
+		/**
+		 * @brief Loads a scene.
+		 * @param filename
+		 * @return A scene object containing scene data.
+		 */
 		static Scene Load(std::filesystem::path filename);
 	};
 }
