@@ -68,7 +68,7 @@ namespace Engine::Vulkan
 		 * 2) stride: the offset in bytes between each set of vertex attributes in the vertex buffer identified by the binding number above;
 		 * 3) inputRate: unknown (info hard to find on this)
 		 * 
-		 * Detailed explanation:
+		 * Useful information:
 		 * Vertex shaders can define input variables, which receive vertex attribute data transferred from 
 		 * one or more VkBuffer(s) by drawing commands. Vertex attribute data can be anything, but it's usually
 		 * things like its position, normal and uv coordinates. Vertex shader input variables are bound to vertex buffers
@@ -92,7 +92,7 @@ namespace Engine::Vulkan
 		 * 3) format: the format of this attribute/variable, VkFormat;
 		 * 4) offset: the offset of the attribute in bytes within the set of vertex attributes.
 		 * 
-		 * Detailed explanation:
+		 * Useful information:
 		 * Vertex shaders can define input variables, which receive vertex attribute data transferred from
 		 * one or more VkBuffer(s) by drawing commands. Vertex attribute data can be anything, but it's usually
 		 * things like its position, normal and uv coordinates. Vertex shader input variables are bound to vertex buffers
@@ -104,8 +104,8 @@ namespace Engine::Vulkan
 		 * memory and converted to the format expected by the vertex shader.
 		 * 
 		 * In short:
-		 * Each vertex buffer is identified by a binding number, defined when calling vkCmdBindVertexBuffers.
-		 * Each attribute inside a vertex buffer is identified by a location number, defined here.
+		 * Each vertex buffer is identified by a binding number, defined every time we draw something by calling vkCmdBindVertexBuffers.
+		 * Each attribute inside a vertex buffer is identified by a location number, defined here. The location number is defined when creating a pipeline.
 		 */
 		std::vector<VkVertexInputAttributeDescription> _vertexAttributeDescriptions;
 
@@ -197,7 +197,13 @@ namespace Engine::Vulkan
 
 		void Cleanup(bool fullClean);
 
-		bool CheckValidationLayerSupport();
+		/**
+		 * @brief Queries the physical device to get available validation layers. Once obtained,
+		 * each given validation layer will be searched for in the available validation layers.
+		 * @param validationLayers The validation layers you want to check that the physical device supports.
+		 * @return True if all validation layers are found in the available validation layers, false otherwise.
+		 */
+		bool ValidationLayersSupported(const std::vector<const char*>& validationLayers);
 
 		void CreateInstance();
 

@@ -29,7 +29,7 @@ namespace Engine::Scenes
 #pragma region LocalTypes
 
 	/**
-	 * @brief Represents a mesh in a gltf file, that can be made up of primitives.
+	 * @brief Represents a mesh in a gltf file, that can be made up of primitives such as cubes, spheres or any other shape.
 	 */
 	class GltfMesh
 	{

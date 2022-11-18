@@ -182,7 +182,7 @@ namespace Engine::Vulkan
 		}
 	} // Cleanup
 
-	bool VulkanApplication::CheckValidationLayerSupport()
+	bool VulkanApplication::ValidationLayersSupported(const std::vector<const char*>& validationLayers)
 	{
 		uint32_t layerCount;
 		vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
@@ -190,7 +190,7 @@ namespace Engine::Vulkan
 		std::vector<VkLayerProperties> availableLayers(layerCount);
 		vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
-		for (const char* layerName : _settings._validationLayers) {
+		for (const char* layerName : validationLayers) {
 			bool layerFound = false;
 
 			for (const auto& layerProperties : availableLayers) {
@@ -256,7 +256,7 @@ namespace Engine::Vulkan
 		createInfo.ppEnabledExtensionNames = extensions.data();
 
 		if (_settings._enableValidationLayers) {
-			if (CheckValidationLayerSupport()) {
+			if (ValidationLayersSupported(_settings._validationLayers)) {
 				createInfo.enabledLayerCount = 1;
 				createInfo.ppEnabledLayerNames = _settings._validationLayers.data();
 			}
@@ -1025,8 +1025,8 @@ namespace Engine::Vulkan
 		VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderCreateInfo, fragmentShaderCreateInfo };
 
 		// Vertex attribute binding - gives the vertex shader more info about a particular vertex buffer, denoted by the binding number. See binding for more info.
-		_vertexBindingDescription.binding = 0; // Buffer identifier.
-		_vertexBindingDescription.stride = sizeof(Vertex); // Size of each element in the buffer.
+		_vertexBindingDescription.binding = 0;
+		_vertexBindingDescription.stride = sizeof(Vertex);
 		_vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		// Describe how the shader should read vertex attributes when getting a vertex from the vertex buffer.
@@ -1046,7 +1046,7 @@ namespace Engine::Vulkan
 		// UV coordinates.
 		_vertexAttributeDescriptions[2].location = 2;
 		_vertexAttributeDescriptions[2].binding = 0;
-		_vertexAttributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+		_vertexAttributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
 		_vertexAttributeDescriptions[2].offset = Vertex::OffsetOf(Vertex::AttributeType::UV);
 
 		// Describe vertex input.
