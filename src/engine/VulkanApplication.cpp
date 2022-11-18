@@ -1015,13 +1015,13 @@ namespace Engine::Vulkan
 		vertexShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		vertexShaderCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
 		vertexShaderCreateInfo.module = vertexShaderModule;
-		vertexShaderCreateInfo.pName = "vertexShader";
+		vertexShaderCreateInfo.pName = "main";
 
 		VkPipelineShaderStageCreateInfo fragmentShaderCreateInfo = {};
 		fragmentShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		fragmentShaderCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
 		fragmentShaderCreateInfo.module = fragmentShaderModule;
-		fragmentShaderCreateInfo.pName = "fragmentShader";
+		fragmentShaderCreateInfo.pName = "main";
 		VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderCreateInfo, fragmentShaderCreateInfo };
 
 		// Vertex attribute binding - gives the vertex shader more info about a particular vertex buffer, denoted by the binding number. See binding for more info.
