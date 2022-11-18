@@ -8,20 +8,38 @@
 
 namespace Engine::Vulkan
 {
-	/// <summary>
-	/// Represents a generic Vulkan buffer. A buffer is just used as temporary data storage.
-	/// From the Vulkan spec: "Buffers represent linear arrays of data which are used for 
-	/// various purposes by binding them to a graphics or compute pipeline via descriptor 
-	/// sets or via certain commands, or by directly specifying them as parameters to certain commands."
-	/// </summary>
+	/**
+	 * @brief Buffers represent linear arrays of data which are used for 
+	 * various purposes by binding them to a graphics or compute pipeline via descriptor 
+	 * sets or via certain commands, or by directly specifying them as parameters to certain commands.
+	 */
 	class Buffer
 	{
+		/**
+		 * @brief Reference to the logical device needed in order to make calls to Vulkan to operate on the buffer.
+		 */
+		VkDevice _logicalDevice;
+
+		/**
+		 * @brief Needed in order to acquire information on whether the buffer .
+		 */
+		VkPhysicalDevice _physicalDevice;
 
 	public:
 
 		/**
+		 * @brief Initializes the buffer.
+		 * @param logicalDevice The logical device is used
+		 * @param usageFlags The usage flags tell Vulkan what the buffer can and cannot be used for.
+		 * @param sizeInBytes
+		 */
+		Buffer(VkDevice& logicalDevice, VkBufferUsageFlagBits& usageFlags, size_t sizeInBytes);
+
+		Buffer(VkDevice logicalDevice, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data, size_t sizeInBytes);
+
+		/**
 		 * @brief Creates the buffer after telling Vulkan what it's going to be used for and how much space in memory is required to allocate it. 
-		 * Generates a Vulkan handle..
+		 * Generates a Vulkan handle.
 		 * @param usageFlags
 		 * @param sizeInBytes
 		 */
@@ -96,7 +114,7 @@ namespace Engine::Vulkan
 		/// <param name="sizeInBytes">The size of the data you want to pass into the buffer.</param>
 		
 		/**
-		 * @brief .
+		 * @brief Creates a buffer and allocates memory; then, if the data pointer is not null, fills it with the data provided.
 		 * @param usageFlags
 		 * @param properties
 		 * @param data
@@ -349,9 +367,9 @@ namespace Engine::Vulkan
 
 		void CreateCommandPool();
 
-		void CreateVertexAndIndexBuffers();
-
 		void CreateUniformBuffer();
+
+		void CreateVertexAndIndexBuffers();
 
 		/**
 		 * @brief Update the data that will be sent to the shaders.

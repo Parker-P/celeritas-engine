@@ -39,6 +39,71 @@ namespace Engine::Vulkan
 {
 	bool windowResized = false;
 
+	Buffer::Buffer(VkDevice& logicalDevice, VkBufferUsageFlagBits& usageFlags, size_t sizeInBytes)
+	{
+		VkBufferCreateInfo vertexBufferInfo = {};
+		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		vertexBufferInfo.size = sizeInBytes;
+		vertexBufferInfo.usage = usageFlags;
+		if (vkCreateBuffer(_logicalDevice, &vertexBufferInfo, nullptr, &_handle) != VK_SUCCESS) {
+			std::cout << ("Failed creating buffer.") << std::endl;
+			exit(1);
+		}
+	}
+
+	void Buffer::AllocateMemory(VkMemoryPropertyFlagBits& properties, size_t sizeInBytes)
+	{
+		VkMemoryAllocateInfo allocationInfo = {};
+		allocationInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		VkMemoryRequirements requirements;
+
+		vkGetBufferMemoryRequirements(_logicalDevice, _handle, &requirements);
+		allocationInfo.allocationSize = requirements.size;
+
+		if (auto index = _physicalDevice.GetMemoryTypeIndex(requirements.memoryTypeBits, properties); index == -1) {
+			std::cout << "Could not get memory type index" << std::endl;
+			exit(1);
+		}
+		else {
+			_properties = properties;
+			allocationInfo.memoryTypeIndex = index;
+		}
+
+		if (vkAllocateMemory(_logicalDevice, &allocationInfo, nullptr, &_memory) != VK_SUCCESS) {
+			std::cout << "failed to allocate buffer memory" << std::endl;
+			exit(1);
+		}
+
+		vkBindBufferMemory(_logicalDevice, _handle, _memory, 0); // Alignment is the memory offset
+
+		if (properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+			vkMapMemory(_logicalDevice, _memory, 0, sizeInBytes, 0, &_dataAddress);
+		}
+	}
+
+	void Buffer::Fill(void* data, size_t sizeInBytes)
+	{
+		if (data != nullptr) {
+			memcpy(_dataAddress, data, sizeInBytes);
+			_size = sizeInBytes;
+		}
+	}
+
+	void Buffer::Init(VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data, size_t sizeInBytes)
+	{
+		Create(vc, usageFlags, sizeInBytes);
+		AllocateMemory(vc, properties, sizeInBytes);
+		Fill(data, sizeInBytes);
+	}
+
+	void Buffer::Destroy()
+	{
+		vkUnmapMemory(vc._logicalDevice._handle, _memory);
+		vkDestroyBuffer(vc._logicalDevice._handle, _handle, nullptr);
+		vkFreeMemory(vc._logicalDevice._handle, _memory, nullptr);
+	}
+
+
 	VkBool32 VulkanApplication::DebugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData)
 	{
 		if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
@@ -517,6 +582,27 @@ namespace Engine::Vulkan
 		}
 	}
 
+	void VulkanApplication::CreateUniformBuffer()
+	{
+		VkBufferCreateInfo bufferInfo = {};
+		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferInfo.size = sizeof(_uniformBufferData);
+		bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+		vkCreateBuffer(_logicalDevice, &bufferInfo, nullptr, &_uniformBuffer);
+
+		VkMemoryRequirements memReqs;
+		vkGetBufferMemoryRequirements(_logicalDevice, _uniformBuffer, &memReqs);
+
+		VkMemoryAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.allocationSize = memReqs.size;
+		GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &allocInfo.memoryTypeIndex);
+
+		vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &_uniformBufferMemory);
+		vkBindBufferMemory(_logicalDevice, _uniformBuffer, _uniformBufferMemory, 0);
+	}
+
 	void VulkanApplication::CreateVertexAndIndexBuffers()
 	{
 
@@ -647,29 +733,6 @@ namespace Engine::Vulkan
 		vkFreeMemory(_logicalDevice, stagingBuffers.indices.memory, nullptr);
 
 		std::cout << "set up vertex and index buffers" << std::endl;
-	}
-
-	void VulkanApplication::CreateUniformBuffer()
-	{
-		VkBufferCreateInfo bufferInfo = {};
-		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferInfo.size = sizeof(_uniformBufferData);
-		bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-
-		vkCreateBuffer(_logicalDevice, &bufferInfo, nullptr, &_uniformBuffer);
-
-		VkMemoryRequirements memReqs;
-		vkGetBufferMemoryRequirements(_logicalDevice, _uniformBuffer, &memReqs);
-
-		VkMemoryAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.allocationSize = memReqs.size;
-		GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &allocInfo.memoryTypeIndex);
-
-		vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &_uniformBufferMemory);
-		vkBindBufferMemory(_logicalDevice, _uniformBuffer, _uniformBufferMemory, 0);
-
-		UpdateUniformData();
 	}
 
 	void VulkanApplication::UpdateUniformData()
@@ -1140,7 +1203,12 @@ namespace Engine::Vulkan
 		int descriptorCount = 4;
 		CreateDescriptorSetLayout(descriptorCount);
 		CreateDescriptorPool(descriptorCount);
+
+		auto uniformBuffer = Buffer(_logicalDevice, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, (size_t)sizeof(_uniformBufferData));
+		uniformBuffer.Init(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &_uniformBufferData, sizeof(_uniformBufferData));
+
 		CreateUniformBuffer();
+		UpdateUniformData();
 		CreateDescriptorSet();
 		CreatePipelineLayout();
 		
