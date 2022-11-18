@@ -8,6 +8,109 @@
 
 namespace Engine::Vulkan
 {
+	/// <summary>
+	/// Represents a generic Vulkan buffer. A buffer is just used as temporary data storage.
+	/// From the Vulkan spec: "Buffers represent linear arrays of data which are used for 
+	/// various purposes by binding them to a graphics or compute pipeline via descriptor 
+	/// sets or via certain commands, or by directly specifying them as parameters to certain commands."
+	/// </summary>
+	class Buffer
+	{
+
+	public:
+
+		/**
+		 * @brief Creates the buffer after telling Vulkan what it's going to be used for and how much space in memory is required to allocate it. 
+		 * Generates a Vulkan handle..
+		 * @param usageFlags
+		 * @param sizeInBytes
+		 */
+		void Create(VkBufferUsageFlagBits& usageFlags, size_t sizeInBytes);
+
+		/**
+		 * @brief Allocate memory for the buffer (either RAM or VRAM depending on typeFlags).
+		 * @param vc
+		 * @param typeFlags
+		 * @param sizeInBytes
+		 */
+		void AllocateMemory(VkMemoryPropertyFlagBits& typeFlags, size_t sizeInBytes);
+
+		/**
+		 * @brief Fills the buffer with data.
+		 * @param data
+		 * @param sizeInBytes
+		 */
+		void Fill(void* data, size_t sizeInBytes);
+
+		/**
+		 * @brief The handle used by Vulkan to identify this buffer.
+		 */
+		VkBuffer _handle;
+
+		/**
+		 * @brief Contains information about the allocated memory for the buffer which, depending on the memory type flags
+		 * passed at construction, can be allocated in the GPU (VRAM) or in the RAM.
+		 */
+		VkDeviceMemory _memory;
+
+		/**
+		 * @brief The memory address of the allocated buffer. This can be either in VRAM or in RAM, depending on the memory properties
+		 * flags passed at construction. CAREFUL: THIS COULD BE A VRAM MEMORY ADDRESS WHOSE DATA YOU CANNOT ACCESS WITHOUT PASSING THROUGH
+		 * VULKAN FUNCTION CALLS.
+		 */
+		void* _dataAddress;
+
+		/// <summary>
+		/// Size in bytes of the data the buffer contains.
+		/// </summary>
+		size_t _size;
+
+		/// <summary>
+		/// See constructor description.
+		/// </summary>
+		VkMemoryPropertyFlagBits _properties;
+
+		/// <summary>
+		/// Creates a buffer and allocates memory; then, if the data pointer is not null, fills it with the data provided.
+		/// </summary>
+		/// <typeparam name="BufferData"></typeparam>
+		/// <param name="vc"></param>
+		/// <param name="usageFlags">The usage flags tell Vulkan what the buffer can and cannot be used for.</param>
+		/// <param name="properties">
+		/// <para>The properties flags tell Vulkan in which memory to allocate memory for the buffer (VRAM or RAM).</para>
+		/// <para>The most important flags are the following:</para>
+		/// <para>- VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT: this means GPU memory, so VRAM. If this is not set, then regular RAM is assumed.</para>
+		/// 
+		/// <para>- VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT: this means that the CPU will be able to read and write from the allocated memory IF YOU CALL vkMapMemory() FIRST.</para>
+		/// 
+		/// <para>- VK_MEMORY_PROPERTY_HOST_CACHED_BIT: this means that the memory will be cached so that when the CPU writes to this buffer, if the data is small enough to fit in its
+		/// cache (which is much faster to access) it will do that instead. Only problem is that this way, if your GPU needs to access that data, it won't be able to unless it's
+		/// also marked as HOST_COHERENT.</para>
+		/// 
+		/// <para>- VK_MEMORY_PROPERTY_HOST_COHERENT_BIT: this means that anything that the CPU writes to the buffer will be able to be read by the GPU as well, effectively
+		/// granting the GPU access to the CPU's cache (if the buffer is also marked as HOST_CACHED). COHERENT stands for consistency across memories, so it basically means 
+		/// that the CPU, GPU or any other device will see the same memory if trying to access the buffer. If you don't have this flag set, and you try to access the 
+		/// buffer from the GPU while the buffer is marked HOST_CACHED, you may not be able to get the data or even worse, you may end up reading the wrong chunk of memory.</para>
+		/// </param>
+		/// <param name="data">The starting memory address of the data you want to pass into the buffer.</param>
+		/// <param name="sizeInBytes">The size of the data you want to pass into the buffer.</param>
+		
+		/**
+		 * @brief .
+		 * @param usageFlags
+		 * @param properties
+		 * @param data
+		 * @param sizeInBytes
+		 */
+		void Init(VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data, size_t sizeInBytes);
+
+		/// <summary>
+		/// Destroys the buffer and frees any memory allocated to it.
+		/// </summary>
+		/// <param name="vc"></param>
+		void Destroy();
+	};
+
 	/**
 	 * @brief Represents the Vulkan application.
 	 */
