@@ -45,7 +45,7 @@ namespace Engine::Scenes
 #pragma endregion
 
 #pragma region GltfLoaderFunctionImplementations
-	Scene GltfLoader::Load(std::filesystem::path filename)
+	Scene GltfLoader::LoadScene(std::filesystem::path filename)
 	{
 		std::fstream file(filename, std::ios::binary | std::ios::in);
 		if (file.is_open()) {

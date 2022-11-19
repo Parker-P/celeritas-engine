@@ -61,6 +61,8 @@ namespace Engine::Vulkan
 		 */
 		VkBuffer _handle;
 
+		Buffer() = default;
+
 		/**
 		 * Constructs a buffer.
 		 * @param logicalDevice Needed by Vulkan to have info about the GPU so it can make function calls to allocate memory for the buffer.
@@ -80,7 +82,7 @@ namespace Engine::Vulkan
 		 * @param data Pointer to the start address of the data you want to copy to the buffer.
 		 * @param sizeInBytes Size in bytes of the data you want to copy to the buffer.
 		 */
-		Buffer(VkDevice& logicalDevice, VkPhysicalDeviceMemoryProperties& gpuMemoryProperties, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data, size_t sizeInBytes);
+		Buffer(VkDevice& logicalDevice, VkPhysicalDeviceMemoryProperties& gpuMemoryProperties, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data = nullptr, size_t sizeInBytes = 0);
 
 		/**
 		 * @brief Generates a data structure that Vulkan calls descriptor, which it uses to bind the buffer to a descriptor set.
@@ -129,24 +131,14 @@ namespace Engine::Vulkan
 		 * Based on the normal vector, the vertex shader can perform lighting calculations by computing
 		 * the angle between the source of the light and the normal..
 		 */
-		VkBuffer _vertexBuffer;
-
-		/**
-		 * @brief .
-		 */
-		VkDeviceMemory _vertexBufferMemory;
+		Buffer* _vertexBuffer;
 
 		/**
 		 * @brief Buffer that stores indices that point into the vertex buffer. This buffer is used by Vulkan when drawing
 		 * using the vkCmdDrawIndexed command. This buffer gives Vulkan information about the order in which to draw
 		 * vertices.
 		 */
-		VkBuffer _indexBuffer;
-
-		/**
-		 * @brief .
-		 */
-		VkDeviceMemory _indexBufferMemory;
+		Buffer* _indexBuffer;
 
 		/**
 		 * Since we are only using one vertex buffer, this variable contains:

@@ -109,7 +109,9 @@ namespace Engine::Vulkan
 
 	void Buffer::Destroy()
 	{
-		vkUnmapMemory(_logicalDevice, _memory);
+		if (_properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+			vkUnmapMemory(_logicalDevice, _memory);
+		}
 		vkDestroyBuffer(_logicalDevice, _handle, nullptr);
 		vkFreeMemory(_logicalDevice, _memory, nullptr);
 	}
@@ -232,10 +234,8 @@ namespace Engine::Vulkan
 			_uniformBuffer.Destroy();
 
 			// Buffers must be destroyed after no command buffers are referring to them anymore
-			vkDestroyBuffer(_logicalDevice, _vertexBuffer, nullptr);
-			vkFreeMemory(_logicalDevice, _vertexBufferMemory, nullptr);
-			vkDestroyBuffer(_logicalDevice, _indexBuffer, nullptr);
-			vkFreeMemory(_logicalDevice, _indexBufferMemory, nullptr);
+			_vertexBuffer->Destroy();
+			_indexBuffer->Destroy();
 
 			// Note: implicitly destroys images (in fact, we're not allowed to do that explicitly)
 			vkDestroySwapchainKHR(_logicalDevice, _swapChain, nullptr);
@@ -596,38 +596,14 @@ namespace Engine::Vulkan
 
 #pragma region SceneLoading
 		// Load the scene
-		_scene = Scenes::GltfLoader::Load(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
+		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
 		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._vertices);
 		auto faceIndicesSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._faceIndices);
 #pragma endregion
 
-#pragma region Prep
-		struct StagingBuffer
-		{
-			VkDeviceMemory memory;
-			VkBuffer buffer;
-		};
-
-		struct
-		{
-			StagingBuffer vertices;
-			StagingBuffer indices;
-		} stagingBuffers;
-
-		// Allocate a command buffer for the copy operations to follow
-		VkCommandBufferAllocateInfo cmdBufInfo = {};
-		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cmdBufInfo.commandPool = _commandPool;
-		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		cmdBufInfo.commandBufferCount = 1;
-
-		VkCommandBuffer copyCommandBuffer;
-		vkAllocateCommandBuffers(_logicalDevice, &cmdBufInfo, &copyCommandBuffer);
-#pragma endregion
-
 #pragma region VerticesToVertexBuffer
 		// First copy vertices to host accessible vertex buffer memory
-		VkBufferCreateInfo vertexBufferInfo = {};
+		/*VkBufferCreateInfo vertexBufferInfo = {};
 		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		vertexBufferInfo.size = vertexPositionsSize;
 		vertexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
@@ -647,26 +623,43 @@ namespace Engine::Vulkan
 		vkMapMemory(_logicalDevice, stagingBuffers.vertices.memory, 0, vertexPositionsSize, 0, &data);
 		memcpy(data, _scene._meshes[0]._vertices.data(), vertexPositionsSize);
 		vkUnmapMemory(_logicalDevice, stagingBuffers.vertices.memory);
-		vkBindBufferMemory(_logicalDevice, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0);
+		vkBindBufferMemory(_logicalDevice, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0);*/
 
-		// Then allocate a gpu only buffer for vertices
-		vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		// Create a buffer used as a middleman buffer to transfer data from the RAM to the VRAM. This buffer will be created in RAM.
+		auto vertexTransferBuffer = Buffer(_logicalDevice,
+			_deviceMemoryProperties,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+			_scene._meshes[0]._vertices.data(),
+			vertexPositionsSize);
+
+		// This creates a buffer on VRAM, which will be the actual vertex buffer the shaders get their data from.
+		/*vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 		vkCreateBuffer(_logicalDevice, &vertexBufferInfo, nullptr, &_vertexBuffer);
 		vkGetBufferMemoryRequirements(_logicalDevice, _vertexBuffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
 		GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &_vertexBufferMemory);
-		vkBindBufferMemory(_logicalDevice, _vertexBuffer, _vertexBufferMemory, 0);
+		vkBindBufferMemory(_logicalDevice, _vertexBuffer, _vertexBufferMemory, 0);*/
 
-		// Next copy indices to host accessible index buffer memory
-		VkBufferCreateInfo indexBufferInfo = {};
-		indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		indexBufferInfo.size = faceIndicesSize;
-		indexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		_vertexBuffer = new Buffer(_logicalDevice,
+			_deviceMemoryProperties,
+			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			nullptr,
+			vertexPositionsSize);
+
 #pragma endregion
 
 #pragma region FaceIndicesToIndexBuffer
-		vkCreateBuffer(_logicalDevice, &indexBufferInfo, nullptr, &stagingBuffers.indices.buffer);
+		auto indexTransferBuffer = Buffer(_logicalDevice,
+			_deviceMemoryProperties,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+			(void*)_scene._meshes[0]._faceIndices.data(),
+			faceIndicesSize);
+
+		/*vkCreateBuffer(_logicalDevice, &indexBufferInfo, nullptr, &stagingBuffers.indices.buffer);
 		vkGetBufferMemoryRequirements(_logicalDevice, stagingBuffers.indices.buffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
 		GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
@@ -675,31 +668,48 @@ namespace Engine::Vulkan
 		vkMapMemory(_logicalDevice, stagingBuffers.indices.memory, 0, faceIndicesSize, 0, &data);
 		memcpy(data, _scene._meshes[0]._faceIndices.data(), faceIndicesSize);
 		vkUnmapMemory(_logicalDevice, stagingBuffers.indices.memory);
-		vkBindBufferMemory(_logicalDevice, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0);
+		vkBindBufferMemory(_logicalDevice, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0);*/
 
 		// And allocate another gpu only buffer for indices
-		indexBufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		/*indexBufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 		vkCreateBuffer(_logicalDevice, &indexBufferInfo, nullptr, &_indexBuffer);
 		vkGetBufferMemoryRequirements(_logicalDevice, _indexBuffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
 		GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &_indexBufferMemory);
-		vkBindBufferMemory(_logicalDevice, _indexBuffer, _indexBufferMemory, 0);
+		vkBindBufferMemory(_logicalDevice, _indexBuffer, _indexBufferMemory, 0);*/
 
+		_indexBuffer = new Buffer(_logicalDevice,
+			_deviceMemoryProperties,
+			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			nullptr,
+			faceIndicesSize);
+#pragma endregion
+
+#pragma region CommandBufferCreationAndExecution
 		// Now copy data from host visible buffer to gpu only buffer
 		VkCommandBufferBeginInfo bufferBeginInfo = {};
 		bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		bufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-#pragma endregion
 
-#pragma region CommandBufferCreationAndExecution
+		// Allocate a command buffer for the copy operations to follow
+		VkCommandBufferAllocateInfo cmdBufInfo = {};
+		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		cmdBufInfo.commandPool = _commandPool;
+		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		cmdBufInfo.commandBufferCount = 1;
+
+		VkCommandBuffer copyCommandBuffer;
+		vkAllocateCommandBuffers(_logicalDevice, &cmdBufInfo, &copyCommandBuffer);
+
 		vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
 
 		VkBufferCopy copyRegion = {};
 		copyRegion.size = vertexPositionsSize;
-		vkCmdCopyBuffer(copyCommandBuffer, stagingBuffers.vertices.buffer, _vertexBuffer, 1, &copyRegion);
+		vkCmdCopyBuffer(copyCommandBuffer, vertexTransferBuffer._handle, _vertexBuffer->_handle, 1, &copyRegion);
 		copyRegion.size = faceIndicesSize;
-		vkCmdCopyBuffer(copyCommandBuffer, stagingBuffers.indices.buffer, _indexBuffer, 1, &copyRegion);
+		vkCmdCopyBuffer(copyCommandBuffer, indexTransferBuffer._handle, _indexBuffer->_handle, 1, &copyRegion);
 
 		vkEndCommandBuffer(copyCommandBuffer);
 
@@ -715,10 +725,8 @@ namespace Engine::Vulkan
 		vkFreeCommandBuffers(_logicalDevice, _commandPool, 1, &copyCommandBuffer);
 #pragma endregion
 
-		vkDestroyBuffer(_logicalDevice, stagingBuffers.vertices.buffer, nullptr);
-		vkFreeMemory(_logicalDevice, stagingBuffers.vertices.memory, nullptr);
-		vkDestroyBuffer(_logicalDevice, stagingBuffers.indices.buffer, nullptr);
-		vkFreeMemory(_logicalDevice, stagingBuffers.indices.memory, nullptr);
+		vertexTransferBuffer.Destroy();
+		indexTransferBuffer.Destroy();
 
 		std::cout << "set up vertex and index buffers" << std::endl;
 	}
@@ -1258,7 +1266,7 @@ namespace Engine::Vulkan
 		}
 
 		// This creates the actual descriptor.
-		auto transformationMatricesDescriptorBuffer = CreateDescriptorBuffer(_uniformBuffer);
+		auto transformationMatricesDescriptorBuffer = _uniformBuffer.GenerateDescriptor();
 
 		// pBufferInfo is a pointer to the start of an array of descriptors.
 		VkWriteDescriptorSet writeDescriptorSet = {};
@@ -1388,7 +1396,7 @@ namespace Engine::Vulkan
 			vkCmdBindDescriptorSets(_graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelineLayout, 0, 1, &_descriptorSet, 0, nullptr);
 			vkCmdBindPipeline(_graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
 			VkDeviceSize offset = 0;
-			vkCmdBindVertexBuffers(_graphicsCommandBuffers[i], 0, 1, &_vertexBuffer, &offset);
+			vkCmdBindVertexBuffers(_graphicsCommandBuffers[i], 0, 1, &_vertexBuffer->_handle, &offset);
 
 			// Get the value type of vertex indices. Typically unsigned int (32-bit) but could also be 16-bit. Gltf for example uses 16-bit.
 			VkIndexType indexType = VK_INDEX_TYPE_NONE_KHR;
@@ -1398,7 +1406,7 @@ namespace Engine::Vulkan
 			if (std::is_same_v<decltype(_scene._meshes[0]._faceIndices)::value_type, unsigned int>) {
 				indexType = VK_INDEX_TYPE_UINT32;
 			}
-			vkCmdBindIndexBuffer(_graphicsCommandBuffers[i], _indexBuffer, 0, indexType);
+			vkCmdBindIndexBuffer(_graphicsCommandBuffers[i], _indexBuffer->_handle, 0, indexType);
 
 			vkCmdDrawIndexed(_graphicsCommandBuffers[i], (uint32_t)_scene._meshes[0]._faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(_graphicsCommandBuffers[i]);

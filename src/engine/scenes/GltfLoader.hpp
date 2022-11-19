@@ -221,6 +221,6 @@ namespace Engine::Scenes
 		 * @param filename
 		 * @return A scene object containing scene data.
 		 */
-		static Scene Load(std::filesystem::path filename);
+		static Scene LoadScene(std::filesystem::path filename);
 	};
 }
