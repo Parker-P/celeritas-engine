@@ -196,7 +196,7 @@ namespace Engine::Vulkan
 		std::vector<VkVertexInputAttributeDescription> _vertexAttributeDescriptions;
 
 		/**
-		 * @brief The Vulkan buffer that contains the data that will be sent to the shaders. This buffer will be pointed to by a descriptor, which will in turn
+		 * @brief The Vulkan buffer that contains the data that will be sent to the shaders. This buffer will be a descriptor, which will
 		 * be pointed to by a descriptor set. The descriptor set is the structure that actually ends up in the shaders.
 		 */
 		Buffer _uniformBuffer;
@@ -334,8 +334,6 @@ namespace Engine::Vulkan
 
 		void CreateCommandPool();
 
-		void CreateUniformBuffer();
-
 		void CreateVertexAndIndexBuffers();
 
 		/**
@@ -381,13 +379,6 @@ namespace Engine::Vulkan
 		 * @param descriptorCount The amount of descriptors you plan.
 		 */
 		void CreateDescriptorSetLayout(const uint32_t& descriptorCount);
-
-		/**
-		 * @brief Creates a descriptor buffer. A descriptor buffer is the actual descriptor that will be pointed to by a descriptor set.
-		 * A descriptor set points to a descriptor buffer, which points to a VkBuffer.
-		 * @param buffer The buffer you want the descriptor to point to.
-		 */
-		VkDescriptorBufferInfo CreateDescriptorBuffer(const Buffer& buffer);
 
 		void CreatePipelineLayout();
 

@@ -100,7 +100,7 @@ namespace Engine::Scenes
 		// vertex V 10 units forward from its current position. If instead of moving the camera BACK 10 units we move vertex V FORWARD 10 units, 
 		// we get the exact same effect as if we actually had a camera and moved it backwards. That's it, very simple idea behind the view matrix.
 
-		_view.SetTransformation(glm::inverse(_transform.GetTransformation()));
+		_view._matrix = glm::inverse(_transform._matrix);
 	}
 
 	void Camera::GenerateProjectionTransform(const float& viewportWidth, const float& viewportHeight, const float& horizontalFovDegrees, const float& nearClipDistance, const float& farClipDistance)
@@ -119,6 +119,6 @@ namespace Engine::Scenes
 		// of the window. It's a very simple idea but the nature of how GPUs and vertex shaders work make the math a little hard to understand. There are plenty of good
 		// math explanations on the net.
 
-		_projection.SetTransformation(glm::perspectiveFov(glm::radians(horizontalFovDegrees), viewportWidth, viewportHeight, nearClipDistance, farClipDistance));
+		_projection._matrix = glm::perspectiveFov(glm::radians(horizontalFovDegrees), viewportWidth, viewportHeight, nearClipDistance, farClipDistance);
 	}
 }

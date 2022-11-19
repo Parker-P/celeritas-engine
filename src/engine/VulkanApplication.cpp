@@ -1064,19 +1064,19 @@ namespace Engine::Vulkan
 		_vertexAttributeDescriptions[0].location = 0;
 		_vertexAttributeDescriptions[0].binding = 0;
 		_vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-		_vertexAttributeDescriptions[0].offset = Vertex::OffsetOf(Vertex::AttributeType::Position);
+		_vertexAttributeDescriptions[0].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Position);
 
 		// Normals.
 		_vertexAttributeDescriptions[1].location = 1;
 		_vertexAttributeDescriptions[1].binding = 0;
 		_vertexAttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		_vertexAttributeDescriptions[1].offset = Vertex::OffsetOf(Vertex::AttributeType::Normal);
+		_vertexAttributeDescriptions[1].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Normal);
 
 		// UV coordinates.
 		_vertexAttributeDescriptions[2].location = 2;
 		_vertexAttributeDescriptions[2].binding = 0;
 		_vertexAttributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-		_vertexAttributeDescriptions[2].offset = Vertex::OffsetOf(Vertex::AttributeType::UV);
+		_vertexAttributeDescriptions[2].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::UV);
 
 		// Describe vertex input.
 		VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo = {};
@@ -1270,15 +1270,6 @@ namespace Engine::Vulkan
 		writeDescriptorSet.dstBinding = 0;
 
 		vkUpdateDescriptorSets(_logicalDevice, 1, &writeDescriptorSet, 0, nullptr);
-	}
-
-	VkDescriptorBufferInfo VulkanApplication::CreateDescriptorBuffer(const Buffer& buffer)
-	{
-		VkDescriptorBufferInfo descriptorBufferInfo = {};
-		descriptorBufferInfo.buffer = _uniformBuffer._handle;
-		descriptorBufferInfo.offset = 0;
-		descriptorBufferInfo.range = sizeof(_uniformBufferData);
-		return descriptorBufferInfo;
 	}
 
 	void VulkanApplication::CreateDescriptorSetLayout(const uint32_t& descriptorCount)
