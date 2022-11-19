@@ -3,49 +3,40 @@
 namespace Engine::Math
 {
 	/**
-	 * @brief Represents a column-major matrix transform.
+	 * @brief Represents a column-major 4x4 matrix transform.
 	 */
 	class Transform
 	{
+
+	public:
+
 		/**
 		 * @brief The homogeneous transformation matrix for this transform.
 		 */
-		glm::mat4x4 _transformation;
+		glm::mat4x4 _matrix;
 
 		/**
 		 * @brief The scale is stored separately as it would be impossible to tell from _transformation alone as it mixes with rotation values.
 		 */
 		glm::mat4x4 _scale;
 
-	public:
-		
-		/**
-		 * @brief Returns the homogeneous transformation matrix that defines position, rotation and scale.
-		 * @return 
-		 */
-		glm::mat4x4 Transformation();
-
-		void SetTransformation(const glm::mat4x4 transformation);
-
-		glm::mat4x4 GetTransformation();
-
 		/**
 		 * @brief Returns a vector in world space that is the world's X axis rotated by the _transformation transformation matrix.
 		 * The function is called "Right" because a camera is always pointing towards the Z axis (in world space)
 		 * so the X axis is to the "right" of the camera.
-		 * @return 
+		 * @return
 		 */
 		glm::vec3 Right();
 
 		/**
 		 * @brief Returns a vector in world space that is the world's Y axis rotated by the _rotation transformation matrix.
-		 * @return 
+		 * @return
 		 */
 		glm::vec3 Up();
 
 		/**
 		 * @brief Returns a vector in world space that is the world's Z axis rotated by the _rotation transformation matrix.
-		 * @return 
+		 * @return
 		 */
 		glm::vec3 Forward();
 

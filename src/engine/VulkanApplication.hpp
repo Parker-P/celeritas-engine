@@ -10,60 +10,15 @@ namespace Engine::Vulkan
 {
 	/**
 	 * @brief Buffers represent linear arrays of data which are used for 
-	 * various purposes by binding them to a graphics or compute pipeline via descriptor 
+	 * various purposes by binding them to a graphics or compute pipeline via descriptor
 	 * sets or via certain commands, or by directly specifying them as parameters to certain commands.
 	 */
 	class Buffer
 	{
 		/**
-		 * @brief Reference to the logical device needed in order to make calls to Vulkan to operate on the buffer.
+		 * @brief Logical device used to perform Vulkan calls.
 		 */
 		VkDevice _logicalDevice;
-
-		/**
-		 * @brief Needed in order to acquire information on whether the buffer .
-		 */
-		VkPhysicalDevice _physicalDevice;
-
-	public:
-
-		/**
-		 * @brief Initializes the buffer.
-		 * @param logicalDevice The logical device is used
-		 * @param usageFlags The usage flags tell Vulkan what the buffer can and cannot be used for.
-		 * @param sizeInBytes
-		 */
-		Buffer(VkDevice& logicalDevice, VkBufferUsageFlagBits& usageFlags, size_t sizeInBytes);
-
-		Buffer(VkDevice logicalDevice, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data, size_t sizeInBytes);
-
-		/**
-		 * @brief Creates the buffer after telling Vulkan what it's going to be used for and how much space in memory is required to allocate it. 
-		 * Generates a Vulkan handle.
-		 * @param usageFlags
-		 * @param sizeInBytes
-		 */
-		void Create(VkBufferUsageFlagBits& usageFlags, size_t sizeInBytes);
-
-		/**
-		 * @brief Allocate memory for the buffer (either RAM or VRAM depending on typeFlags).
-		 * @param vc
-		 * @param typeFlags
-		 * @param sizeInBytes
-		 */
-		void AllocateMemory(VkMemoryPropertyFlagBits& typeFlags, size_t sizeInBytes);
-
-		/**
-		 * @brief Fills the buffer with data.
-		 * @param data
-		 * @param sizeInBytes
-		 */
-		void Fill(void* data, size_t sizeInBytes);
-
-		/**
-		 * @brief The handle used by Vulkan to identify this buffer.
-		 */
-		VkBuffer _handle;
 
 		/**
 		 * @brief Contains information about the allocated memory for the buffer which, depending on the memory type flags
@@ -72,60 +27,70 @@ namespace Engine::Vulkan
 		VkDeviceMemory _memory;
 
 		/**
-		 * @brief The memory address of the allocated buffer. This can be either in VRAM or in RAM, depending on the memory properties
-		 * flags passed at construction. CAREFUL: THIS COULD BE A VRAM MEMORY ADDRESS WHOSE DATA YOU CANNOT ACCESS WITHOUT PASSING THROUGH
-		 * VULKAN FUNCTION CALLS.
+		 * @brief The memory address of the data inside the allocated buffer. This pointer is only assigned to if the buffer 
+		 * is marked as VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, otherwise it's nullptr, as it would likely be an address on VRAM
+		 * which the CPU cannot access without passing through Vulkan calls.
 		 */
 		void* _dataAddress;
 
-		/// <summary>
-		/// Size in bytes of the data the buffer contains.
-		/// </summary>
+		/**
+		 * @brief Size in bytes of the data the buffer contains.
+		 */
 		size_t _size;
 
-		/// <summary>
-		/// See constructor description.
-		/// </summary>
+		/**
+		 * @brief See constructor description.
+		 */
 		VkMemoryPropertyFlagBits _properties;
 
-		/// <summary>
-		/// Creates a buffer and allocates memory; then, if the data pointer is not null, fills it with the data provided.
-		/// </summary>
-		/// <typeparam name="BufferData"></typeparam>
-		/// <param name="vc"></param>
-		/// <param name="usageFlags">The usage flags tell Vulkan what the buffer can and cannot be used for.</param>
-		/// <param name="properties">
-		/// <para>The properties flags tell Vulkan in which memory to allocate memory for the buffer (VRAM or RAM).</para>
-		/// <para>The most important flags are the following:</para>
-		/// <para>- VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT: this means GPU memory, so VRAM. If this is not set, then regular RAM is assumed.</para>
-		/// 
-		/// <para>- VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT: this means that the CPU will be able to read and write from the allocated memory IF YOU CALL vkMapMemory() FIRST.</para>
-		/// 
-		/// <para>- VK_MEMORY_PROPERTY_HOST_CACHED_BIT: this means that the memory will be cached so that when the CPU writes to this buffer, if the data is small enough to fit in its
-		/// cache (which is much faster to access) it will do that instead. Only problem is that this way, if your GPU needs to access that data, it won't be able to unless it's
-		/// also marked as HOST_COHERENT.</para>
-		/// 
-		/// <para>- VK_MEMORY_PROPERTY_HOST_COHERENT_BIT: this means that anything that the CPU writes to the buffer will be able to be read by the GPU as well, effectively
-		/// granting the GPU access to the CPU's cache (if the buffer is also marked as HOST_CACHED). COHERENT stands for consistency across memories, so it basically means 
-		/// that the CPU, GPU or any other device will see the same memory if trying to access the buffer. If you don't have this flag set, and you try to access the 
-		/// buffer from the GPU while the buffer is marked HOST_CACHED, you may not be able to get the data or even worse, you may end up reading the wrong chunk of memory.</para>
-		/// </param>
-		/// <param name="data">The starting memory address of the data you want to pass into the buffer.</param>
-		/// <param name="sizeInBytes">The size of the data you want to pass into the buffer.</param>
-		
 		/**
-		 * @brief Creates a buffer and allocates memory; then, if the data pointer is not null, fills it with the data provided.
-		 * @param usageFlags
-		 * @param properties
-		 * @param data
-		 * @param sizeInBytes
+		 * @brief Find the memory type index that identifies a portion of memory that Vulkan uses to store buffers that have the given
+		 * properties.
+		 * @param gpuMemoryProperties Must come from a call to vkGetPhysicalDeviceMemoryProperties.
+		 * @param typeBits Must come from a call made to vkGetBufferMemoryRequirements.
+		 * @param properties See constructor description.
+		 * @return The memory type index that identifies a portion of memory that Vulkan uses to store buffers that have the given
+		 * properties.
 		 */
-		void Init(VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data, size_t sizeInBytes);
+		int GetMemoryTypeIndex(VkPhysicalDeviceMemoryProperties& gpuMemoryProperties, uint32_t typeBits, VkMemoryPropertyFlagBits properties);
 
-		/// <summary>
-		/// Destroys the buffer and frees any memory allocated to it.
-		/// </summary>
-		/// <param name="vc"></param>
+	public:
+
+		/**
+		 * @brief The handle used by Vulkan to identify this buffer.
+		 */
+		VkBuffer _handle;
+
+		/**
+		 * Constructs a buffer.
+		 * @param logicalDevice Needed by Vulkan to have info about the GPU so it can make function calls to allocate memory for the buffer.
+		 * @param gpuMemoryProperties Needed to know which types of memory are available on the GPU, so the buffer can be allocated on the
+		 * correct heap (a.k.a portion of VRAM or RAM).
+		 * @param usageFlags This tells Vulkan what's the buffer's intended use.
+		 * @param properties This can be any of the following values:
+		 * 1) VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT: this means GPU memory, so VRAM. If this is not set, then regular RAM is assumed.
+		 * 2) VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT: this means that the CPU will be able to read and write from the allocated memory IF YOU CALL vkMapMemory() FIRST.
+		 * 3) VK_MEMORY_PROPERTY_HOST_CACHED_BIT: this means that the memory will be cached so that when the CPU writes to this buffer, if the data is small enough to fit in its
+		 * cache (which is much faster to access) it will do that instead. Only problem is that this way, if your GPU needs to access that data, it won't be able to unless it's
+		 * also marked as HOST_COHERENT.
+		 * 4) VK_MEMORY_PROPERTY_HOST_COHERENT_BIT: this means that anything that the CPU writes to the buffer will be able to be read by the GPU as well, effectively
+		 * granting the GPU access to the CPU's cache (if the buffer is also marked as HOST_CACHED). COHERENT stands for consistency across memories, so it basically means 
+		 * that the CPU, GPU or any other device will see the same memory if trying to access the buffer. If you don't have this flag set, and you try to access the 
+		 * buffer from the GPU while the buffer is marked HOST_CACHED, you may not be able to get the data or even worse, you may end up reading the wrong chunk of memory.
+		 * @param data Pointer to the start address of the data you want to copy to the buffer.
+		 * @param sizeInBytes Size in bytes of the data you want to copy to the buffer.
+		 */
+		Buffer(VkDevice& logicalDevice, VkPhysicalDeviceMemoryProperties& gpuMemoryProperties, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data, size_t sizeInBytes);
+
+		/**
+		 * @brief Generates a data structure that Vulkan calls descriptor, which it uses to bind the buffer to a descriptor set.
+		 */
+		VkDescriptorBufferInfo GenerateDescriptor();
+
+		/**
+		 * @brief Destroys the buffer and frees any memory allocated to it.
+		 * 
+		 */
 		void Destroy();
 	};
 
@@ -234,8 +199,7 @@ namespace Engine::Vulkan
 		 * @brief The Vulkan buffer that contains the data that will be sent to the shaders. This buffer will be pointed to by a descriptor, which will in turn
 		 * be pointed to by a descriptor set. The descriptor set is the structure that actually ends up in the shaders.
 		 */
-		VkBuffer _uniformBuffer;
-		VkDeviceMemory _uniformBufferMemory;
+		Buffer _uniformBuffer;
 
 		/**
 		 * @brief A descriptor set layout object is defined by an array of zero or more descriptor bindings. Each individual descriptor binding is specified
@@ -250,6 +214,9 @@ namespace Engine::Vulkan
 		 */
 		VkDescriptorPool _descriptorPool;
 
+		/**
+		 * @brief A descriptor set has bindings to descriptors, and is used to cluster descriptors with similar properties.
+		 */
 		VkDescriptorSet	_descriptorSet;
 
 		/**
@@ -288,7 +255,7 @@ namespace Engine::Vulkan
 		Settings::GlobalSettings& _settings = Settings::GlobalSettings::Instance();
 		Scenes::Scene _scene;
 		Scenes::Camera _mainCamera;
-		glm::mat4 _modelMatrix;
+		Scenes::GameObject _model;
 
 		/*
 		 * Function called by Vulkan's validation layers once an error has occourred.
@@ -377,15 +344,6 @@ namespace Engine::Vulkan
 		void UpdateUniformData();
 
 		/**
-		 * @brief Find device memory that is supported by the requirements (typeBits) and meets the desired properties.
-		 * @param typeBits
-		 * @param properties
-		 * @param typeIndex
-		 * @return
-		 */
-		VkBool32 GetMemoryType(uint32_t typeBits, VkFlags properties, uint32_t* typeIndex);
-
-		/**
 		 * @brief Creates the swapchain.
 		 * @see _swapChain
 		 */
@@ -429,7 +387,7 @@ namespace Engine::Vulkan
 		 * A descriptor set points to a descriptor buffer, which points to a VkBuffer.
 		 * @param buffer The buffer you want the descriptor to point to.
 		 */
-		VkDescriptorBufferInfo CreateDescriptorBuffer(const VkBuffer& buffer);
+		VkDescriptorBufferInfo CreateDescriptorBuffer(const Buffer& buffer);
 
 		void CreatePipelineLayout();
 

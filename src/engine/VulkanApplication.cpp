@@ -39,8 +39,12 @@ namespace Engine::Vulkan
 {
 	bool windowResized = false;
 
-	Buffer::Buffer(VkDevice& logicalDevice, VkBufferUsageFlagBits& usageFlags, size_t sizeInBytes)
+	Buffer::Buffer(VkDevice& logicalDevice, VkPhysicalDeviceMemoryProperties& gpuMemoryProperties, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data, size_t sizeInBytes)
 	{
+		_logicalDevice = logicalDevice;
+		_properties = properties;
+
+		// Create the buffer at the logical level.
 		VkBufferCreateInfo vertexBufferInfo = {};
 		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		vertexBufferInfo.size = sizeInBytes;
@@ -49,18 +53,16 @@ namespace Engine::Vulkan
 			std::cout << ("Failed creating buffer.") << std::endl;
 			exit(1);
 		}
-	}
 
-	void Buffer::AllocateMemory(VkMemoryPropertyFlagBits& properties, size_t sizeInBytes)
-	{
+		// Allocate memory for the buffer.
+		VkMemoryRequirements requirements;
+		vkGetBufferMemoryRequirements(_logicalDevice, _handle, &requirements);
+
 		VkMemoryAllocateInfo allocationInfo = {};
 		allocationInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		VkMemoryRequirements requirements;
-
-		vkGetBufferMemoryRequirements(_logicalDevice, _handle, &requirements);
 		allocationInfo.allocationSize = requirements.size;
 
-		if (auto index = _physicalDevice.GetMemoryTypeIndex(requirements.memoryTypeBits, properties); index == -1) {
+		if (auto index = GetMemoryTypeIndex(gpuMemoryProperties, requirements.memoryTypeBits, properties); index == -1) {
 			std::cout << "Could not get memory type index" << std::endl;
 			exit(1);
 		}
@@ -74,35 +76,43 @@ namespace Engine::Vulkan
 			exit(1);
 		}
 
-		vkBindBufferMemory(_logicalDevice, _handle, _memory, 0); // Alignment is the memory offset
+		// Creates a reference/connection to the buffer on the GPU.
+		vkBindBufferMemory(_logicalDevice, _handle, _memory, 0);
 
 		if (properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
 			vkMapMemory(_logicalDevice, _memory, 0, sizeInBytes, 0, &_dataAddress);
 		}
-	}
 
-	void Buffer::Fill(void* data, size_t sizeInBytes)
-	{
 		if (data != nullptr) {
 			memcpy(_dataAddress, data, sizeInBytes);
 			_size = sizeInBytes;
 		}
 	}
 
-	void Buffer::Init(VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data, size_t sizeInBytes)
+	VkDescriptorBufferInfo Buffer::GenerateDescriptor()
 	{
-		Create(vc, usageFlags, sizeInBytes);
-		AllocateMemory(vc, properties, sizeInBytes);
-		Fill(data, sizeInBytes);
+		return VkDescriptorBufferInfo{ _handle, 0, _size };
+	}
+
+	int Buffer::GetMemoryTypeIndex(VkPhysicalDeviceMemoryProperties& gpuMemoryProperties, uint32_t typeBits, VkMemoryPropertyFlagBits properties)
+	{
+		for (uint32_t i = 0; i < 32; i++) {
+			if ((typeBits & 1) == 1) {
+				if ((gpuMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+					return i;
+				}
+			}
+			typeBits >>= 1;
+		}
+		return -1;
 	}
 
 	void Buffer::Destroy()
 	{
-		vkUnmapMemory(vc._logicalDevice._handle, _memory);
-		vkDestroyBuffer(vc._logicalDevice._handle, _handle, nullptr);
-		vkFreeMemory(vc._logicalDevice._handle, _memory, nullptr);
+		vkUnmapMemory(_logicalDevice, _memory);
+		vkDestroyBuffer(_logicalDevice, _handle, nullptr);
+		vkFreeMemory(_logicalDevice, _memory, nullptr);
 	}
-
 
 	VkBool32 VulkanApplication::DebugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData)
 	{
@@ -219,8 +229,7 @@ namespace Engine::Vulkan
 
 			// Clean up uniform buffer related objects
 			vkDestroyDescriptorPool(_logicalDevice, _descriptorPool, nullptr);
-			vkDestroyBuffer(_logicalDevice, _uniformBuffer, nullptr);
-			vkFreeMemory(_logicalDevice, _uniformBufferMemory, nullptr);
+			_uniformBuffer.Destroy();
 
 			// Buffers must be destroyed after no command buffers are referring to them anymore
 			vkDestroyBuffer(_logicalDevice, _vertexBuffer, nullptr);
@@ -582,27 +591,6 @@ namespace Engine::Vulkan
 		}
 	}
 
-	void VulkanApplication::CreateUniformBuffer()
-	{
-		VkBufferCreateInfo bufferInfo = {};
-		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferInfo.size = sizeof(_uniformBufferData);
-		bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-
-		vkCreateBuffer(_logicalDevice, &bufferInfo, nullptr, &_uniformBuffer);
-
-		VkMemoryRequirements memReqs;
-		vkGetBufferMemoryRequirements(_logicalDevice, _uniformBuffer, &memReqs);
-
-		VkMemoryAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.allocationSize = memReqs.size;
-		GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &allocInfo.memoryTypeIndex);
-
-		vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &_uniformBufferMemory);
-		vkBindBufferMemory(_logicalDevice, _uniformBuffer, _uniformBufferMemory, 0);
-	}
-
 	void VulkanApplication::CreateVertexAndIndexBuffers()
 	{
 
@@ -653,7 +641,7 @@ namespace Engine::Vulkan
 
 		vkGetBufferMemoryRequirements(_logicalDevice, stagingBuffers.vertices.buffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
-		GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
+		GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &stagingBuffers.vertices.memory);
 
 		vkMapMemory(_logicalDevice, stagingBuffers.vertices.memory, 0, vertexPositionsSize, 0, &data);
@@ -666,7 +654,7 @@ namespace Engine::Vulkan
 		vkCreateBuffer(_logicalDevice, &vertexBufferInfo, nullptr, &_vertexBuffer);
 		vkGetBufferMemoryRequirements(_logicalDevice, _vertexBuffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
-		GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memAlloc.memoryTypeIndex);
+		GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &_vertexBufferMemory);
 		vkBindBufferMemory(_logicalDevice, _vertexBuffer, _vertexBufferMemory, 0);
 
@@ -681,7 +669,7 @@ namespace Engine::Vulkan
 		vkCreateBuffer(_logicalDevice, &indexBufferInfo, nullptr, &stagingBuffers.indices.buffer);
 		vkGetBufferMemoryRequirements(_logicalDevice, stagingBuffers.indices.buffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
-		GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
+		GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &stagingBuffers.indices.memory);
 
 		vkMapMemory(_logicalDevice, stagingBuffers.indices.memory, 0, faceIndicesSize, 0, &data);
@@ -694,7 +682,7 @@ namespace Engine::Vulkan
 		vkCreateBuffer(_logicalDevice, &indexBufferInfo, nullptr, &_indexBuffer);
 		vkGetBufferMemoryRequirements(_logicalDevice, _indexBuffer, &memReqs);
 		memAlloc.allocationSize = memReqs.size;
-		GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memAlloc.memoryTypeIndex);
+		GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memAlloc.memoryTypeIndex);
 		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &_indexBufferMemory);
 		vkBindBufferMemory(_logicalDevice, _indexBuffer, _indexBufferMemory, 0);
 
@@ -743,41 +731,22 @@ namespace Engine::Vulkan
 		// X points right, Y points down, Z points towards you
 		// You want X to point right, Y to point up, and Z to point away from you
 		Math::Transform worldToVulkan;
-		worldToVulkan.SetTransformation(glm::mat4x4{
+		worldToVulkan._matrix = glm::mat4x4{
 			glm::vec4(1.0f,  0.0f, 0.0f, 0.0f),		// Column 1
 			glm::vec4(0.0f, -1.0f, 0.0f, 0.0f),		// Column 2
 			glm::vec4(0.0f,  0.0f, -1.0f, 0.0f),	// Column 3
 			glm::vec4(0.0f,  0.0f, 0.0f, 1.0f)		// Column 4
-			});
+		};
 
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
-		auto aspectRatio = std::bit_cast<float, uint32_t>(_swapChainExtent.width) / std::bit_cast<float, uint32_t>(_swapChainExtent.height);
-		_mainCamera._projection.SetTransformation(glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f));
+		auto aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth / _settings._windowHeight);
+		_mainCamera._projection._matrix = (glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f));
 		// Remember, column is the first index, row is the second index
-		_modelMatrix[3][2] = 5.0f;
-		_uniformBufferData.transformationMatrix = _mainCamera._projection.Transformation() * worldToVulkan.Transformation() * _mainCamera._view.Transformation() * _modelMatrix;
-
-
-		// Send the uniform buffer data (which contains the combined transformation matrices) to the GPU
-		void* data;
-		vkMapMemory(_logicalDevice, _uniformBufferMemory, 0, sizeof(_uniformBufferData), 0, &data);
-		memcpy(data, &_uniformBufferData, sizeof(_uniformBufferData));
-		vkUnmapMemory(_logicalDevice, _uniformBufferMemory);
+		_model._transform.Translate({ 0.0f, 0.0f, 5.0f });
+		_uniformBufferData.transformationMatrix = _mainCamera._projection._matrix * worldToVulkan._matrix * _mainCamera._view._matrix * _model._transform._matrix;
 	}
 
-	VkBool32 VulkanApplication::GetMemoryType(uint32_t typeBits, VkFlags properties, uint32_t* typeIndex)
-	{
-		for (uint32_t i = 0; i < 32; i++) {
-			if ((typeBits & 1) == 1) {
-				if ((_deviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-					*typeIndex = i;
-					return true;
-				}
-			}
-			typeBits >>= 1;
-		}
-		return false;
-	}
+
 
 	void VulkanApplication::CreateSwapChain()
 	{
@@ -1057,7 +1026,7 @@ namespace Engine::Vulkan
 		}
 		else {
 			std::wcout << "failed to open file " << absolutePath.c_str() << std::endl;
-			exit(0); 
+			exit(0);
 		}
 
 		return shaderModule;
@@ -1138,8 +1107,8 @@ namespace Engine::Vulkan
 		scissor.extent.width = _swapChainExtent.width;
 		scissor.extent.height = _swapChainExtent.height;
 
-		// Note: scissor test is always enabled (although dynamic scissor is possible)
-		// Number of viewports must match number of scissors
+		// Note: scissor test is always enabled (although dynamic scissor is possible).
+		// Number of viewports must match number of scissors.
 		VkPipelineViewportStateCreateInfo viewportCreateInfo = {};
 		viewportCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 		viewportCreateInfo.viewportCount = 1;
@@ -1147,8 +1116,9 @@ namespace Engine::Vulkan
 		viewportCreateInfo.scissorCount = 1;
 		viewportCreateInfo.pScissors = &scissor;
 
-		// Describe rasterization
-		// Note: depth bias and using polygon modes other than fill require changes to logical device creation (device features)
+		// Describe rasterization - this tells Vulkan what settings to use when at the fragment shader stage of the pipeline, a.k.a. when
+		// rendering pixels.
+		// Note: depth bias and using polygon modes other than fill require changes to logical device creation (device features).
 		VkPipelineRasterizationStateCreateInfo rasterizationCreateInfo = {};
 		rasterizationCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterizationCreateInfo.depthClampEnable = VK_FALSE;
@@ -1163,7 +1133,7 @@ namespace Engine::Vulkan
 		rasterizationCreateInfo.lineWidth = 1.0f;
 
 		// Describe multisampling
-		// Note: using multisampling also requires turning on device features
+		// Note: using multisampling also requires turning on device features.
 		VkPipelineMultisampleStateCreateInfo multisampleCreateInfo = {};
 		multisampleCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 		multisampleCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
@@ -1200,18 +1170,21 @@ namespace Engine::Vulkan
 		// This describes the mapping between memory and shader resources (descriptor sets), which contain the information you want to send to the shaders.
 		// This is for uniform buffers and samplers.
 
-		int descriptorCount = 4;
+		int descriptorCount = 1;
 		CreateDescriptorSetLayout(descriptorCount);
 		CreateDescriptorPool(descriptorCount);
 
-		auto uniformBuffer = Buffer(_logicalDevice, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, (size_t)sizeof(_uniformBufferData));
-		uniformBuffer.Init(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &_uniformBufferData, sizeof(_uniformBufferData));
+		_uniformBuffer = Buffer(_logicalDevice,
+			_deviceMemoryProperties,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+			&_uniformBufferData,
+			(size_t)sizeof(_uniformBufferData));
 
-		CreateUniformBuffer();
 		UpdateUniformData();
 		CreateDescriptorSet();
 		CreatePipelineLayout();
-		
+
 		// Create the graphics pipeline
 		VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
 		pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -1299,10 +1272,10 @@ namespace Engine::Vulkan
 		vkUpdateDescriptorSets(_logicalDevice, 1, &writeDescriptorSet, 0, nullptr);
 	}
 
-	VkDescriptorBufferInfo VulkanApplication::CreateDescriptorBuffer(const VkBuffer& buffer)
+	VkDescriptorBufferInfo VulkanApplication::CreateDescriptorBuffer(const Buffer& buffer)
 	{
 		VkDescriptorBufferInfo descriptorBufferInfo = {};
-		descriptorBufferInfo.buffer = _uniformBuffer;
+		descriptorBufferInfo.buffer = _uniformBuffer._handle;
 		descriptorBufferInfo.offset = 0;
 		descriptorBufferInfo.range = sizeof(_uniformBufferData);
 		return descriptorBufferInfo;

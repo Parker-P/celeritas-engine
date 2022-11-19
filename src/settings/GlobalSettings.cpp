@@ -20,10 +20,10 @@ namespace Settings
 		return quotedString;
 	}
 
-	void GlobalSettings::Load(const std::filesystem::path& pathToJson)
+	void GlobalSettings::Load(const std::filesystem::path& absolutePathToJson)
 	{
 		// Read the json file and parse it.
-		auto text = Utils::File::ReadAllText(pathToJson);
+		auto text = Utils::File::ReadAllText(absolutePathToJson);
 
 		json::parsing::parse_results json = json::parsing::parse(text.data());
 		json::jobject rootObj = json::jobject::parse(json.value);
