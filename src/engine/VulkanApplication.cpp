@@ -107,6 +107,16 @@ namespace Engine::Vulkan
 		return -1;
 	}
 
+	void Buffer::UpdateData(void* data, size_t sizeInBytes)
+	{
+		if (_dataAddress != nullptr) {
+			if (data != nullptr) {
+				memcpy(_dataAddress, data, sizeInBytes);
+				_size = sizeInBytes;
+			}
+		}
+	}
+
 	void Buffer::Destroy()
 	{
 		if (_properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
@@ -750,11 +760,12 @@ namespace Engine::Vulkan
 		auto aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth / _settings._windowHeight);
 		_mainCamera._projection._matrix = (glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f));
 		// Remember, column is the first index, row is the second index
-		_model._transform.Translate({ 0.0f, 0.0f, 5.0f });
-		_uniformBufferData.transformationMatrix = _mainCamera._projection._matrix * worldToVulkan._matrix * _mainCamera._view._matrix * _model._transform._matrix;
+		_model._transform._matrix[3][2];
+		_uniformBufferData.localToWorld = worldToVulkan._matrix * _model._transform._matrix;
+		_uniformBufferData.viewAndProjection = _mainCamera._projection._matrix * worldToVulkan._matrix * _mainCamera._view._matrix;
+
+		_uniformBuffer.UpdateData(&_uniformBufferData, (size_t)sizeof(_uniformBufferData));
 	}
-
-
 
 	void VulkanApplication::CreateSwapChain()
 	{

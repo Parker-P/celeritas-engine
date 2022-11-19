@@ -9,12 +9,14 @@ layout(location = 0) out vec3 fragColor;
 
 // Variables coming from descriptor sets.
 layout(set = 0, binding = 0) uniform TransformationMatrices {
-	mat4 transformationMatrix;
+	mat4 viewAndProjection;
+	mat4 localToWorld;
 } transformationMatrices;
 
 void main() 
 {
-    gl_Position = transformationMatrices.transformationMatrix * vec4(inPosition, 1.0); // This multiplication also applies perspective division, meaning that each component of inPosition will be divided by the second number in vec4's constructor.
-    // gl_Position = vec4(inPosition, 1.0);
-    fragColor = vec3(1.0, 0.0, 0.0);
+    gl_Position = transformationMatrices.viewAndProjection * transformationMatrices.localToWorld * vec4(inPosition, 1.0); // This multiplication also applies perspective division, meaning that each component of inPosition will be divided by the second number in vec4's constructor.
+    vec3 lightDirection = vec3(0.0, -1.0, 0.0);
+	float colorMultiplier = (dot(-lightDirection, inNormal) + 1.0) / 2.0;
+	fragColor = colorMultiplier * vec3(1.0, 1.0, 1.0);
 }

@@ -90,6 +90,15 @@ namespace Engine::Vulkan
 		VkDescriptorBufferInfo GenerateDescriptor();
 
 		/**
+		 * @brief Updates the data contained in this buffer. Notes: buffer must be marked as VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT and its
+		 * memory mapped to the _dataAddress member for this to work.
+		 * 
+		 * @param data Address of where the data begins in memory.
+		 * @param sizeInBytes Size of the data in bytes.
+		 */
+		void UpdateData(void* data, size_t sizeInBytes);
+
+		/**
 		 * @brief Destroys the buffer and frees any memory allocated to it.
 		 * 
 		 */
@@ -221,7 +230,8 @@ namespace Engine::Vulkan
 
 		struct
 		{
-			glm::mat4 transformationMatrix;
+			glm::mat4 viewAndProjection;
+			glm::mat4 localToWorld;
 		} _uniformBufferData;
 
 		// Swap chain
