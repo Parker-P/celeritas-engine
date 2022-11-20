@@ -72,7 +72,7 @@ namespace Engine::Scenes
 			} vertexAttributes;
 
 			/**
-			 * @brief .
+			 * @brief Index of where to find face indices in the accessors.
 			 */
 			int indicesAccessorIndex;
 		};
@@ -98,12 +98,12 @@ namespace Engine::Scenes
 			int bufferViewIndex;
 
 			/**
-			 * @brief .
+			 * @brief See GltfComponentType enum.
 			 */
 			int	componentType;
 
 			/**
-			 * @brief .
+			 * @brief How many elements the buffer view at bufferViewIndex contains.
 			 */
 			int	count;
 

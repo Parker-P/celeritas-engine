@@ -604,6 +604,7 @@ namespace Engine::Vulkan
 	}
 
 	void VulkanApplication::LoadScene() {
+		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\2CylinderEngine.glb)");
 		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
 		_monkeyHeadModel = _scene._objects[0];
 	}

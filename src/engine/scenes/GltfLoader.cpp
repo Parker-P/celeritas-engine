@@ -66,12 +66,22 @@ namespace Engine::Scenes
 			gltfData.header.fileLength = ToUInt32(intBuffer);
 
 			// JSON
-			file.read(intBuffer, intSize);
-			gltfData.json.chunkLength = ToUInt32(intBuffer);
-			file.read(intBuffer, intSize);
-			gltfData.json.chunkType = ToUInt32(intBuffer);
-			gltfData.json.data = new char[gltfData.json.chunkLength];
-			file.read(gltfData.json.data, gltfData.json.chunkLength);
+			auto jsonChunkType = 0x4E4F534A; // JSON chunk type as defined in the gltf spec, which is just JSON as a char string, but converted to an integer by concatenating the bits of each character.
+			auto isJson = false;
+			while (!isJson) {
+				file.read(intBuffer, intSize);
+				gltfData.json.chunkLength = ToUInt32(intBuffer);
+				file.read(intBuffer, intSize);
+				gltfData.json.chunkType = ToUInt32(intBuffer);
+				if (isJson = gltfData.json.chunkType == jsonChunkType) {
+					gltfData.json.data = new char[gltfData.json.chunkLength];
+					file.read(gltfData.json.data, gltfData.json.chunkLength);
+				}
+				else {
+					file.seekg(4, std::ios::end);
+				}
+			}
+
 
 			// Binary
 			file.read(intBuffer, intSize);
@@ -127,14 +137,27 @@ namespace Engine::Scenes
 
 				// Get primitives data
 				for (int j = 0; j < primitivesCount; ++j) {
+					GltfMesh::Primitive primitive{};
 					auto attributes = primitives.array(j).get("attributes");
-					auto POSITION = (int)attributes.get("POSITION");
-					auto NORMAL = (int)attributes.get("NORMAL");
-					auto TEXCOORD_0 = (int)attributes.get("TEXCOORD_0");
-					auto faceIndices = (int)primitives.array(j).get("indices");
-					gltfMesh.primitives.push_back({ {POSITION, NORMAL, TEXCOORD_0}, faceIndices });
-					gltfScene.meshes.push_back(gltfMesh);
+
+					int POSITION = (int)attributes.get("POSITION");
+					primitive.vertexAttributes.positionsAccessorIndex = POSITION;
+
+					int NORMAL = (int)attributes.get("NORMAL");
+					primitive.vertexAttributes.normalsAccessorIndex = NORMAL;
+
+					int TEXCOORD_0 = -1;
+					if (((json::jobject)attributes).has_key("TEXCOORD_0")) {
+						TEXCOORD_0 = (int)attributes.get("TEXCOORD_0");
+					}
+					primitive.vertexAttributes.uvCoordsAccessorIndex = TEXCOORD_0;
+
+					int faceIndices = (int)primitives.array(j).get("indices");
+					primitive.indicesAccessorIndex = faceIndices;
+
+					gltfMesh.primitives.push_back(primitive);
 				}
+				gltfScene.meshes.push_back(gltfMesh);
 			}
 
 			// Get accessors data
@@ -173,7 +196,7 @@ namespace Engine::Scenes
 
 					auto vertexPositionsBufferViewIndex = gltfScene.accessors[vertexPositionsAccessorIndex].bufferViewIndex;
 					auto vertexNormalsBufferViewIndex = gltfScene.accessors[vertexNormalsAccessorIndex].bufferViewIndex;
-					auto uvCoordsBufferViewIndex = gltfScene.accessors[uvCoordsAccessorIndex].bufferViewIndex;
+					auto uvCoordsBufferViewIndex = uvCoordsAccessorIndex >= 0 ? gltfScene.accessors[uvCoordsAccessorIndex].bufferViewIndex : -1;
 					auto faceIndicesBufferViewIndex = gltfScene.accessors[faceIndicesAccessorIndex].bufferViewIndex;
 
 					std::vector<glm::vec3> vertexPositions;
@@ -183,29 +206,31 @@ namespace Engine::Scenes
 
 					if (Utils::AsInteger(GltfComponentType::FLOAT) == gltfScene.accessors[vertexPositionsAccessorIndex].componentType) {
 						vertexPositions.resize(gltfScene.accessors[vertexPositionsAccessorIndex].count);
-						memcpy(&vertexPositions[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[vertexPositionsBufferViewIndex].byteOffset], gltfScene.bufferViews[vertexPositionsBufferViewIndex].byteLength);
+						memcpy(&vertexPositions[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[vertexPositionsBufferViewIndex].byteOffset], gltfScene.accessors[vertexPositionsAccessorIndex].count * sizeof(glm::vec3));
 					}
 
 					if (Utils::AsInteger(GltfComponentType::FLOAT) == gltfScene.accessors[vertexNormalsAccessorIndex].componentType) {
 						vertexNormals.resize(gltfScene.accessors[vertexNormalsAccessorIndex].count);
-						memcpy(&vertexNormals[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[vertexNormalsBufferViewIndex].byteOffset], gltfScene.bufferViews[vertexNormalsBufferViewIndex].byteLength);
+						memcpy(&vertexNormals[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[vertexNormalsBufferViewIndex].byteOffset], gltfScene.accessors[vertexNormalsAccessorIndex].count * sizeof(glm::vec3));
 					}
 
-					if (Utils::AsInteger(GltfComponentType::FLOAT) == gltfScene.accessors[uvCoordsAccessorIndex].componentType) {
-						uvCoords.resize(gltfScene.accessors[uvCoordsAccessorIndex].count);
-						memcpy(&uvCoords[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[uvCoordsBufferViewIndex].byteOffset], gltfScene.bufferViews[uvCoordsBufferViewIndex].byteLength);
+					if (uvCoordsBufferViewIndex >= 0) {
+						if (Utils::AsInteger(GltfComponentType::FLOAT) == gltfScene.accessors[uvCoordsAccessorIndex].componentType) {
+							uvCoords.resize(gltfScene.accessors[uvCoordsAccessorIndex].count);
+							memcpy(&uvCoords[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[uvCoordsBufferViewIndex].byteOffset], gltfScene.accessors[uvCoordsBufferViewIndex].count * sizeof(glm::vec2));
+						}
 					}
 
 					if (Utils::AsInteger(GltfComponentType::UNSIGNED_SHORT) == gltfScene.accessors[faceIndicesAccessorIndex].componentType) {
 						faceIndices.resize(gltfScene.accessors[faceIndicesAccessorIndex].count);
-						memcpy(&faceIndices[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset], gltfScene.bufferViews[faceIndicesBufferViewIndex].byteLength);
+						memcpy(&faceIndices[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset], gltfScene.accessors[faceIndicesAccessorIndex].count * sizeof(unsigned short));
 					}
 
 					object._name = gltfScene.meshes[i].name;
 
 					// This is where you will want to touch in the future to add multi-UV-map support.
 					auto size = vertexPositions.size();
-					if (vertexNormals.size() == size && uvCoords.size() == size) {
+					if (vertexNormals.size() == size) {
 						std::vector<Scenes::Vertex> vertices;
 						vertices.reserve(vertexPositions.size());
 
@@ -218,10 +243,8 @@ namespace Engine::Scenes
 							// Transform normal vectors to engine-space.
 							auto gltfSpaceVertexNormal = glm::vec4(vertexNormals[i], 1.0f);
 							auto engineSpaceVertexNormal = Math::Transform::GltfToEngine()._matrix * gltfSpaceVertexNormal;
-							vertices.emplace_back(Scenes::Vertex{ glm::vec3(engineSpaceVertexPosition), glm::vec3(engineSpaceVertexNormal), uvCoords[i] });
+							vertices.emplace_back(Scenes::Vertex{ glm::vec3(engineSpaceVertexPosition), glm::vec3(engineSpaceVertexNormal), glm::vec2{}/*uvCoords[i]*/ });
 						}
-
-						// Invert the winding order of the vertices in the faceIndices
 
 						mesh._vertices = vertices;
 						mesh._faceIndices = faceIndices;
@@ -230,7 +253,7 @@ namespace Engine::Scenes
 						scene._objects.push_back(object);
 					}
 					else {
-						Utils::Print("Size of vertex positions, normals and uvs must be the same");
+						Utils::Print("Size of vertex positions and vertex normals must the same");
 					}
 				}
 			}
