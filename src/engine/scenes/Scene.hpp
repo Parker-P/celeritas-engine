@@ -5,6 +5,6 @@ namespace Engine::Scenes
 	class Scene
 	{
 	public:
-		std::vector<Mesh> _meshes;
+		std::vector<GameObject> _objects;
 	};
 }

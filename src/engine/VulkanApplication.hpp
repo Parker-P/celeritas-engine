@@ -79,6 +79,7 @@ namespace Engine::Vulkan
 		 * granting the GPU access to the CPU's cache (if the buffer is also marked as HOST_CACHED). COHERENT stands for consistency across memories, so it basically means 
 		 * that the CPU, GPU or any other device will see the same memory if trying to access the buffer. If you don't have this flag set, and you try to access the 
 		 * buffer from the GPU while the buffer is marked HOST_CACHED, you may not be able to get the data or even worse, you may end up reading the wrong chunk of memory.
+		 * Further read: https://asawicki.info/news_1740_vulkan_memory_types_on_pc_and_how_to_use_them
 		 * @param data Pointer to the start address of the data you want to copy to the buffer.
 		 * @param sizeInBytes Size in bytes of the data you want to copy to the buffer.
 		 */
@@ -230,8 +231,9 @@ namespace Engine::Vulkan
 
 		struct
 		{
+			glm::mat4 engineToVulkan;
 			glm::mat4 viewAndProjection;
-			glm::mat4 localToWorld;
+			glm::mat4 objectToEngineWorld;
 		} _uniformBufferData;
 
 		// Swap chain
@@ -257,7 +259,7 @@ namespace Engine::Vulkan
 		Settings::GlobalSettings& _settings = Settings::GlobalSettings::Instance();
 		Scenes::Scene _scene;
 		Scenes::Camera _mainCamera;
-		Scenes::GameObject _model;
+		Scenes::GameObject _monkeyHeadModel;
 
 		/*
 		 * Function called by Vulkan's validation layers once an error has occourred.
@@ -335,6 +337,8 @@ namespace Engine::Vulkan
 		void CreateSemaphores();
 
 		void CreateCommandPool();
+
+		void LoadScene();
 
 		void CreateVertexAndIndexBuffers();
 

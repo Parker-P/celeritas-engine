@@ -8,32 +8,34 @@
 
 namespace Engine::Math
 {
-	glm::vec3 Transform::Right() 
+	Transform::Transform(glm::mat4x4 matrix) : _matrix(matrix) {}
+
+	glm::vec3 Transform::Right()
 	{
 		glm::vec4 right = _matrix * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
 		return glm::vec3(right.x, right.y, right.z);
 	}
 
-	glm::vec3 Transform::Up() 
+	glm::vec3 Transform::Up()
 	{
 		glm::vec4 up = _matrix * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
 		return glm::vec3(up.x, up.y, up.z);
 	}
 
-	glm::vec3 Transform::Forward() 
+	glm::vec3 Transform::Forward()
 	{
 		glm::vec4 forward = _matrix * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f);
 		return glm::vec3(forward.x, forward.y, forward.z);
 	}
 
-	void Transform::Translate(const glm::vec3& offset) 
+	void Transform::Translate(const glm::vec3& offset)
 	{
 		_matrix[3][0] += offset.x;
 		_matrix[3][1] += offset.y;
 		_matrix[3][2] += offset.z;
 	}
 
-	void Transform::Rotate(const glm::vec3& axis, const float& angleDegrees) 
+	void Transform::Rotate(const glm::vec3& axis, const float& angleDegrees)
 	{
 		// Construct a quaternion to rotate any point or vector around the chosen axis by the angle provided.
 		auto normalizedAxis = glm::normalize(axis);
@@ -63,14 +65,14 @@ namespace Engine::Math
 		_matrix[2][2] = newZ.z;
 	}
 
-	void Transform::SetPosition(glm::vec3& position) 
+	void Transform::SetPosition(glm::vec3& position)
 	{
 		_matrix[3][0] = position.x;
 		_matrix[3][1] = position.y;
 		_matrix[3][2] = position.z;
 	}
 
-	glm::vec3 Transform::Position() 
+	glm::vec3 Transform::Position()
 	{
 		return glm::vec3(_matrix[3][0], _matrix[3][1], _matrix[3][2]);
 	}

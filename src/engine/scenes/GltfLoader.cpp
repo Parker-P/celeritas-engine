@@ -8,7 +8,9 @@
 #include <glm/detail/type_vec.hpp>
 
 #include "utils/Json.h"
+#include "engine/math/Transform.hpp"
 #include "engine/scenes/Mesh.hpp"
+#include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Scene.hpp"
 #include "utils/Utils.hpp"
 #include "engine/scenes/GltfLoader.hpp"
@@ -159,6 +161,7 @@ namespace Engine::Scenes
 			for (int i = 0; i < gltfScene.meshes.size(); ++i) {
 
 				// For each primitive
+				GameObject object;
 				Mesh mesh;
 				for (int j = 0; j < gltfScene.meshes[i].primitives.size(); ++j) {
 
@@ -198,7 +201,7 @@ namespace Engine::Scenes
 						memcpy(&faceIndices[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset], gltfScene.bufferViews[faceIndicesBufferViewIndex].byteLength);
 					}
 
-					mesh._name = gltfScene.meshes[i].name;
+					object._name = gltfScene.meshes[i].name;
 
 					// This is where you will want to touch in the future to add multi-UV-map support.
 					auto size = vertexPositions.size();
@@ -207,13 +210,24 @@ namespace Engine::Scenes
 						vertices.reserve(vertexPositions.size());
 
 						for (int i = 0; i < vertexPositions.size(); ++i) {
-							vertices.emplace_back(Scenes::Vertex{ vertexPositions[i], vertexNormals[i], uvCoords[i] });
+							
+							// Transform vertex positions to engine-space.
+							auto gltfSpaceVertexPosition = glm::vec4(vertexPositions[i], 1.0f);
+							auto engineSpaceVertexPosition = Math::Transform::GltfToEngine()._matrix * gltfSpaceVertexPosition;
+
+							// Transform normal vectors to engine-space.
+							auto gltfSpaceVertexNormal = glm::vec4(vertexNormals[i], 1.0f);
+							auto engineSpaceVertexNormal = Math::Transform::GltfToEngine()._matrix * gltfSpaceVertexNormal;
+							vertices.emplace_back(Scenes::Vertex{ glm::vec3(engineSpaceVertexPosition), glm::vec3(engineSpaceVertexNormal), uvCoords[i]});
 						}
+
+						// Invert the winding order of the vertices in the faceIndices
 
 						mesh._vertices = vertices;
 						mesh._faceIndices = faceIndices;
+						object._mesh = mesh;
 
-						scene._meshes.push_back(mesh);
+						scene._objects.push_back(object);
 					}
 					else {
 						Utils::Print("Size of vertex positions, normals and uvs must be the same");

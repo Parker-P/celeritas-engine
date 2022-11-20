@@ -6,5 +6,6 @@ namespace Engine::Scenes
 	public:
 		std::string _name;
 		Math::Transform _transform;
+		Mesh _mesh;
 	};
 }

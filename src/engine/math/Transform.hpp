@@ -11,6 +11,43 @@ namespace Engine::Math
 	public:
 
 		/**
+		 * @brief Returns the transform to take another transform from engine space (X right, Y up, Z forward)
+		 * to Vulkan's space (X right, Y down, Z forward).
+		 */
+		static Transform EngineToVulkan() {
+			return Transform(glm::mat4x4{
+				glm::vec4(1.0f,  0.0f, 0.0f, 0.0f), // Column 1
+				glm::vec4(0.0f, -1.0f, 0.0f, 0.0f), // Column 2
+				glm::vec4(0.0f,  0.0f, 1.0f, 0.0f), // Column 3
+				glm::vec4(0.0f,  0.0f, 0.0f, 1.0f)	// Column 4
+			});
+		}
+
+		/**
+		 * @brief Returns the transform to take another transform from gltf space (X left, Y up, Z forward)
+		 * to engine space (X right, Y up, Z forward).
+		 */
+		static Transform GltfToEngine() {
+			return Transform(glm::mat4x4{
+				glm::vec4(-1.0f, 0.0f, 0.0f, 0.0f), // Column 1
+				glm::vec4(0.0f,  1.0f, 0.0f, 0.0f), // Column 2
+				glm::vec4(0.0f,  0.0f, 1.0f, 0.0f), // Column 3
+				glm::vec4(0.0f,  0.0f, 0.0f, 1.0f)	// Column 4
+				});
+		}
+
+		/**
+		 * @brief Constructs a transform using the identity matrix for both _scale and _matrix.
+		 */
+		Transform() = default;
+
+		/**
+		 * @brief Constructs a transform from a matrix. Uses the identity matrix for _scale.
+		 * @param matrix The underlying homogeneous matrix that represents the transform.
+		 */
+		Transform(glm::mat4x4 matrix);
+
+		/**
 		 * @brief The homogeneous transformation matrix for this transform.
 		 */
 		glm::mat4x4 _matrix;

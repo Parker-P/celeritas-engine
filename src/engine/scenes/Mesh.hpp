@@ -18,12 +18,12 @@ namespace Engine::Scenes
 		};
 
 		/**
-		 * @brief Attribute describing the object space position of the vertex.
+		 * @brief Attribute describing the object-space position of the vertex.
 		 */
 		glm::vec3 _position;
 
 		/**
-		 * @brief Attribute describing the object space normal vector of the vertex.
+		 * @brief Attribute describing the object-space normal vector of the vertex.
 		 */
 		glm::vec3 _normal;
 
@@ -40,14 +40,12 @@ namespace Engine::Scenes
 		static size_t OffsetOf(const AttributeType& attributeType);
 	};
 
+	/**
+	 * @brief Represents a collection of vertices and face indices as triangles.
+	 */
 	class Mesh
 	{
 	public:
-
-		/**
-		 * @brief Name of the mesh.
-		 */
-		std::string	_name;
 
 		/**
 		 * @brief Array of vertices that make up the mesh.

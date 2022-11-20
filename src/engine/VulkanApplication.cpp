@@ -26,9 +26,9 @@
 #include "engine/Time.hpp"
 #include "engine/input/Input.hpp"
 #include "engine/math/Transform.hpp"
+#include "engine/scenes/Mesh.hpp"
 #include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Camera.hpp"
-#include "engine/scenes/Mesh.hpp"
 #include "engine/scenes/Scene.hpp"
 #include "utils/Utils.hpp"
 #include "engine/scenes/GltfLoader.hpp"
@@ -76,9 +76,10 @@ namespace Engine::Vulkan
 			exit(1);
 		}
 
-		// Creates a reference/connection to the buffer on the GPU.
+		// Creates a reference/connection to the buffer on the GPU side.
 		vkBindBufferMemory(_logicalDevice, _handle, _memory, 0);
 
+		// Creates a reference/connection to the buffer on the CPU side.
 		if (properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
 			vkMapMemory(_logicalDevice, _memory, 0, sizeInBytes, 0, &_dataAddress);
 		}
@@ -144,6 +145,7 @@ namespace Engine::Vulkan
 		_settings.Load(Settings::Paths::_settings());
 		InitializeWindow();
 		_input.Init(_window);
+		LoadScene();
 		SetupVulkan();
 		MainLoop();
 		Cleanup(true);
@@ -601,56 +603,24 @@ namespace Engine::Vulkan
 		}
 	}
 
+	void VulkanApplication::LoadScene() {
+		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
+		_monkeyHeadModel = _scene._objects[0];
+	}
+
 	void VulkanApplication::CreateVertexAndIndexBuffers()
 	{
-
-#pragma region SceneLoading
-		// Load the scene
-		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
-		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._vertices);
-		auto faceIndicesSize = Utils::GetVectorSizeInBytes(_scene._meshes[0]._faceIndices);
-#pragma endregion
+		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_monkeyHeadModel._mesh._vertices);
+		auto faceIndicesSize = Utils::GetVectorSizeInBytes(_monkeyHeadModel._mesh._faceIndices);
 
 #pragma region VerticesToVertexBuffer
-		// First copy vertices to host accessible vertex buffer memory
-		/*VkBufferCreateInfo vertexBufferInfo = {};
-		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		vertexBufferInfo.size = vertexPositionsSize;
-		vertexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-		vkCreateBuffer(_logicalDevice, &vertexBufferInfo, nullptr, &stagingBuffers.vertices.buffer);
-
-		VkMemoryAllocateInfo memAlloc = {};
-		memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		VkMemoryRequirements memReqs;
-		void* data;
-
-		vkGetBufferMemoryRequirements(_logicalDevice, stagingBuffers.vertices.buffer, &memReqs);
-		memAlloc.allocationSize = memReqs.size;
-		GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
-		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &stagingBuffers.vertices.memory);
-
-		vkMapMemory(_logicalDevice, stagingBuffers.vertices.memory, 0, vertexPositionsSize, 0, &data);
-		memcpy(data, _scene._meshes[0]._vertices.data(), vertexPositionsSize);
-		vkUnmapMemory(_logicalDevice, stagingBuffers.vertices.memory);
-		vkBindBufferMemory(_logicalDevice, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0);*/
-
 		// Create a buffer used as a middleman buffer to transfer data from the RAM to the VRAM. This buffer will be created in RAM.
 		auto vertexTransferBuffer = Buffer(_logicalDevice,
 			_deviceMemoryProperties,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			_scene._meshes[0]._vertices.data(),
+			_monkeyHeadModel._mesh._vertices.data(),
 			vertexPositionsSize);
-
-		// This creates a buffer on VRAM, which will be the actual vertex buffer the shaders get their data from.
-		/*vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		vkCreateBuffer(_logicalDevice, &vertexBufferInfo, nullptr, &_vertexBuffer);
-		vkGetBufferMemoryRequirements(_logicalDevice, _vertexBuffer, &memReqs);
-		memAlloc.allocationSize = memReqs.size;
-		GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memAlloc.memoryTypeIndex);
-		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &_vertexBufferMemory);
-		vkBindBufferMemory(_logicalDevice, _vertexBuffer, _vertexBufferMemory, 0);*/
 
 		_vertexBuffer = new Buffer(_logicalDevice,
 			_deviceMemoryProperties,
@@ -666,28 +636,8 @@ namespace Engine::Vulkan
 			_deviceMemoryProperties,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			(void*)_scene._meshes[0]._faceIndices.data(),
+			(void*)_monkeyHeadModel._mesh._faceIndices.data(),
 			faceIndicesSize);
-
-		/*vkCreateBuffer(_logicalDevice, &indexBufferInfo, nullptr, &stagingBuffers.indices.buffer);
-		vkGetBufferMemoryRequirements(_logicalDevice, stagingBuffers.indices.buffer, &memReqs);
-		memAlloc.allocationSize = memReqs.size;
-		GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &memAlloc.memoryTypeIndex);
-		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &stagingBuffers.indices.memory);
-
-		vkMapMemory(_logicalDevice, stagingBuffers.indices.memory, 0, faceIndicesSize, 0, &data);
-		memcpy(data, _scene._meshes[0]._faceIndices.data(), faceIndicesSize);
-		vkUnmapMemory(_logicalDevice, stagingBuffers.indices.memory);
-		vkBindBufferMemory(_logicalDevice, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0);*/
-
-		// And allocate another gpu only buffer for indices
-		/*indexBufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		vkCreateBuffer(_logicalDevice, &indexBufferInfo, nullptr, &_indexBuffer);
-		vkGetBufferMemoryRequirements(_logicalDevice, _indexBuffer, &memReqs);
-		memAlloc.allocationSize = memReqs.size;
-		GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memAlloc.memoryTypeIndex);
-		vkAllocateMemory(_logicalDevice, &memAlloc, nullptr, &_indexBufferMemory);
-		vkBindBufferMemory(_logicalDevice, _indexBuffer, _indexBufferMemory, 0);*/
 
 		_indexBuffer = new Buffer(_logicalDevice,
 			_deviceMemoryProperties,
@@ -745,24 +695,13 @@ namespace Engine::Vulkan
 	{
 		_mainCamera.Update();
 
-		// Vulkan's coordinate system is:
-		// X points right, Y points down, Z points towards you
-		// You want X to point right, Y to point up, and Z to point away from you
-		Math::Transform worldToVulkan;
-		worldToVulkan._matrix = glm::mat4x4{
-			glm::vec4(1.0f,  0.0f, 0.0f, 0.0f),		// Column 1
-			glm::vec4(0.0f, -1.0f, 0.0f, 0.0f),		// Column 2
-			glm::vec4(0.0f,  0.0f, -1.0f, 0.0f),	// Column 3
-			glm::vec4(0.0f,  0.0f, 0.0f, 1.0f)		// Column 4
-		};
-
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
 		auto aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth / _settings._windowHeight);
 		_mainCamera._projection._matrix = (glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f));
-		// Remember, column is the first index, row is the second index
-		_model._transform._matrix[3][2];
-		_uniformBufferData.localToWorld = worldToVulkan._matrix * _model._transform._matrix;
-		_uniformBufferData.viewAndProjection = _mainCamera._projection._matrix * worldToVulkan._matrix * _mainCamera._view._matrix;
+		// Remember, column is the first index, row is the second index.
+		_uniformBufferData.engineToVulkan = Math::Transform::EngineToVulkan()._matrix;
+		_uniformBufferData.objectToEngineWorld = _monkeyHeadModel._transform._matrix;
+		_uniformBufferData.viewAndProjection = _mainCamera._projection._matrix * _mainCamera._view._matrix;
 
 		_uniformBuffer.UpdateData(&_uniformBufferData, (size_t)sizeof(_uniformBufferData));
 	}
@@ -1144,7 +1083,7 @@ namespace Engine::Vulkan
 		rasterizationCreateInfo.rasterizerDiscardEnable = VK_FALSE;
 		rasterizationCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
 		rasterizationCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-		rasterizationCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+		rasterizationCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
 		rasterizationCreateInfo.depthBiasEnable = VK_FALSE;
 		rasterizationCreateInfo.depthBiasConstantFactor = 0.0f;
 		rasterizationCreateInfo.depthBiasClamp = 0.0f;
@@ -1188,7 +1127,6 @@ namespace Engine::Vulkan
 		// Describe pipeline layout.
 		// This describes the mapping between memory and shader resources (descriptor sets), which contain the information you want to send to the shaders.
 		// This is for uniform buffers and samplers.
-
 		int descriptorCount = 1;
 		CreateDescriptorSetLayout(descriptorCount);
 		CreateDescriptorPool(descriptorCount);
@@ -1411,15 +1349,15 @@ namespace Engine::Vulkan
 
 			// Get the value type of vertex indices. Typically unsigned int (32-bit) but could also be 16-bit. Gltf for example uses 16-bit.
 			VkIndexType indexType = VK_INDEX_TYPE_NONE_KHR;
-			if (std::is_same_v<decltype(_scene._meshes[0]._faceIndices)::value_type, unsigned short>) {
+			if (std::is_same_v<decltype(_monkeyHeadModel._mesh._faceIndices)::value_type, unsigned short>) {
 				indexType = VK_INDEX_TYPE_UINT16;
 			}
-			if (std::is_same_v<decltype(_scene._meshes[0]._faceIndices)::value_type, unsigned int>) {
+			if (std::is_same_v<decltype(_monkeyHeadModel._mesh._faceIndices)::value_type, unsigned int>) {
 				indexType = VK_INDEX_TYPE_UINT32;
 			}
 			vkCmdBindIndexBuffer(_graphicsCommandBuffers[i], _indexBuffer->_handle, 0, indexType);
 
-			vkCmdDrawIndexed(_graphicsCommandBuffers[i], (uint32_t)_scene._meshes[0]._faceIndices.size(), 1, 0, 0, 0);
+			vkCmdDrawIndexed(_graphicsCommandBuffers[i], (uint32_t)_monkeyHeadModel._mesh._faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(_graphicsCommandBuffers[i]);
 #pragma endregion
 
