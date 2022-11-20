@@ -28,7 +28,8 @@ namespace Engine::Scenes
 	{
 		uint32_t result = 0;
 		for (int i = 0; i < sizeof(uint32_t); ++i) {
-			result |= (int)charArray[i] << (i * 8);
+			int x = (unsigned char)charArray[i];
+			result |= (unsigned char)charArray[i] << (i * 8);
 		}
 		return result;
 	}
@@ -66,7 +67,6 @@ namespace Engine::Scenes
 
 			// JSON
 			file.read(intBuffer, intSize);
-
 			gltfData.json.chunkLength = ToUInt32(intBuffer);
 			file.read(intBuffer, intSize);
 			gltfData.json.chunkType = ToUInt32(intBuffer);
@@ -210,7 +210,7 @@ namespace Engine::Scenes
 						vertices.reserve(vertexPositions.size());
 
 						for (int i = 0; i < vertexPositions.size(); ++i) {
-							
+
 							// Transform vertex positions to engine-space.
 							auto gltfSpaceVertexPosition = glm::vec4(vertexPositions[i], 1.0f);
 							auto engineSpaceVertexPosition = Math::Transform::GltfToEngine()._matrix * gltfSpaceVertexPosition;
@@ -218,7 +218,7 @@ namespace Engine::Scenes
 							// Transform normal vectors to engine-space.
 							auto gltfSpaceVertexNormal = glm::vec4(vertexNormals[i], 1.0f);
 							auto engineSpaceVertexNormal = Math::Transform::GltfToEngine()._matrix * gltfSpaceVertexNormal;
-							vertices.emplace_back(Scenes::Vertex{ glm::vec3(engineSpaceVertexPosition), glm::vec3(engineSpaceVertexNormal), uvCoords[i]});
+							vertices.emplace_back(Scenes::Vertex{ glm::vec3(engineSpaceVertexPosition), glm::vec3(engineSpaceVertexNormal), uvCoords[i] });
 						}
 
 						// Invert the winding order of the vertices in the faceIndices
