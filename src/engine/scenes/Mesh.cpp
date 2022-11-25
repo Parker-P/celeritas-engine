@@ -8,7 +8,7 @@
 
 namespace Engine::Scenes
 {
-    size_t Vertex::OffsetOf(const AttributeType& attributeType)
+    size_t Mesh::Vertex::OffsetOf(const AttributeType& attributeType)
     {
         switch (attributeType) {
         case AttributeType::Position:

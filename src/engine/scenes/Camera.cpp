@@ -30,8 +30,8 @@ namespace Engine::Scenes
 		auto& input = Input::KeyboardMouse::Instance();
 		auto& time = Time::Instance();
 
-		_yaw = -input._mouseX * Settings::GlobalSettings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
-		_pitch = input._mouseY * Settings::GlobalSettings::Instance()._mouseSensitivity; // Around the X axis (for pitch) the positive rotation is looking upwards, and moving the mouse upwards gives you a positive value, so this stays as is.
+		_yaw = -input._mouseX * (double)Settings::GlobalSettings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
+		_pitch = input._mouseY * (double)Settings::GlobalSettings::Instance()._mouseSensitivity; // Around the X axis (for pitch) the positive rotation is looking upwards, and moving the mouse upwards gives you a positive value, so this stays as is.
 
 		auto _mouseSens = Settings::GlobalSettings::Instance()._mouseSensitivity;
 
@@ -75,7 +75,7 @@ namespace Engine::Scenes
 		_lastYaw = _yaw;
 		_lastPitch = _pitch;
 		_lastRoll = _roll;
-		
+
 		// First apply roll rotation.
 		_transform.Rotate(_transform.Forward(), _deltaRoll);
 
@@ -115,11 +115,27 @@ namespace Engine::Scenes
 		// 4) Next, move your head towards the point you are focusing on in a straight line, untill you eventually hit the window with your head
 		// That point on the glass, right in front of your pupil, is the intersection between your screen and the point is space outside your house that you were focusing on.
 		// This is exactly how the projection transformation was thought about but in reverse; the point in space outside the window moves towards your pupil untill it
-		// eventually hits the window. When it hits the window, you just take the distance from the edges of the window to the hit point: this will be your 2D screen
+		// eventually hits the window. When it hits the window, you just take the distance from the center of the window to the hit point: these will be your 2D screen
 		// coordinates, and this is what the vertex shader always has to do in the end: convert a position from outside your window to some 2D coordinates on the glass
 		// of the window. It's a very simple idea but the nature of how GPUs and vertex shaders work make the math a little hard to understand. There are plenty of good
 		// math explanations on the net.
 
-		_projection._matrix = glm::perspectiveFov(glm::radians(horizontalFovDegrees), viewportWidth, viewportHeight, nearClipDistance, farClipDistance);
+		// You need to be aware of the following pipeline to understand why this transformation matrix is setup as it is:
+		// 1. The vertex shader runs, and takes the first vertex position from vertexBuffer[0]
+		// 2. The vertex shader outputs gl_position as (position.x, position.y, position.z, position.w) this vector is in what is called clip-space.
+		// 3. One of the succeeding stages (before the fragment shader) takes gl_position ad does this: 
+		// ndcCoordinates = vec3(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w)
+		// These will be the final coordinates that will be used to place the vertex onto the viewport.
+		// We, unfortunately, have no control over this and cannot prevent it from happening. The only thing we can do is to be hacky
+		// with the transformation matrices we apply to gl_position in the vertex shader so that we get the values we want AFTER
+		// perspective divide.
+		_projection._matrix = glm::mat4{
+				glm::vec4{nearClipDistance, 0.0f, 0.0f, 0.0f},
+				glm::vec4{0.0f, -nearClipDistance, 0.0f, 0.0f},
+				glm::vec4{0.0f, 0.0f, (1.0f/(farClipDistance - nearClipDistance)), 1.0f},
+				glm::vec4{0.0f, 0.0f, 0.0f, 0.0f}
+		};
+
+		//_projection._matrix = projectionTransform._matrix;/*glm::perspectiveFov(glm::radians(horizontalFovDegrees), viewportWidth, viewportHeight, nearClipDistance, farClipDistance)*/;
 	}
 }

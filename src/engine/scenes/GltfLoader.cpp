@@ -231,7 +231,7 @@ namespace Engine::Scenes
 					// This is where you will want to touch in the future to add multi-UV-map support.
 					auto size = vertexPositions.size();
 					if (vertexNormals.size() == size) {
-						std::vector<Scenes::Vertex> vertices;
+						std::vector<Mesh::Vertex> vertices;
 						vertices.reserve(vertexPositions.size());
 
 						for (int i = 0; i < vertexPositions.size(); ++i) {
@@ -243,7 +243,7 @@ namespace Engine::Scenes
 							// Transform normal vectors to engine-space.
 							auto gltfSpaceVertexNormal = glm::vec4(vertexNormals[i], 1.0f);
 							auto engineSpaceVertexNormal = Math::Transform::GltfToEngine()._matrix * gltfSpaceVertexNormal;
-							vertices.emplace_back(Scenes::Vertex{ glm::vec3(engineSpaceVertexPosition), glm::vec3(engineSpaceVertexNormal), glm::vec2{}/*uvCoords[i]*/ });
+							vertices.emplace_back(Mesh::Vertex{ glm::vec3(engineSpaceVertexPosition), glm::vec3(engineSpaceVertexNormal), glm::vec2{}/*uvCoords[i]*/ });
 						}
 
 						mesh._vertices = vertices;

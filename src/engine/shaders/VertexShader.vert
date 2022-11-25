@@ -1,5 +1,7 @@
 #version 450
 
+// https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html
+
 // Input attributes coming from a vertex buffer.
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
@@ -16,8 +18,18 @@ layout(set = 0, binding = 0) uniform TransformationMatrices {
 
 void main() 
 {
-    gl_Position = transformationMatrices.engineToVulkan * transformationMatrices.viewAndProjection * transformationMatrices.objectToEngineWorld * vec4(inPosition, 1.0); // This multiplication also applies perspective division, meaning that each component of inPosition will be divided by the second number in vec4's constructor.
-    vec4 temp = transformationMatrices.engineToVulkan * transformationMatrices.objectToEngineWorld * vec4(0.0, -1.0, 0.0, 0.0);
+    // Matrix used to preserve the correct normalized Z value after perspective division, which is done in the succeeding steps of the rendering
+	// pipeline.
+	mat4 zScale;
+	zScale[0][0] = 1.0f; zScale[1][0] = 0.0f; zScale[2][0] = 0.0f;         zScale[3][0] = 0.0f;
+	zScale[0][1] = 0.0f; zScale[1][1] = 1.0f; zScale[2][1] = 0.0f;		   zScale[3][1] = 0.0f;
+	zScale[0][2] = 0.0f; zScale[1][2] = 0.0f; zScale[2][2] = inPosition.z; zScale[3][2] = 0.0f;
+	zScale[0][3] = 0.0f; zScale[1][3] = 0.0f; zScale[2][3] = 0.0f;		   zScale[3][3] = 1.0f;
+
+	gl_Position = zScale * transformationMatrices.viewAndProjection * transformationMatrices.objectToEngineWorld * vec4(inPosition, 1.0f);
+	
+	// Calculate the color of each vertex so the fragment shader can interpolate the pixels rendered between them.
+	vec4 temp = vec4(0.0, -1.0, 0.0, 0.0);
 	vec3 lightDirection = vec3(temp.x, temp.y, temp.z);
 	float colorMultiplier = (dot(-lightDirection, inNormal) + 1.0) / 2.0;
 	fragColor = colorMultiplier * vec3(1.0, 1.0, 1.0); // RGB

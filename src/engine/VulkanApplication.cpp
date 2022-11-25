@@ -604,10 +604,23 @@ namespace Engine::Vulkan
 	}
 
 	void VulkanApplication::LoadScene() {
-		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\2CylinderEngine.glb)");
-		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
-		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\test.glb)");
+		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\2CylinderEngine.glb)");
+		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
+		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\axesTest.glb)");
 		_monkeyHeadModel = _scene._objects[0];
+		//std::vector<Scenes::Mesh::Vertex> verts{};
+		//std::vector<unsigned short> indices{};
+
+		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{0.0f, 4.0f, 12.0f}, glm::vec3{}, glm::vec2{} }); // Tip.
+		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{1.0f, 2.0f, 12.0f}, glm::vec3{}, glm::vec2{} }); // Lower right.
+		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{-1.0f, 2.0f, 12.0f}, glm::vec3{}, glm::vec2{} }); // Lower left.
+
+		//indices.push_back(0);
+		//indices.push_back(2);
+		//indices.push_back(1);
+
+		//_monkeyHeadModel._mesh._vertices = verts;
+		//_monkeyHeadModel._mesh._faceIndices = indices;
 	}
 
 	void VulkanApplication::CreateVertexAndIndexBuffers()
@@ -699,11 +712,33 @@ namespace Engine::Vulkan
 
 		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
 		auto aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth / _settings._windowHeight);
-		_mainCamera._projection._matrix = (glm::perspective(glm::radians(60.0f), aspectRatio, 0.1f, 1000.0f));
 		// Remember, column is the first index, row is the second index.
-		_uniformBufferData.engineToVulkan = Math::Transform::EngineToVulkan()._matrix;
+		//_uniformBufferData.engineToVulkan = Math::Transform::EngineToVulkan()._matrix;
+		//_uniformBufferData.objectToEngineWorld = _monkeyHeadModel._transform._matrix;
+
+		if (_input.IsKeyHeldDown(GLFW_KEY_W)) {
+			_monkeyHeadModel._transform.Translate(_monkeyHeadModel._transform.Forward());
+		}
+
+		if (_input.IsKeyHeldDown(GLFW_KEY_S)) {
+			_monkeyHeadModel._transform.Translate(-_monkeyHeadModel._transform.Forward());
+		}
+
+		_mainCamera.GenerateProjectionTransform(_settings._windowWidth, _settings._windowHeight, 90, 0.1f, 250.0f);
+		_uniformBufferData.viewAndProjection = _mainCamera._projection._matrix;
 		_uniformBufferData.objectToEngineWorld = _monkeyHeadModel._transform._matrix;
-		_uniformBufferData.viewAndProjection = _mainCamera._projection._matrix * _mainCamera._view._matrix;
+
+		auto z1 = _monkeyHeadModel._mesh._vertices[0]._position.z;
+				
+		glm::mat4 zScale;
+		zScale[0][0] = 1.0f;
+		zScale[1][1] = 1.0f;
+		zScale[2][2] = _monkeyHeadModel._mesh._vertices[0]._position.z;
+		zScale[3][3] = 1.0f;
+		auto mult1 = zScale * _uniformBufferData.viewAndProjection * _uniformBufferData.objectToEngineWorld * glm::vec4(_monkeyHeadModel._mesh._vertices[0]._position, 1.0f);
+
+		std::cout << "Final NDC coordinates: " << mult1.x / z1 << ", " << mult1.y / z1 << ", " << mult1.z / z1 << std::endl;
+		std::cout << "Engine to world z is: " << _uniformBufferData.objectToEngineWorld[3][2] << std::endl << std::endl;
 
 		_uniformBuffer.UpdateData(&_uniformBufferData, (size_t)sizeof(_uniformBufferData));
 	}
@@ -994,7 +1029,7 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateGraphicsPipeline()
 	{
-		using Vertex = Scenes::Vertex;
+		using Vertex = Scenes::Mesh::Vertex;
 
 		VkShaderModule vertexShaderModule = CreateShaderModule(Settings::Paths::_vertexShaderPath());
 		VkShaderModule fragmentShaderModule = CreateShaderModule(Settings::Paths::_fragmentShaderPath());
