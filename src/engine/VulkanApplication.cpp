@@ -604,9 +604,9 @@ namespace Engine::Vulkan
 	}
 
 	void VulkanApplication::LoadScene() {
-		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\2CylinderEngine.glb)");
+		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\2CylinderEngine.glb)");
 		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
-		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\axesTest.glb)");
+		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\axesTest.glb)");
 		_monkeyHeadModel = _scene._objects[0];
 		//std::vector<Scenes::Mesh::Vertex> verts{};
 		//std::vector<unsigned short> indices{};
@@ -716,15 +716,17 @@ namespace Engine::Vulkan
 		//_uniformBufferData.engineToVulkan = Math::Transform::EngineToVulkan()._matrix;
 		//_uniformBufferData.objectToEngineWorld = _monkeyHeadModel._transform._matrix;
 
+		glm::mat3 dtt{ glm::vec3(0.01, 0, 0), glm::vec3(0, 0.01, 0) , glm::vec3(0, 0, 0.01) };
+
 		if (_input.IsKeyHeldDown(GLFW_KEY_W)) {
-			_monkeyHeadModel._transform.Translate(_monkeyHeadModel._transform.Forward());
+			_monkeyHeadModel._transform.Translate(dtt * _monkeyHeadModel._transform.Forward());
 		}
 
 		if (_input.IsKeyHeldDown(GLFW_KEY_S)) {
-			_monkeyHeadModel._transform.Translate(-_monkeyHeadModel._transform.Forward());
+			_monkeyHeadModel._transform.Translate(dtt * -_monkeyHeadModel._transform.Forward());
 		}
 
-		_mainCamera.GenerateProjectionTransform(_settings._windowWidth, _settings._windowHeight, 90, 0.1f, 250.0f);
+		_mainCamera.GenerateProjectionTransform(_settings._windowWidth, _settings._windowHeight, 90, 0.1f, 25.0f);
 		_uniformBufferData.viewAndProjection = _mainCamera._projection._matrix;
 		_uniformBufferData.objectToEngineWorld = _monkeyHeadModel._transform._matrix;
 

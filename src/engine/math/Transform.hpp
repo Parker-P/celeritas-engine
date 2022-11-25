@@ -11,27 +11,6 @@ namespace Engine::Math
 	public:
 
 		/**
-		 * @brief Returns the transform to take another transform from engine space (X right, Y up, Z forward)
-		 * to Vulkan's space (X right, Y down, Z forward).
-		 * The coordinate system that the vertex shader expects is setup as follows:
-		 * what happens is that you have a cubic viewing volume right in front of you, within which everything will be rendered.
-		 * Just imagine having a cube right in front of you. The face closer to you is your monitor. The volume inside of the cube is
-		 * the range within which everything will be rendered.
-		 * This viewing volume is a cube that ranges from [-1,1,0] (from the perspective of your monitor, this is the lower-left-close vertex 
-		 * of the cube) to [1,-1,1] (upper right far vertex of the cube). Anything you want to render eventually has to fall within this range.
-		 * This means that gl_position in the vertex shader needs to have an output coordinate that falls within this range for it to be
-		 * within the visible range.
-		 */
-		static Transform EngineToVulkan() {
-			return Transform(glm::mat4x4{
-				glm::vec4(1.0f,  0.0f, 0.0f, 0.0f), // Column 1
-				glm::vec4(0.0f, -1.0f, 0.0f, 0.0f), // Column 2
-				glm::vec4(0.0f,  0.0f, 1.0f, 0.0f), // Column 3
-				glm::vec4(0.0f,  0.0f, 0.0f, 1.0f)	// Column 4
-			});
-		}
-
-		/**
 		 * @brief Returns the transform to take another transform from gltf space (X left, Y up, Z forward)
 		 * to engine space (X right, Y up, Z forward).
 		 */
@@ -86,7 +65,7 @@ namespace Engine::Math
 		glm::vec3 Forward();
 
 		/**
-		 * @brief Translate this transform by "offset". This will modify the fourth column of the _position matrix.
+		 * @brief Translate this transform by "offset". This will modify the fourth column of the _matrix member.
 		 * @param offset
 		 */
 		void Translate(const glm::vec3& offset);

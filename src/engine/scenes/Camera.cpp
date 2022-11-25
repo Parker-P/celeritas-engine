@@ -117,13 +117,13 @@ namespace Engine::Scenes
 		// This is exactly how the projection transformation was thought about but in reverse; the point in space outside the window moves towards your pupil untill it
 		// eventually hits the window. When it hits the window, you just take the distance from the center of the window to the hit point: these will be your 2D screen
 		// coordinates, and this is what the vertex shader always has to do in the end: convert a position from outside your window to some 2D coordinates on the glass
-		// of the window. It's a very simple idea but the nature of how GPUs and vertex shaders work make the math a little hard to understand. There are plenty of good
-		// math explanations on the net.
-
+		// of the window. It's a very simple idea but the nature of how GPUs and vertex shaders work make the math a VERY complicated, because
+		// you need to understand the entire rendering pipeline to understand it.
+		//
 		// You need to be aware of the following pipeline to understand why this transformation matrix is setup as it is:
 		// 1. The vertex shader runs, and takes the first vertex position from vertexBuffer[0]
 		// 2. The vertex shader outputs gl_position as (position.x, position.y, position.z, position.w) this vector is in what is called clip-space.
-		// 3. One of the succeeding stages (before the fragment shader) takes gl_position ad does this: 
+		// 3. One of the succeeding stages (before the fragment shader) takes gl_position and does this: 
 		// ndcCoordinates = vec3(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w)
 		// These will be the final coordinates that will be used to place the vertex onto the viewport.
 		// We, unfortunately, have no control over this and cannot prevent it from happening. The only thing we can do is to be hacky
