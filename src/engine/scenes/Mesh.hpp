@@ -56,6 +56,6 @@ namespace Engine::Scenes
 		 * @brief List of indices, where each index corresponds to a vertex defined in the _vertices array above.
 		 * A face (triangle) is defined by three consecutive indices in this array.
 		 */
-		std::vector<unsigned short> _faceIndices;
+		std::vector<unsigned int> _faceIndices;
 	};
 }

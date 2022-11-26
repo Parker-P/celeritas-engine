@@ -202,7 +202,7 @@ namespace Engine::Scenes
 					std::vector<glm::vec3> vertexPositions;
 					std::vector<glm::vec3> vertexNormals;
 					std::vector<glm::vec2> uvCoords;
-					std::vector<unsigned short> faceIndices;
+					std::vector<unsigned int> faceIndices;
 
 					if (Utils::AsInteger(GltfComponentType::FLOAT) == gltfScene.accessors[vertexPositionsAccessorIndex].componentType) {
 						vertexPositions.resize(gltfScene.accessors[vertexPositionsAccessorIndex].count);
@@ -221,7 +221,8 @@ namespace Engine::Scenes
 						}
 					}
 
-					if (Utils::AsInteger(GltfComponentType::UNSIGNED_SHORT) == gltfScene.accessors[faceIndicesAccessorIndex].componentType) {
+					if (Utils::AsInteger(GltfComponentType::UNSIGNED_SHORT) == gltfScene.accessors[faceIndicesAccessorIndex].componentType ||
+						Utils::AsInteger(GltfComponentType::UNSIGNED_INT) == gltfScene.accessors[faceIndicesAccessorIndex].componentType) {
 						faceIndices.resize(gltfScene.accessors[faceIndicesAccessorIndex].count);
 						memcpy(&faceIndices[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset], gltfScene.accessors[faceIndicesAccessorIndex].count * sizeof(unsigned short));
 					}
