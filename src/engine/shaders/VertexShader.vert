@@ -37,30 +37,15 @@ void main()
 	// This is exactly how the projection transformation was thought about but in reverse; the point in space outside the window moves towards your pupil untill it
 	// eventually hits the window. When it hits the window, you just take the distance from the center of the window to the hit point: these will be your 2D screen
 	// coordinates.
-	mat4 cameraToClip;
-	cameraToClip[0][0] = activeCameraProperties.nearClipDistance;   
-	cameraToClip[0][1] = 0.0f;   
-	cameraToClip[0][2] = 0.0f;   
-	cameraToClip[0][3] = 0.0f;   
 
-	cameraToClip[1][0] = 0.0f;
-	cameraToClip[1][1] = -activeCameraProperties.nearClipDistance;
-	cameraToClip[1][2] = 0.0f;
-	cameraToClip[1][3] = 0.0f;
-
-	cameraToClip[2][0] = 0.0f;        
-	cameraToClip[2][1] = 0.0f;		  
-	cameraToClip[2][2] = (inPosition.z - activeCameraProperties.nearClipDistance) / (activeCameraProperties.farClipDistance - activeCameraProperties.nearClipDistance);
-	cameraToClip[2][3] = 1.0f;		
-	
-	cameraToClip[3][0] = 0.0f;
-	cameraToClip[3][1] = 0.0f;
-	cameraToClip[3][2] = 0.0f;
-	cameraToClip[3][3] = 1.0f;
+	vec4 cameraSpacePosition = /*transformationMatrices.worldToCamera **/ transformationMatrices.objectToWorld * vec4(inPosition.x, inPosition.y, inPosition.z, 1.0f);
+	float xCoord = (activeCameraProperties.nearClipDistance * cameraSpacePosition.x) / cameraSpacePosition.z;
+	float yCoord = (-activeCameraProperties.nearClipDistance * cameraSpacePosition.y) / cameraSpacePosition.z;
+	float zCoord = (cameraSpacePosition.z - activeCameraProperties.nearClipDistance) / (activeCameraProperties.farClipDistance - activeCameraProperties.nearClipDistance);
 
 	// Remember that the next stages are going to divide each component of gl_position by its w component, meaning that
 	// gl_position = vec4(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w, gl_position.w / gl_position.w)
-	gl_Position = cameraToClip * /*transformationMatrices.worldToCamera **/ transformationMatrices.objectToWorld * vec4(inPosition.x, inPosition.y, inPosition.z, 1.0f);
+	gl_Position = vec4(xCoord, yCoord, zCoord, 1.0f);
 	
 	// Calculate the color of each vertex so the fragment shader can interpolate the pixels rendered between them.
 	vec4 temp = vec4(0.0, -1.0, 0.0, 0.0);

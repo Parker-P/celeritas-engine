@@ -605,23 +605,23 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::LoadScene() {
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\2CylinderEngine.glb)");
-		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\axesTest.glb)");
-		//_monkeyHeadModel = _scene._objects[0];
+		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
+		_monkeyHeadModel = _scene._objects[0];
 
-		std::vector<Scenes::Mesh::Vertex> verts{};
-		std::vector<unsigned short> indices{};
+		//std::vector<Scenes::Mesh::Vertex> verts{};
+		//std::vector<unsigned short> indices{};
 
-		verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{0.0f, 1.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Tip.
-		verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{1.0f, -1.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Lower right.
-		verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{-1.0f, -1.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Lower left.
+		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{0.0f, 1.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Tip.
+		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{1.0f, -1.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Lower right.
+		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{-1.0f, -1.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Lower left.
 
-		indices.push_back(0);
-		indices.push_back(1);
-		indices.push_back(2);
+		//indices.push_back(0);
+		//indices.push_back(2);
+		//indices.push_back(1);
 
-		_monkeyHeadModel._mesh._vertices = verts;
-		_monkeyHeadModel._mesh._faceIndices = indices;
+		//_monkeyHeadModel._mesh._vertices = verts;
+		//_monkeyHeadModel._mesh._faceIndices = indices;
 	}
 
 	void VulkanApplication::CreateVertexAndIndexBuffers()
@@ -717,7 +717,7 @@ namespace Engine::Vulkan
 		//_uniformBufferData.engineToVulkan = Math::Transform::EngineToVulkan()._matrix;
 		//_uniformBufferData.objectToEngineWorld = _monkeyHeadModel._transform._matrix;
 
-		glm::mat3 dtt{ glm::vec3(0.01, 0, 0), glm::vec3(0, 0.01, 0) , glm::vec3(0, 0, 0.01) };
+		glm::mat3 dtt{ glm::vec3(0.07f, 0, 0), glm::vec3(0.0, 0.07f, 0) , glm::vec3(0, 0, 0.07f) };
 
 		if (_input.IsKeyHeldDown(GLFW_KEY_W)) {
 			_monkeyHeadModel._transform.Translate(dtt * _monkeyHeadModel._transform.Forward());
@@ -733,35 +733,23 @@ namespace Engine::Vulkan
 		_activeCameraPropertiesData.width = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth);
 		_activeCameraPropertiesData.height = Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
 		_activeCameraPropertiesData.nearClipDistance = 1.0f;
-		_activeCameraPropertiesData.farClipDistance = 11.0f;
+		_activeCameraPropertiesData.farClipDistance = 200.0f;
 
 		auto posX = _monkeyHeadModel._mesh._vertices[0]._position.x;
 		auto posY = _monkeyHeadModel._mesh._vertices[0]._position.y;
 		auto posZ = _monkeyHeadModel._mesh._vertices[0]._position.z;
+		
+		glm::vec4 cameraSpacePosition = /*transformationMatrices.worldToCamera **/ _uniformBufferData.objectToWorld * glm::vec4(posX, posY, posZ, 1.0f);
+		float xCoord = (_activeCameraPropertiesData.nearClipDistance * cameraSpacePosition.x) / posZ;
+		float yCoord = (-_activeCameraPropertiesData.nearClipDistance * cameraSpacePosition.y) / posZ;
+		float zCoord = (cameraSpacePosition.z - _activeCameraPropertiesData.nearClipDistance) / (_activeCameraPropertiesData.farClipDistance - _activeCameraPropertiesData.nearClipDistance);
 
-		glm::mat4 cameraToClip;
-		cameraToClip[0][0] = _activeCameraPropertiesData.nearClipDistance;
-		cameraToClip[0][1] = 0.0f;
-		cameraToClip[0][2] = 0.0f;
-		cameraToClip[0][3] = 0.0f;
+		// Remember that the next stages are going to divide each component of gl_position by its w component, meaning that
+		// gl_position = vec4(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w, gl_position.w / gl_position.w)
+		auto ndc = glm::vec4(xCoord, yCoord, zCoord, 1.0f);
 
-		cameraToClip[1][0] = 0.0f;
-		cameraToClip[1][1] = -_activeCameraPropertiesData.nearClipDistance;
-		cameraToClip[1][2] = 0.0f;
-		cameraToClip[1][3] = 0.0f;
+		std::cout << ndc.x << ", " << ndc.y << ", " << ndc.z << std::endl;
 
-		cameraToClip[2][0] = 0.0f;
-		cameraToClip[2][1] = 0.0f;
-		cameraToClip[2][2] = (posZ - _activeCameraPropertiesData.nearClipDistance) / (_activeCameraPropertiesData.farClipDistance - _activeCameraPropertiesData.nearClipDistance);
-		cameraToClip[2][3] = 1.0f;
-
-		cameraToClip[3][0] = 0.0f;
-		cameraToClip[3][1] = 0.0f;
-		cameraToClip[3][2] = 0.0f;
-		cameraToClip[3][3] = 1.0f;
-
-		auto ndc = cameraToClip * /*transformationMatrices.worldToCamera **/ _uniformBufferData.objectToWorld * glm::vec4(posX, posY, posZ, 1.0f);
-		std::cout << ndc.x / posZ << ", " << ndc.y / posZ << ", " << ndc.z / posZ << std::endl;
 		_uniformBuffer.UpdateData(&_uniformBufferData, (size_t)sizeof(_uniformBufferData));
 	}
 
@@ -1142,7 +1130,7 @@ namespace Engine::Vulkan
 		rasterizationCreateInfo.rasterizerDiscardEnable = VK_FALSE;
 		rasterizationCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
 		rasterizationCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-		rasterizationCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+		rasterizationCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizationCreateInfo.depthBiasEnable = VK_FALSE;
 		rasterizationCreateInfo.depthBiasConstantFactor = 0.0f;
 		rasterizationCreateInfo.depthBiasClamp = 0.0f;
