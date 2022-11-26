@@ -28,9 +28,12 @@ namespace Engine::Input
 		// Mouse
 		double _mouseX;
 		double _mouseY;
+		//double _scrollX; // Only used for scroll-pads. For vertical scroll wheels, only the Y value is actually used.
+		double _scrollY;
 
 		static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 		static void CursorPositionCallback(GLFWwindow* window, double xPos, double yPos);
+		static void ScrollWheelCallback(GLFWwindow* window, double xPos, double yPos);
 
 		void Init(GLFWwindow* window);
 

@@ -385,12 +385,6 @@ namespace Engine::Vulkan
 		void CreateDescriptorPool(const uint32_t& descriptorCount);
 
 		/**
-		 * @brief Creates push constants.
-		 * 
-		 */
-		void CreatePushConstants();
-
-		/**
 		 * @brief Creates a descriptor set, and fills it with the chosen number of descriptors (defined when creating the descriptor pool that will be used to allocate the descriptor set).
 		 */
 		void CreateDescriptorSets();

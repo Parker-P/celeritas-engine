@@ -60,13 +60,13 @@ namespace Engine::Scenes
 			_transform.Translate(_transform.Right() * 0.009f * (float)time._deltaTime);
 		}
 
-		/*if (input.IsKeyHeldDown(GLFW_KEY_SPACE)) {
+		if (input.IsKeyHeldDown(GLFW_KEY_SPACE)) {
 			_transform.Translate(_transform.Up() * 0.009f * (float)time._deltaTime);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_LEFT_CONTROL)) {
 			_transform.Translate(-_transform.Up() * 0.009f * (float)time._deltaTime);
-		}*/
+		}
 
 		float _deltaYaw = (_yaw - _lastYaw);
 		float _deltaPitch = (_pitch - _lastPitch);
@@ -102,5 +102,9 @@ namespace Engine::Scenes
 		// we get the exact same effect as if we actually had a camera and moved it backwards. That's it, very simple idea behind the view matrix.
 
 		_view._matrix = glm::inverse(_transform._matrix);
+
+		_horizontalFov = input._scrollY;
+		float _deltaHFov = (_horizontalFov - _lastHFov);
+		_lastHFov = _horizontalFov;
 	}
 }

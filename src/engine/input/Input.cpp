@@ -29,6 +29,7 @@ namespace Engine::Input
 			glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
 		}
 		glfwSetCursorPosCallback(window, CursorPositionCallback);
+		glfwSetScrollCallback(window, ScrollWheelCallback);
 	}
 
 	void KeyboardMouse::KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -53,6 +54,14 @@ namespace Engine::Input
 		if (!Instance()._cursorEnabled) {
 			Instance()._mouseX = xPos;
 			Instance()._mouseY = yPos;
+		}
+	}
+
+	void KeyboardMouse::ScrollWheelCallback(GLFWwindow* window, double xPos, double yPos)
+	{
+		if (!Instance()._cursorEnabled) {
+			//Instance()._scrollX = xPos;
+			Instance()._scrollY = yPos;
 		}
 	}
 
