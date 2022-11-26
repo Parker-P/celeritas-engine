@@ -145,7 +145,7 @@ namespace Engine::Vulkan
 		_settings.Load(Settings::Paths::_settings());
 
 		_mainCamera._horizontalFov = 95.0f;
-		_uniformBufferData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov/2.0f));
+		_uniformBufferData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov /2.0f));
 		_uniformBufferData.nearClipDistance = 0.1f;
 		_uniformBufferData.farClipDistance = 200.0f;
 
@@ -726,27 +726,27 @@ namespace Engine::Vulkan
 		_uniformBufferData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov / 2.0f));
 		_uniformBufferData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
 
-		auto posX = _monkeyHeadModel._mesh._vertices[0]._position.x;
-		auto posY = _monkeyHeadModel._mesh._vertices[0]._position.y;
-		auto posZ = _monkeyHeadModel._mesh._vertices[0]._position.z;
+		//auto posX = _monkeyHeadModel._mesh._vertices[0]._position.x;
+		//auto posY = _monkeyHeadModel._mesh._vertices[0]._position.y;
+		//auto posZ = _monkeyHeadModel._mesh._vertices[0]._position.z;
 
-		glm::vec4 cameraSpacePosition = _uniformBufferData.worldToCamera * _uniformBufferData.objectToWorld * glm::vec4(posX, posY, posZ, 1.0f);
+		//glm::vec4 cameraSpacePosition = _uniformBufferData.worldToCamera * _uniformBufferData.objectToWorld * glm::vec4(posX, posY, posZ, 1.0f);
 
-		// This calculation is based on the fact that Vulkan's coordinate system is X right, Y down, Z forward and follows the right hand rule.
-		// In our engine we have X right, Y up, Z forward, and we follow the left hand rule.
-		float xCoord = (cameraSpacePosition.x) / (cameraSpacePosition.z * _uniformBufferData.tanHalfHorizontalFov * _uniformBufferData.aspectRatio);
-		float yCoord = (-cameraSpacePosition.y) / (cameraSpacePosition.z * _uniformBufferData.tanHalfHorizontalFov);
-		float zCoord = (cameraSpacePosition.z - _uniformBufferData.nearClipDistance) / (_uniformBufferData.farClipDistance - _uniformBufferData.nearClipDistance);
+		//// This calculation is based on the fact that Vulkan's coordinate system is X right, Y down, Z forward and follows the right hand rule.
+		//// In our engine we have X right, Y up, Z forward, and we follow the left hand rule.
+		//float xCoord = (cameraSpacePosition.x) / (cameraSpacePosition.z * _uniformBufferData.tanHalfHorizontalFov * _uniformBufferData.aspectRatio);
+		//float yCoord = (-cameraSpacePosition.y) / (cameraSpacePosition.z * _uniformBufferData.tanHalfHorizontalFov);
+		//float zCoord = (cameraSpacePosition.z - _uniformBufferData.nearClipDistance) / (_uniformBufferData.farClipDistance - _uniformBufferData.nearClipDistance);
 
-		// Remember that the next stages are going to divide each component of gl_position by its w component, meaning that
-		// gl_position = vec4(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w, gl_position.w / gl_position.w)
-		auto ndc = glm::vec4(xCoord, yCoord, zCoord, 1.0f);
+		//// Remember that the next stages are going to divide each component of gl_position by its w component, meaning that
+		//// gl_position = vec4(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w, gl_position.w / gl_position.w)
+		//auto ndc = glm::vec4(xCoord, yCoord, zCoord, 1.0f);
 
-		//std::cout << "Aspect ratio: " << _activeCameraPropertiesData.aspectRatio << std::endl;
-		std::cout << "Horizontal fov: " << _mainCamera._horizontalFov << std::endl;
-		std::cout << "Near clip distance: " << _uniformBufferData.nearClipDistance << std::endl;
-		std::cout << "Tan half fov: " << _uniformBufferData.tanHalfHorizontalFov << std::endl;
-		std::cout << ndc.x << ", " << ndc.y << ", " << ndc.z << std::endl;
+		////std::cout << "Aspect ratio: " << _activeCameraPropertiesData.aspectRatio << std::endl;
+		//std::cout << "Horizontal fov: " << _mainCamera._horizontalFov << std::endl;
+		//std::cout << "Near clip distance: " << _uniformBufferData.nearClipDistance << std::endl;
+		//std::cout << "Tan half fov: " << _uniformBufferData.tanHalfHorizontalFov << std::endl;
+		//std::cout << ndc.x << ", " << ndc.y << ", " << ndc.z << std::endl;
 
 		_uniformBuffer.UpdateData(&_uniformBufferData, (size_t)sizeof(_uniformBufferData));
 	}

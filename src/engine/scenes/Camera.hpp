@@ -24,7 +24,7 @@ namespace Engine::Scenes
 		float _pitch;
 		float _roll;
 
-		float _lastHFov;
+		float _lastScrollY;
 
 		void Update();
 	};

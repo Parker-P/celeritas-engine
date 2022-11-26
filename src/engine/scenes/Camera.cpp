@@ -103,8 +103,9 @@ namespace Engine::Scenes
 
 		_view._matrix = glm::inverse(_transform._matrix);
 
-		_horizontalFov = input._scrollY;
-		float _deltaHFov = (_horizontalFov - _lastHFov);
-		_lastHFov = _horizontalFov;
+		float _deltaScrollY = (input._scrollY - _lastScrollY);
+		_horizontalFov -= _deltaScrollY;
+		_lastScrollY = input._scrollY;
+		std::cout << _horizontalFov << std::endl;
 	}
 }

@@ -61,7 +61,7 @@ namespace Engine::Input
 	{
 		if (!Instance()._cursorEnabled) {
 			//Instance()._scrollX = xPos;
-			Instance()._scrollY = yPos;
+			Instance()._scrollY += yPos;
 		}
 	}
 
