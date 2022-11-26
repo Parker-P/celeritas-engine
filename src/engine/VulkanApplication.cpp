@@ -203,6 +203,8 @@ namespace Engine::Vulkan
 	void VulkanApplication::OnWindowResized(GLFWwindow* window, int width, int height)
 	{
 		windowResized = true;
+		Settings::GlobalSettings::Instance()._windowWidth = width;
+		Settings::GlobalSettings::Instance()._windowHeight = height;
 	}
 
 	void VulkanApplication::OnWindowSizeChanged()
@@ -711,13 +713,7 @@ namespace Engine::Vulkan
 	{
 		_mainCamera.Update();
 
-		// Generate the projection matrix. This matrix maps the position in camera space to 2D screen space.
-		auto aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth / _settings._windowHeight);
-		// Remember, column is the first index, row is the second index.
-		//_uniformBufferData.engineToVulkan = Math::Transform::EngineToVulkan()._matrix;
-		//_uniformBufferData.objectToEngineWorld = _monkeyHeadModel._transform._matrix;
-
-		glm::mat3 dtt{ glm::vec3(0.07f, 0, 0), glm::vec3(0.0, 0.07f, 0) , glm::vec3(0, 0, 0.07f) };
+		/*glm::mat3 dtt{ glm::vec3(0.07f, 0, 0), glm::vec3(0.0, 0.07f, 0) , glm::vec3(0, 0, 0.07f) };
 
 		if (_input.IsKeyHeldDown(GLFW_KEY_W)) {
 			_monkeyHeadModel._transform.Translate(dtt * _monkeyHeadModel._transform.Forward());
@@ -725,14 +721,12 @@ namespace Engine::Vulkan
 
 		if (_input.IsKeyHeldDown(GLFW_KEY_S)) {
 			_monkeyHeadModel._transform.Translate(dtt * -_monkeyHeadModel._transform.Forward());
-		}
+		}*/
 
-		//_mainCamera.GenerateProjectionTransform(_settings._windowWidth, _settings._windowHeight, 90, 0.1f, 25.0f);
-		//_uniformBufferData.viewAndProjection = _mainCamera._projection._matrix;
 		_uniformBufferData.objectToWorld = _monkeyHeadModel._transform._matrix;
-		_activeCameraPropertiesData.width = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth);
-		_activeCameraPropertiesData.height = Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
-		_activeCameraPropertiesData.nearClipDistance = 1.0f;
+		_uniformBufferData.worldToCamera = _mainCamera._view._matrix;
+		_activeCameraPropertiesData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
+		_activeCameraPropertiesData.nearClipDistance = 2.0f;
 		_activeCameraPropertiesData.farClipDistance = 200.0f;
 
 		auto posX = _monkeyHeadModel._mesh._vertices[0]._position.x;

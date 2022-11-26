@@ -12,8 +12,7 @@ layout(location = 0) out vec3 fragColor;
 //Push constants.
 layout(push_constant) uniform constants
 {
-	float width;
-	float height;
+	float aspectRatio;
 	float nearClipDistance;
 	float farClipDistance;
 } activeCameraProperties;
@@ -37,9 +36,11 @@ void main()
 	// This is exactly how the projection transformation was thought about but in reverse; the point in space outside the window moves towards your pupil untill it
 	// eventually hits the window. When it hits the window, you just take the distance from the center of the window to the hit point: these will be your 2D screen
 	// coordinates.
-
-	vec4 cameraSpacePosition = /*transformationMatrices.worldToCamera **/ transformationMatrices.objectToWorld * vec4(inPosition.x, inPosition.y, inPosition.z, 1.0f);
-	float xCoord = (activeCameraProperties.nearClipDistance * cameraSpacePosition.x) / cameraSpacePosition.z;
+	vec4 cameraSpacePosition = transformationMatrices.worldToCamera * transformationMatrices.objectToWorld * vec4(inPosition.x, inPosition.y, inPosition.z, 1.0f);
+	
+	// This calculation is based on the fact that Vulkan's coordinate system is X right, Y down, Z forward and follows the right hand rule.
+	// In our engine we have X right, Y up, Z forward, and we follow the left hand rule.
+	float xCoord = (activeCameraProperties.nearClipDistance * cameraSpacePosition.x) / (cameraSpacePosition.z * activeCameraProperties.aspectRatio);
 	float yCoord = (-activeCameraProperties.nearClipDistance * cameraSpacePosition.y) / cameraSpacePosition.z;
 	float zCoord = (cameraSpacePosition.z - activeCameraProperties.nearClipDistance) / (activeCameraProperties.farClipDistance - activeCameraProperties.nearClipDistance);
 

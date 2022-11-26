@@ -4,8 +4,13 @@ namespace Engine::Scenes
 	class Camera : public GameObject
 	{
 	public:
+
 		float _nearClippingDistance;
 		float _farClippingDistance;
+
+		/**
+		 * @brief This is a transform that translates and rotates a vertex from world space into camera space.
+		 */
 		Math::Transform _view;
 
 
@@ -19,7 +24,5 @@ namespace Engine::Scenes
 		float _roll;
 
 		void Update();
-
-		void GenerateProjectionTransform(const float& viewportWidth, const float& viewportHeight, const float& horizontalFovDegrees, const float& nearClipDistance, const float& farClipDistance);
 	};
 }

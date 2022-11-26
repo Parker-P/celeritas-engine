@@ -234,8 +234,7 @@ namespace Engine::Vulkan
 		 * vertex in camera space onto the screen.
 		 */
 		struct {
-			float width;
-			float height;
+			float aspectRatio;
 			float nearClipDistance;
 			float farClipDistance;
 		} _activeCameraPropertiesData;

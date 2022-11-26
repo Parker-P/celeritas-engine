@@ -30,18 +30,18 @@ namespace Engine::Scenes
 		auto& input = Input::KeyboardMouse::Instance();
 		auto& time = Time::Instance();
 
-		_yaw = -input._mouseX * (double)Settings::GlobalSettings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
+		_yaw = input._mouseX * (double)Settings::GlobalSettings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
 		_pitch = input._mouseY * (double)Settings::GlobalSettings::Instance()._mouseSensitivity; // Around the X axis (for pitch) the positive rotation is looking upwards, and moving the mouse upwards gives you a positive value, so this stays as is.
 
 		auto _mouseSens = Settings::GlobalSettings::Instance()._mouseSensitivity;
 
 
 		if (input.IsKeyHeldDown(GLFW_KEY_Q)) {
-			_roll -= 0.1f * (float)Time::Instance()._deltaTime;
+			_roll += 0.1f * (float)Time::Instance()._deltaTime;
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_E)) {
-			_roll += 0.1f * (float)Time::Instance()._deltaTime;
+			_roll -= 0.1f * (float)Time::Instance()._deltaTime;
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_W)) {
@@ -102,28 +102,5 @@ namespace Engine::Scenes
 		// we get the exact same effect as if we actually had a camera and moved it backwards. That's it, very simple idea behind the view matrix.
 
 		_view._matrix = glm::inverse(_transform._matrix);
-	}
-
-	void Camera::GenerateProjectionTransform(const float& viewportWidth, const float& viewportHeight, const float& horizontalFovDegrees, const float& nearClipDistance, const float& farClipDistance)
-	{
-		
-		//
-		// You need to be aware of the following pipeline to understand why this transformation matrix is setup as it is:
-		// 1. The vertex shader runs, and takes the first vertex position from vertexBuffer[0]
-		// 2. The vertex shader outputs gl_position as (position.x, position.y, position.z, position.w) this vector is in what is called clip-space.
-		// 3. One of the succeeding stages (before the fragment shader) takes gl_position and does this: 
-		// ndcCoordinates = vec3(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w)
-		// These will be the final coordinates that will be used to place the vertex onto the viewport.
-		// We, unfortunately, have no control over this and cannot prevent it from happening. The only thing we can do is to be hacky
-		// with the transformation matrices we apply to gl_position in the vertex shader so that we get the values we want AFTER
-		// perspective divide.
-		/*_projection._matrix = glm::mat4{
-				glm::vec4{nearClipDistance, 0.0f, 0.0f, 0.0f},
-				glm::vec4{0.0f, -nearClipDistance, 0.0f, 0.0f},
-				glm::vec4{0.0f, 0.0f, (1.0f/(farClipDistance - nearClipDistance)), 1.0f},
-				glm::vec4{0.0f, 0.0f, 0.0f, 0.0f}
-		};*/
-
-		//_projection._matrix = projectionTransform._matrix;/*glm::perspectiveFov(glm::radians(horizontalFovDegrees), viewportWidth, viewportHeight, nearClipDistance, farClipDistance)*/;
 	}
 }
