@@ -229,23 +229,18 @@ namespace Engine::Vulkan
 		 */
 		VkPipelineLayout _pipelineLayout;
 
+		
+
 		/**
 		 * @brief Push constant for camera properties. This is used so that the vertex shader can calculate the projected position of each
 		 * vertex in camera space onto the screen.
 		 */
-		struct {
+		struct
+		{
+			float tanHalfHorizontalFov;
 			float aspectRatio;
 			float nearClipDistance;
 			float farClipDistance;
-		} _activeCameraPropertiesData;
-
-		/**
-		 * @brief Push constant object to be bound to the graphics pipeline so that camera properties can be sent to the vertex shader.
-		 */
-		VkPushConstantRange _activeCameraProperties;
-
-		struct
-		{
 			glm::mat4 worldToCamera;
 			glm::mat4 objectToWorld;
 		} _uniformBufferData;

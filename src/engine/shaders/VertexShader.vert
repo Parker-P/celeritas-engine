@@ -9,19 +9,15 @@ layout(location = 2) in vec3 inUv;
 
 layout(location = 0) out vec3 fragColor;
 
-//Push constants.
-layout(push_constant) uniform constants
-{
+// Variables coming from descriptor sets.
+layout(set = 0, binding = 0) uniform TransformationMatrices {
+	float tanHalfHorizontalFov;
 	float aspectRatio;
 	float nearClipDistance;
 	float farClipDistance;
-} activeCameraProperties;
-
-// Variables coming from descriptor sets.
-layout(set = 0, binding = 0) uniform TransformationMatrices {
 	mat4 worldToCamera;
 	mat4 objectToWorld;
-} transformationMatrices;
+} uniformBuffer;
 
 void main() 
 {
@@ -36,21 +32,21 @@ void main()
 	// This is exactly how the projection transformation was thought about but in reverse; the point in space outside the window moves towards your pupil untill it
 	// eventually hits the window. When it hits the window, you just take the distance from the center of the window to the hit point: these will be your 2D screen
 	// coordinates.
-	vec4 cameraSpacePosition = transformationMatrices.worldToCamera * transformationMatrices.objectToWorld * vec4(inPosition.x, inPosition.y, inPosition.z, 1.0f);
+	vec4 cameraSpacePosition = uniformBuffer.worldToCamera * uniformBuffer.objectToWorld * vec4(inPosition.x, inPosition.y, inPosition.z, 1.0f);
 	
 	// This calculation is based on the fact that Vulkan's coordinate system is X right, Y down, Z forward and follows the right hand rule.
 	// In our engine we have X right, Y up, Z forward, and we follow the left hand rule.
-	float xCoord = (activeCameraProperties.nearClipDistance * cameraSpacePosition.x) / (cameraSpacePosition.z * activeCameraProperties.aspectRatio);
-	float yCoord = (-activeCameraProperties.nearClipDistance * cameraSpacePosition.y) / cameraSpacePosition.z;
-	float zCoord = (cameraSpacePosition.z - activeCameraProperties.nearClipDistance) / (activeCameraProperties.farClipDistance - activeCameraProperties.nearClipDistance);
+	float xCoord = (cameraSpacePosition.x) / (cameraSpacePosition.z * uniformBuffer.tanHalfHorizontalFov * uniformBuffer.aspectRatio);
+	float yCoord = (-cameraSpacePosition.y) / (cameraSpacePosition.z * uniformBuffer.tanHalfHorizontalFov);
+	float zCoord = (cameraSpacePosition.z - uniformBuffer.nearClipDistance) / (uniformBuffer.farClipDistance - uniformBuffer.nearClipDistance);
 
 	// Remember that the next stages are going to divide each component of gl_position by its w component, meaning that
 	// gl_position = vec4(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w, gl_position.w / gl_position.w)
 	gl_Position = vec4(xCoord, yCoord, zCoord, 1.0f);
 	
 	// Calculate the color of each vertex so the fragment shader can interpolate the pixels rendered between them.
-	vec4 temp = vec4(0.0, -1.0, 0.0, 0.0);
+	vec4 temp = vec4(0.0f, -1.0f, 0.0f, 0.0f);
 	vec3 lightDirection = vec3(temp.x, temp.y, temp.z);
-	float colorMultiplier = (dot(-lightDirection, inNormal) + 1.0) / 2.0;
-	fragColor = colorMultiplier * vec3(1.0, 1.0, 1.0); // RGB
+	float colorMultiplier = (dot(-lightDirection, inNormal) + 1.0f) / 2.0f;
+	fragColor = colorMultiplier * vec3(1.0f, 1.0f, 1.0f); // RGB
 }

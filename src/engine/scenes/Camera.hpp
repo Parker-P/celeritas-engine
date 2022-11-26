@@ -5,6 +5,7 @@ namespace Engine::Scenes
 	{
 	public:
 
+		float _horizontalFov;
 		float _nearClippingDistance;
 		float _farClippingDistance;
 
