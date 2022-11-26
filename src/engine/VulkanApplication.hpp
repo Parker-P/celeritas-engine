@@ -229,11 +229,26 @@ namespace Engine::Vulkan
 		 */
 		VkPipelineLayout _pipelineLayout;
 
+		/**
+		 * @brief Push constant for camera properties. This is used so that the vertex shader can calculate the projected position of each
+		 * vertex in camera space onto the screen.
+		 */
+		struct {
+			float width;
+			float height;
+			float nearClipDistance;
+			float farClipDistance;
+		} _activeCameraPropertiesData;
+
+		/**
+		 * @brief Push constant object to be bound to the graphics pipeline so that camera properties can be sent to the vertex shader.
+		 */
+		VkPushConstantRange _activeCameraProperties;
+
 		struct
 		{
-			glm::mat4 engineToVulkan;
-			glm::mat4 viewAndProjection;
-			glm::mat4 objectToEngineWorld;
+			glm::mat4 worldToCamera;
+			glm::mat4 objectToWorld;
 		} _uniformBufferData;
 
 		// Swap chain
@@ -345,7 +360,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Update the data that will be sent to the shaders.
 		 */
-		void UpdateUniformData();
+		void UpdateShaderData();
 
 		/**
 		 * @brief Creates the swapchain.
@@ -376,9 +391,15 @@ namespace Engine::Vulkan
 		void CreateDescriptorPool(const uint32_t& descriptorCount);
 
 		/**
+		 * @brief Creates push constants.
+		 * 
+		 */
+		void CreatePushConstants();
+
+		/**
 		 * @brief Creates a descriptor set, and fills it with the chosen number of descriptors (defined when creating the descriptor pool that will be used to allocate the descriptor set).
 		 */
-		void CreateDescriptorSet();
+		void CreateDescriptorSets();
 
 		/**
 		 * @brief Creates a descriptor set layout.

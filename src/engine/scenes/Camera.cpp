@@ -106,19 +106,7 @@ namespace Engine::Scenes
 
 	void Camera::GenerateProjectionTransform(const float& viewportWidth, const float& viewportHeight, const float& horizontalFovDegrees, const float& nearClipDistance, const float& farClipDistance)
 	{
-		// The idea behind the projection transformation is using the camera as if you were standing behind a glass window: whatever you see out the window gets projected onto
-		// the glass.
-		// Lets say that YOU are the camera. Now do the following:
-		// 1) Go to a window and stand about 1 meter behind it, making sure that your head is roughly at the center of the window.
-		// 2) Close one eye so you have only one focal point.
-		// 3) Now focus on something outside the window (has to be a specific point, like the tip of the roof of a house or the leaf of a tree) 
-		// 4) Next, move your head towards the point you are focusing on in a straight line, untill you eventually hit the window with your head
-		// That point on the glass, right in front of your pupil, is the intersection between your screen and the point is space outside your house that you were focusing on.
-		// This is exactly how the projection transformation was thought about but in reverse; the point in space outside the window moves towards your pupil untill it
-		// eventually hits the window. When it hits the window, you just take the distance from the center of the window to the hit point: these will be your 2D screen
-		// coordinates, and this is what the vertex shader always has to do in the end: convert a position from outside your window to some 2D coordinates on the glass
-		// of the window. It's a very simple idea but the nature of how GPUs and vertex shaders work make the math a VERY complicated, because
-		// you need to understand the entire rendering pipeline to understand it.
+		
 		//
 		// You need to be aware of the following pipeline to understand why this transformation matrix is setup as it is:
 		// 1. The vertex shader runs, and takes the first vertex position from vertexBuffer[0]
@@ -129,12 +117,12 @@ namespace Engine::Scenes
 		// We, unfortunately, have no control over this and cannot prevent it from happening. The only thing we can do is to be hacky
 		// with the transformation matrices we apply to gl_position in the vertex shader so that we get the values we want AFTER
 		// perspective divide.
-		_projection._matrix = glm::mat4{
+		/*_projection._matrix = glm::mat4{
 				glm::vec4{nearClipDistance, 0.0f, 0.0f, 0.0f},
 				glm::vec4{0.0f, -nearClipDistance, 0.0f, 0.0f},
 				glm::vec4{0.0f, 0.0f, (1.0f/(farClipDistance - nearClipDistance)), 1.0f},
 				glm::vec4{0.0f, 0.0f, 0.0f, 0.0f}
-		};
+		};*/
 
 		//_projection._matrix = projectionTransform._matrix;/*glm::perspectiveFov(glm::radians(horizontalFovDegrees), viewportWidth, viewportHeight, nearClipDistance, farClipDistance)*/;
 	}

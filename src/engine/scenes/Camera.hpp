@@ -4,8 +4,10 @@ namespace Engine::Scenes
 	class Camera : public GameObject
 	{
 	public:
+		float _nearClippingDistance;
+		float _farClippingDistance;
 		Math::Transform _view;
-		Math::Transform _projection;
+
 
 		// Temp
 		float _lastYaw;

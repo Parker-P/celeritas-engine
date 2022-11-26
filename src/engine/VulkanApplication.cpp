@@ -194,7 +194,7 @@ namespace Engine::Vulkan
 				_input.Instance().ToggleCursor(_window);
 			}
 			CalculateDeltaTime();
-			UpdateUniformData();
+			UpdateShaderData();
 			Draw();
 			glfwPollEvents();
 		}
@@ -605,22 +605,23 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::LoadScene() {
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\2CylinderEngine.glb)");
-		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
+		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\axesTest.glb)");
-		_monkeyHeadModel = _scene._objects[0];
-		//std::vector<Scenes::Mesh::Vertex> verts{};
-		//std::vector<unsigned short> indices{};
+		//_monkeyHeadModel = _scene._objects[0];
 
-		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{0.0f, 4.0f, 12.0f}, glm::vec3{}, glm::vec2{} }); // Tip.
-		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{1.0f, 2.0f, 12.0f}, glm::vec3{}, glm::vec2{} }); // Lower right.
-		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{-1.0f, 2.0f, 12.0f}, glm::vec3{}, glm::vec2{} }); // Lower left.
+		std::vector<Scenes::Mesh::Vertex> verts{};
+		std::vector<unsigned short> indices{};
 
-		//indices.push_back(0);
-		//indices.push_back(2);
-		//indices.push_back(1);
+		verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{0.0f, 1.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Tip.
+		verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{1.0f, -1.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Lower right.
+		verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{-1.0f, -1.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Lower left.
 
-		//_monkeyHeadModel._mesh._vertices = verts;
-		//_monkeyHeadModel._mesh._faceIndices = indices;
+		indices.push_back(0);
+		indices.push_back(1);
+		indices.push_back(2);
+
+		_monkeyHeadModel._mesh._vertices = verts;
+		_monkeyHeadModel._mesh._faceIndices = indices;
 	}
 
 	void VulkanApplication::CreateVertexAndIndexBuffers()
@@ -706,7 +707,7 @@ namespace Engine::Vulkan
 		std::cout << "set up vertex and index buffers" << std::endl;
 	}
 
-	void VulkanApplication::UpdateUniformData()
+	void VulkanApplication::UpdateShaderData()
 	{
 		_mainCamera.Update();
 
@@ -726,22 +727,41 @@ namespace Engine::Vulkan
 			_monkeyHeadModel._transform.Translate(dtt * -_monkeyHeadModel._transform.Forward());
 		}
 
-		_mainCamera.GenerateProjectionTransform(_settings._windowWidth, _settings._windowHeight, 90, 0.1f, 25.0f);
-		_uniformBufferData.viewAndProjection = _mainCamera._projection._matrix;
-		_uniformBufferData.objectToEngineWorld = _monkeyHeadModel._transform._matrix;
+		//_mainCamera.GenerateProjectionTransform(_settings._windowWidth, _settings._windowHeight, 90, 0.1f, 25.0f);
+		//_uniformBufferData.viewAndProjection = _mainCamera._projection._matrix;
+		_uniformBufferData.objectToWorld = _monkeyHeadModel._transform._matrix;
+		_activeCameraPropertiesData.width = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth);
+		_activeCameraPropertiesData.height = Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
+		_activeCameraPropertiesData.nearClipDistance = 1.0f;
+		_activeCameraPropertiesData.farClipDistance = 11.0f;
 
-		auto z1 = _monkeyHeadModel._mesh._vertices[0]._position.z;
-				
-		glm::mat4 zScale;
-		zScale[0][0] = 1.0f;
-		zScale[1][1] = 1.0f;
-		zScale[2][2] = _monkeyHeadModel._mesh._vertices[0]._position.z;
-		zScale[3][3] = 1.0f;
-		auto mult1 = zScale * _uniformBufferData.viewAndProjection * _uniformBufferData.objectToEngineWorld * glm::vec4(_monkeyHeadModel._mesh._vertices[0]._position, 1.0f);
+		auto posX = _monkeyHeadModel._mesh._vertices[0]._position.x;
+		auto posY = _monkeyHeadModel._mesh._vertices[0]._position.y;
+		auto posZ = _monkeyHeadModel._mesh._vertices[0]._position.z;
 
-		std::cout << "Final NDC coordinates: " << mult1.x / z1 << ", " << mult1.y / z1 << ", " << mult1.z / z1 << std::endl;
-		std::cout << "Engine to world z is: " << _uniformBufferData.objectToEngineWorld[3][2] << std::endl << std::endl;
+		glm::mat4 cameraToClip;
+		cameraToClip[0][0] = _activeCameraPropertiesData.nearClipDistance;
+		cameraToClip[0][1] = 0.0f;
+		cameraToClip[0][2] = 0.0f;
+		cameraToClip[0][3] = 0.0f;
 
+		cameraToClip[1][0] = 0.0f;
+		cameraToClip[1][1] = -_activeCameraPropertiesData.nearClipDistance;
+		cameraToClip[1][2] = 0.0f;
+		cameraToClip[1][3] = 0.0f;
+
+		cameraToClip[2][0] = 0.0f;
+		cameraToClip[2][1] = 0.0f;
+		cameraToClip[2][2] = (posZ - _activeCameraPropertiesData.nearClipDistance) / (_activeCameraPropertiesData.farClipDistance - _activeCameraPropertiesData.nearClipDistance);
+		cameraToClip[2][3] = 1.0f;
+
+		cameraToClip[3][0] = 0.0f;
+		cameraToClip[3][1] = 0.0f;
+		cameraToClip[3][2] = 0.0f;
+		cameraToClip[3][3] = 1.0f;
+
+		auto ndc = cameraToClip * /*transformationMatrices.worldToCamera **/ _uniformBufferData.objectToWorld * glm::vec4(posX, posY, posZ, 1.0f);
+		std::cout << ndc.x / posZ << ", " << ndc.y / posZ << ", " << ndc.z / posZ << std::endl;
 		_uniformBuffer.UpdateData(&_uniformBufferData, (size_t)sizeof(_uniformBufferData));
 	}
 
@@ -1177,8 +1197,9 @@ namespace Engine::Vulkan
 			&_uniformBufferData,
 			(size_t)sizeof(_uniformBufferData));
 
-		UpdateUniformData();
-		CreateDescriptorSet();
+		UpdateShaderData();
+		CreateDescriptorSets();
+		CreatePushConstants();
 		CreatePipelineLayout();
 
 		// Create the graphics pipeline
@@ -1236,7 +1257,13 @@ namespace Engine::Vulkan
 		}
 	}
 
-	void VulkanApplication::CreateDescriptorSet()
+	void VulkanApplication::CreatePushConstants() {
+		_activeCameraProperties.offset = 0;
+		_activeCameraProperties.size = sizeof(_activeCameraPropertiesData);
+		_activeCameraProperties.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	}
+
+	void VulkanApplication::CreateDescriptorSets()
 	{
 		// There needs to be one descriptor set per binding point in the shader
 		VkDescriptorSetAllocateInfo allocInfo = {};
@@ -1296,6 +1323,8 @@ namespace Engine::Vulkan
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutCreateInfo.setLayoutCount = 1;
 		pipelineLayoutCreateInfo.pSetLayouts = &_descriptorSetLayout;
+		pipelineLayoutCreateInfo.pPushConstantRanges = &_activeCameraProperties;
+		pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
 
 		if (vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_pipelineLayout) != VK_SUCCESS) {
 			std::cerr << "failed to create pipeline layout" << std::endl;
@@ -1395,7 +1424,7 @@ namespace Engine::Vulkan
 				indexType = VK_INDEX_TYPE_UINT32;
 			}
 			vkCmdBindIndexBuffer(_graphicsCommandBuffers[i], _indexBuffer->_handle, 0, indexType);
-
+			vkCmdPushConstants(_graphicsCommandBuffers[i], _pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(_activeCameraPropertiesData), &_activeCameraPropertiesData);
 			vkCmdDrawIndexed(_graphicsCommandBuffers[i], (uint32_t)_monkeyHeadModel._mesh._faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(_graphicsCommandBuffers[i]);
 #pragma endregion

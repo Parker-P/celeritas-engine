@@ -9,33 +9,58 @@ layout(location = 2) in vec3 inUv;
 
 layout(location = 0) out vec3 fragColor;
 
+//Push constants.
+layout(push_constant) uniform constants
+{
+	float width;
+	float height;
+	float nearClipDistance;
+	float farClipDistance;
+} activeCameraProperties;
+
 // Variables coming from descriptor sets.
 layout(set = 0, binding = 0) uniform TransformationMatrices {
-	mat4 engineToVulkan;
-	mat4 viewAndProjection;
-	mat4 objectToEngineWorld;
+	mat4 worldToCamera;
+	mat4 objectToWorld;
 } transformationMatrices;
 
 void main() 
 {
-    // Matrix used to preserve the correct normalized Z value after perspective division, which is done in the succeeding steps of the rendering
-	// pipeline.
-	mat4 zScale;
-	zScale[0][0] = 1.0f; zScale[1][0] = 0.0f; zScale[2][0] = 0.0f;         zScale[3][0] = 0.0f;
-	zScale[0][1] = 0.0f; zScale[1][1] = 1.0f; zScale[2][1] = 0.0f;		   zScale[3][1] = 0.0f;
-	zScale[0][2] = 0.0f; zScale[1][2] = 0.0f; zScale[2][2] = inPosition.z; zScale[3][2] = 0.0f;
-	zScale[0][3] = 0.0f; zScale[1][3] = 0.0f; zScale[2][3] = 0.0f;		   zScale[3][3] = 1.0f;
+    // The idea behind the projection transformation is using the camera as if you were standing behind a glass window: whatever you see out the window gets projected onto
+	// the glass.
+	// Lets say that YOU are the camera. Now do the following:
+	// 1) Go to a window and stand about 1 meter behind it, making sure that your head is roughly at the center of the window.
+	// 2) Close one eye so you have only one focal point.
+	// 3) Now focus on something outside the window (has to be a specific point, like the tip of the roof of a house or the leaf of a tree) 
+	// 4) Next, move your head towards the point you are focusing on in a straight line, untill you eventually hit the window with your head
+	// That point on the glass, right in front of your pupil, is the intersection between your screen and the point is space outside your house that you were focusing on.
+	// This is exactly how the projection transformation was thought about but in reverse; the point in space outside the window moves towards your pupil untill it
+	// eventually hits the window. When it hits the window, you just take the distance from the center of the window to the hit point: these will be your 2D screen
+	// coordinates.
+	mat4 cameraToClip;
+	cameraToClip[0][0] = activeCameraProperties.nearClipDistance;   
+	cameraToClip[0][1] = 0.0f;   
+	cameraToClip[0][2] = 0.0f;   
+	cameraToClip[0][3] = 0.0f;   
 
+	cameraToClip[1][0] = 0.0f;
+	cameraToClip[1][1] = -activeCameraProperties.nearClipDistance;
+	cameraToClip[1][2] = 0.0f;
+	cameraToClip[1][3] = 0.0f;
 
-	// What happens is that you have a cubic viewing volume right in front of you, within which everything will be rendered.
-	// Just imagine having a cube right in front of you. The face closer to you is your monitor. The volume inside of the cube is
-	// the range within which everything will be rendered.
-	// This viewing volume is a cuboid that ranges from [-1,1,0] (from the perspective of your monitor, this is the lower-left-close vertex 
-	// of the cube) to [1,-1,1] (upper right far vertex of the cube). Anything you want to render eventually has to fall within this range.
-	// This means that gl_position needs to have an output coordinate that falls within this range for it to be
-	// within the visible range. The goal of the projection and zScale matrices is to make sure that the final value of gl_Position
-	// falls within this range.
-	gl_Position = zScale * transformationMatrices.viewAndProjection * transformationMatrices.objectToEngineWorld * vec4(inPosition, 1.0f);
+	cameraToClip[2][0] = 0.0f;        
+	cameraToClip[2][1] = 0.0f;		  
+	cameraToClip[2][2] = (inPosition.z - activeCameraProperties.nearClipDistance) / (activeCameraProperties.farClipDistance - activeCameraProperties.nearClipDistance);
+	cameraToClip[2][3] = 1.0f;		
+	
+	cameraToClip[3][0] = 0.0f;
+	cameraToClip[3][1] = 0.0f;
+	cameraToClip[3][2] = 0.0f;
+	cameraToClip[3][3] = 1.0f;
+
+	// Remember that the next stages are going to divide each component of gl_position by its w component, meaning that
+	// gl_position = vec4(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w, gl_position.w / gl_position.w)
+	gl_Position = cameraToClip * /*transformationMatrices.worldToCamera **/ transformationMatrices.objectToWorld * vec4(inPosition.x, inPosition.y, inPosition.z, 1.0f);
 	
 	// Calculate the color of each vertex so the fragment shader can interpolate the pixels rendered between them.
 	vec4 temp = vec4(0.0, -1.0, 0.0, 0.0);
