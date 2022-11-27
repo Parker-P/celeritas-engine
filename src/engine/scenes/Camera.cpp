@@ -25,6 +25,20 @@
 //
 namespace Engine::Scenes
 {
+	Camera::Camera()
+	{
+		_horizontalFov = 55.0f;
+		_nearClippingDistance = 0.1f;
+		_farClippingDistance = 200.0f;
+	}
+
+	Camera::Camera(float horizontalFov, float nearClippingDistance, float farClippingDistance)
+	{
+		_horizontalFov = horizontalFov;
+		_nearClippingDistance = nearClippingDistance;
+		_farClippingDistance = farClippingDistance;
+	}
+
 	void Camera::Update()
 	{
 		auto& input = Input::KeyboardMouse::Instance();

@@ -112,7 +112,7 @@ namespace Engine::Vulkan
 	class VulkanApplication
 	{
 	public:
-
+		
 		void Run();
 
 	private:
@@ -139,7 +139,7 @@ namespace Engine::Vulkan
 		 * that decorates the vertex with more information, so that the vertex shader can
 		 * do more work based on it. For example a vertex attribute could be a position or a normal vector.
 		 * Based on the normal vector, the vertex shader can perform lighting calculations by computing
-		 * the angle between the source of the light and the normal..
+		 * the angle between the source of the light and the normal.
 		 */
 		Buffer* _vertexBuffer;
 
@@ -229,11 +229,8 @@ namespace Engine::Vulkan
 		 */
 		VkPipelineLayout _pipelineLayout;
 
-		
-
 		/**
-		 * @brief Push constant for camera properties. This is used so that the vertex shader can calculate the projected position of each
-		 * vertex in camera space onto the screen.
+		 * @brief This is the data that will go to the vertex shader.
 		 */
 		struct
 		{
@@ -245,7 +242,7 @@ namespace Engine::Vulkan
 			glm::mat4 objectToWorld;
 		} _uniformBufferData;
 
-		// Swap chain
+		// Swapchain
 		VkExtent2D					_swapChainExtent;
 		VkFormat					_swapChainFormat;
 		VkSwapchainKHR				_oldSwapChain;
@@ -268,7 +265,7 @@ namespace Engine::Vulkan
 		Settings::GlobalSettings& _settings = Settings::GlobalSettings::Instance();
 		Scenes::Scene _scene;
 		Scenes::Camera _mainCamera;
-		Scenes::GameObject _monkeyHeadModel;
+		Scenes::GameObject _model;
 
 		/*
 		 * Function called by Vulkan's validation layers once an error has occourred.

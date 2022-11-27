@@ -142,12 +142,6 @@ namespace Engine::Vulkan
 	void VulkanApplication::Run()
 	{
 		_timeStart = std::chrono::high_resolution_clock::now();
-		_settings.Load(Settings::Paths::_settings());
-
-		_mainCamera._horizontalFov = 95.0f;
-		_uniformBufferData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov /2.0f));
-		_uniformBufferData.nearClipDistance = 0.1f;
-		_uniformBufferData.farClipDistance = 200.0f;
 
 		InitializeWindow();
 		_input.Init(_window);
@@ -616,7 +610,8 @@ namespace Engine::Vulkan
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\axesTest.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
 		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monster.glb)");
-		_monkeyHeadModel = _scene._objects[0];
+		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\test.glb)");
+		_model = _scene._objects[0];
 
 		//std::vector<Scenes::Mesh::Vertex> verts{};
 		//std::vector<unsigned int> indices{};
@@ -629,14 +624,14 @@ namespace Engine::Vulkan
 		//indices.push_back(2);
 		//indices.push_back(1);
 
-		//_monkeyHeadModel._mesh._vertices = verts;
-		//_monkeyHeadModel._mesh._faceIndices = indices;
+		//_model._mesh._vertices = verts;
+		//_model._mesh._faceIndices = indices;
 	}
 
 	void VulkanApplication::CreateVertexAndIndexBuffers()
 	{
-		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_monkeyHeadModel._mesh._vertices);
-		auto faceIndicesSize = Utils::GetVectorSizeInBytes(_monkeyHeadModel._mesh._faceIndices);
+		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_model._mesh._vertices);
+		auto faceIndicesSize = Utils::GetVectorSizeInBytes(_model._mesh._faceIndices);
 
 #pragma region VerticesToVertexBuffer
 		// Create a buffer used as a middleman buffer to transfer data from the RAM to the VRAM. This buffer will be created in RAM.
@@ -644,7 +639,7 @@ namespace Engine::Vulkan
 			_deviceMemoryProperties,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			_monkeyHeadModel._mesh._vertices.data(),
+			_model._mesh._vertices.data(),
 			vertexPositionsSize);
 
 		_vertexBuffer = new Buffer(_logicalDevice,
@@ -661,7 +656,7 @@ namespace Engine::Vulkan
 			_deviceMemoryProperties,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			(void*)_monkeyHeadModel._mesh._faceIndices.data(),
+			(void*)_model._mesh._faceIndices.data(),
 			faceIndicesSize);
 
 		_indexBuffer = new Buffer(_logicalDevice,
@@ -719,34 +714,13 @@ namespace Engine::Vulkan
 	void VulkanApplication::UpdateShaderData()
 	{
 		_mainCamera.Update();
-		
 
-		_uniformBufferData.objectToWorld = _monkeyHeadModel._transform._matrix;
+		_uniformBufferData.objectToWorld = _model._transform._matrix;
 		_uniformBufferData.worldToCamera = _mainCamera._view._matrix;
 		_uniformBufferData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov / 2.0f));
 		_uniformBufferData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
-
-		//auto posX = _monkeyHeadModel._mesh._vertices[0]._position.x;
-		//auto posY = _monkeyHeadModel._mesh._vertices[0]._position.y;
-		//auto posZ = _monkeyHeadModel._mesh._vertices[0]._position.z;
-
-		//glm::vec4 cameraSpacePosition = _uniformBufferData.worldToCamera * _uniformBufferData.objectToWorld * glm::vec4(posX, posY, posZ, 1.0f);
-
-		//// This calculation is based on the fact that Vulkan's coordinate system is X right, Y down, Z forward and follows the right hand rule.
-		//// In our engine we have X right, Y up, Z forward, and we follow the left hand rule.
-		//float xCoord = (cameraSpacePosition.x) / (cameraSpacePosition.z * _uniformBufferData.tanHalfHorizontalFov * _uniformBufferData.aspectRatio);
-		//float yCoord = (-cameraSpacePosition.y) / (cameraSpacePosition.z * _uniformBufferData.tanHalfHorizontalFov);
-		//float zCoord = (cameraSpacePosition.z - _uniformBufferData.nearClipDistance) / (_uniformBufferData.farClipDistance - _uniformBufferData.nearClipDistance);
-
-		//// Remember that the next stages are going to divide each component of gl_position by its w component, meaning that
-		//// gl_position = vec4(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w, gl_position.w / gl_position.w)
-		//auto ndc = glm::vec4(xCoord, yCoord, zCoord, 1.0f);
-
-		////std::cout << "Aspect ratio: " << _activeCameraPropertiesData.aspectRatio << std::endl;
-		//std::cout << "Horizontal fov: " << _mainCamera._horizontalFov << std::endl;
-		//std::cout << "Near clip distance: " << _uniformBufferData.nearClipDistance << std::endl;
-		//std::cout << "Tan half fov: " << _uniformBufferData.tanHalfHorizontalFov << std::endl;
-		//std::cout << ndc.x << ", " << ndc.y << ", " << ndc.z << std::endl;
+		_uniformBufferData.nearClipDistance = _mainCamera._nearClippingDistance;
+		_uniformBufferData.farClipDistance = _mainCamera._farClippingDistance;
 
 		_uniformBuffer.UpdateData(&_uniformBufferData, (size_t)sizeof(_uniformBufferData));
 	}
@@ -1183,7 +1157,7 @@ namespace Engine::Vulkan
 			&_uniformBufferData,
 			(size_t)sizeof(_uniformBufferData));
 
-		
+
 
 		UpdateShaderData();
 		CreateDescriptorSets();
@@ -1396,14 +1370,14 @@ namespace Engine::Vulkan
 
 			// Get the value type of vertex indices. Typically unsigned int (32-bit) but could also be 16-bit. Gltf for example uses 16-bit.
 			VkIndexType indexType = VK_INDEX_TYPE_NONE_KHR;
-			if (std::is_same_v<decltype(_monkeyHeadModel._mesh._faceIndices)::value_type, unsigned short>) {
+			if (std::is_same_v<decltype(_model._mesh._faceIndices)::value_type, unsigned short>) {
 				indexType = VK_INDEX_TYPE_UINT16;
 			}
-			if (std::is_same_v<decltype(_monkeyHeadModel._mesh._faceIndices)::value_type, unsigned int>) {
+			if (std::is_same_v<decltype(_model._mesh._faceIndices)::value_type, unsigned int>) {
 				indexType = VK_INDEX_TYPE_UINT32;
 			}
-			vkCmdBindIndexBuffer(_graphicsCommandBuffers[i], _indexBuffer->_handle, 0, indexType);
-			vkCmdDrawIndexed(_graphicsCommandBuffers[i], (uint32_t)_monkeyHeadModel._mesh._faceIndices.size(), 1, 0, 0, 0);
+			vkCmdBindIndexBuffer(_graphicsCommandBuffers[i], _indexBuffer->_handle, 0, VK_INDEX_TYPE_UINT16);
+			vkCmdDrawIndexed(_graphicsCommandBuffers[i], (uint32_t)_model._mesh._faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(_graphicsCommandBuffers[i]);
 #pragma endregion
 
@@ -1499,6 +1473,8 @@ namespace Engine::Vulkan
 
 int main()
 {
+	auto& globalSettings = Settings::GlobalSettings::Instance();
+	globalSettings.Load(Settings::Paths::_settings());
 	Engine::Vulkan::VulkanApplication app;
 	app.Run();
 
