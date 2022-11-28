@@ -191,7 +191,7 @@ namespace Engine::Scenes
 			uint32_t chunkType;
 
 			/**
-			 * @brief The raw json data.
+			 * @brief The raw data.
 			 */
 			char* data;
 		};

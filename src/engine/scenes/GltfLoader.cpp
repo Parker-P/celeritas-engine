@@ -45,6 +45,23 @@ namespace Engine::Scenes
 		if (type == "MAT4") { return GltfDataType::MAT4; }
 		return GltfDataType::NONE;
 	}
+
+	/**
+	 * @brief Returns the size of a gltf component type in bytes.
+	 *
+	 * @param type
+	 * @return
+	 */
+	size_t GetComponentSize(GltfComponentType type)
+	{
+		if (type == GltfComponentType::FLOAT) { return 4; }
+		if (type == GltfComponentType::SIGNED_BYTE) { return 1; }
+		if (type == GltfComponentType::SIGNED_SHORT) { return 2; }
+		if (type == GltfComponentType::UNSIGNED_BYTE) { return 1; }
+		if (type == GltfComponentType::UNSIGNED_INT) { return 4; }
+		if (type == GltfComponentType::UNSIGNED_SHORT) { return 2; }
+		return 0;
+	}
 #pragma endregion
 
 #pragma region GltfLoaderFunctionImplementations
@@ -221,10 +238,14 @@ namespace Engine::Scenes
 						}
 					}
 
-					if (Utils::AsInteger(GltfComponentType::UNSIGNED_SHORT) == gltfScene.accessors[faceIndicesAccessorIndex].componentType ||
-						Utils::AsInteger(GltfComponentType::UNSIGNED_INT) == gltfScene.accessors[faceIndicesAccessorIndex].componentType) {
-						faceIndices.resize(gltfScene.accessors[faceIndicesAccessorIndex].count);
-						memcpy(&faceIndices[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset], gltfScene.accessors[faceIndicesAccessorIndex].count * sizeof(unsigned short));
+					faceIndices.resize(gltfScene.accessors[faceIndicesAccessorIndex].count);
+					/*auto bufferSize = GetComponentSize(static_cast<GltfComponentType>(gltfScene.accessors[faceIndicesAccessorIndex].componentType));
+					memcpy(&faceIndices[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset], gltfScene.accessors[faceIndicesAccessorIndex].count * bufferSize);*/
+					for (int i = 0; i < faceIndices.size()*2; i+=2) {
+						unsigned int faceIndex = 0;
+						faceIndex |= (unsigned char)gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset + i+1] << 16;
+						faceIndex |= (unsigned char)gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset + i] << 8;
+						faceIndices[i*0.5f] = faceIndex;
 					}
 
 					object._name = gltfScene.meshes[i].name;

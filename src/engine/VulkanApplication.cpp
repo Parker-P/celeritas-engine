@@ -609,8 +609,8 @@ namespace Engine::Vulkan
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\2CylinderEngine.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\axesTest.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
-		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monster.glb)");
-		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\test.glb)");
+		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monster.glb)");
+		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\test.glb)");
 		_model = _scene._objects[0];
 
 		//std::vector<Scenes::Mesh::Vertex> verts{};
@@ -1103,7 +1103,7 @@ namespace Engine::Vulkan
 		rasterizationCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
 		rasterizationCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
 		rasterizationCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-		rasterizationCreateInfo.depthBiasEnable = VK_FALSE;
+		rasterizationCreateInfo.depthBiasEnable = VK_TRUE;
 		rasterizationCreateInfo.depthBiasConstantFactor = 0.0f;
 		rasterizationCreateInfo.depthBiasClamp = 0.0f;
 		rasterizationCreateInfo.depthBiasSlopeFactor = 0.0f;
@@ -1376,7 +1376,7 @@ namespace Engine::Vulkan
 			if (std::is_same_v<decltype(_model._mesh._faceIndices)::value_type, unsigned int>) {
 				indexType = VK_INDEX_TYPE_UINT32;
 			}
-			vkCmdBindIndexBuffer(_graphicsCommandBuffers[i], _indexBuffer->_handle, 0, VK_INDEX_TYPE_UINT16);
+			vkCmdBindIndexBuffer(_graphicsCommandBuffers[i], _indexBuffer->_handle, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdDrawIndexed(_graphicsCommandBuffers[i], (uint32_t)_model._mesh._faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(_graphicsCommandBuffers[i]);
 #pragma endregion

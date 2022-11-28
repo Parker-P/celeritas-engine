@@ -1,6 +1,9 @@
 #pragma once
 namespace Engine::Scenes
 {
+	/**
+	 * @brief Represents a physical object in the world.
+	 */
 	class GameObject
 	{
 	public:
