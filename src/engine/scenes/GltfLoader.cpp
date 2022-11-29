@@ -239,13 +239,9 @@ namespace Engine::Scenes
 					}
 
 					faceIndices.resize(gltfScene.accessors[faceIndicesAccessorIndex].count);
-					/*auto bufferSize = GetComponentSize(static_cast<GltfComponentType>(gltfScene.accessors[faceIndicesAccessorIndex].componentType));
-					memcpy(&faceIndices[0], &gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset], gltfScene.accessors[faceIndicesAccessorIndex].count * bufferSize);*/
-					for (int i = 0; i < faceIndices.size()*2; i+=2) {
-						unsigned int faceIndex = 0;
-						faceIndex |= (unsigned char)gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset + i+1] << 16;
-						faceIndex |= (unsigned char)gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset + i] << 8;
-						faceIndices[i*0.5f] = faceIndex;
+					auto indexSize = GetComponentSize(static_cast<GltfComponentType>(gltfScene.accessors[faceIndicesAccessorIndex].componentType));
+					for (int i = 0; i < faceIndices.size(); ++i) {
+						memcpy(&faceIndices[i], &gltfData.binaryBuffer.data[gltfScene.bufferViews[faceIndicesBufferViewIndex].byteOffset + (i * indexSize)], indexSize);
 					}
 
 					object._name = gltfScene.meshes[i].name;
