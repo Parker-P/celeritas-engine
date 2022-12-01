@@ -243,11 +243,32 @@ namespace Engine::Vulkan
 		} _uniformBufferData;
 
 		// Swapchain
-		VkExtent2D					_swapChainExtent;
-		VkFormat					_swapChainFormat;
-		VkSwapchainKHR				_oldSwapChain;
-		VkSwapchainKHR				_swapChain;
-		std::vector<VkImage>		_swapChainImages;
+		VkExtent2D					_swapchainExtent;
+		VkFormat					_swapchainFormat;
+		VkSwapchainKHR				_oldSwapchain;
+		VkSwapchainKHR				_swapchain;
+		std::vector<VkImage>		_swapchainImages;
+		
+		/**
+		 * @brief Image handle that points to an image that stores per-pixel depth information.
+		 */
+		VkImage	_depthImage;
+
+		/**
+		 * @brief Image handle that points to a structure that stores Vulkan-specific metadata for the depth image.
+		 */
+		VkImageView	_depthImageView;
+
+		/**
+		 * @brief Format of the image used to store per-pixel depth information.
+		 */
+		VkFormat _depthFormat;
+
+		/**
+		 * @brief Size of the depth image.
+		 */
+		VkExtent3D _depthExtent;
+
 		std::vector<VkImageView>	_swapChainImageViews;
 		std::vector<VkFramebuffer>	_swapChainFramebuffers;
 
@@ -352,6 +373,12 @@ namespace Engine::Vulkan
 		 * @brief Update the data that will be sent to the shaders.
 		 */
 		void UpdateShaderData();
+
+		/**
+		 * @brief Creates a Vulkan image wrapper that is meant to store depth information.
+		 * 
+		 */
+		void CreateDepthImage();
 
 		/**
 		 * @brief Creates the swapchain.
