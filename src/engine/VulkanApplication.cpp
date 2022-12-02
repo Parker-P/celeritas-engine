@@ -229,8 +229,8 @@ namespace Engine::Vulkan
 		vkFreeCommandBuffers(_logicalDevice, _commandPool, (uint32_t)_graphicsCommandBuffers.size(), _graphicsCommandBuffers.data());
 		vkDestroyPipeline(_logicalDevice, _graphicsPipeline, nullptr);
 		vkDestroyRenderPass(_logicalDevice, _renderPass, nullptr);
-		vkDestroyImageView(_logicalDevice, _depthImage, nullptr);
-		vmaDestroyImage(_allocator, _depthImage._image, _depthImage._allocation);
+		vkDestroyImageView(_logicalDevice, _depthImageView, nullptr);
+		vkDestroyImage(_logicalDevice, _depthImage, nullptr);
 
 		for (size_t i = 0; i < _swapchainImages.size(); i++) {
 			vkDestroyFramebuffer(_logicalDevice, _swapChainFramebuffers[i], nullptr);
@@ -727,7 +727,7 @@ namespace Engine::Vulkan
 		_uniformBuffer.UpdateData(&_uniformBufferData, (size_t)sizeof(_uniformBufferData));
 	}
 
-	void VulkanApplication::CreateDepthImage() 
+	void VulkanApplication::CreateDepthImage()
 	{
 		VkImageCreateInfo imageCreateInfo = { };
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -740,7 +740,7 @@ namespace Engine::Vulkan
 		imageCreateInfo.mipLevels = 1;
 		imageCreateInfo.arrayLayers = 1;
 		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		
+
 		// Tiling is very important. Tiling describes how the data for the texture is arranged in the GPU. 
 		// For improved performance, GPUs do not store images as 2d arrays of pixels, but instead use complex
 		// custom formats, unique to the GPU brand and even models. VK_IMAGE_TILING_OPTIMAL tells vulkan 
@@ -761,7 +761,7 @@ namespace Engine::Vulkan
 		VkImageViewCreateInfo imageViewCreateInfo = {};
 		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		imageViewCreateInfo.pNext = nullptr;
-		
+
 		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 		imageViewCreateInfo.image = _depthImage;
 		imageViewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
@@ -771,7 +771,7 @@ namespace Engine::Vulkan
 		imageViewCreateInfo.subresourceRange.layerCount = 1;
 		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 
-		
+
 	}
 
 	void VulkanApplication::CreateSwapChain()
@@ -935,36 +935,81 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateRenderPass()
 	{
-		VkAttachmentDescription attachmentDescription = {};
-		attachmentDescription.format = _swapchainFormat;
-		attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-		attachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		attachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for image.
+		VkAttachmentDescription colorAttachmentDescription = {};
+		colorAttachmentDescription.format = _swapchainFormat;
+		colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+		colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
 		// Note: hardware will automatically transition attachment to the specified layout
-		// Note: index refers to attachment descriptions array
+		// Note: index refers to attachment descriptions array.
 		VkAttachmentReference colorAttachmentReference = {};
 		colorAttachmentReference.attachment = 0;
 		colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+		// Describes how the render pass is going to use the depth attachment.
+		VkAttachmentDescription depthAttachmentDescription = {};
+		depthAttachmentDescription.flags = 0;
+		depthAttachmentDescription.format = _depthFormat;
+		depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+		depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		VkAttachmentReference depthAttachmentReference = {};
+		depthAttachmentReference.attachment = 1;
+		depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
 		// Note: this is a description of how the attachments of the render pass will be used in this sub pass
-		// e.g. if they will be read in shaders and/or drawn to
+		// e.g. if they will be read in shaders and/or drawn to.
 		VkSubpassDescription subPassDescription = {};
 		subPassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subPassDescription.colorAttachmentCount = 1;
 		subPassDescription.pColorAttachments = &colorAttachmentReference;
+		subPassDescription.pDepthStencilAttachment = &depthAttachmentReference;
 
-		// Create the render pass
+		// Now we have to adjust the renderpass synchronization. Previously, it was possible that multiple frames 
+		// were rendered simultaneously by the GPU. This is a problem when using depth buffers, because one frame 
+		// could overwrite the depth buffer while a previous frame is still rendering to it.
+		// We keep the subpass dependency for the color attachment we were already using.
+		VkSubpassDependency colorDependency = {};
+		colorDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		colorDependency.dstSubpass = 0;
+		colorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		colorDependency.srcAccessMask = 0;
+		colorDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		colorDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+		// This dependency tells Vulkan that the depth attachment in a renderpass cannot be used before 
+		// previous renderpasses have finished using it.
+		VkSubpassDependency depthDependency = {};
+		depthDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		depthDependency.dstSubpass = 0;
+		depthDependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+		depthDependency.srcAccessMask = 0;
+		depthDependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+		depthDependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+		// Create the render pass. We pass in the main image attachment (color) and the depth image attachment, so the GPU knows how to treat
+		// the images.
+		auto attachmentDescriptions = std::vector<VkAttachmentDescription>{ colorAttachmentDescription, depthAttachmentDescription };
+		auto subpassDependencies = std::vector<VkSubpassDependency>{ colorDependency, depthDependency };
 		VkRenderPassCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		createInfo.attachmentCount = 1;
-		createInfo.pAttachments = &attachmentDescription;
+		createInfo.attachmentCount = 2;
+		createInfo.pAttachments = attachmentDescriptions.data();
 		createInfo.subpassCount = 1;
 		createInfo.pSubpasses = &subPassDescription;
+		createInfo.dependencyCount = 2;
+		createInfo.pDependencies = subpassDependencies.data();
 
 		if (vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass) != VK_SUCCESS) {
 			std::cerr << "failed to create render pass" << std::endl;
@@ -1010,11 +1055,15 @@ namespace Engine::Vulkan
 		_swapChainFramebuffers.resize(_swapchainImages.size());
 
 		for (size_t i = 0; i < _swapchainImages.size(); i++) {
+
+			// We will render to the same depth image for each frame. 
+			// We can just keep clearing and reusing the same depth image for every frame.
+			auto colorAndDepthImages = std::vector<VkImageView>{ _swapChainImageViews[i], _depthImageView };
 			VkFramebufferCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 			createInfo.renderPass = _renderPass;
-			createInfo.attachmentCount = 1;
-			createInfo.pAttachments = &_swapChainImageViews[i];
+			createInfo.attachmentCount = 2;
+			createInfo.pAttachments = colorAndDepthImages.data();
 			createInfo.width = _swapchainExtent.width;
 			createInfo.height = _swapchainExtent.height;
 			createInfo.layers = 1;
@@ -1160,7 +1209,15 @@ namespace Engine::Vulkan
 
 		// Configure depth testing.
 		VkPipelineDepthStencilStateCreateInfo depthStencilCreateInfo{};
-		//depthStencilCreateInfo.
+		depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		depthStencilCreateInfo.pNext = nullptr;
+		depthStencilCreateInfo.depthTestEnable = VK_TRUE;
+		depthStencilCreateInfo.depthWriteEnable = VK_TRUE;
+		depthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+		depthStencilCreateInfo.depthBoundsTestEnable = VK_FALSE;
+		depthStencilCreateInfo.minDepthBounds = 0.0f;
+		depthStencilCreateInfo.maxDepthBounds = 1.0f;
+		depthStencilCreateInfo.stencilTestEnable = VK_FALSE;
 
 		CreateDepthImage();
 
@@ -1227,7 +1284,7 @@ namespace Engine::Vulkan
 		pipelineCreateInfo.pInputAssemblyState = &inputAssemblyCreateInfo;
 		pipelineCreateInfo.pViewportState = &viewportCreateInfo;
 		pipelineCreateInfo.pRasterizationState = &rasterizationCreateInfo;
-		pipelineCreateInfo.pDepthStencilState = &rasterizationCreateInfo;
+		pipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
 		pipelineCreateInfo.pMultisampleState = &multisampleCreateInfo;
 		pipelineCreateInfo.pColorBlendState = &colorBlendCreateInfo;
 		pipelineCreateInfo.layout = _pipelineLayout;
