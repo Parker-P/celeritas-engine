@@ -180,6 +180,7 @@ namespace Engine::Vulkan
 		CreateCommandPool();
 		CreateVertexAndIndexBuffers();
 		CreateSwapChain();
+		CreateDepthImage();
 		CreateRenderPass();
 		CreateImageViews();
 		CreateFramebuffers();
@@ -733,7 +734,7 @@ namespace Engine::Vulkan
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageCreateInfo.pNext = nullptr;
 		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageCreateInfo.format = _swapchainFormat;
+		imageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
 
 		_depthExtent = VkExtent3D{ _swapchainExtent.width, _swapchainExtent.height, 1 };
 		imageCreateInfo.extent = _depthExtent;
@@ -771,7 +772,9 @@ namespace Engine::Vulkan
 		imageViewCreateInfo.subresourceRange.layerCount = 1;
 		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 
-
+		if (vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_depthImageView) != VK_SUCCESS) {
+			std::cout << "Failed creating depth image view." << std::endl;
+		}
 	}
 
 	void VulkanApplication::CreateSwapChain()
@@ -1213,13 +1216,13 @@ namespace Engine::Vulkan
 		depthStencilCreateInfo.pNext = nullptr;
 		depthStencilCreateInfo.depthTestEnable = VK_TRUE;
 		depthStencilCreateInfo.depthWriteEnable = VK_TRUE;
-		depthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+		depthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
 		depthStencilCreateInfo.depthBoundsTestEnable = VK_FALSE;
 		depthStencilCreateInfo.minDepthBounds = 0.0f;
 		depthStencilCreateInfo.maxDepthBounds = 1.0f;
 		depthStencilCreateInfo.stencilTestEnable = VK_FALSE;
 
-		CreateDepthImage();
+		
 
 		// Describe multisampling
 		// Note: using multisampling also requires turning on device features.
@@ -1436,6 +1439,12 @@ namespace Engine::Vulkan
 			{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A
 		};
 
+		//clear depth at 1
+		VkClearValue depthClear;
+		depthClear.depthStencil.depth = 1.0f;
+
+		VkClearValue clearValues[] = { clearColor, depthClear };
+
 		// Record command buffer for each swap image
 		for (size_t i = 0; i < _swapchainImages.size(); i++) {
 			vkBeginCommandBuffer(_graphicsCommandBuffers[i], &beginInfo);
@@ -1463,6 +1472,9 @@ namespace Engine::Vulkan
 
 			vkCmdPipelineBarrier(_graphicsCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
 
+#pragma region RenderPassCommandRecording
+
+
 			VkRenderPassBeginInfo renderPassBeginInfo = {};
 			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 			renderPassBeginInfo.renderPass = _renderPass;
@@ -1470,18 +1482,16 @@ namespace Engine::Vulkan
 			renderPassBeginInfo.renderArea.offset.x = 0;
 			renderPassBeginInfo.renderArea.offset.y = 0;
 			renderPassBeginInfo.renderArea.extent = _swapchainExtent;
-			renderPassBeginInfo.clearValueCount = 1;
-			renderPassBeginInfo.pClearValues = &clearColor;
+			renderPassBeginInfo.clearValueCount = 2;
+			renderPassBeginInfo.pClearValues = &clearValues[0];
 
-
-#pragma region RenderPassCommandRecording
 			vkCmdBeginRenderPass(_graphicsCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdBindDescriptorSets(_graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelineLayout, 0, 1, &_descriptorSet, 0, nullptr);
 			vkCmdBindPipeline(_graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
 			VkDeviceSize offset = 0;
 			vkCmdBindVertexBuffers(_graphicsCommandBuffers[i], 0, 1, &_vertexBuffer->_handle, &offset);
 
-			// Get the value type of vertex indices. Typically unsigned int (32-bit) but could also be 16-bit. Gltf for example uses 16-bit.
+			// Get the value type of vertex indices. Typically unsigned int (32-bit) but could also be 16-bit.
 			VkIndexType indexType = VK_INDEX_TYPE_NONE_KHR;
 			if (std::is_same_v<decltype(_model._mesh._faceIndices)::value_type, unsigned short>) {
 				indexType = VK_INDEX_TYPE_UINT16;
@@ -1493,7 +1503,6 @@ namespace Engine::Vulkan
 			vkCmdDrawIndexed(_graphicsCommandBuffers[i], (uint32_t)_model._mesh._faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(_graphicsCommandBuffers[i]);
 #pragma endregion
-
 
 			// If present and graphics queue families differ, then another barrier is required
 			if (_presentQueueFamily != _graphicsQueueFamily) {
