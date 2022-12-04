@@ -728,13 +728,29 @@ namespace Engine::Vulkan
 		_uniformBuffer.UpdateData(&_uniformBufferData, (size_t)sizeof(_uniformBufferData));
 	}
 
+	// Todo: wrap physical device into its own class.
+	// Todo: wrap image into its own class.
+
+	int GetMemoryTypeIndex(VkPhysicalDeviceMemoryProperties& gpuMemoryProperties, uint32_t typeBits, VkMemoryPropertyFlagBits properties)
+	{
+		for (uint32_t i = 0; i < 32; i++) {
+			if ((typeBits & 1) == 1) {
+				if ((gpuMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+					return i;
+				}
+			}
+			typeBits >>= 1;
+		}
+		return -1;
+	}
+
 	void VulkanApplication::CreateDepthImage()
 	{
 		VkImageCreateInfo imageCreateInfo = { };
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageCreateInfo.pNext = nullptr;
 		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+		imageCreateInfo.format = _depthFormat;
 
 		_depthExtent = VkExtent3D{ _swapchainExtent.width, _swapchainExtent.height, 1 };
 		imageCreateInfo.extent = _depthExtent;
@@ -759,13 +775,27 @@ namespace Engine::Vulkan
 			std::cout << "Failed creating depth image." << std::endl;
 		}
 
+		VkMemoryRequirements reqs;
+		vkGetImageMemoryRequirements(_logicalDevice, _depthImage, &reqs);
+		VkMemoryAllocateInfo allocInfo{};
+
+		VkPhysicalDeviceMemoryProperties props;
+		vkGetPhysicalDeviceMemoryProperties(_physicalDevice, &props);
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.allocationSize = reqs.size;
+		allocInfo.memoryTypeIndex = GetMemoryTypeIndex(props, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		
+		VkDeviceMemory mem;
+		vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem);
+		vkBindImageMemory(_logicalDevice, _depthImage, mem, 0);
+
 		VkImageViewCreateInfo imageViewCreateInfo = {};
 		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		imageViewCreateInfo.pNext = nullptr;
 
 		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 		imageViewCreateInfo.image = _depthImage;
-		imageViewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+		imageViewCreateInfo.format = _depthFormat;
 		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
 		imageViewCreateInfo.subresourceRange.levelCount = 1;
 		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
@@ -858,11 +888,11 @@ namespace Engine::Vulkan
 		createInfo.oldSwapchain = _oldSwapchain;
 
 		if (vkCreateSwapchainKHR(_logicalDevice, &createInfo, nullptr, &_swapchain) != VK_SUCCESS) {
-			std::cerr << "failed to create swap chain" << std::endl;
+			std::cerr << "failed to create swapchain" << std::endl;
 			exit(1);
 		}
 		else {
-			std::cout << "created swap chain" << std::endl;
+			std::cout << "created swapchain" << std::endl;
 		}
 
 		if (_oldSwapchain != VK_NULL_HANDLE) {
@@ -884,7 +914,7 @@ namespace Engine::Vulkan
 		_swapchainImages.resize(actualImageCount);
 
 		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain, &actualImageCount, _swapchainImages.data()) != VK_SUCCESS) {
-			std::cerr << "failed to acquire swap chain images" << std::endl;
+			std::cerr << "failed to acquire swapchain images" << std::endl;
 			exit(1);
 		}
 
@@ -1435,15 +1465,7 @@ namespace Engine::Vulkan
 		subResourceRange.baseArrayLayer = 0;
 		subResourceRange.layerCount = 1;
 
-		VkClearValue clearColor = {
-			{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A
-		};
-
-		//clear depth at 1
-		VkClearValue depthClear;
-		depthClear.depthStencil.depth = 1.0f;
-
-		VkClearValue clearValues[] = { clearColor, depthClear };
+		
 
 		// Record command buffer for each swap image
 		for (size_t i = 0; i < _swapchainImages.size(); i++) {
@@ -1474,7 +1496,14 @@ namespace Engine::Vulkan
 
 #pragma region RenderPassCommandRecording
 
+			VkClearValue clearColor = {
+			{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A
+			};
 
+			VkClearValue depthClear;
+			depthClear.depthStencil.depth = 1.0f;
+			VkClearValue clearValues[] = { clearColor, depthClear };
+			
 			VkRenderPassBeginInfo renderPassBeginInfo = {};
 			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 			renderPassBeginInfo.renderPass = _renderPass;

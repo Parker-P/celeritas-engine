@@ -262,7 +262,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Format of the image used to store per-pixel depth information.
 		 */
-		VkFormat _depthFormat;
+		VkFormat _depthFormat = VK_FORMAT_D32_SFLOAT;
 
 		/**
 		 * @brief Size of the depth image.
