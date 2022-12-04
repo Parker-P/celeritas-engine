@@ -120,6 +120,5 @@ namespace Engine::Scenes
 		float _deltaScrollY = (input._scrollY - _lastScrollY);
 		_horizontalFov -= _deltaScrollY;
 		_lastScrollY = input._scrollY;
-		std::cout << _horizontalFov << std::endl;
 	}
 }

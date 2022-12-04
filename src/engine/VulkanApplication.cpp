@@ -777,14 +777,15 @@ namespace Engine::Vulkan
 
 		VkMemoryRequirements reqs;
 		vkGetImageMemoryRequirements(_logicalDevice, _depthImage, &reqs);
-		VkMemoryAllocateInfo allocInfo{};
 
 		VkPhysicalDeviceMemoryProperties props;
 		vkGetPhysicalDeviceMemoryProperties(_physicalDevice, &props);
+
+		VkMemoryAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = reqs.size;
 		allocInfo.memoryTypeIndex = GetMemoryTypeIndex(props, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		
+
 		VkDeviceMemory mem;
 		vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem);
 		vkBindImageMemory(_logicalDevice, _depthImage, mem, 0);
@@ -792,7 +793,6 @@ namespace Engine::Vulkan
 		VkImageViewCreateInfo imageViewCreateInfo = {};
 		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		imageViewCreateInfo.pNext = nullptr;
-
 		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 		imageViewCreateInfo.image = _depthImage;
 		imageViewCreateInfo.format = _depthFormat;
@@ -1033,16 +1033,16 @@ namespace Engine::Vulkan
 
 		// Create the render pass. We pass in the main image attachment (color) and the depth image attachment, so the GPU knows how to treat
 		// the images.
-		auto attachmentDescriptions = std::vector<VkAttachmentDescription>{ colorAttachmentDescription, depthAttachmentDescription };
-		auto subpassDependencies = std::vector<VkSubpassDependency>{ colorDependency, depthDependency };
+		VkAttachmentDescription attachmentDescriptions[2] = { colorAttachmentDescription, depthAttachmentDescription };
+		VkSubpassDependency subpassDependencies[2] = { colorDependency, depthDependency };
 		VkRenderPassCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 		createInfo.attachmentCount = 2;
-		createInfo.pAttachments = attachmentDescriptions.data();
+		createInfo.pAttachments = &attachmentDescriptions[0];
 		createInfo.subpassCount = 1;
 		createInfo.pSubpasses = &subPassDescription;
 		createInfo.dependencyCount = 2;
-		createInfo.pDependencies = subpassDependencies.data();
+		createInfo.pDependencies = &subpassDependencies[0];
 
 		if (vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass) != VK_SUCCESS) {
 			std::cerr << "failed to create render pass" << std::endl;
@@ -1091,12 +1091,12 @@ namespace Engine::Vulkan
 
 			// We will render to the same depth image for each frame. 
 			// We can just keep clearing and reusing the same depth image for every frame.
-			auto colorAndDepthImages = std::vector<VkImageView>{ _swapChainImageViews[i], _depthImageView };
+			VkImageView colorAndDepthImages[2] = { _swapChainImageViews[i], _depthImageView };
 			VkFramebufferCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 			createInfo.renderPass = _renderPass;
 			createInfo.attachmentCount = 2;
-			createInfo.pAttachments = colorAndDepthImages.data();
+			createInfo.pAttachments = &colorAndDepthImages[0];
 			createInfo.width = _swapchainExtent.width;
 			createInfo.height = _swapchainExtent.height;
 			createInfo.layers = 1;
@@ -1246,13 +1246,11 @@ namespace Engine::Vulkan
 		depthStencilCreateInfo.pNext = nullptr;
 		depthStencilCreateInfo.depthTestEnable = VK_TRUE;
 		depthStencilCreateInfo.depthWriteEnable = VK_TRUE;
-		depthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
+		depthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
 		depthStencilCreateInfo.depthBoundsTestEnable = VK_FALSE;
+		depthStencilCreateInfo.stencilTestEnable = VK_FALSE;
 		depthStencilCreateInfo.minDepthBounds = 0.0f;
 		depthStencilCreateInfo.maxDepthBounds = 1.0f;
-		depthStencilCreateInfo.stencilTestEnable = VK_FALSE;
-
-		
 
 		// Describe multisampling
 		// Note: using multisampling also requires turning on device features.
@@ -1465,7 +1463,7 @@ namespace Engine::Vulkan
 		subResourceRange.baseArrayLayer = 0;
 		subResourceRange.layerCount = 1;
 
-		
+
 
 		// Record command buffer for each swap image
 		for (size_t i = 0; i < _swapchainImages.size(); i++) {
@@ -1503,7 +1501,7 @@ namespace Engine::Vulkan
 			VkClearValue depthClear;
 			depthClear.depthStencil.depth = 1.0f;
 			VkClearValue clearValues[] = { clearColor, depthClear };
-			
+
 			VkRenderPassBeginInfo renderPassBeginInfo = {};
 			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 			renderPassBeginInfo.renderPass = _renderPass;
@@ -1563,11 +1561,11 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::Draw()
 	{
-		// Acquire image
+		// Acquire image.
 		uint32_t imageIndex;
 		VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
-		// Unless surface is out of date right now, defer swap chain recreation until end of this frame
+		// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
 		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
 			OnWindowSizeChanged();
 			return;
@@ -1577,7 +1575,7 @@ namespace Engine::Vulkan
 			exit(1);
 		}
 
-		// Wait for image to be available and draw
+		// Wait for image to be available and draw.
 		VkSubmitInfo submitInfo = {};
 
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1587,7 +1585,7 @@ namespace Engine::Vulkan
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = &_renderingFinishedSemaphore;
 
-		// This is the stage where the queue should wait on the semaphore
+		// This is the stage where the queue should wait on the semaphore.
 		VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		submitInfo.pWaitDstStageMask = &waitDstStageMask;
 
@@ -1599,8 +1597,8 @@ namespace Engine::Vulkan
 			exit(1);
 		}
 
-		// Present drawn image
-		// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue
+		// Present drawn image.
+		// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.waitSemaphoreCount = 1;
