@@ -616,19 +616,19 @@ namespace Engine::Vulkan
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\test.glb)");
 		_model = _scene._objects[0];
 
-		std::vector<Scenes::Mesh::Vertex> verts{};
-		std::vector<unsigned int> indices{};
+		//std::vector<Scenes::Mesh::Vertex> verts{};
+		//std::vector<unsigned int> indices{};
 
-		verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{6.0f, 6.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Tip.
-		verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{6.0f, 0.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Lower right.
-		verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{0.0f, 0.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Lower left.
+		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{6.0f, 6.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Tip.
+		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{6.0f, 0.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Lower right.
+		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{0.0f, 0.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Lower left.
 
-		indices.push_back(0);
-		indices.push_back(2);
-		indices.push_back(1);
+		//indices.push_back(0);
+		//indices.push_back(2);
+		//indices.push_back(1);
 
-		_model._mesh._vertices = verts;
-		_model._mesh._faceIndices = indices;
+		//_model._mesh._vertices = verts;
+		//_model._mesh._faceIndices = indices;
 	}
 
 	void VulkanApplication::CreateVertexAndIndexBuffers()
