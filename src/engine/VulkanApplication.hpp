@@ -132,7 +132,48 @@ namespace Engine::Vulkan
 		VkSemaphore							_imageAvailableSemaphore;
 		VkSemaphore							_renderingFinishedSemaphore;
 		VkRenderPass						_renderPass;
-		VkPipeline							_graphicsPipeline;
+
+		/**
+		 * @brief The graphics pipeline represents, at the logical level, the entire process
+		 * of inputting vertices, indices and textures into the GPU and getting a 2D image that represents the scene
+		 * passed in out of it. In early GPUs, this process was hardwired into the graphics chip, but as technology improved and needs 
+		 * for better and more complex graphics increased, GPU producers have taken steps to make this a much more programmable
+		 * and CPU-like process, so much so that technologies like CUDA (Compute Uniform Device Architecture) have come out.
+		 * 
+		 * Nowadays the typical GPU consists of an array of clusters of microprocessors, where each micro
+		 * processor is highly multithreaded, and its ALU and instruction set (thus its circuitry) optimized for operating on 
+		 * floating point numbers, vectors and matrices (as that is what is used to represent coordinates in space and space transformations).
+		 * 
+		 * CUDA is the result of NVidia and Microsoft working together to improve the programmers' experience for programming
+		 * shaders; the result is a product that maps C/C++ instructions to the GPU's ALUs instruction set, to take full advantage
+		 * of the GPU's high amount of cores and threads. By doing this, things like crypto mining and machine learning have gotten
+		 * a huge boost, as the data that requires manipulation is very loosely coupled (has very few dependecies on the data in
+		 * the same set) and, as a result, can be processed by many independent threads simultaneously. This is called a compute pipeline.
+		 * 
+		 * Khronos, the developers of the Vulkan API, have also done something similar called OpenCL, the compute side of OpenGL.
+		 * The typical graphics (or render) pipeline consists of programmable, configurable and hardwired stages, where:
+		 * a) The programmable stages are custom stages that will be run on the GPU's multi-purpose array of microprocessors using a program (a.k.a shader).
+		 * b) The configurable stages are hardwired stages that can perform their task a different way based on user configuration via calls to the Vulkan API.
+		 * c) The hardwired stages are immutable stages that cannot be changed unless manipulating the hardware.
+		 * The graph of a typical graphics pipeline is shown under docs/GraphicsPipeline.svg (image from Wikipedia).
+		 * 
+		 * More on the programmable stages:
+		 * The programmable stages are the flexible stages that the programmer can fully customize by writing little programs called shaders.
+		 * These shader programs will run:
+		 * 1) once per vertex in the case of the vertex shader; this shader program's goal is to take vertex attrbutes in, and output
+		 * a vertex color and 2D position (more precisely, a 3D position inside of the Vulkan's coordinate range, which is -1 to 1 for X and Y and 0 to 1 for Z).
+		 * 2) once per pixel in the case of the fragment shader; this stage's goal is to take the rasterizer's output (which is a hardwired
+		 * stage on the GPU chip as of 2022, whose goal is to color pixels based on vertex colors) and textures, and output a colored pixel based on
+		 * the color of the textures and other variables such as direct and indirect lighting.
+		 * There are other shader stages, but the 2 above are the strictly needed shaders in order to be able to render something.
+
+		 * This type of execution flow has a name and is called SIMD (Single Instruction Multiple Data), as the same program (single instruction) 
+		 * is run independently on different cores/threads for multiple vertices or pixels (multiple data).
+		 * 
+		 * Examples of the configurable stages are anti-aliasing and tessellation.
+		 * Examples of hardwired stages are backface-culling, depth testing and alpha blending.
+		 */
+		VkPipeline _graphicsPipeline;
 
 		/**
 		 * @brief Buffer that stores vertex attributes. A vertex attribute is a piece of data
@@ -140,6 +181,8 @@ namespace Engine::Vulkan
 		 * do more work based on it. For example a vertex attribute could be a position or a normal vector.
 		 * Based on the normal vector, the vertex shader can perform lighting calculations by computing
 		 * the angle between the source of the light and the normal.
+		 * At the hardware level, the contents of the vertex buffer are fed into the array of shader cores,
+		 * and each vertex, along with its attributes, are processed in parallel on each thread of the cores.
 		 */
 		Buffer* _vertexBuffer;
 
@@ -163,7 +206,7 @@ namespace Engine::Vulkan
 		 * via an indirect binding, where the vertex shader associates a vertex input attribute number with
 		 * each variable: the "location" decorator. Vertex input attributes (location) are associated to vertex input
 		 * bindings (binding) on a per-pipeline basis, and vertex input bindings (binding) are associated with specific buffers
-		 * (VkBuffer) on a per-draw basis via the vkCmdBindVertexBuffers command. Vertex input attribute and vertex input
+		 * (VkBuffer) on a per-draw basis via the vkCmdBindVertexBuffers command. Vertex input attributes and vertex input
 		 * binding descriptions also contain format information controlling how data is extracted from buffer
 		 * memory and converted to the format expected by the vertex shader.
 		 *
@@ -217,7 +260,8 @@ namespace Engine::Vulkan
 		VkDescriptorPool _descriptorPool;
 
 		/**
-		 * @brief A descriptor set has bindings to descriptors, and is used to cluster descriptors with similar properties.
+		 * @brief A descriptor set has bindings to descriptors, and is used to cluster descriptors with similar properties. A descriptor is just a set of data
+		 * that will be passed into shaders. The shaders will then use these descriptors' data as needed.
 		 */
 		VkDescriptorSet	_descriptorSet;
 
