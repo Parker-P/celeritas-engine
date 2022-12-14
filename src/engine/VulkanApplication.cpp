@@ -760,7 +760,7 @@ namespace Engine::Vulkan
 
 		// Tiling is very important. Tiling describes how the data for the texture is arranged in the GPU. 
 		// For improved performance, GPUs do not store images as 2d arrays of pixels, but instead use complex
-		// custom formats, unique to the GPU brand and even models. VK_IMAGE_TILING_OPTIMAL tells vulkan 
+		// custom formats, unique to the GPU brand and even models. VK_IMAGE_TILING_OPTIMAL tells Vulkan 
 		// to let the driver decide how the GPU arranges the memory of the image. If you use VK_IMAGE_TILING_OPTIMAL,
 		// it won’t be possible to read the data from CPU or to write it without changing its tiling first 
 		// (it’s possible to change the tiling of a texture at any point, but this can be a costly operation). 
@@ -770,7 +770,7 @@ namespace Engine::Vulkan
 		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
-		// Create the image view wrapper.
+		// Create the image.
 		if (vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_depthImage) != VK_SUCCESS) {
 			std::cout << "Failed creating depth image." << std::endl;
 		}
@@ -778,13 +778,10 @@ namespace Engine::Vulkan
 		VkMemoryRequirements reqs;
 		vkGetImageMemoryRequirements(_logicalDevice, _depthImage, &reqs);
 
-		VkPhysicalDeviceMemoryProperties props;
-		vkGetPhysicalDeviceMemoryProperties(_physicalDevice, &props);
-
 		VkMemoryAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = reqs.size;
-		allocInfo.memoryTypeIndex = GetMemoryTypeIndex(props, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		allocInfo.memoryTypeIndex = GetMemoryTypeIndex(_deviceMemoryProperties, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		VkDeviceMemory mem;
 		vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem);
@@ -809,14 +806,14 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateSwapChain()
 	{
-		// Find surface capabilities
+		// Find surface capabilities.
 		VkSurfaceCapabilitiesKHR surfaceCapabilities;
 		if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_physicalDevice, _windowSurface, &surfaceCapabilities) != VK_SUCCESS) {
 			std::cerr << "failed to acquire presentation surface capabilities" << std::endl;
 			exit(1);
 		}
 
-		// Find supported surface formats
+		// Find supported surface formats.
 		uint32_t formatCount;
 		if (vkGetPhysicalDeviceSurfaceFormatsKHR(_physicalDevice, _windowSurface, &formatCount, nullptr) != VK_SUCCESS || formatCount == 0) {
 			std::cerr << "failed to get number of supported surface formats" << std::endl;
@@ -829,7 +826,7 @@ namespace Engine::Vulkan
 			exit(1);
 		}
 
-		// Find supported present modes
+		// Find supported present modes.
 		uint32_t presentModeCount;
 		if (vkGetPhysicalDeviceSurfacePresentModesKHR(_physicalDevice, _windowSurface, &presentModeCount, nullptr) != VK_SUCCESS || presentModeCount == 0) {
 			std::cerr << "failed to get number of supported presentation modes" << std::endl;
@@ -842,7 +839,7 @@ namespace Engine::Vulkan
 			exit(1);
 		}
 
-		// Determine number of images for swap chain
+		// Determine number of images for swap chain.
 		uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
 		if (surfaceCapabilities.maxImageCount != 0 && imageCount > surfaceCapabilities.maxImageCount) {
 			imageCount = surfaceCapabilities.maxImageCount;
@@ -850,13 +847,13 @@ namespace Engine::Vulkan
 
 		std::cout << "using " << imageCount << " images for swap chain" << std::endl;
 
-		// Select a surface format
+		// Select a surface format.
 		VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat(surfaceFormats);
 
-		// Select swap chain size
+		// Select swapchain image size.
 		_swapchainExtent = ChooseSwapExtent(surfaceCapabilities);
 
-		// Determine transformation to use (preferring no transform)
+		// Determine transformation to use (preferring no transform).
 		VkSurfaceTransformFlagBitsKHR surfaceTransform;
 		if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
 			surfaceTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
@@ -865,10 +862,10 @@ namespace Engine::Vulkan
 			surfaceTransform = surfaceCapabilities.currentTransform;
 		}
 
-		// Choose presentation mode (preferring MAILBOX ~= triple buffering)
+		// Choose presentation mode (preferring MAILBOX ~= triple buffering).
 		VkPresentModeKHR presentMode = ChoosePresentMode(presentModes);
 
-		// Finally, create the swap chain
+		// Finally, create the swap chain.
 		VkSwapchainCreateInfoKHR createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 		createInfo.surface = _windowSurface;
@@ -902,9 +899,9 @@ namespace Engine::Vulkan
 
 		_swapchainFormat = surfaceFormat.format;
 
-		// Store the images used by the swap chain
-		// Note: these are the images that swap chain image indices refer to
-		// Note: actual number of images may differ from requested number, since it's a lower bound
+		// Store the images used by the swap chain.
+		// Note: these are the images that swap chain image indices refer to.
+		// Note: actual number of images may differ from requested number, since it's a lower bound.
 		uint32_t actualImageCount = 0;
 		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
 			std::cerr << "failed to acquire number of swap chain images" << std::endl;
@@ -1300,8 +1297,6 @@ namespace Engine::Vulkan
 			&_uniformBufferData,
 			(size_t)sizeof(_uniformBufferData));
 
-
-
 		UpdateShaderData();
 		CreateDescriptorSets();
 		CreatePipelineLayout();
@@ -1463,8 +1458,6 @@ namespace Engine::Vulkan
 		subResourceRange.baseArrayLayer = 0;
 		subResourceRange.layerCount = 1;
 
-
-
 		// Record command buffer for each swap image
 		for (size_t i = 0; i < _swapchainImages.size(); i++) {
 			vkBeginCommandBuffer(_graphicsCommandBuffers[i], &beginInfo);
@@ -1576,19 +1569,15 @@ namespace Engine::Vulkan
 		}
 
 		// Wait for image to be available and draw.
+		// This is the stage where the queue should wait on the semaphore.
+		VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		VkSubmitInfo submitInfo = {};
-
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.waitSemaphoreCount = 1;
 		submitInfo.pWaitSemaphores = &_imageAvailableSemaphore;
-
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = &_renderingFinishedSemaphore;
-
-		// This is the stage where the queue should wait on the semaphore.
-		VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		submitInfo.pWaitDstStageMask = &waitDstStageMask;
-
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &_graphicsCommandBuffers[imageIndex];
 

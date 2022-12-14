@@ -286,12 +286,14 @@ namespace Engine::Vulkan
 			glm::mat4 objectToWorld;
 		} _uniformBufferData;
 
-		// Swapchain
-		VkExtent2D					_swapchainExtent;
-		VkFormat					_swapchainFormat;
-		VkSwapchainKHR				_oldSwapchain;
-		VkSwapchainKHR				_swapchain;
-		std::vector<VkImage>		_swapchainImages;
+		/**
+		 * @brief Size of each image in the swapchain.
+		 */
+		VkExtent2D	_swapchainExtent;
+		VkFormat _swapchainFormat;
+		VkSwapchainKHR _oldSwapchain;
+		VkSwapchainKHR _swapchain;
+		std::vector<VkImage> _swapchainImages;
 		
 		/**
 		 * @brief Image handle that points to an image that stores per-pixel depth information.
@@ -444,6 +446,10 @@ namespace Engine::Vulkan
 
 		VkShaderModule CreateShaderModule(const std::filesystem::path& absolutePath);
 
+		/**
+		 * @brief Creates the API level graphics (or render) pipeline.
+		 * @see _graphicsPipeline
+		 */
 		void CreateGraphicsPipeline();
 
 		/**
