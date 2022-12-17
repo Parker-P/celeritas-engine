@@ -38,6 +38,7 @@
     <ClInclude Include="src\engine\scenes\GameObject.hpp" />
     <ClInclude Include="src\engine\scenes\GltfLoader.hpp" />
     <ClInclude Include="src\engine\input\Input.hpp" />
+    <ClInclude Include="src\structural\IUpdatable.h" />
     <ClInclude Include="src\utils\Json.h" />
     <ClInclude Include="src\game\input\KeyBinds.hpp" />
     <ClInclude Include="src\engine\scenes\Mesh.hpp" />

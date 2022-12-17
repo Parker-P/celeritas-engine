@@ -7,12 +7,13 @@
 #include <vector>
 #include <map>
 
+#include "structural/IUpdatable.h"
 #include "structural/Singleton.hpp"
 #include "engine/Time.hpp"
 #include "settings/GlobalSettings.hpp"
 #include "engine/input/Input.hpp"
 #include "engine/math/Transform.hpp"
-#include "Mesh.hpp"
+#include "engine/scenes/Mesh.hpp"
 #include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Camera.hpp"
 
@@ -30,6 +31,7 @@ namespace Engine::Scenes
 		_horizontalFov = 55.0f;
 		_nearClippingDistance = 0.1f;
 		_farClippingDistance = 200.0f;
+		_up = glm::vec3(0.0f, 1.0f, 0.0f);
 	}
 
 	Camera::Camera(float horizontalFov, float nearClippingDistance, float farClippingDistance)
@@ -37,6 +39,7 @@ namespace Engine::Scenes
 		_horizontalFov = horizontalFov;
 		_nearClippingDistance = nearClippingDistance;
 		_farClippingDistance = farClippingDistance;
+		_up = glm::vec3(0.0f, 1.0f, 0.0f);
 	}
 
 	void Camera::Update()
@@ -89,21 +92,32 @@ namespace Engine::Scenes
 		_lastYaw = _yaw;
 		_lastPitch = _pitch;
 		_lastRoll = _roll;
-
+		
 		// First apply roll rotation.
 		_transform.Rotate(_transform.Forward(), _deltaRoll);
 
+		// Transform the up vector according to delta roll but not delta pitch, so the
+		// up vector is not affected by looking up and down, but it is by rolling the camera
+		// left and right.
+		auto axis = _transform.Forward(); // This gets the pitch-independent forward vector.
+		auto angleRadians = glm::radians(_deltaRoll);
+		auto cosine = cos(angleRadians / 2.0f);
+		auto sine = sin(angleRadians / 2.0f);
+		_up = glm::quat(cosine, axis.x * sine, axis.y * sine, axis.z * sine) * _up;
+
+		std::cout << "Up is: " << _up.x << ", " << _up.y << ", " << _up.z << std::endl;
+		std::cout << "Axis is: " << axis.x << ", " << axis.y << ", " << axis.z << std::endl;
+		std::cout << "Roll is: " << _roll << std::endl;
+
 		// Then apply yaw rotation.
-		_transform.Rotate(_transform.Up(), _deltaYaw);
+		_transform.Rotate(_up, _deltaYaw);
 
 		// Then pitch.
 		_transform.Rotate(_transform.Right(), _deltaPitch);
 
-		// Vulkan's coordinate system is: X points to the right, Y points down, Z points towards you
-		// Vulkan's viewport coordinate system is right handed (the x axis points to the right with respect to the z and y axes)
-		// and we are doing all our calculations assuming +Z is forward and +X is right, so using a left-handed coordinate system.
-		// Supposedly, this is because the screen renders it's images starting from the top left and ending at the bottom right,
-		// Infact coordinates (0,0) in Vulkan correspond to the top left of the screen
+		// Vulkan's coordinate system is: X points to the right, Y points down, Z points into the screen.
+		// Vulkan's viewport coordinate system is right handed and we are doing all our calculations assuming 
+		// +Z is forward, +Y is up and +X is right, so using a left-handed coordinate system.
 
 		// We use the inverse of the camera transformation matrix because this matrix will be applied to each vertex of each object in the scene in the vertex shader.
 		// There is no such thing as a camera, because in the end we use the position of the vertices to draw stuff on screen. We can only modify the position of the

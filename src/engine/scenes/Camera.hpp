@@ -1,7 +1,7 @@
 #pragma once
 namespace Engine::Scenes
 {
-	class Camera : public GameObject
+	class Camera : public GameObject, public IUpdatable
 	{
 	public:
 
@@ -27,6 +27,11 @@ namespace Engine::Scenes
 		 */
 		Math::Transform _view;
 
+		/**
+		 * @brief Up direction of the camera.
+		 */
+		glm::vec3 _up;
+
 		// Temp
 		float _lastYaw;
 		float _lastPitch;
@@ -42,6 +47,9 @@ namespace Engine::Scenes
 
 		Camera(float horizontalFov, float nearClippingDistance, float farClippingDistance);
 
-		void Update();
+		/**
+		 * @brief See IUpdatable.
+		 */
+		void Update() override;
 	};
 }

@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 
+#include "structural/IUpdatable.h"
 #include "structural/Singleton.hpp"
 #include "engine/input/Input.hpp"
 
@@ -91,4 +92,17 @@ namespace Engine::Input
 		_cursorEnabled = !_cursorEnabled;
 	}
 #pragma endregion
+
+	void KeyboardMouse::Update()
+	{
+		_deltaMouseX = (_mouseX - _lastMouseX);
+		_deltaMouseY = (_mouseY - _lastMouseY);
+
+		_lastMouseX = _mouseX;
+		_deltaMouseY = _mouseY;
+
+		if (WasKeyPressed(GLFW_KEY_ESCAPE)) {
+			ToggleCursor(_window);
+		}
+	}
 }

@@ -1,6 +1,31 @@
 #pragma once
 
-class Time : public Singleton<Time> {
+class Time : public Singleton<Time>, public IUpdatable
+{
 public:
-	float _deltaTime;
+	
+	/**
+	 * @brief The time this instance was created, assigned to in the constructor.
+	 */
+	std::chrono::high_resolution_clock::time_point _timeStart;
+
+	/**
+	 * @brief Time last frame started.
+	 */
+	std::chrono::high_resolution_clock::time_point _lastUpdateTime;
+
+	/**
+	 * @brief The amount of time since last frame started in milliseconds.
+	 */
+	double _deltaTime;
+
+	/**
+	 * @brief Constructor.
+	 */
+	Time();
+
+	/**
+	 * @brief See IUpdatable.
+	 */
+	void Update() override;
 };

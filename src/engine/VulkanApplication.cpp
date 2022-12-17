@@ -20,6 +20,7 @@
 
 // Project local classes
 #include "utils/Json.h"
+#include "structural/IUpdatable.h"
 #include "structural/Singleton.hpp"
 #include "settings/GlobalSettings.hpp"
 #include "settings/Paths.hpp"
@@ -141,8 +142,6 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::Run()
 	{
-		_timeStart = std::chrono::high_resolution_clock::now();
-
 		InitializeWindow();
 		_input.Init(_window);
 		LoadScene();
@@ -157,13 +156,6 @@ namespace Engine::Vulkan
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 		_window = glfwCreateWindow(_settings._windowWidth, _settings._windowHeight, "Hold The Line!", nullptr, nullptr);
 		glfwSetWindowSizeCallback(_window, VulkanApplication::OnWindowResized);
-	}
-
-	void VulkanApplication::CalculateDeltaTime()
-	{
-		auto tmp = (std::chrono::high_resolution_clock::now() - _lastFrameTime).count();
-		_lastFrameTime = std::chrono::high_resolution_clock::now();
-		Time::Instance()._deltaTime = tmp * 0.000001f;
 	}
 
 	void VulkanApplication::SetupVulkan()
@@ -191,10 +183,8 @@ namespace Engine::Vulkan
 	void VulkanApplication::MainLoop()
 	{
 		while (!glfwWindowShouldClose(_window)) {
-			if (_input.Instance().WasKeyPressed(GLFW_KEY_ESCAPE)) {
-				_input.Instance().ToggleCursor(_window);
-			}
-			CalculateDeltaTime();
+			Update();
+			
 			UpdateShaderData();
 			Draw();
 			glfwPollEvents();
@@ -916,7 +906,7 @@ namespace Engine::Vulkan
 		}
 
 		std::cout << "acquired swap chain images" << std::endl;
-	} // CreateSwapChain
+	}
 
 	VkSurfaceFormatKHR VulkanApplication::ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
 	{
@@ -1606,6 +1596,13 @@ namespace Engine::Vulkan
 			std::cerr << "failed to submit present command buffer" << std::endl;
 			exit(1);
 		}
+	}
+
+	void VulkanApplication::Update()
+	{
+		Time::Instance().Update();
+		_input.Update();
+		_mainCamera.Update();
 	}
 }
 

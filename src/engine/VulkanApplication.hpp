@@ -109,7 +109,7 @@ namespace Engine::Vulkan
 	/**
 	 * @brief Represents the Vulkan application.
 	 */
-	class VulkanApplication
+	class VulkanApplication : public IUpdatable
 	{
 	public:
 		
@@ -123,11 +123,18 @@ namespace Engine::Vulkan
 		VkSurfaceKHR						_windowSurface;
 		VkPhysicalDevice					_physicalDevice;
 		VkDevice							_logicalDevice;
+		
+		/**
+		 * @brief Function pointer called by Vulkan each time it wants to report an error.
+		 * Error reporting is set by enabling validation layers.
+		 */
 		VkDebugReportCallbackEXT			_callback;
+		
 		VkQueue								_graphicsQueue;
 		uint32_t							_graphicsQueueFamily;
 		VkQueue								_presentQueue;
 		uint32_t							_presentQueueFamily;
+		
 		VkPhysicalDeviceMemoryProperties	_deviceMemoryProperties;
 		VkSemaphore							_imageAvailableSemaphore;
 		VkSemaphore							_renderingFinishedSemaphore;
@@ -322,11 +329,6 @@ namespace Engine::Vulkan
 		VkCommandPool					_commandPool;
 		std::vector<VkCommandBuffer>	_graphicsCommandBuffers;
 
-		// Time
-		std::chrono::high_resolution_clock::time_point	_timeStart;		// The time the app was started
-		std::chrono::high_resolution_clock::time_point	_lastFrameTime; // Time last frame started
-		double											_deltaTime;		// The time since last frame started in milliseconds
-
 		// Game
 		Input::KeyboardMouse& _input = Input::KeyboardMouse::Instance();
 		Settings::GlobalSettings& _settings = Settings::GlobalSettings::Instance();
@@ -353,11 +355,6 @@ namespace Engine::Vulkan
 		 * Initializes the window.
 		 */
 		void InitializeWindow();
-
-		/**
-		 * Calculates the time elapsed since rendering the last frame..
-		 */
-		void CalculateDeltaTime();
 
 		/**
 		 * @brief Initializes the engine.
@@ -473,6 +470,14 @@ namespace Engine::Vulkan
 
 		void CreateCommandBuffers();
 
+		/**
+		 * @brief Calls Vulkan commands to take the pictures from the framebuffers and pass them onto our window.
+		 */
 		void Draw();
-	};
+
+		/**
+		 * @brief See IUpdatable.
+		 */
+		virtual void Update() override;
+};
 }
