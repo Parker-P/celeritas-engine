@@ -143,7 +143,7 @@ namespace Engine::Vulkan
 	void VulkanApplication::Run()
 	{
 		InitializeWindow();
-		_input.Init(_window);
+		_input = Input::KeyboardMouse(_window);
 		LoadScene();
 		SetupVulkan();
 		MainLoop();

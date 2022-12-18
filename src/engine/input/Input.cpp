@@ -18,19 +18,9 @@ namespace Engine::Input
 #pragma endregion
 
 #pragma region InputFunctions
-
 	void KeyboardMouse::Init(GLFWwindow* window)
 	{
-		// Keyboard init
-		glfwSetKeyCallback(window, KeyCallback);
 
-		// Mouse init
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-		if (glfwRawMouseMotionSupported()) {
-			glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
-		}
-		glfwSetCursorPosCallback(window, CursorPositionCallback);
-		glfwSetScrollCallback(window, ScrollWheelCallback);
 	}
 
 	void KeyboardMouse::KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -63,6 +53,24 @@ namespace Engine::Input
 		if (!Instance()._cursorEnabled) {
 			//Instance()._scrollX = xPos;
 			Instance()._scrollY += yPos;
+		}
+	}
+
+	KeyboardMouse::KeyboardMouse(GLFWwindow* window)
+	{
+		if (nullptr != window) {
+			_window = window;
+
+			// Keyboard init
+			glfwSetKeyCallback(window, KeyCallback);
+
+			// Mouse init
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			if (glfwRawMouseMotionSupported()) {
+				glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+			}
+			glfwSetCursorPosCallback(window, CursorPositionCallback);
+			glfwSetScrollCallback(window, ScrollWheelCallback);
 		}
 	}
 

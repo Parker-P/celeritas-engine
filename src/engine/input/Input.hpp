@@ -25,6 +25,8 @@ namespace Engine::Input
 
 		double _lastMouseY;
 
+		GLFWwindow* _window;
+
 	public:
 		
 		/**
@@ -64,7 +66,11 @@ namespace Engine::Input
 		static void CursorPositionCallback(GLFWwindow* window, double xPos, double yPos);
 		static void ScrollWheelCallback(GLFWwindow* window, double xPos, double yPos);
 
-		void Init(GLFWwindow* window);
+		/**
+		 * @brief Constructor.
+		 * @param window
+		 */
+		KeyboardMouse(GLFWwindow* window);
 
 		/**
 		 * @brief Returns true if the key associated with the given glfw key is being held down.
