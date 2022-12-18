@@ -46,12 +46,15 @@ namespace Engine::Scenes
 	{
 		auto& input = Input::KeyboardMouse::Instance();
 		auto& time = Time::Instance();
+		auto mouseSens = Settings::GlobalSettings::Instance()._mouseSensitivity;
 
-		_yaw = input._mouseX * (double)Settings::GlobalSettings::Instance()._mouseSensitivity; // According to the right hand rule, rotating left is positive along the Y axis, but going left with the mouse gives you a negative value. Because we will be using this value as degrees of rotation, we want to negate it.
-		_pitch = input._mouseY * (double)Settings::GlobalSettings::Instance()._mouseSensitivity; // Around the X axis (for pitch) the positive rotation is looking upwards, and moving the mouse upwards gives you a positive value, so this stays as is.
+		_yaw += input._deltaMouseX * mouseSens;
+		if ((_pitch + (input._deltaMouseY * mouseSens)) > -90 && (_pitch + (input._deltaMouseY * mouseSens)) < 90) {
+			_pitch += input._deltaMouseY * mouseSens;
+		}
 
-		auto _mouseSens = Settings::GlobalSettings::Instance()._mouseSensitivity;
-
+		std::cout << "Pitch is " << _pitch << std::endl;
+		std::cout << "deltaMouseY is " << input._deltaMouseY << std::endl;
 
 		if (input.IsKeyHeldDown(GLFW_KEY_Q)) {
 			_roll += 0.1f * (float)Time::Instance()._deltaTime;
@@ -92,7 +95,7 @@ namespace Engine::Scenes
 		_lastYaw = _yaw;
 		_lastPitch = _pitch;
 		_lastRoll = _roll;
-		
+
 		// First apply roll rotation.
 		_transform.Rotate(_transform.Forward(), _deltaRoll);
 
@@ -105,9 +108,9 @@ namespace Engine::Scenes
 		auto sine = sin(angleRadians / 2.0f);
 		_up = glm::quat(cosine, axis.x * sine, axis.y * sine, axis.z * sine) * _up;
 
-		std::cout << "Up is: " << _up.x << ", " << _up.y << ", " << _up.z << std::endl;
+		/*std::cout << "Up is: " << _up.x << ", " << _up.y << ", " << _up.z << std::endl;
 		std::cout << "Axis is: " << axis.x << ", " << axis.y << ", " << axis.z << std::endl;
-		std::cout << "Roll is: " << _roll << std::endl;
+		std::cout << "Roll is: " << _roll << std::endl;*/
 
 		// Then apply yaw rotation.
 		_transform.Rotate(_up, _deltaYaw);

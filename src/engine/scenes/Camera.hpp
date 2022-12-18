@@ -1,6 +1,9 @@
 #pragma once
 namespace Engine::Scenes
 {
+	/**
+	 * @brief Represents a general-purpose camera.
+	 */
 	class Camera : public GameObject, public IUpdatable
 	{
 	public:
@@ -23,7 +26,7 @@ namespace Engine::Scenes
 		float _farClippingDistance;
 
 		/**
-		 * @brief This is a transform that translates and rotates a vertices from world space into camera space.
+		 * @brief This is a transform passed to the vertex shader that translates vertices from world space into camera space.
 		 */
 		Math::Transform _view;
 

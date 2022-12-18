@@ -68,6 +68,11 @@ namespace Engine::Input
 
 		/**
 		 * @brief Constructor.
+		 */
+		KeyboardMouse() = default;
+
+		/**
+		 * @brief Constructor.
 		 * @param window
 		 */
 		KeyboardMouse(GLFWwindow* window);

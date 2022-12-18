@@ -184,7 +184,6 @@ namespace Engine::Vulkan
 	{
 		while (!glfwWindowShouldClose(_window)) {
 			Update();
-			
 			UpdateShaderData();
 			Draw();
 			glfwPollEvents();

@@ -18,11 +18,6 @@ namespace Engine::Input
 #pragma endregion
 
 #pragma region InputFunctions
-	void KeyboardMouse::Init(GLFWwindow* window)
-	{
-
-	}
-
 	void KeyboardMouse::KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
 
@@ -107,7 +102,7 @@ namespace Engine::Input
 		_deltaMouseY = (_mouseY - _lastMouseY);
 
 		_lastMouseX = _mouseX;
-		_deltaMouseY = _mouseY;
+		_lastMouseY = _mouseY;
 
 		if (WasKeyPressed(GLFW_KEY_ESCAPE)) {
 			ToggleCursor(_window);
