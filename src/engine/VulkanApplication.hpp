@@ -163,7 +163,7 @@ namespace Engine::Vulkan
 
 		Swapchain() = default;
 
-		Swapchain(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface);
+		Swapchain(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkSurfaceKHR& windowSurface);
 
 		VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
 
@@ -533,7 +533,7 @@ namespace Engine::Vulkan
 		 * @brief Creates the swapchain.
 		 * @see _swapChain
 		 */
-		void CreateSwapChain();
+		void CreateSwapchain();
 
 		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 

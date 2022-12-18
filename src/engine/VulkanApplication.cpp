@@ -596,11 +596,9 @@ namespace Engine::Vulkan
 		CreateSemaphores();
 		CreateCommandPool();
 		CreateVertexAndIndexBuffers();
-		CreateSwapChain();
+		CreateSwapchain();
 		CreateDepthImage();
 		CreateRenderPass();
-		CreateImageViews();
-		CreateFramebuffers();
 		CreateGraphicsPipeline();
 		CreateCommandBuffers();
 	}
@@ -636,7 +634,7 @@ namespace Engine::Vulkan
 		// Only recreate objects that are affected by framebuffer size changes
 		Cleanup(false);
 
-		CreateSwapChain();
+		CreateSwapchain();
 		CreateRenderPass();
 		CreateImageViews();
 		CreateFramebuffers();
@@ -1095,9 +1093,9 @@ namespace Engine::Vulkan
 		//}
 	}
 
-	void VulkanApplication::CreateSwapChain()
+	void VulkanApplication::CreateSwapchain()
 	{
-		Swapchain();
+		Swapchain(_physicalDevice, _logicalDevice, _windowSurface);
 	}
 
 
