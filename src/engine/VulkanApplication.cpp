@@ -184,10 +184,17 @@ namespace Engine::Vulkan
 	{
 		while (!glfwWindowShouldClose(_window)) {
 			Update();
-			UpdateShaderData();
 			Draw();
 			glfwPollEvents();
 		}
+	}
+
+	void VulkanApplication::Update()
+	{
+		Time::Instance().Update();
+		_input.Update();
+		_mainCamera.Update();
+		UpdateShaderData();
 	}
 
 	void VulkanApplication::OnWindowResized(GLFWwindow* window, int width, int height)
@@ -705,8 +712,6 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::UpdateShaderData()
 	{
-		_mainCamera.Update();
-
 		_uniformBufferData.objectToWorld = _model._transform._matrix;
 		_uniformBufferData.worldToCamera = _mainCamera._view._matrix;
 		_uniformBufferData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov / 2.0f));
@@ -1597,12 +1602,7 @@ namespace Engine::Vulkan
 		}
 	}
 
-	void VulkanApplication::Update()
-	{
-		Time::Instance().Update();
-		_input.Update();
-		_mainCamera.Update();
-	}
+	
 }
 
 int main()
