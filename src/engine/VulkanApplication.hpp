@@ -136,15 +136,42 @@ namespace Engine::Vulkan
 
 	class Swapchain
 	{
+		VkDevice _logicalDevice;
+		VkPhysicalDevice _physicalDevice;
+
 	public:
+
+		/**
+		 * @brief Image used by the GPU to write color information to.
+		 */
+		std::vector<Image> _colorImages;
+
+		/**
+		 * @brief Image that stores per-pixel depth information for the hardwired depth testing stage.
+		 * This makes sure that the pixels of each triangle are rendered or not, depending on which pixel
+		 * is closer to the camera, which is the information stored in this image.
+		 */
+		Image _depthImage;
+
+		/**
+		 * @brief These are the buffers that contain the final rendered images shown on screen.
+		 * A framebuffer is stored on a different portion of memory with respect to the depth and
+		 * color images. The depth and color images CONTRIBUTE to generating an image for a
+		 * framebuffer.
+		 */
+		std::vector<VkFramebuffer> _frameBuffers;
+
+		Swapchain() = default;
+
+		Swapchain(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface);
+
+		VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
 
 		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 
 		VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
 
-		Swapchain() = default;
-
-		Swapchain(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface);
+		void CreateFramebuffers(VkDevice& _logicalDevice, VkRenderPass& renderPass);
 	};
 
 	/**
@@ -405,25 +432,10 @@ namespace Engine::Vulkan
 		} _uniformBufferData;
 
 
-		VkSwapchainKHR _oldSwapchain;
+		Swapchain _oldSwapchain;
 		Swapchain _swapchain;
 
-		/**
-		 * @brief Image used by the GPU to write color information to.
-		 */
-		std::vector<Image> _colorImages;
-
-		/**
-		 * @brief Image that stores per-pixel depth information for the hardwired depth testing stage.
-		 * This makes sure that the pixels of each triangle are rendered or not, depending on which pixel
-		 * is closer to the camera, which is the information stored in this image.
-		 */
-		Image _depthImage;
-
-		/**
-		 * @brief These are the buffers that contain the final rendered images shown on screen.
-		 */
-		std::vector<VkFramebuffer> _swapChainFramebuffers;
+		
 
 		// Vulkan commands
 		VkCommandPool _commandPool;
@@ -437,8 +449,7 @@ namespace Engine::Vulkan
 		Scenes::GameObject _model;
 
 		/*
-		 * Function called by Vulkan's validation layers once an error has occourred.
-		 *
+		 * @brief Function called by Vulkan's validation layers once an error has occourred.
 		 * @param flags
 		 * @param objType
 		 * @param srcObject
@@ -468,7 +479,6 @@ namespace Engine::Vulkan
 
 		/**
 		 * Callback for when the window is resized.
-		 *
 		 * @param window
 		 * @param width
 		 * @param height
@@ -532,10 +542,6 @@ namespace Engine::Vulkan
 		VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
 
 		void CreateRenderPass();
-
-		void CreateImageViews();
-
-		void CreateFramebuffers();
 
 		VkShaderModule CreateShaderModule(const std::filesystem::path& absolutePath);
 

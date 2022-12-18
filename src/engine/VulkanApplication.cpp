@@ -133,7 +133,7 @@ namespace Engine::Vulkan
 	Image::Image(VkDevice& logicalDevice, VkFormat imageFormat, VkExtent2D size)
 	{
 		_format = imageFormat;
-		
+
 		VkImageCreateInfo imageCreateInfo = { };
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageCreateInfo.pNext = nullptr;
@@ -222,43 +222,11 @@ namespace Engine::Vulkan
 	}
 
 	// Swapchain
-	VkSurfaceFormatKHR Swapchain::ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
+	Swapchain::Swapchain(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkSurfaceKHR& windowSurface)
 	{
-		// We can either choose any format
-		if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED) {
-			return{ VK_FORMAT_R8G8B8A8_UNORM, VK_COLORSPACE_SRGB_NONLINEAR_KHR };
-		}
+		_logicalDevice = logicalDevice;
+		_physicalDevice = physicalDevice;
 
-		// Or go with the standard format - if available
-		for (const auto& availableSurfaceFormat : availableFormats) {
-			if (availableSurfaceFormat.format == VK_FORMAT_R8G8B8A8_UNORM) {
-				return availableSurfaceFormat;
-			}
-		}
-
-		// Or fall back to the first available one
-		return availableFormats[0];
-	}
-
-	VkExtent2D Swapchain::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities)
-	{
-		auto& settings = Settings::GlobalSettings::Instance();
-
-		if (surfaceCapabilities.currentExtent.width == -1) {
-			VkExtent2D swapChainExtent = {};
-
-			swapChainExtent.width = std::min(std::max(settings._windowWidth, surfaceCapabilities.minImageExtent.width), surfaceCapabilities.maxImageExtent.width);
-			swapChainExtent.height = std::min(std::max(settings._windowHeight, surfaceCapabilities.minImageExtent.height), surfaceCapabilities.maxImageExtent.height);
-
-			return swapChainExtent;
-		}
-		else {
-			return surfaceCapabilities.currentExtent;
-		}
-	}
-
-	Swapchain::Swapchain(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface)
-	{
 		// Find surface capabilities.
 		VkSurfaceCapabilitiesKHR surfaceCapabilities;
 		if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, windowSurface, &surfaceCapabilities) != VK_SUCCESS) {
@@ -321,7 +289,7 @@ namespace Engine::Vulkan
 		// Finally, create the swap chain.
 		VkSwapchainCreateInfoKHR createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		createInfo.surface = _windowSurface;
+		createInfo.surface = windowSurface;
 		createInfo.minImageCount = imageCount;
 		createInfo.imageFormat = surfaceFormat.format;
 		createInfo.imageColorSpace = surfaceFormat.colorSpace;
@@ -337,7 +305,7 @@ namespace Engine::Vulkan
 		createInfo.clipped = VK_TRUE;
 		createInfo.oldSwapchain = _oldSwapchain;
 
-		if (vkCreateSwapchainKHR(_logicalDevice, &createInfo, nullptr, &_swapchain) != VK_SUCCESS) {
+		if (vkCreateSwapchainKHR(logicalDevice, &createInfo, nullptr, &windowSurface) != VK_SUCCESS) {
 			std::cerr << "failed to create swapchain" << std::endl;
 			exit(1);
 		}
@@ -346,7 +314,7 @@ namespace Engine::Vulkan
 		}
 
 		if (_oldSwapchain != VK_NULL_HANDLE) {
-			vkDestroySwapchainKHR(_logicalDevice, _oldSwapchain, nullptr);
+			vkDestroySwapchainKHR(logicalDevice, _oldSwapchain, nullptr);
 		}
 		_oldSwapchain = _swapchain;
 
@@ -356,7 +324,7 @@ namespace Engine::Vulkan
 		// Note: these are the images that swap chain image indices refer to.
 		// Note: actual number of images may differ from requested number, since it's a lower bound.
 		uint32_t actualImageCount = 0;
-		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
+		if (vkGetSwapchainImagesKHR(logicalDevice, _swapchain, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
 			std::cerr << "failed to acquire number of swap chain images" << std::endl;
 			exit(1);
 		}
@@ -365,21 +333,96 @@ namespace Engine::Vulkan
 
 		std::vector<VkImage> images;
 		images.resize(actualImageCount);
-		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain, &actualImageCount, images.data()) != VK_SUCCESS) {
+		if (vkGetSwapchainImagesKHR(logicalDevice, _swapchain, &actualImageCount, images.data()) != VK_SUCCESS) {
 			std::cerr << "failed to acquire swapchain images" << std::endl;
 			exit(1);
 		}
 
 		std::cout << "acquired swap chain images" << std::endl;
 
+		// Create the color images.
 		for (int i = 0; i < actualImageCount; ++i) {
-			_colorImages[i] = Image(_logicalDevice, images[i], VK_FORMAT_R8G8B8A8_UNORM);
+			_colorImages[i] = Image(logicalDevice, images[i], VK_FORMAT_R8G8B8A8_UNORM);
 		}
 
-		std::vector<VkImageView> imageViews;
-		imageViews.resize(_colorImages.size());
+		// Create the depth image.
+		_depthImage = Image(_logicalDevice, VK_FORMAT_D32_SFLOAT, VkExtent2D{ _settings._windowWidth, _settings._windowHeight });
 
 		std::cout << "created image views for swap chain images" << std::endl;
+	}
+
+	VkPresentModeKHR Swapchain::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)
+	{
+		for (const auto& presentMode : presentModes) {
+			if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+				return presentMode;
+			}
+		}
+
+		// If mailbox is unavailable, fall back to FIFO (guaranteed to be available)
+		return VK_PRESENT_MODE_FIFO_KHR;
+	}
+
+	VkSurfaceFormatKHR Swapchain::ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
+	{
+		// We can either choose any format
+		if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED) {
+			return{ VK_FORMAT_R8G8B8A8_UNORM, VK_COLORSPACE_SRGB_NONLINEAR_KHR };
+		}
+
+		// Or go with the standard format - if available
+		for (const auto& availableSurfaceFormat : availableFormats) {
+			if (availableSurfaceFormat.format == VK_FORMAT_R8G8B8A8_UNORM) {
+				return availableSurfaceFormat;
+			}
+		}
+
+		// Or fall back to the first available one
+		return availableFormats[0];
+	}
+
+	VkExtent2D Swapchain::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities)
+	{
+		auto& settings = Settings::GlobalSettings::Instance();
+
+		if (surfaceCapabilities.currentExtent.width == -1) {
+			VkExtent2D swapChainExtent = {};
+
+			swapChainExtent.width = std::min(std::max(settings._windowWidth, surfaceCapabilities.minImageExtent.width), surfaceCapabilities.maxImageExtent.width);
+			swapChainExtent.height = std::min(std::max(settings._windowHeight, surfaceCapabilities.minImageExtent.height), surfaceCapabilities.maxImageExtent.height);
+
+			return swapChainExtent;
+		}
+		else {
+			return surfaceCapabilities.currentExtent;
+		}
+	}
+
+	void Swapchain::CreateFramebuffers(VkDevice& _logicalDevice, VkRenderPass& renderPass)
+	{
+		_frameBuffers.resize(_colorImages.size());
+
+		for (size_t i = 0; i < _colorImages.size(); i++) {
+
+			// We will render to the same depth image for each frame. 
+			// We can just keep clearing and reusing the same depth image for every frame.
+			VkImageView colorAndDepthImages[2] = { _colorImages[i]._imageViewHandle, _depthImage._imageViewHandle };
+			VkFramebufferCreateInfo createInfo = {};
+			createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			createInfo.renderPass = renderPass;
+			createInfo.attachmentCount = 2;
+			createInfo.pAttachments = &colorAndDepthImages[0];
+			createInfo.width = _swapchainExtent.width;
+			createInfo.height = _swapchainExtent.height;
+			createInfo.layers = 1;
+
+			if (vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_frameBuffers[i]) != VK_SUCCESS) {
+				std::cerr << "failed to create framebuffer for swap chain image view #" << i << std::endl;
+				exit(1);
+			}
+		}
+
+		std::cout << "created framebuffers for swap chain image views" << std::endl;
 	}
 
 	// Physical device
@@ -446,7 +489,7 @@ namespace Engine::Vulkan
 		return false;
 	}
 
-	VkPhysicalDeviceMemoryProperties PhysicalDevice::GetMemoryProperties() 
+	VkPhysicalDeviceMemoryProperties PhysicalDevice::GetMemoryProperties()
 	{
 		VkPhysicalDeviceMemoryProperties props;
 		vkGetPhysicalDeviceMemoryProperties(_handle, &props);
@@ -988,11 +1031,11 @@ namespace Engine::Vulkan
 	// Todo: wrap physical device into its own class.
 	// Todo: wrap image into its own class.
 
-	
+
 
 	void VulkanApplication::CreateDepthImage()
 	{
-		_depthImage = Image(_logicalDevice, VK_FORMAT_D32_SFLOAT, VkExtent2D{ _settings._windowWidth, _settings._windowHeight });
+		_depthImage = 
 
 		//VkImageCreateInfo imageCreateInfo = { };
 		//imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -1057,25 +1100,15 @@ namespace Engine::Vulkan
 		Swapchain();
 	}
 
-	
 
-	VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)
-	{
-		for (const auto& presentMode : presentModes) {
-			if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-				return presentMode;
-			}
-		}
 
-		// If mailbox is unavailable, fall back to FIFO (guaranteed to be available)
-		return VK_PRESENT_MODE_FIFO_KHR;
-	}
+
 
 	void VulkanApplication::CreateRenderPass()
 	{
 		// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for image.
 		VkAttachmentDescription colorAttachmentDescription = {};
-		colorAttachmentDescription.format = _swapchainFormat;
+		colorAttachmentDescription.format = _swapchain._colorImages.size() > 0 ? _swapchain._colorImages[0]._format : VK_FORMAT_UNDEFINED;
 		colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
 		colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1093,7 +1126,7 @@ namespace Engine::Vulkan
 		// Describes how the render pass is going to use the depth attachment.
 		VkAttachmentDescription depthAttachmentDescription = {};
 		depthAttachmentDescription.flags = 0;
-		depthAttachmentDescription.format = _depthImage._format;
+		depthAttachmentDescription.format = _swapchain._depthImage._format;
 		depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
 		depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1156,38 +1189,6 @@ namespace Engine::Vulkan
 		else {
 			std::cout << "created render pass" << std::endl;
 		}
-	}
-
-	void VulkanApplication::CreateImageViews()
-	{
-		
-	}
-
-	void VulkanApplication::CreateFramebuffers()
-	{
-		_swapChainFramebuffers.resize(_colorImages.size());
-
-		for (size_t i = 0; i < _colorImages.size(); i++) {
-
-			// We will render to the same depth image for each frame. 
-			// We can just keep clearing and reusing the same depth image for every frame.
-			VkImageView colorAndDepthImages[2] = { _swapChainImageViews[i], _depthImage._imageViewHandle };
-			VkFramebufferCreateInfo createInfo = {};
-			createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			createInfo.renderPass = _renderPass;
-			createInfo.attachmentCount = 2;
-			createInfo.pAttachments = &colorAndDepthImages[0];
-			createInfo.width = _swapchainExtent.width;
-			createInfo.height = _swapchainExtent.height;
-			createInfo.layers = 1;
-
-			if (vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_swapChainFramebuffers[i]) != VK_SUCCESS) {
-				std::cerr << "failed to create framebuffer for swap chain image view #" << i << std::endl;
-				exit(1);
-			}
-		}
-
-		std::cout << "created framebuffers for swap chain image views" << std::endl;
 	}
 
 	VkShaderModule VulkanApplication::CreateShaderModule(const std::filesystem::path& absolutePath)
@@ -1638,7 +1639,7 @@ namespace Engine::Vulkan
 	{
 		// Acquire image.
 		uint32_t imageIndex;
-		VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+		VkResult res = vkAcquireNextImageKHR(_logicalDevice, _sawpchain, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
 		// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
 		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
