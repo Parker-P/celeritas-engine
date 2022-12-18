@@ -53,9 +53,6 @@ namespace Engine::Scenes
 			_pitch += input._deltaMouseY * mouseSens;
 		}
 
-		std::cout << "Pitch is " << _pitch << std::endl;
-		std::cout << "deltaMouseY is " << input._deltaMouseY << std::endl;
-
 		if (input.IsKeyHeldDown(GLFW_KEY_Q)) {
 			_roll += 0.1f * (float)Time::Instance()._deltaTime;
 		}

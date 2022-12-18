@@ -9,7 +9,7 @@
 namespace Engine::Vulkan
 {
 	/**
-	 * @brief Buffers represent linear arrays of data which are used for 
+	 * @brief Buffers represent linear arrays of data which are used for
 	 * various purposes by binding them to a graphics or compute pipeline via descriptor
 	 * sets or via certain commands, or by directly specifying them as parameters to certain commands.
 	 */
@@ -27,7 +27,7 @@ namespace Engine::Vulkan
 		VkDeviceMemory _memory;
 
 		/**
-		 * @brief The memory address of the data inside the allocated buffer. This pointer is only assigned to if the buffer 
+		 * @brief The memory address of the data inside the allocated buffer. This pointer is only assigned to if the buffer
 		 * is marked as VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, otherwise it's nullptr, as it would likely be an address on VRAM
 		 * which the CPU cannot access without passing through Vulkan calls.
 		 */
@@ -76,8 +76,8 @@ namespace Engine::Vulkan
 		 * cache (which is much faster to access) it will do that instead. Only problem is that this way, if your GPU needs to access that data, it won't be able to unless it's
 		 * also marked as HOST_COHERENT.
 		 * 4) VK_MEMORY_PROPERTY_HOST_COHERENT_BIT: this means that anything that the CPU writes to the buffer will be able to be read by the GPU as well, effectively
-		 * granting the GPU access to the CPU's cache (if the buffer is also marked as HOST_CACHED). COHERENT stands for consistency across memories, so it basically means 
-		 * that the CPU, GPU or any other device will see the same memory if trying to access the buffer. If you don't have this flag set, and you try to access the 
+		 * granting the GPU access to the CPU's cache (if the buffer is also marked as HOST_CACHED). COHERENT stands for consistency across memories, so it basically means
+		 * that the CPU, GPU or any other device will see the same memory if trying to access the buffer. If you don't have this flag set, and you try to access the
 		 * buffer from the GPU while the buffer is marked HOST_CACHED, you may not be able to get the data or even worse, you may end up reading the wrong chunk of memory.
 		 * Further read: https://asawicki.info/news_1740_vulkan_memory_types_on_pc_and_how_to_use_them
 		 * @param data Pointer to the start address of the data you want to copy to the buffer.
@@ -93,7 +93,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Updates the data contained in this buffer. Notes: buffer must be marked as VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT and its
 		 * memory mapped to the _dataAddress member for this to work.
-		 * 
+		 *
 		 * @param data Address of where the data begins in memory.
 		 * @param sizeInBytes Size of the data in bytes.
 		 */
@@ -101,9 +101,102 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Destroys the buffer and frees any memory allocated to it.
-		 * 
+		 *
 		 */
 		void Destroy();
+	};
+
+	class Image
+	{
+
+	public:
+
+		VkDevice _logicalDevice;
+
+		VkImage _imageHandle;
+
+		VkImageView _imageViewHandle;
+
+		VkFormat _format;
+
+		Image() = default;
+
+		Image(VkDevice& logicalDevice, VkFormat imageFormat, VkExtent2D size);
+
+		/**
+		 * @brief Constructs an image using a pre-existing image handle.
+		 * @param image The pre-existing image handle.
+		 * @param imageFormat
+		 * @param size
+		 */
+		Image(VkDevice& logicalDevice, VkImage& image, VkFormat imageFormat);
+
+		void Destroy();
+	};
+
+	class Swapchain
+	{
+	public:
+
+		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+
+		VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
+
+		Swapchain() = default;
+
+		Swapchain(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface);
+	};
+
+	/**
+	 * @brief Vulkan's representation of a GPU.
+	 */
+	class PhysicalDevice
+	{
+
+	public:
+
+		/**
+		 * @brief Identifier.
+		 */
+		VkPhysicalDevice _handle;
+
+		PhysicalDevice() = default;
+
+		PhysicalDevice(VkInstance& instance);
+
+		/**
+		 * @brief Queries the device for swapchain support, returns true if swapchains are supported.
+		 * @return
+		 */
+		bool SupportsSwapchains();
+
+		/**
+		 * @brief Queries the physical device to get its memory properties.
+		 * @return 
+		 */
+		VkPhysicalDeviceMemoryProperties GetMemoryProperties();
+
+		/**
+		 * @brief Returns the memory type index that Vulkan needs to categorize memory by usage.
+		 * Vulkan uses this type index to tell the driver in which portion RAM or VRAM to allocate
+		 * a resource such as an image or buffer.
+		 */
+		uint32_t GetMemoryTypeIndex(uint32_t typeBits, VkMemoryPropertyFlagBits properties);
+
+		/**
+		 * @brief Queries the physical device for queue families, and returns a vector containing
+		 * the properties of all supported queue families.
+		 * @return 
+		 */
+		std::vector<VkQueueFamilyProperties> GetAllQueueFamilyProperties();
+
+		/**
+		 * @brief Gets specific queue families that have the given flags set, and that optionally support presentation to a window surface.
+		 * @param queueType The flags that identify the properties of the queues you are looking for. See @see VkQueueFlagBits.
+		 * @param presentSupport Whether or not the queues you want to find need to support presenting to a window surface or not.
+		 * @param surface 
+		 */
+		void GetQueueFamilyIndices(const VkQueueFlagBits& queueFlags, bool needsPresentationSupport = false, const VkSurfaceKHR& surface = VK_NULL_HANDLE);
 	};
 
 	/**
@@ -112,29 +205,47 @@ namespace Engine::Vulkan
 	class VulkanApplication : public IUpdatable
 	{
 	public:
-		
+
 		void Run();
 
 	private:
 
+		/**
+		 * @brief Wrapper for the window shown on screen.
+		 */
 		GLFWwindow* _window;
 
-		VkInstance							_instance;
-		VkSurfaceKHR						_windowSurface;
-		VkPhysicalDevice					_physicalDevice;
-		VkDevice							_logicalDevice;
-		
+		/**
+		 * @brief Root for all Vulkan functionality.
+		 */
+		VkInstance _instance;
+
+		/**
+		 * @brief Connects the Vulkan API to the windowing system, so that the driver knows how to interact with the window on the screen.
+		 */
+		VkSurfaceKHR _windowSurface;
+
+		/**
+		 * @brief Represents the physical GPU.
+		 */
+		PhysicalDevice _physicalDevice;
+
+		/**
+		 * @brief Represents the GPU at the logical level.
+		 */
+		VkDevice _logicalDevice;
+
 		/**
 		 * @brief Function pointer called by Vulkan each time it wants to report an error.
 		 * Error reporting is set by enabling validation layers.
 		 */
 		VkDebugReportCallbackEXT			_callback;
-		
+
 		VkQueue								_graphicsQueue;
 		uint32_t							_graphicsQueueFamily;
 		VkQueue								_presentQueue;
 		uint32_t							_presentQueueFamily;
-		
+
 		VkPhysicalDeviceMemoryProperties	_deviceMemoryProperties;
 		VkSemaphore							_imageAvailableSemaphore;
 		VkSemaphore							_renderingFinishedSemaphore;
@@ -143,27 +254,27 @@ namespace Engine::Vulkan
 		/**
 		 * @brief The graphics pipeline represents, at the logical level, the entire process
 		 * of inputting vertices, indices and textures into the GPU and getting a 2D image that represents the scene
-		 * passed in out of it. In early GPUs, this process was hardwired into the graphics chip, but as technology improved and needs 
+		 * passed in out of it. In early GPUs, this process was hardwired into the graphics chip, but as technology improved and needs
 		 * for better and more complex graphics increased, GPU producers have taken steps to make this a much more programmable
 		 * and CPU-like process, so much so that technologies like CUDA (Compute Uniform Device Architecture) have come out.
-		 * 
+		 *
 		 * Nowadays the typical GPU consists of an array of clusters of microprocessors, where each micro
-		 * processor is highly multithreaded, and its ALU and instruction set (thus its circuitry) optimized for operating on 
+		 * processor is highly multithreaded, and its ALU and instruction set (thus its circuitry) optimized for operating on
 		 * floating point numbers, vectors and matrices (as that is what is used to represent coordinates in space and space transformations).
-		 * 
+		 *
 		 * CUDA is the result of NVidia and Microsoft working together to improve the programmers' experience for programming
 		 * shaders; the result is a product that maps C/C++ instructions to the GPU's ALUs instruction set, to take full advantage
 		 * of the GPU's high amount of cores and threads. By doing this, things like crypto mining and machine learning have gotten
 		 * a huge boost, as the data that requires manipulation is very loosely coupled (has very few dependecies on the data in
 		 * the same set) and, as a result, can be processed by many independent threads simultaneously. This is called a compute pipeline.
-		 * 
 		 * Khronos, the developers of the Vulkan API, have also done something similar called OpenCL, the compute side of OpenGL.
+		 *
 		 * The typical graphics (or render) pipeline consists of programmable, configurable and hardwired stages, where:
 		 * a) The programmable stages are custom stages that will be run on the GPU's multi-purpose array of microprocessors using a program (a.k.a shader).
 		 * b) The configurable stages are hardwired stages that can perform their task a different way based on user configuration via calls to the Vulkan API.
 		 * c) The hardwired stages are immutable stages that cannot be changed unless manipulating the hardware.
 		 * The graph of a typical graphics pipeline is shown under docs/GraphicsPipeline.svg (image from Wikipedia).
-		 * 
+		 *
 		 * More on the programmable stages:
 		 * The programmable stages are the flexible stages that the programmer can fully customize by writing little programs called shaders.
 		 * These shader programs will run:
@@ -174,9 +285,9 @@ namespace Engine::Vulkan
 		 * the color of the textures and other variables such as direct and indirect lighting.
 		 * There are other shader stages, but the 2 above are the strictly needed shaders in order to be able to render something.
 
-		 * This type of execution flow has a name and is called SIMD (Single Instruction Multiple Data), as the same program (single instruction) 
+		 * This type of execution flow has a name and is called SIMD (Single Instruction Multiple Data), as the same program (single instruction)
 		 * is run independently on different cores/threads for multiple vertices or pixels (multiple data).
-		 * 
+		 *
 		 * Examples of the configurable stages are anti-aliasing and tessellation.
 		 * Examples of hardwired stages are backface-culling, depth testing and alpha blending.
 		 */
@@ -293,41 +404,30 @@ namespace Engine::Vulkan
 			glm::mat4 objectToWorld;
 		} _uniformBufferData;
 
-		/**
-		 * @brief Size of each image in the swapchain.
-		 */
-		VkExtent2D	_swapchainExtent;
-		VkFormat _swapchainFormat;
+
 		VkSwapchainKHR _oldSwapchain;
-		VkSwapchainKHR _swapchain;
-		std::vector<VkImage> _swapchainImages;
-		
-		/**
-		 * @brief Image handle that points to an image that stores per-pixel depth information.
-		 */
-		VkImage	_depthImage;
+		Swapchain _swapchain;
 
 		/**
-		 * @brief Image handle that points to a structure that stores Vulkan-specific metadata for the depth image.
+		 * @brief Image used by the GPU to write color information to.
 		 */
-		VkImageView	_depthImageView;
+		std::vector<Image> _colorImages;
 
 		/**
-		 * @brief Format of the image used to store per-pixel depth information.
+		 * @brief Image that stores per-pixel depth information for the hardwired depth testing stage.
+		 * This makes sure that the pixels of each triangle are rendered or not, depending on which pixel
+		 * is closer to the camera, which is the information stored in this image.
 		 */
-		VkFormat _depthFormat = VK_FORMAT_D32_SFLOAT;
+		Image _depthImage;
 
 		/**
-		 * @brief Size of the depth image.
+		 * @brief These are the buffers that contain the final rendered images shown on screen.
 		 */
-		VkExtent3D _depthExtent;
-
-		std::vector<VkImageView>	_swapChainImageViews;
-		std::vector<VkFramebuffer>	_swapChainFramebuffers;
+		std::vector<VkFramebuffer> _swapChainFramebuffers;
 
 		// Vulkan commands
-		VkCommandPool					_commandPool;
-		std::vector<VkCommandBuffer>	_graphicsCommandBuffers;
+		VkCommandPool _commandPool;
+		std::vector<VkCommandBuffer> _graphicsCommandBuffers;
 
 		// Game
 		Input::KeyboardMouse& _input = Input::KeyboardMouse::Instance();
@@ -396,10 +496,6 @@ namespace Engine::Vulkan
 
 		void FindPhysicalDevice();
 
-		void CheckSwapChainSupport();
-
-		void FindQueueFamilies();
-
 		void CreateLogicalDevice();
 
 		void CreateDebugCallback();
@@ -419,7 +515,7 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Creates a Vulkan image wrapper that is meant to store depth information.
-		 * 
+		 *
 		 */
 		void CreateDepthImage();
 
@@ -479,5 +575,5 @@ namespace Engine::Vulkan
 		 * @brief See IUpdatable.
 		 */
 		virtual void Update() override;
-};
+	};
 }
