@@ -110,9 +110,11 @@ namespace Engine::Vulkan
 
 	void Buffer::Destroy()
 	{
+		// If the memory was allocated on RAM, we need to break the binding between GPU and RAM by unmapping the memory first.
 		if (_properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
 			vkUnmapMemory(_logicalDevice, _memory);
 		}
+
 		vkDestroyBuffer(_logicalDevice, _handle, nullptr);
 		vkFreeMemory(_logicalDevice, _memory, nullptr);
 	}
@@ -713,7 +715,6 @@ namespace Engine::Vulkan
 		vkDestroyRenderPass(_logicalDevice, _renderPass, nullptr);
 		_swapchain.Destroy();
 		
-
 		vkDestroyDescriptorSetLayout(_logicalDevice, _descriptorSetLayout, nullptr);
 
 		if (fullClean) {

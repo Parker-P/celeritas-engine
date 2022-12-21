@@ -321,6 +321,15 @@ namespace Engine::Vulkan
 		 */
 		Swapchain(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface, const VkSwapchainKHR& oldSwapchain);
 
+		/**
+		 * @brief Presents the contents of the framebuffer that is ready to be presented to the window.
+		 * @param imageAvailableSemaphore Semaphore that will be used by Vulkan to signal when an image has finished
+		 * rendering and is available in one of the framebuffers.
+		 * @param renderingFinishedSemaphore Semaphore that will be used by Vulkan 
+		 * @param graphicsCommandBuffers
+		 * @param graphicsQueue
+		 * @param presentationQueue
+		 */
 		void Draw(VkSemaphore& imageAvailableSemaphore, VkSemaphore& renderingFinishedSemaphore, std::vector<VkCommandBuffer>& graphicsCommandBuffers, VkQueue& graphicsQueue, VkQueue& presentationQueue);
 
 		/**
