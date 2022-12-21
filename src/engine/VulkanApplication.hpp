@@ -1,6 +1,6 @@
 #pragma once
 
-// For a high level understaning of Vulkanand how it interacts with the GPU go to : https://vkguide.dev/
+// For a high level understaning of Vulkan and how it interacts with the GPU go to : https://vkguide.dev/
 // For all the in depth technical information about the Vulkan API, go to:
 // https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html
 // Styleguide used for this project: https://google.github.io/styleguide/cppguide.html
@@ -19,6 +19,11 @@ namespace Engine::Vulkan
 		 * @brief Logical device used to perform Vulkan calls.
 		 */
 		VkDevice _logicalDevice;
+
+		/**
+		 * @brief Used to query for GPU hardware properties, to know where the buffer can and cannot be stored in memory.
+		 */
+		PhysicalDevice _physicalDevice;
 
 		/**
 		 * @brief Contains information about the allocated memory for the buffer which, depending on the memory type flags
@@ -43,17 +48,6 @@ namespace Engine::Vulkan
 		 */
 		VkMemoryPropertyFlagBits _properties;
 
-		/**
-		 * @brief Find the memory type index that identifies a portion of memory that Vulkan uses to store buffers that have the given
-		 * properties.
-		 * @param gpuMemoryProperties Must come from a call to vkGetPhysicalDeviceMemoryProperties.
-		 * @param typeBits Must come from a call made to vkGetBufferMemoryRequirements.
-		 * @param properties See constructor description.
-		 * @return The memory type index that identifies a portion of memory that Vulkan uses to store buffers that have the given
-		 * properties.
-		 */
-		int GetMemoryTypeIndex(VkPhysicalDeviceMemoryProperties& gpuMemoryProperties, uint32_t typeBits, VkMemoryPropertyFlagBits properties);
-
 	public:
 
 		/**
@@ -66,7 +60,7 @@ namespace Engine::Vulkan
 		/**
 		 * Constructs a buffer.
 		 * @param logicalDevice Needed by Vulkan to have info about the GPU so it can make function calls to allocate memory for the buffer.
-		 * @param gpuMemoryProperties Needed to know which types of memory are available on the GPU, so the buffer can be allocated on the
+		 * @param physicalDevice Needed to know which types of memory are available on the GPU, so the buffer can be allocated on the
 		 * correct heap (a.k.a portion of VRAM or RAM).
 		 * @param usageFlags This tells Vulkan what's the buffer's intended use.
 		 * @param properties This can be any of the following values:
@@ -83,7 +77,7 @@ namespace Engine::Vulkan
 		 * @param data Pointer to the start address of the data you want to copy to the buffer.
 		 * @param sizeInBytes Size in bytes of the data you want to copy to the buffer.
 		 */
-		Buffer(VkDevice& logicalDevice, VkPhysicalDeviceMemoryProperties& gpuMemoryProperties, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data = nullptr, size_t sizeInBytes = 0);
+		Buffer(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data = nullptr, size_t sizeInBytes = 0);
 
 		/**
 		 * @brief Generates a data structure that Vulkan calls descriptor, which it uses to bind the buffer to a descriptor set.
@@ -106,22 +100,45 @@ namespace Engine::Vulkan
 		void Destroy();
 	};
 
+	/**
+	 * @brief Represents a Vulkan image. A Vulkan image uses 2 structures, 1 for storing the data the image contain,
+	 * and 1 for decorating that data with metadata that Vulkan can use in the graphics pipeline to know how to treat
+	 * it.
+	 */
 	class Image
 	{
 
 	public:
 
+		/**
+		 * @brief LogicalDevice .
+		 */
 		VkDevice _logicalDevice;
 
+		/**
+		 * @brief Used to query for GPU hardware properties, to know where the buffer can and cannot be stored in memory.
+		 */
+		PhysicalDevice _physicalDevice;
+
+		/**
+		 * @brief Handle that identifies a structure that contains the image data.
+		 */
 		VkImage _imageHandle;
 
+		/**
+		 * @brief Handle that identifies a structure that contains image metadata, as well as a pointer to the
+		 * VkImage. See @see VkImage.
+		 */
 		VkImageView _imageViewHandle;
 
+		/**
+		 * @brief The way the data for each pixel of the image is stored in memory.
+		 */
 		VkFormat _format;
 
 		Image() = default;
 
-		Image(VkDevice& logicalDevice, VkFormat imageFormat, VkExtent2D size);
+		Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkFormat imageFormat, VkExtent2D size);
 
 		/**
 		 * @brief Constructs an image using a pre-existing image handle.
@@ -136,8 +153,33 @@ namespace Engine::Vulkan
 
 	class Swapchain
 	{
+		/**
+		 * @brief .
+		 */
 		VkDevice _logicalDevice;
-		VkPhysicalDevice _physicalDevice;
+
+		/**
+		 * @brief .
+		 */
+		PhysicalDevice _physicalDevice;
+
+		/**
+		 * @brief Used by Vulkan to know where and how to direct the contents of the framebuffers to the window on the screen.
+		 */
+		VkSurfaceKHR _windowSurface;
+
+		/**
+		 * @brief .
+		 */
+		VkSwapchainKHR _oldSwapchain;
+
+		VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
+
+		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+
+		VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
+
+		void CreateFramebuffers(VkDevice& _logicalDevice, VkRenderPass& renderPass);
 
 	public:
 
@@ -163,15 +205,7 @@ namespace Engine::Vulkan
 
 		Swapchain() = default;
 
-		Swapchain(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkSurfaceKHR& windowSurface);
-
-		VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
-
-		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-
-		VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
-
-		void CreateFramebuffers(VkDevice& _logicalDevice, VkRenderPass& renderPass);
+		Swapchain(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface, const VkSwapchainKHR& oldSwapchain);
 	};
 
 	/**
@@ -204,7 +238,7 @@ namespace Engine::Vulkan
 		VkPhysicalDeviceMemoryProperties GetMemoryProperties();
 
 		/**
-		 * @brief Returns the memory type index that Vulkan needs to categorize memory by usage.
+		 * @brief Returns the memory type index that Vulkan needs to categorize memory by usage properties.
 		 * Vulkan uses this type index to tell the driver in which portion RAM or VRAM to allocate
 		 * a resource such as an image or buffer.
 		 */
@@ -224,6 +258,28 @@ namespace Engine::Vulkan
 		 * @param surface 
 		 */
 		void GetQueueFamilyIndices(const VkQueueFlagBits& queueFlags, bool needsPresentationSupport = false, const VkSurfaceKHR& surface = VK_NULL_HANDLE);
+
+		/**
+		 * @brief .
+		 * @param surface The window surface you want to check against.
+		 * @return 
+		 */
+		VkSurfaceCapabilitiesKHR GetSurfaceCapabilities(VkSurfaceKHR& windowSurface);
+
+		/**
+		 * @brief Returns supported image formats for the given window surface.
+		 * 
+		 * @param windowSurface
+		 * @return 
+		 */
+		std::vector<VkSurfaceFormatKHR> GetSupportedFormatsForSurface(VkSurfaceKHR& windowSurface);
+
+		/**
+		 * @brief Returns supported present modes for the given window surface.
+		 * A present mode is the logic according to which framebuffer contents will be drawn to and
+		 * presented to the window, for example the mailbox present mode in Vulkan (triple buffering).
+		 */
+		std::vector<VkPresentModeKHR> GetSupportedPresentModesForSurface(VkSurfaceKHR& windowSurface);
 	};
 
 	/**

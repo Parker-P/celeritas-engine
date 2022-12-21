@@ -41,9 +41,10 @@ namespace Engine::Vulkan
 	bool windowResized = false;
 
 	// Buffer
-	Buffer::Buffer(VkDevice& logicalDevice, VkPhysicalDeviceMemoryProperties& gpuMemoryProperties, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data, size_t sizeInBytes)
+	Buffer::Buffer(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data, size_t sizeInBytes)
 	{
 		_logicalDevice = logicalDevice;
+		_physicalDevice = physicalDevice;
 		_properties = properties;
 
 		// Create the buffer at the logical level.
@@ -64,7 +65,7 @@ namespace Engine::Vulkan
 		allocationInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocationInfo.allocationSize = requirements.size;
 
-		if (auto index = GetMemoryTypeIndex(gpuMemoryProperties, requirements.memoryTypeBits, properties); index == -1) {
+		if (auto index = _physicalDevice.GetMemoryTypeIndex(requirements.memoryTypeBits, properties); index == -1) {
 			std::cout << "Could not get memory type index" << std::endl;
 			exit(1);
 		}
@@ -97,19 +98,6 @@ namespace Engine::Vulkan
 		return VkDescriptorBufferInfo{ _handle, 0, _size };
 	}
 
-	int Buffer::GetMemoryTypeIndex(VkPhysicalDeviceMemoryProperties& gpuMemoryProperties, uint32_t typeBits, VkMemoryPropertyFlagBits properties)
-	{
-		for (uint32_t i = 0; i < 32; i++) {
-			if ((typeBits & 1) == 1) {
-				if ((gpuMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-					return i;
-				}
-			}
-			typeBits >>= 1;
-		}
-		return -1;
-	}
-
 	void Buffer::UpdateData(void* data, size_t sizeInBytes)
 	{
 		if (_dataAddress != nullptr) {
@@ -130,8 +118,10 @@ namespace Engine::Vulkan
 	}
 
 	// Image
-	Image::Image(VkDevice& logicalDevice, VkFormat imageFormat, VkExtent2D size)
+	Image::Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkFormat imageFormat, VkExtent2D size)
 	{
+		_logicalDevice = logicalDevice;
+		_physicalDevice = physicalDevice;
 		_format = imageFormat;
 
 		VkImageCreateInfo imageCreateInfo = { };
@@ -169,7 +159,7 @@ namespace Engine::Vulkan
 		VkMemoryAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = reqs.size;
-		allocInfo.memoryTypeIndex = GetMemoryTypeIndex(_deviceMemoryProperties, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		allocInfo.memoryTypeIndex = _physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		VkDeviceMemory mem;
 		vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &mem);
@@ -222,43 +212,20 @@ namespace Engine::Vulkan
 	}
 
 	// Swapchain
-	Swapchain::Swapchain(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkSurfaceKHR& windowSurface)
+	Swapchain::Swapchain(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface, const VkSwapchainKHR& oldSwapchain)
 	{
 		_logicalDevice = logicalDevice;
 		_physicalDevice = physicalDevice;
+		_windowSurface = windowSurface;
 
 		// Find surface capabilities.
-		VkSurfaceCapabilitiesKHR surfaceCapabilities;
-		if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, windowSurface, &surfaceCapabilities) != VK_SUCCESS) {
-			std::cerr << "failed to acquire presentation surface capabilities" << std::endl;
-			exit(1);
-		}
+		VkSurfaceCapabilitiesKHR surfaceCapabilities = _physicalDevice.GetSurfaceCapabilities(windowSurface);
 
 		// Find supported surface formats.
-		uint32_t formatCount;
-		if (vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, windowSurface, &formatCount, nullptr) != VK_SUCCESS || formatCount == 0) {
-			std::cerr << "failed to get number of supported surface formats" << std::endl;
-			exit(1);
-		}
-
-		std::vector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
-		if (vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, windowSurface, &formatCount, surfaceFormats.data()) != VK_SUCCESS) {
-			std::cerr << "failed to get supported surface formats" << std::endl;
-			exit(1);
-		}
+		std::vector<VkSurfaceFormatKHR> surfaceFormats = _physicalDevice.GetSupportedFormatsForSurface(windowSurface);
 
 		// Find supported present modes.
-		uint32_t presentModeCount;
-		if (vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, windowSurface, &presentModeCount, nullptr) != VK_SUCCESS || presentModeCount == 0) {
-			std::cerr << "failed to get number of supported presentation modes" << std::endl;
-			exit(1);
-		}
-
-		std::vector<VkPresentModeKHR> presentModes(presentModeCount);
-		if (vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, windowSurface, &presentModeCount, presentModes.data()) != VK_SUCCESS) {
-			std::cerr << "failed to get supported presentation modes" << std::endl;
-			exit(1);
-		}
+		std::vector<VkPresentModeKHR> presentModes = _physicalDevice.GetSupportedPresentModes();
 
 		// Determine number of images for swap chain.
 		uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
@@ -554,6 +521,44 @@ namespace Engine::Vulkan
 		}
 	}
 
+	VkSurfaceCapabilitiesKHR PhysicalDevice::GetSurfaceCapabilities(VkSurfaceKHR& windowSurface) {
+		VkSurfaceCapabilitiesKHR surfaceCapabilities;
+		if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_handle, windowSurface, &surfaceCapabilities) != VK_SUCCESS) {
+			std::cerr << "failed to acquire presentation surface capabilities" << std::endl;
+		}
+		return surfaceCapabilities;
+	}
+	
+	std::vector<VkSurfaceFormatKHR> PhysicalDevice::GetSupportedFormatsForSurface(VkSurfaceKHR& windowSurface) {
+		uint32_t formatCount;
+		if (vkGetPhysicalDeviceSurfaceFormatsKHR(_handle, windowSurface, &formatCount, nullptr) != VK_SUCCESS || formatCount == 0) {
+			std::cerr << "failed to get number of supported surface formats" << std::endl;
+		}
+
+		std::vector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
+		if (vkGetPhysicalDeviceSurfaceFormatsKHR(_handle, windowSurface, &formatCount, surfaceFormats.data()) != VK_SUCCESS) {
+			std::cerr << "failed to get supported surface formats" << std::endl;
+		}
+
+		return surfaceFormats;
+	}
+
+	std::vector<VkPresentModeKHR> PhysicalDevice::GetSupportedPresentModesForSurface(VkSurfaceKHR& windowSurface) {
+		uint32_t presentModeCount;
+		if (vkGetPhysicalDeviceSurfacePresentModesKHR(_handle, windowSurface, &presentModeCount, nullptr) != VK_SUCCESS || presentModeCount == 0) {
+			std::cerr << "failed to get number of supported presentation modes" << std::endl;
+			exit(1);
+		}
+
+		std::vector<VkPresentModeKHR> presentModes(presentModeCount);
+		if (vkGetPhysicalDeviceSurfacePresentModesKHR(_handle, windowSurface, &presentModeCount, presentModes.data()) != VK_SUCCESS) {
+			std::cerr << "failed to get supported presentation modes" << std::endl;
+			exit(1);
+		}
+
+		return presentModes;
+	}
+
 	// VulkanApplication
 	VkBool32 VulkanApplication::DebugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData)
 	{
@@ -587,7 +592,6 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::SetupVulkan()
 	{
-		_oldSwapchain = VK_NULL_HANDLE;
 		CreateInstance();
 		CreateDebugCallback();
 		CreateWindowSurface();
@@ -1095,12 +1099,8 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateSwapchain()
 	{
-		Swapchain(_physicalDevice, _logicalDevice, _windowSurface);
+		Swapchain(_physicalDevice, _logicalDevice, _windowSurface, VK_NULL_HANDLE);
 	}
-
-
-
-
 
 	void VulkanApplication::CreateRenderPass()
 	{
