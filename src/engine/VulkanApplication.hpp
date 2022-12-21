@@ -9,6 +9,80 @@
 namespace Engine::Vulkan
 {
 	/**
+	 * @brief Vulkan's representation of a GPU.
+	 */
+	class PhysicalDevice
+	{
+
+	public:
+
+		/**
+		 * @brief Identifier.
+		 */
+		VkPhysicalDevice _handle;
+
+		PhysicalDevice() = default;
+
+		PhysicalDevice(VkInstance& instance);
+
+		/**
+		 * @brief Queries the device for swapchain support, returns true if swapchains are supported.
+		 * @return
+		 */
+		bool SupportsSwapchains();
+
+		/**
+		 * @brief Queries the physical device to get its memory properties.
+		 * @return
+		 */
+		VkPhysicalDeviceMemoryProperties GetMemoryProperties();
+
+		/**
+		 * @brief Returns the memory type index that Vulkan needs to categorize memory by usage properties.
+		 * Vulkan uses this type index to tell the driver in which portion RAM or VRAM to allocate
+		 * a resource such as an image or buffer.
+		 */
+		uint32_t GetMemoryTypeIndex(uint32_t typeBits, VkMemoryPropertyFlagBits properties);
+
+		/**
+		 * @brief Queries the physical device for queue families, and returns a vector containing
+		 * the properties of all supported queue families.
+		 * @return
+		 */
+		std::vector<VkQueueFamilyProperties> GetAllQueueFamilyProperties();
+
+		/**
+		 * @brief Gets specific queue families that have the given flags set, and that optionally support presentation to a window surface.
+		 * @param queueType The flags that identify the properties of the queues you are looking for. See @see VkQueueFlagBits.
+		 * @param presentSupport Whether or not the queues you want to find need to support presenting to a window surface or not.
+		 * @param surface
+		 */
+		void GetQueueFamilyIndices(const VkQueueFlagBits& queueFlags, bool needsPresentationSupport = false, const VkSurfaceKHR& surface = VK_NULL_HANDLE);
+
+		/**
+		 * @brief .
+		 * @param surface The window surface you want to check against.
+		 * @return
+		 */
+		VkSurfaceCapabilitiesKHR GetSurfaceCapabilities(VkSurfaceKHR& windowSurface);
+
+		/**
+		 * @brief Returns supported image formats for the given window surface.
+		 *
+		 * @param windowSurface
+		 * @return
+		 */
+		std::vector<VkSurfaceFormatKHR> GetSupportedFormatsForSurface(VkSurfaceKHR& windowSurface);
+
+		/**
+		 * @brief Returns supported present modes for the given window surface.
+		 * A present mode is the logic according to which framebuffer contents will be drawn to and
+		 * presented to the window, for example the mailbox present mode in Vulkan (triple buffering).
+		 */
+		std::vector<VkPresentModeKHR> GetSupportedPresentModesForSurface(VkSurfaceKHR& windowSurface);
+	};
+
+	/**
 	 * @brief Buffers represent linear arrays of data which are used for
 	 * various purposes by binding them to a graphics or compute pipeline via descriptor
 	 * sets or via certain commands, or by directly specifying them as parameters to certain commands.
@@ -58,7 +132,7 @@ namespace Engine::Vulkan
 		Buffer() = default;
 
 		/**
-		 * Constructs a buffer.
+		 * @brief Constructs a buffer.
 		 * @param logicalDevice Needed by Vulkan to have info about the GPU so it can make function calls to allocate memory for the buffer.
 		 * @param physicalDevice Needed to know which types of memory are available on the GPU, so the buffer can be allocated on the
 		 * correct heap (a.k.a portion of VRAM or RAM).
@@ -101,9 +175,8 @@ namespace Engine::Vulkan
 	};
 
 	/**
-	 * @brief Represents a Vulkan image. A Vulkan image uses 2 structures, 1 for storing the data the image contain,
-	 * and 1 for decorating that data with metadata that Vulkan can use in the graphics pipeline to know how to treat
-	 * it.
+	 * @brief Represents a Vulkan image. A Vulkan image uses 2 structures, 1 for storing the data the image contain (VkImage),
+	 * and 1 for decorating that data with metadata that Vulkan can use in the graphics pipeline to know how to treat (VkImageView) it.
 	 */
 	class Image
 	{
@@ -138,7 +211,27 @@ namespace Engine::Vulkan
 
 		Image() = default;
 
-		Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkFormat imageFormat, VkExtent2D size);
+		/**
+		 * @brief Constructs a Vulkan image.
+		 * @param logicalDevice
+		 * @param physicalDevice
+		 * @param imageFormat
+		 * @param size Width and height of the image in pixels.
+		 * @param usageFlags Gives Vulkan context on what the image is intended to be used for.
+		 * @param aspectFlags Indicates how it's meant to be used and what type of data it contains.
+		 * @param memoryPropertiesFlags This can be any of the following values:
+		 * 1) VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT: this means GPU memory, so VRAM. If this is not set, then regular RAM is assumed.
+		 * 2) VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT: this means that the CPU will be able to read and write from the allocated memory IF YOU CALL vkMapMemory() FIRST.
+		 * 3) VK_MEMORY_PROPERTY_HOST_CACHED_BIT: this means that the memory will be cached so that when the CPU writes to this buffer, if the data is small enough to fit in its
+		 * cache (which is much faster to access) it will do that instead. Only problem is that this way, if your GPU needs to access that data, it won't be able to unless it's
+		 * also marked as HOST_COHERENT.
+		 * 4) VK_MEMORY_PROPERTY_HOST_COHERENT_BIT: this means that anything that the CPU writes to the buffer will be able to be read by the GPU as well, effectively
+		 * granting the GPU access to the CPU's cache (if the buffer is also marked as HOST_CACHED). COHERENT stands for consistency across memories, so it basically means
+		 * that the CPU, GPU or any other device will see the same memory if trying to access the buffer. If you don't have this flag set, and you try to access the
+		 * buffer from the GPU while the buffer is marked HOST_CACHED, you may not be able to get the data or even worse, you may end up reading the wrong chunk of memory.
+		 * Further read: https://asawicki.info/news_1740_vulkan_memory_types_on_pc_and_how_to_use_them
+		 */
+		Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& size, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& aspectFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags);
 
 		/**
 		 * @brief Constructs an image using a pre-existing image handle.
@@ -146,11 +239,18 @@ namespace Engine::Vulkan
 		 * @param imageFormat
 		 * @param size
 		 */
-		Image(VkDevice& logicalDevice, VkImage& image, VkFormat imageFormat);
+		Image(VkDevice& logicalDevice, VkImage& image, const VkFormat& imageFormat);
 
+		/**
+		 * @brief Uses Vulkan calls to deallocate and remove the contents of the image from memory.
+		 */
 		void Destroy();
 	};
 
+	/**
+	 * @brief The swapchain is an image manager; it manages everything that involves images for render passes (attachments)
+	 * and presenting images to the screen, or more precisely passing the contents of the framebuffers down to the window.
+	 */
 	class Swapchain
 	{
 		/**
@@ -171,13 +271,15 @@ namespace Engine::Vulkan
 		/**
 		 * @brief .
 		 */
-		VkSwapchainKHR _oldSwapchain;
+		Swapchain* _oldSwapchain;
+
+		VkSwapchainKHR _handle;
 
 		VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
 
 		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 
-		VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
+		VkExtent2D ChooseFramebufferSize(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
 
 		void CreateFramebuffers(VkDevice& _logicalDevice, VkRenderPass& renderPass);
 
@@ -203,83 +305,29 @@ namespace Engine::Vulkan
 		 */
 		std::vector<VkFramebuffer> _frameBuffers;
 
+		/**
+		 * @brief Dimensions in pixels of the framebuffers.
+		 */
+		VkExtent2D _framebufferSize;
+
 		Swapchain() = default;
 
-		Swapchain(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface, const VkSwapchainKHR& oldSwapchain);
-	};
-
-	/**
-	 * @brief Vulkan's representation of a GPU.
-	 */
-	class PhysicalDevice
-	{
-
-	public:
-
 		/**
-		 * @brief Identifier.
-		 */
-		VkPhysicalDevice _handle;
-
-		PhysicalDevice() = default;
-
-		PhysicalDevice(VkInstance& instance);
-
-		/**
-		 * @brief Queries the device for swapchain support, returns true if swapchains are supported.
-		 * @return
-		 */
-		bool SupportsSwapchains();
-
-		/**
-		 * @brief Queries the physical device to get its memory properties.
-		 * @return 
-		 */
-		VkPhysicalDeviceMemoryProperties GetMemoryProperties();
-
-		/**
-		 * @brief Returns the memory type index that Vulkan needs to categorize memory by usage properties.
-		 * Vulkan uses this type index to tell the driver in which portion RAM or VRAM to allocate
-		 * a resource such as an image or buffer.
-		 */
-		uint32_t GetMemoryTypeIndex(uint32_t typeBits, VkMemoryPropertyFlagBits properties);
-
-		/**
-		 * @brief Queries the physical device for queue families, and returns a vector containing
-		 * the properties of all supported queue families.
-		 * @return 
-		 */
-		std::vector<VkQueueFamilyProperties> GetAllQueueFamilyProperties();
-
-		/**
-		 * @brief Gets specific queue families that have the given flags set, and that optionally support presentation to a window surface.
-		 * @param queueType The flags that identify the properties of the queues you are looking for. See @see VkQueueFlagBits.
-		 * @param presentSupport Whether or not the queues you want to find need to support presenting to a window surface or not.
-		 * @param surface 
-		 */
-		void GetQueueFamilyIndices(const VkQueueFlagBits& queueFlags, bool needsPresentationSupport = false, const VkSurfaceKHR& surface = VK_NULL_HANDLE);
-
-		/**
-		 * @brief .
-		 * @param surface The window surface you want to check against.
-		 * @return 
-		 */
-		VkSurfaceCapabilitiesKHR GetSurfaceCapabilities(VkSurfaceKHR& windowSurface);
-
-		/**
-		 * @brief Returns supported image formats for the given window surface.
-		 * 
+		 * @brief Constructor.
+		 * @param logicalDevice
+		 * @param physicalDevice
 		 * @param windowSurface
-		 * @return 
+		 * @param oldSwapchain
 		 */
-		std::vector<VkSurfaceFormatKHR> GetSupportedFormatsForSurface(VkSurfaceKHR& windowSurface);
+		Swapchain(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface, const Swapchain& oldSwapchain);
+
+		void Draw(VkSemaphore& imageAvailableSemaphore, VkSemaphore& renderingFinishedSemaphore, std::vector<VkCommandBuffer>& graphicsCommandBuffers, VkQueue& graphicsQueue, VkQueue& presentationQueue);
 
 		/**
-		 * @brief Returns supported present modes for the given window surface.
-		 * A present mode is the logic according to which framebuffer contents will be drawn to and
-		 * presented to the window, for example the mailbox present mode in Vulkan (triple buffering).
+		 * @brief Uses Vulkan calls to deallocate and remove contents of structures allocated for the swapchain from memory,
+		 * such as framebuffers and images.
 		 */
-		std::vector<VkPresentModeKHR> GetSupportedPresentModesForSurface(VkSurfaceKHR& windowSurface);
+		void Destroy();
 	};
 
 	/**

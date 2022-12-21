@@ -118,7 +118,7 @@ namespace Engine::Vulkan
 	}
 
 	// Image
-	Image::Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkFormat imageFormat, VkExtent2D size)
+	Image::Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& size, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& aspectFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags)
 	{
 		_logicalDevice = logicalDevice;
 		_physicalDevice = physicalDevice;
@@ -146,7 +146,7 @@ namespace Engine::Vulkan
 		// array of pixels. While LINEAR tiling will be a lot slower, it will allow the cpu to safely write 
 		// and read from that memory.
 		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		imageCreateInfo.usage = usageFlags;
 
 		// Create the image.
 		if (vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, &_imageHandle) != VK_SUCCESS) {
@@ -159,7 +159,7 @@ namespace Engine::Vulkan
 		VkMemoryAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = reqs.size;
-		allocInfo.memoryTypeIndex = _physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		allocInfo.memoryTypeIndex = _physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, memoryPropertiesFlags);
 
 		VkDeviceMemory mem;
 		vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &mem);
@@ -182,7 +182,7 @@ namespace Engine::Vulkan
 		}
 	}
 
-	Image::Image(VkDevice& logicalDevice, VkImage& image, VkFormat imageFormat)
+	Image::Image(VkDevice& logicalDevice, VkImage& image, const VkFormat& imageFormat)
 	{
 		VkImageViewCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -212,20 +212,16 @@ namespace Engine::Vulkan
 	}
 
 	// Swapchain
-	Swapchain::Swapchain(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface, const VkSwapchainKHR& oldSwapchain)
+	Swapchain::Swapchain(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface, const Swapchain& oldSwapchain)
 	{
 		_logicalDevice = logicalDevice;
 		_physicalDevice = physicalDevice;
 		_windowSurface = windowSurface;
 
-		// Find surface capabilities.
+		// Get physical device capabilities for the window surface.
 		VkSurfaceCapabilitiesKHR surfaceCapabilities = _physicalDevice.GetSurfaceCapabilities(windowSurface);
-
-		// Find supported surface formats.
 		std::vector<VkSurfaceFormatKHR> surfaceFormats = _physicalDevice.GetSupportedFormatsForSurface(windowSurface);
-
-		// Find supported present modes.
-		std::vector<VkPresentModeKHR> presentModes = _physicalDevice.GetSupportedPresentModes();
+		std::vector<VkPresentModeKHR> presentModes = _physicalDevice.GetSupportedPresentModesForSurface(windowSurface);
 
 		// Determine number of images for swap chain.
 		uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
@@ -235,11 +231,8 @@ namespace Engine::Vulkan
 
 		std::cout << "using " << imageCount << " images for swap chain" << std::endl;
 
-		// Select a surface format.
 		VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat(surfaceFormats);
-
-		// Select swapchain image size.
-		_swapchainExtent = ChooseSwapExtent(surfaceCapabilities);
+		_framebufferSize = ChooseFramebufferSize(surfaceCapabilities);
 
 		// Determine transformation to use (preferring no transform).
 		VkSurfaceTransformFlagBitsKHR surfaceTransform;
@@ -260,7 +253,7 @@ namespace Engine::Vulkan
 		createInfo.minImageCount = imageCount;
 		createInfo.imageFormat = surfaceFormat.format;
 		createInfo.imageColorSpace = surfaceFormat.colorSpace;
-		createInfo.imageExtent = _swapchainExtent;
+		createInfo.imageExtent = _framebufferSize;
 		createInfo.imageArrayLayers = 1;
 		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -270,9 +263,9 @@ namespace Engine::Vulkan
 		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		createInfo.presentMode = presentMode;
 		createInfo.clipped = VK_TRUE;
-		createInfo.oldSwapchain = _oldSwapchain;
+		createInfo.oldSwapchain = _oldSwapchain->_handle;
 
-		if (vkCreateSwapchainKHR(logicalDevice, &createInfo, nullptr, &windowSurface) != VK_SUCCESS) {
+		if (vkCreateSwapchainKHR(logicalDevice, &createInfo, nullptr, &_handle) != VK_SUCCESS) {
 			std::cerr << "failed to create swapchain" << std::endl;
 			exit(1);
 		}
@@ -281,9 +274,9 @@ namespace Engine::Vulkan
 		}
 
 		if (_oldSwapchain != VK_NULL_HANDLE) {
-			vkDestroySwapchainKHR(logicalDevice, _oldSwapchain, nullptr);
+			vkDestroySwapchainKHR(logicalDevice, _oldSwapchain->_handle, nullptr);
 		}
-		_oldSwapchain = _swapchain;
+		*_oldSwapchain = oldSwapchain;
 
 		auto imageFormat = surfaceFormat.format;
 
@@ -291,7 +284,7 @@ namespace Engine::Vulkan
 		// Note: these are the images that swap chain image indices refer to.
 		// Note: actual number of images may differ from requested number, since it's a lower bound.
 		uint32_t actualImageCount = 0;
-		if (vkGetSwapchainImagesKHR(logicalDevice, _swapchain, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
+		if (vkGetSwapchainImagesKHR(logicalDevice, _handle, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
 			std::cerr << "failed to acquire number of swap chain images" << std::endl;
 			exit(1);
 		}
@@ -300,7 +293,7 @@ namespace Engine::Vulkan
 
 		std::vector<VkImage> images;
 		images.resize(actualImageCount);
-		if (vkGetSwapchainImagesKHR(logicalDevice, _swapchain, &actualImageCount, images.data()) != VK_SUCCESS) {
+		if (vkGetSwapchainImagesKHR(logicalDevice, _handle, &actualImageCount, images.data()) != VK_SUCCESS) {
 			std::cerr << "failed to acquire swapchain images" << std::endl;
 			exit(1);
 		}
@@ -313,7 +306,8 @@ namespace Engine::Vulkan
 		}
 
 		// Create the depth image.
-		_depthImage = Image(_logicalDevice, VK_FORMAT_D32_SFLOAT, VkExtent2D{ _settings._windowWidth, _settings._windowHeight });
+		auto& settings = Settings::GlobalSettings::Instance();
+		_depthImage = Image(logicalDevice, physicalDevice, VK_FORMAT_D32_SFLOAT, _framebufferSize, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		std::cout << "created image views for swap chain images" << std::endl;
 	}
@@ -348,7 +342,7 @@ namespace Engine::Vulkan
 		return availableFormats[0];
 	}
 
-	VkExtent2D Swapchain::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities)
+	VkExtent2D Swapchain::ChooseFramebufferSize(const VkSurfaceCapabilitiesKHR& surfaceCapabilities)
 	{
 		auto& settings = Settings::GlobalSettings::Instance();
 
@@ -379,8 +373,8 @@ namespace Engine::Vulkan
 			createInfo.renderPass = renderPass;
 			createInfo.attachmentCount = 2;
 			createInfo.pAttachments = &colorAndDepthImages[0];
-			createInfo.width = _swapchainExtent.width;
-			createInfo.height = _swapchainExtent.height;
+			createInfo.width = _framebufferSize.width;
+			createInfo.height = _framebufferSize.height;
 			createInfo.layers = 1;
 
 			if (vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_frameBuffers[i]) != VK_SUCCESS) {
@@ -390,6 +384,73 @@ namespace Engine::Vulkan
 		}
 
 		std::cout << "created framebuffers for swap chain image views" << std::endl;
+	}
+
+	void Swapchain::Draw(VkSemaphore& imageAvailableSemaphore, VkSemaphore& renderingFinishedSemaphore, std::vector<VkCommandBuffer>& graphicsCommandBuffers, VkQueue& graphicsQueue, VkQueue& presentationQueue)
+	{
+		// Acquire image.
+		uint32_t imageIndex;
+		VkResult res = vkAcquireNextImageKHR(_logicalDevice, _handle, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+		// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
+		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
+			OnWindowSizeChanged();
+			return;
+		}
+		else if (res != VK_SUCCESS) {
+			std::cerr << "failed to acquire image" << std::endl;
+			exit(1);
+		}
+
+		// Wait for image to be available and draw.
+		// This is the stage where the queue should wait on the semaphore.
+		VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		VkSubmitInfo submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.waitSemaphoreCount = 1;
+		submitInfo.pWaitSemaphores = &imageAvailableSemaphore;
+		submitInfo.signalSemaphoreCount = 1;
+		submitInfo.pSignalSemaphores = &renderingFinishedSemaphore;
+		submitInfo.pWaitDstStageMask = &waitDstStageMask;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &graphicsCommandBuffers[imageIndex];
+
+		if (auto res = vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS) {
+			std::cerr << "failed to submit draw command buffer" << std::endl;
+			exit(1);
+		}
+
+		// Present drawn image.
+		// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
+		VkPresentInfoKHR presentInfo = {};
+		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		presentInfo.waitSemaphoreCount = 1;
+		presentInfo.pWaitSemaphores = &renderingFinishedSemaphore;
+		presentInfo.swapchainCount = 1;
+		presentInfo.pSwapchains = &_handle;
+		presentInfo.pImageIndices = &imageIndex;
+
+		res = vkQueuePresentKHR(presentationQueue, &presentInfo);
+
+		if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
+			OnWindowSizeChanged();
+		}
+		else if (res != VK_SUCCESS) {
+			std::cerr << "failed to submit present command buffer" << std::endl;
+			exit(1);
+		}
+	}
+
+	void Swapchain::Destroy()
+	{
+		_depthImage.Destroy();
+		for (auto image : _colorImages) {
+			image.Destroy();
+		}
+
+		for (size_t i = 0; i < _frameBuffers.size(); i++) {
+			vkDestroyFramebuffer(_logicalDevice, _frameBuffers[i], nullptr);
+		}
 	}
 
 	// Physical device
@@ -640,8 +701,6 @@ namespace Engine::Vulkan
 
 		CreateSwapchain();
 		CreateRenderPass();
-		CreateImageViews();
-		CreateFramebuffers();
 		CreateGraphicsPipeline();
 		CreateCommandBuffers();
 	}
@@ -652,15 +711,8 @@ namespace Engine::Vulkan
 		vkFreeCommandBuffers(_logicalDevice, _commandPool, (uint32_t)_graphicsCommandBuffers.size(), _graphicsCommandBuffers.data());
 		vkDestroyPipeline(_logicalDevice, _graphicsPipeline, nullptr);
 		vkDestroyRenderPass(_logicalDevice, _renderPass, nullptr);
-		_depthImage.Destroy();
-		for (auto image : _colorImages) {
-			image.Destroy();
-		}
-
-		for (size_t i = 0; i < _colorImages.size(); i++) {
-			vkDestroyFramebuffer(_logicalDevice, _swapChainFramebuffers[i], nullptr);
-			vkDestroyImageView(_logicalDevice, _swapChainImageViews[i], nullptr);
-		}
+		_swapchain.Destroy();
+		
 
 		vkDestroyDescriptorSetLayout(_logicalDevice, _descriptorSetLayout, nullptr);
 
@@ -679,7 +731,7 @@ namespace Engine::Vulkan
 			_indexBuffer->Destroy();
 
 			// Note: implicitly destroys images (in fact, we're not allowed to do that explicitly)
-			vkDestroySwapchainKHR(_logicalDevice, _swapchain, nullptr);
+			_swapchain.Destroy();
 
 			vkDestroyDevice(_logicalDevice, nullptr);
 
@@ -943,14 +995,14 @@ namespace Engine::Vulkan
 #pragma region VerticesToVertexBuffer
 		// Create a buffer used as a middleman buffer to transfer data from the RAM to the VRAM. This buffer will be created in RAM.
 		auto vertexTransferBuffer = Buffer(_logicalDevice,
-			_deviceMemoryProperties,
+			_physicalDevice,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
 			_model._mesh._vertices.data(),
 			vertexPositionsSize);
 
 		_vertexBuffer = new Buffer(_logicalDevice,
-			_deviceMemoryProperties,
+			_physicalDevice,
 			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			nullptr,
@@ -960,14 +1012,14 @@ namespace Engine::Vulkan
 
 #pragma region FaceIndicesToIndexBuffer
 		auto indexTransferBuffer = Buffer(_logicalDevice,
-			_deviceMemoryProperties,
+			_physicalDevice,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
 			(void*)_model._mesh._faceIndices.data(),
 			faceIndicesSize);
 
 		_indexBuffer = new Buffer(_logicalDevice,
-			_deviceMemoryProperties,
+			_physicalDevice,
 			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			nullptr,
@@ -1099,7 +1151,7 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateSwapchain()
 	{
-		Swapchain(_physicalDevice, _logicalDevice, _windowSurface, VK_NULL_HANDLE);
+		Swapchain(_logicalDevice, _physicalDevice, _windowSurface, nullptr);
 	}
 
 	void VulkanApplication::CreateRenderPass()
@@ -1283,16 +1335,16 @@ namespace Engine::Vulkan
 		VkViewport viewport = {};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
-		viewport.width = Utils::Converter::Convert<uint32_t, float>(_swapchainExtent.width);
-		viewport.height = Utils::Converter::Convert<uint32_t, float>(_swapchainExtent.height);
+		viewport.width = Utils::Converter::Convert<uint32_t, float>(_swapchain._framebufferSize.width);
+		viewport.height = Utils::Converter::Convert<uint32_t, float>(_swapchain._framebufferSize.height);
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 
 		VkRect2D scissor = {};
 		scissor.offset.x = 0;
 		scissor.offset.y = 0;
-		scissor.extent.width = _swapchainExtent.width;
-		scissor.extent.height = _swapchainExtent.height;
+		scissor.extent.width = _swapchain._framebufferSize.width;
+		scissor.extent.height = _swapchain._framebufferSize.height;
 
 		// Note: scissor test is always enabled (although dynamic scissor is possible).
 		// Number of viewports must match number of scissors.
@@ -1373,7 +1425,7 @@ namespace Engine::Vulkan
 		CreateDescriptorPool(descriptorCount);
 
 		_uniformBuffer = Buffer(_logicalDevice,
-			_deviceMemoryProperties,
+			_physicalDevice,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
 			&_uniformBufferData,
@@ -1512,13 +1564,13 @@ namespace Engine::Vulkan
 	void VulkanApplication::CreateCommandBuffers()
 	{
 		// Allocate graphics command buffers
-		_graphicsCommandBuffers.resize(_colorImages.size());
+		_graphicsCommandBuffers.resize(_swapchain._colorImages.size());
 
 		VkCommandBufferAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.commandPool = _commandPool;
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandBufferCount = (uint32_t)_colorImages.size();
+		allocInfo.commandBufferCount = (uint32_t)_swapchain._colorImages.size();
 
 		if (vkAllocateCommandBuffers(_logicalDevice, &allocInfo, _graphicsCommandBuffers.data()) != VK_SUCCESS) {
 			std::cerr << "failed to allocate graphics command buffers" << std::endl;
@@ -1541,7 +1593,7 @@ namespace Engine::Vulkan
 		subResourceRange.layerCount = 1;
 
 		// Record command buffer for each swap image
-		for (size_t i = 0; i < _colorImages.size(); i++) {
+		for (size_t i = 0; i < _swapchain._colorImages.size(); i++) {
 			vkBeginCommandBuffer(_graphicsCommandBuffers[i], &beginInfo);
 
 			// If present queue family and graphics queue family are different, then a barrier is necessary
@@ -1562,7 +1614,7 @@ namespace Engine::Vulkan
 				presentToDrawBarrier.dstQueueFamilyIndex = _graphicsQueueFamily;
 			}
 
-			presentToDrawBarrier.image = _colorImages[i];
+			presentToDrawBarrier.image = _swapchain._colorImages[i]._imageHandle;
 			presentToDrawBarrier.subresourceRange = subResourceRange;
 
 			vkCmdPipelineBarrier(_graphicsCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
@@ -1579,10 +1631,10 @@ namespace Engine::Vulkan
 			VkRenderPassBeginInfo renderPassBeginInfo = {};
 			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 			renderPassBeginInfo.renderPass = _renderPass;
-			renderPassBeginInfo.framebuffer = _swapChainFramebuffers[i];
+			renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[i];
 			renderPassBeginInfo.renderArea.offset.x = 0;
 			renderPassBeginInfo.renderArea.offset.y = 0;
-			renderPassBeginInfo.renderArea.extent = _swapchainExtent;
+			renderPassBeginInfo.renderArea.extent = _swapchain._framebufferSize;
 			renderPassBeginInfo.clearValueCount = 2;
 			renderPassBeginInfo.pClearValues = &clearValues[0];
 
@@ -1615,7 +1667,7 @@ namespace Engine::Vulkan
 				drawToPresentBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 				drawToPresentBarrier.srcQueueFamilyIndex = _graphicsQueueFamily;
 				drawToPresentBarrier.dstQueueFamilyIndex = _presentQueueFamily;
-				drawToPresentBarrier.image = _colorImages[i];
+				drawToPresentBarrier.image = _swapchain._colorImages[i]._imageHandle;
 				drawToPresentBarrier.subresourceRange = subResourceRange;
 
 				vkCmdPipelineBarrier(_graphicsCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &drawToPresentBarrier);
@@ -1631,62 +1683,6 @@ namespace Engine::Vulkan
 
 		// No longer needed
 		vkDestroyPipelineLayout(_logicalDevice, _pipelineLayout, nullptr);
-	}
-
-	void VulkanApplication::Draw()
-	{
-		// Acquire image.
-		uint32_t imageIndex;
-		VkResult res = vkAcquireNextImageKHR(_logicalDevice, _sawpchain, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
-
-		// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
-		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
-			OnWindowSizeChanged();
-			return;
-		}
-		else if (res != VK_SUCCESS) {
-			std::cerr << "failed to acquire image" << std::endl;
-			exit(1);
-		}
-
-		// Wait for image to be available and draw.
-		// This is the stage where the queue should wait on the semaphore.
-		VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		VkSubmitInfo submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = &_imageAvailableSemaphore;
-		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = &_renderingFinishedSemaphore;
-		submitInfo.pWaitDstStageMask = &waitDstStageMask;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &_graphicsCommandBuffers[imageIndex];
-
-		if (auto res = vkQueueSubmit(_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS) {
-			std::cerr << "failed to submit draw command buffer" << std::endl;
-			exit(1);
-		}
-
-		// Present drawn image.
-		// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
-		VkPresentInfoKHR presentInfo = {};
-		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = &_renderingFinishedSemaphore;
-
-		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &_swapchain;
-		presentInfo.pImageIndices = &imageIndex;
-
-		res = vkQueuePresentKHR(_presentQueue, &presentInfo);
-
-		if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
-			OnWindowSizeChanged();
-		}
-		else if (res != VK_SUCCESS) {
-			std::cerr << "failed to submit present command buffer" << std::endl;
-			exit(1);
-		}
 	}
 }
 
