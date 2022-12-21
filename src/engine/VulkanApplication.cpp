@@ -1150,7 +1150,7 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateSwapchain()
 	{
-		Swapchain(_logicalDevice, _physicalDevice, _windowSurface, nullptr);
+		_swapchain = Swapchain(_logicalDevice, _physicalDevice, _windowSurface, nullptr);
 	}
 
 	void VulkanApplication::CreateRenderPass()
