@@ -212,7 +212,7 @@ namespace Engine::Vulkan
 	}
 
 	// Swapchain
-	Swapchain::Swapchain(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface, const Swapchain& oldSwapchain)
+	Swapchain::Swapchain(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface, const VkSwapchainKHR& oldSwapchainHandle)
 	{
 		_logicalDevice = logicalDevice;
 		_physicalDevice = physicalDevice;
@@ -263,7 +263,7 @@ namespace Engine::Vulkan
 		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		createInfo.presentMode = presentMode;
 		createInfo.clipped = VK_TRUE;
-		createInfo.oldSwapchain = _oldSwapchain->_handle;
+		createInfo.oldSwapchain = oldSwapchainHandle;
 
 		if (vkCreateSwapchainKHR(logicalDevice, &createInfo, nullptr, &_handle) != VK_SUCCESS) {
 			std::cerr << "failed to create swapchain" << std::endl;
@@ -273,10 +273,10 @@ namespace Engine::Vulkan
 			std::cout << "created swapchain" << std::endl;
 		}
 
-		if (_oldSwapchain != VK_NULL_HANDLE) {
-			vkDestroySwapchainKHR(logicalDevice, _oldSwapchain->_handle, nullptr);
+		if (oldSwapchainHandle != VK_NULL_HANDLE) {
+			vkDestroySwapchainKHR(logicalDevice, oldSwapchainHandle, nullptr);
 		}
-		*_oldSwapchain = oldSwapchain;
+		_oldSwapchainHandle = oldSwapchainHandle;
 
 		auto imageFormat = surfaceFormat.format;
 
@@ -1085,69 +1085,67 @@ namespace Engine::Vulkan
 	// Todo: wrap physical device into its own class.
 	// Todo: wrap image into its own class.
 
+	//void VulkanApplication::CreateDepthImage()
+	//{
+	//	_depthImage = 
 
+	//	//VkImageCreateInfo imageCreateInfo = { };
+	//	//imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	//	//imageCreateInfo.pNext = nullptr;
+	//	//imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	//	//imageCreateInfo.format = _depthFormat;
 
-	void VulkanApplication::CreateDepthImage()
-	{
-		_depthImage = 
+	//	//_depthExtent = VkExtent3D{ _swapchainExtent.width, _swapchainExtent.height, 1 };
+	//	//imageCreateInfo.extent = _depthExtent;
+	//	//imageCreateInfo.mipLevels = 1;
+	//	//imageCreateInfo.arrayLayers = 1;
+	//	//imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 
-		//VkImageCreateInfo imageCreateInfo = { };
-		//imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		//imageCreateInfo.pNext = nullptr;
-		//imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		//imageCreateInfo.format = _depthFormat;
+	//	//// Tiling is very important. Tiling describes how the data for the texture is arranged in the GPU. 
+	//	//// For improved performance, GPUs do not store images as 2d arrays of pixels, but instead use complex
+	//	//// custom formats, unique to the GPU brand and even models. VK_IMAGE_TILING_OPTIMAL tells Vulkan 
+	//	//// to let the driver decide how the GPU arranges the memory of the image. If you use VK_IMAGE_TILING_OPTIMAL,
+	//	//// it won’t be possible to read the data from CPU or to write it without changing its tiling first 
+	//	//// (it’s possible to change the tiling of a texture at any point, but this can be a costly operation). 
+	//	//// The other tiling we can care about is VK_IMAGE_TILING_LINEAR, which will store the image as a 2d 
+	//	//// array of pixels. While LINEAR tiling will be a lot slower, it will allow the cpu to safely write 
+	//	//// and read from that memory.
+	//	//imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	//	//imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
-		//_depthExtent = VkExtent3D{ _swapchainExtent.width, _swapchainExtent.height, 1 };
-		//imageCreateInfo.extent = _depthExtent;
-		//imageCreateInfo.mipLevels = 1;
-		//imageCreateInfo.arrayLayers = 1;
-		//imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	//	//// Create the image.
+	//	//if (vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_depthImage) != VK_SUCCESS) {
+	//	//	std::cout << "Failed creating depth image." << std::endl;
+	//	//}
 
-		//// Tiling is very important. Tiling describes how the data for the texture is arranged in the GPU. 
-		//// For improved performance, GPUs do not store images as 2d arrays of pixels, but instead use complex
-		//// custom formats, unique to the GPU brand and even models. VK_IMAGE_TILING_OPTIMAL tells Vulkan 
-		//// to let the driver decide how the GPU arranges the memory of the image. If you use VK_IMAGE_TILING_OPTIMAL,
-		//// it won’t be possible to read the data from CPU or to write it without changing its tiling first 
-		//// (it’s possible to change the tiling of a texture at any point, but this can be a costly operation). 
-		//// The other tiling we can care about is VK_IMAGE_TILING_LINEAR, which will store the image as a 2d 
-		//// array of pixels. While LINEAR tiling will be a lot slower, it will allow the cpu to safely write 
-		//// and read from that memory.
-		//imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		//imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	//	//VkMemoryRequirements reqs;
+	//	//vkGetImageMemoryRequirements(_logicalDevice, _depthImage, &reqs);
 
-		//// Create the image.
-		//if (vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_depthImage) != VK_SUCCESS) {
-		//	std::cout << "Failed creating depth image." << std::endl;
-		//}
+	//	//VkMemoryAllocateInfo allocInfo{};
+	//	//allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	//	//allocInfo.allocationSize = reqs.size;
+	//	//allocInfo.memoryTypeIndex = GetMemoryTypeIndex(_deviceMemoryProperties, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-		//VkMemoryRequirements reqs;
-		//vkGetImageMemoryRequirements(_logicalDevice, _depthImage, &reqs);
+	//	//VkDeviceMemory mem;
+	//	//vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem);
+	//	//vkBindImageMemory(_logicalDevice, _depthImage, mem, 0);
 
-		//VkMemoryAllocateInfo allocInfo{};
-		//allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		//allocInfo.allocationSize = reqs.size;
-		//allocInfo.memoryTypeIndex = GetMemoryTypeIndex(_deviceMemoryProperties, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	//	//VkImageViewCreateInfo imageViewCreateInfo = {};
+	//	//imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	//	//imageViewCreateInfo.pNext = nullptr;
+	//	//imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	//	//imageViewCreateInfo.image = _depthImage;
+	//	//imageViewCreateInfo.format = _depthFormat;
+	//	//imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	//	//imageViewCreateInfo.subresourceRange.levelCount = 1;
+	//	//imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	//	//imageViewCreateInfo.subresourceRange.layerCount = 1;
+	//	//imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 
-		//VkDeviceMemory mem;
-		//vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem);
-		//vkBindImageMemory(_logicalDevice, _depthImage, mem, 0);
-
-		//VkImageViewCreateInfo imageViewCreateInfo = {};
-		//imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		//imageViewCreateInfo.pNext = nullptr;
-		//imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		//imageViewCreateInfo.image = _depthImage;
-		//imageViewCreateInfo.format = _depthFormat;
-		//imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-		//imageViewCreateInfo.subresourceRange.levelCount = 1;
-		//imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-		//imageViewCreateInfo.subresourceRange.layerCount = 1;
-		//imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-
-		//if (vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_depthImageView) != VK_SUCCESS) {
-		//	std::cout << "Failed creating depth image view." << std::endl;
-		//}
-	}
+	//	//if (vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_depthImageView) != VK_SUCCESS) {
+	//	//	std::cout << "Failed creating depth image view." << std::endl;
+	//	//}
+	//}
 
 	void VulkanApplication::CreateSwapchain()
 	{

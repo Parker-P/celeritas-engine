@@ -271,7 +271,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief .
 		 */
-		Swapchain* _oldSwapchain;
+		VkSwapchainKHR _oldSwapchainHandle;
 
 		VkSwapchainKHR _handle;
 
@@ -319,7 +319,7 @@ namespace Engine::Vulkan
 		 * @param windowSurface
 		 * @param oldSwapchain
 		 */
-		Swapchain(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface, const Swapchain& oldSwapchain);
+		Swapchain(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface, const VkSwapchainKHR& oldSwapchain);
 
 		void Draw(VkSemaphore& imageAvailableSemaphore, VkSemaphore& renderingFinishedSemaphore, std::vector<VkCommandBuffer>& graphicsCommandBuffers, VkQueue& graphicsQueue, VkQueue& presentationQueue);
 
