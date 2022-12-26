@@ -33,7 +33,7 @@
     <ClCompile Include="src\engine\VulkanApplication.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\structural\IObservable.h" />
+    <ClInclude Include="src\structural\Event.hpp" />
     <ClInclude Include="src\settings\Paths.hpp" />
     <ClInclude Include="src\engine\scenes\Camera.hpp" />
     <ClInclude Include="src\engine\scenes\GameObject.hpp" />

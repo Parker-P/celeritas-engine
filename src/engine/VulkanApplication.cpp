@@ -22,6 +22,7 @@
 #include "utils/Json.h"
 #include "structural/IUpdatable.h"
 #include "structural/Singleton.hpp"
+#include "structural/Event.hpp"
 #include "settings/GlobalSettings.hpp"
 #include "settings/Paths.hpp"
 #include "engine/Time.hpp"
@@ -328,7 +329,7 @@ namespace Engine::Vulkan
 		}
 	}
 
-	void Swapchain::CreateFramebuffers(VkDevice& _logicalDevice, RenderPass& renderPass)
+	void Swapchain::CreateFramebuffers(RenderPass& renderPass)
 	{
 		_frameBuffers.resize(renderPass._colorImages.size());
 
@@ -761,7 +762,9 @@ namespace Engine::Vulkan
 		CreateCommandPool();
 		CreateVertexAndIndexBuffers();
 		_swapchain = Swapchain(_logicalDevice, _physicalDevice, _windowSurface, nullptr);
+		_swapchain._onWindowResized.Subscribe(OnWindowSizeChanged);
 		_renderPass = RenderPass(_physicalDevice, _logicalDevice, _swapchain);
+		_swapchain.CreateFramebuffers(_renderPass);
 		CreateGraphicsPipeline();
 		CreateCommandBuffers();
 	}
@@ -790,7 +793,7 @@ namespace Engine::Vulkan
 		Settings::GlobalSettings::Instance()._windowHeight = height;
 	}
 
-	void VulkanApplication::OnWindowSizeChanged()
+	void VulkanApplication::OnWindowSizeChanged(void* caller, EventArgs e)
 	{
 		windowResized = false;
 

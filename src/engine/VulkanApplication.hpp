@@ -361,6 +361,11 @@ namespace Engine::Vulkan
 		 */
 		VkSwapchainKHR _handle;
 
+		/**
+		 * @brief Event raised whenever the window is resized.
+		 */
+		Event _onWindowResized;
+
 		Swapchain() = default;
 
 		/**
@@ -386,9 +391,9 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Creates one framebuffer for each color attachment.
 		 * @param logicalDevice
-		 * @param renderPass Used to tell each framebuffer which attachments are used to generate the image.
+		 * @param renderPass Used to tell each framebuffer which attachments are used to generate the image it'll contain.
 		 */
-		void CreateFramebuffers(VkDevice& logicalDevice, RenderPass& renderPass);
+		void CreateFramebuffers(RenderPass& renderPass);
 
 		/**
 		 * @brief Uses Vulkan calls to deallocate and remove contents of structures allocated for the swapchain from memory,
@@ -659,9 +664,9 @@ namespace Engine::Vulkan
 		static void OnWindowResized(GLFWwindow* window, int width, int height);
 
 		/**
-		 * @brief .
+		 * @brief Event called whenever the window is resized.
 		 */
-		void OnWindowSizeChanged();
+		static void OnWindowSizeChanged(void* caller, EventArgs e);
 
 		void Cleanup(bool fullClean);
 
