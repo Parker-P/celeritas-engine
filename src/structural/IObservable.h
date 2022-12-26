@@ -22,8 +22,5 @@ public:
 
 class IObservable
 {
-	Invoke() 
-	{
-
-	}
+	virtual void Invoke(Event e, EventArgs ea) = 0;
 };
