@@ -1,10 +1,14 @@
 #pragma once
 
+#define EVENT 
+
 /**
- * @brief Used by implementing classes to mark themselves as a class that is meant to do work on each iteration of the main loop.
+ * @brief Used by implementing classes to mark themselves as a class that is meant to be observed. Classes that implement this
+ * interface will have 
  */
-class IUpdatable 
+class IObservable 
 {
+
 public:
 
 	/**

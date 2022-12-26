@@ -279,39 +279,6 @@ namespace Engine::Vulkan
 			vkDestroySwapchainKHR(logicalDevice, oldSwapchainHandle, nullptr);
 		}
 		_oldSwapchainHandle = oldSwapchainHandle;
-
-		auto imageFormat = surfaceFormat.format;
-
-		// Store the images used by the swap chain.
-		// Note: these are the images that swap chain image indices refer to.
-		// Note: actual number of images may differ from requested number, since it's a lower bound.
-		uint32_t actualImageCount = 0;
-		if (vkGetSwapchainImagesKHR(logicalDevice, _handle, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
-			std::cerr << "failed to acquire number of swap chain images" << std::endl;
-			exit(1);
-		}
-
-		_colorImages.resize(actualImageCount);
-
-		std::vector<VkImage> images;
-		images.resize(actualImageCount);
-		if (vkGetSwapchainImagesKHR(logicalDevice, _handle, &actualImageCount, images.data()) != VK_SUCCESS) {
-			std::cerr << "failed to acquire swapchain images" << std::endl;
-			exit(1);
-		}
-
-		std::cout << "acquired swap chain images" << std::endl;
-
-		// Create the color images.
-		for (int i = 0; i < actualImageCount; ++i) {
-			_colorImages[i] = Image(logicalDevice, images[i], VK_FORMAT_R8G8B8A8_UNORM);
-		}
-
-		// Create the depth image.
-		auto& settings = Settings::GlobalSettings::Instance();
-		_depthImage = Image(logicalDevice, physicalDevice, VK_FORMAT_D32_SFLOAT, _framebufferSize, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-		std::cout << "created image views for swap chain images" << std::endl;
 	}
 
 	VkPresentModeKHR Swapchain::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)
@@ -361,18 +328,18 @@ namespace Engine::Vulkan
 		}
 	}
 
-	void Swapchain::CreateFramebuffers(VkDevice& _logicalDevice, VkRenderPass& renderPass)
+	void Swapchain::CreateFramebuffers(VkDevice& _logicalDevice, RenderPass& renderPass)
 	{
-		_frameBuffers.resize(_colorImages.size());
+		_frameBuffers.resize(renderPass._colorImages.size());
 
-		for (size_t i = 0; i < _colorImages.size(); i++) {
+		for (size_t i = 0; i < renderPass._colorImages.size(); i++) {
 
 			// We will render to the same depth image for each frame. 
 			// We can just keep clearing and reusing the same depth image for every frame.
-			VkImageView colorAndDepthImages[2] = { _colorImages[i]._imageViewHandle, _depthImage._imageViewHandle };
+			VkImageView colorAndDepthImages[2] = { renderPass._colorImages[i]._imageViewHandle, renderPass._depthImage._imageViewHandle };
 			VkFramebufferCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			createInfo.renderPass = renderPass;
+			createInfo.renderPass = renderPass._handle;
 			createInfo.attachmentCount = 2;
 			createInfo.pAttachments = &colorAndDepthImages[0];
 			createInfo.width = _framebufferSize.width;
@@ -445,14 +412,144 @@ namespace Engine::Vulkan
 
 	void Swapchain::Destroy()
 	{
+		for (size_t i = 0; i < _frameBuffers.size(); i++) {
+			vkDestroyFramebuffer(_logicalDevice, _frameBuffers[i], nullptr);
+		}
+	}
+
+	// RenderPass
+	RenderPass::RenderPass(PhysicalDevice& physicalDevice, VkDevice& logicalDevice, Swapchain& swapchain)
+	{
+		_physicalDevice = physicalDevice;
+		_logicalDevice = logicalDevice;
+
+		// Get the color attachment from the swapchain.
+		auto imageFormat = swapchain._surfaceFormat.format;
+
+		// Store the images used by the swap chain.
+		// Note: these are the images that swap chain image indices refer to.
+		// Note: actual number of images may differ from requested number, since it's a lower bound.
+		uint32_t actualImageCount = 0;
+		if (vkGetSwapchainImagesKHR(logicalDevice, swapchain._handle, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
+			std::cerr << "failed to acquire number of swap chain images" << std::endl;
+			exit(1);
+		}
+
+		_colorImages.resize(actualImageCount);
+
+		std::vector<VkImage> images;
+		images.resize(actualImageCount);
+		if (vkGetSwapchainImagesKHR(logicalDevice, swapchain._handle, &actualImageCount, images.data()) != VK_SUCCESS) {
+			std::cerr << "failed to acquire swapchain images" << std::endl;
+			exit(1);
+		}
+
+		std::cout << "acquired swap chain images" << std::endl;
+
+		// Create the color images.
+		for (int i = 0; i < actualImageCount; ++i) {
+			_colorImages[i] = Image(logicalDevice, images[i], VK_FORMAT_R8G8B8A8_UNORM);
+		}
+
+		// Create the depth attachment.
+		auto& settings = Settings::GlobalSettings::Instance();
+		_depthImage = Image(logicalDevice, physicalDevice, VK_FORMAT_D32_SFLOAT, swapchain._framebufferSize, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		std::cout << "created image views for swap chain images" << std::endl;
+
+		// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for image.
+		VkAttachmentDescription colorAttachmentDescription = {};
+		colorAttachmentDescription.format = _colorImages.size() > 0 ? _colorImages[0]._format : VK_FORMAT_UNDEFINED;
+		colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+		colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+		// Note: hardware will automatically transition attachment to the specified layout
+		// Note: index refers to attachment descriptions array.
+		VkAttachmentReference colorAttachmentReference = {};
+		colorAttachmentReference.attachment = 0;
+		colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		// Describes how the render pass is going to use the depth attachment.
+		VkAttachmentDescription depthAttachmentDescription = {};
+		depthAttachmentDescription.flags = 0;
+		depthAttachmentDescription.format = _depthImage._format;
+		depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+		depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		VkAttachmentReference depthAttachmentReference = {};
+		depthAttachmentReference.attachment = 1;
+		depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		// Note: this is a description of how the attachments of the render pass will be used in this sub pass
+		// e.g. if they will be read in shaders and/or drawn to.
+		VkSubpassDescription subPassDescription = {};
+		subPassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subPassDescription.colorAttachmentCount = 1;
+		subPassDescription.pColorAttachments = &colorAttachmentReference;
+		subPassDescription.pDepthStencilAttachment = &depthAttachmentReference;
+
+		// Now we have to adjust the renderpass synchronization. Previously, it was possible that multiple frames 
+		// were rendered simultaneously by the GPU. This is a problem when using depth buffers, because one frame 
+		// could overwrite the depth buffer while a previous frame is still rendering to it.
+		// We keep the subpass dependency for the color attachment we were already using.
+		VkSubpassDependency colorDependency = {};
+		colorDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		colorDependency.dstSubpass = 0;
+		colorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		colorDependency.srcAccessMask = 0;
+		colorDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		colorDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+		// This dependency tells Vulkan that the depth attachment in a renderpass cannot be used before 
+		// previous renderpasses have finished using it.
+		VkSubpassDependency depthDependency = {};
+		depthDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		depthDependency.dstSubpass = 0;
+		depthDependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+		depthDependency.srcAccessMask = 0;
+		depthDependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+		depthDependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+		// Create the render pass. We pass in the main image attachment (color) and the depth image attachment, so the GPU knows how to treat
+		// the images.
+		VkAttachmentDescription attachmentDescriptions[2] = { colorAttachmentDescription, depthAttachmentDescription };
+		VkSubpassDependency subpassDependencies[2] = { colorDependency, depthDependency };
+		VkRenderPassCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		createInfo.attachmentCount = 2;
+		createInfo.pAttachments = &attachmentDescriptions[0];
+		createInfo.subpassCount = 1;
+		createInfo.pSubpasses = &subPassDescription;
+		createInfo.dependencyCount = 2;
+		createInfo.pDependencies = &subpassDependencies[0];
+
+		if (vkCreateRenderPass(logicalDevice, &createInfo, nullptr, &_handle) != VK_SUCCESS) {
+			std::cerr << "failed to create render pass" << std::endl;
+			exit(1);
+		}
+		else {
+			std::cout << "created render pass" << std::endl;
+		}
+	}
+
+	void RenderPass::Destroy() 
+	{
 		_depthImage.Destroy();
 		for (auto image : _colorImages) {
 			image.Destroy();
 		}
 
-		for (size_t i = 0; i < _frameBuffers.size(); i++) {
-			vkDestroyFramebuffer(_logicalDevice, _frameBuffers[i], nullptr);
-		}
+		vkDestroyRenderPass(_logicalDevice, _handle, nullptr);
 	}
 
 	// Physical device
@@ -663,9 +760,8 @@ namespace Engine::Vulkan
 		CreateSemaphores();
 		CreateCommandPool();
 		CreateVertexAndIndexBuffers();
-		CreateSwapchain();
-		CreateDepthImage();
-		CreateRenderPass();
+		_swapchain = Swapchain(_logicalDevice, _physicalDevice, _windowSurface, nullptr);
+		_renderPass = RenderPass(_physicalDevice, _logicalDevice, _swapchain);
 		CreateGraphicsPipeline();
 		CreateCommandBuffers();
 	}
@@ -698,11 +794,10 @@ namespace Engine::Vulkan
 	{
 		windowResized = false;
 
-		// Only recreate objects that are affected by framebuffer size changes
+		// Only recreate objects that are affected by framebuffer size changes.
 		Cleanup(false);
-
-		CreateSwapchain();
-		CreateRenderPass();
+		_swapchain = Swapchain(_logicalDevice, _physicalDevice, _windowSurface, _swapchain._handle);
+		_renderPass = RenderPass(_physicalDevice, _logicalDevice, _swapchain);
 		CreateGraphicsPipeline();
 		CreateCommandBuffers();
 	}
@@ -712,7 +807,7 @@ namespace Engine::Vulkan
 		vkDeviceWaitIdle(_logicalDevice);
 		vkFreeCommandBuffers(_logicalDevice, _commandPool, (uint32_t)_graphicsCommandBuffers.size(), _graphicsCommandBuffers.data());
 		vkDestroyPipeline(_logicalDevice, _graphicsPipeline, nullptr);
-		vkDestroyRenderPass(_logicalDevice, _renderPass, nullptr);
+		_renderPass.Destroy();
 		_swapchain.Destroy();
 		
 		vkDestroyDescriptorSetLayout(_logicalDevice, _descriptorSetLayout, nullptr);
@@ -720,18 +815,18 @@ namespace Engine::Vulkan
 		if (fullClean) {
 			vkDestroySemaphore(_logicalDevice, _imageAvailableSemaphore, nullptr);
 			vkDestroySemaphore(_logicalDevice, _renderingFinishedSemaphore, nullptr);
-
+			_renderPass.Destroy();
 			vkDestroyCommandPool(_logicalDevice, _commandPool, nullptr);
 
-			// Clean up uniform buffer related objects
+			// Clean up uniform buffer related objects.
 			vkDestroyDescriptorPool(_logicalDevice, _descriptorPool, nullptr);
 			_uniformBuffer.Destroy();
 
-			// Buffers must be destroyed after no command buffers are referring to them anymore
+			// Buffers must be destroyed after no command buffers are referring to them anymore.
 			_vertexBuffer->Destroy();
 			_indexBuffer->Destroy();
 
-			// Note: implicitly destroys images (in fact, we're not allowed to do that explicitly)
+			// Note: implicitly destroys images (in fact, we're not allowed to do that explicitly).
 			_swapchain.Destroy();
 
 			vkDestroyDevice(_logicalDevice, nullptr);
@@ -1148,98 +1243,6 @@ namespace Engine::Vulkan
 	//	//}
 	//}
 
-	void VulkanApplication::CreateSwapchain()
-	{
-		_swapchain = Swapchain(_logicalDevice, _physicalDevice, _windowSurface, nullptr);
-	}
-
-	void VulkanApplication::CreateRenderPass()
-	{
-		// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for image.
-		VkAttachmentDescription colorAttachmentDescription = {};
-		colorAttachmentDescription.format = _swapchain._colorImages.size() > 0 ? _swapchain._colorImages[0]._format : VK_FORMAT_UNDEFINED;
-		colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-		colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-		// Note: hardware will automatically transition attachment to the specified layout
-		// Note: index refers to attachment descriptions array.
-		VkAttachmentReference colorAttachmentReference = {};
-		colorAttachmentReference.attachment = 0;
-		colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		// Describes how the render pass is going to use the depth attachment.
-		VkAttachmentDescription depthAttachmentDescription = {};
-		depthAttachmentDescription.flags = 0;
-		depthAttachmentDescription.format = _swapchain._depthImage._format;
-		depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-		depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-		VkAttachmentReference depthAttachmentReference = {};
-		depthAttachmentReference.attachment = 1;
-		depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-		// Note: this is a description of how the attachments of the render pass will be used in this sub pass
-		// e.g. if they will be read in shaders and/or drawn to.
-		VkSubpassDescription subPassDescription = {};
-		subPassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subPassDescription.colorAttachmentCount = 1;
-		subPassDescription.pColorAttachments = &colorAttachmentReference;
-		subPassDescription.pDepthStencilAttachment = &depthAttachmentReference;
-
-		// Now we have to adjust the renderpass synchronization. Previously, it was possible that multiple frames 
-		// were rendered simultaneously by the GPU. This is a problem when using depth buffers, because one frame 
-		// could overwrite the depth buffer while a previous frame is still rendering to it.
-		// We keep the subpass dependency for the color attachment we were already using.
-		VkSubpassDependency colorDependency = {};
-		colorDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		colorDependency.dstSubpass = 0;
-		colorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		colorDependency.srcAccessMask = 0;
-		colorDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		colorDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-		// This dependency tells Vulkan that the depth attachment in a renderpass cannot be used before 
-		// previous renderpasses have finished using it.
-		VkSubpassDependency depthDependency = {};
-		depthDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		depthDependency.dstSubpass = 0;
-		depthDependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-		depthDependency.srcAccessMask = 0;
-		depthDependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-		depthDependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-		// Create the render pass. We pass in the main image attachment (color) and the depth image attachment, so the GPU knows how to treat
-		// the images.
-		VkAttachmentDescription attachmentDescriptions[2] = { colorAttachmentDescription, depthAttachmentDescription };
-		VkSubpassDependency subpassDependencies[2] = { colorDependency, depthDependency };
-		VkRenderPassCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		createInfo.attachmentCount = 2;
-		createInfo.pAttachments = &attachmentDescriptions[0];
-		createInfo.subpassCount = 1;
-		createInfo.pSubpasses = &subPassDescription;
-		createInfo.dependencyCount = 2;
-		createInfo.pDependencies = &subpassDependencies[0];
-
-		if (vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass) != VK_SUCCESS) {
-			std::cerr << "failed to create render pass" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created render pass" << std::endl;
-		}
-	}
-
 	VkShaderModule VulkanApplication::CreateShaderModule(const std::filesystem::path& absolutePath)
 	{
 		std::ifstream file(absolutePath.c_str(), std::ios::ate | std::ios::binary);
@@ -1447,7 +1450,7 @@ namespace Engine::Vulkan
 		pipelineCreateInfo.pMultisampleState = &multisampleCreateInfo;
 		pipelineCreateInfo.pColorBlendState = &colorBlendCreateInfo;
 		pipelineCreateInfo.layout = _pipelineLayout;
-		pipelineCreateInfo.renderPass = _renderPass;
+		pipelineCreateInfo.renderPass = _renderPass._handle;
 		pipelineCreateInfo.subpass = 0;
 		pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
 		pipelineCreateInfo.basePipelineIndex = -1;
@@ -1563,13 +1566,13 @@ namespace Engine::Vulkan
 	void VulkanApplication::CreateCommandBuffers()
 	{
 		// Allocate graphics command buffers
-		_graphicsCommandBuffers.resize(_swapchain._colorImages.size());
+		_graphicsCommandBuffers.resize(_renderPass._colorImages.size());
 
 		VkCommandBufferAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.commandPool = _commandPool;
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandBufferCount = (uint32_t)_swapchain._colorImages.size();
+		allocInfo.commandBufferCount = (uint32_t)_renderPass._colorImages.size();
 
 		if (vkAllocateCommandBuffers(_logicalDevice, &allocInfo, _graphicsCommandBuffers.data()) != VK_SUCCESS) {
 			std::cerr << "failed to allocate graphics command buffers" << std::endl;
@@ -1592,7 +1595,7 @@ namespace Engine::Vulkan
 		subResourceRange.layerCount = 1;
 
 		// Record command buffer for each swap image
-		for (size_t i = 0; i < _swapchain._colorImages.size(); i++) {
+		for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
 			vkBeginCommandBuffer(_graphicsCommandBuffers[i], &beginInfo);
 
 			// If present queue family and graphics queue family are different, then a barrier is necessary
@@ -1613,7 +1616,7 @@ namespace Engine::Vulkan
 				presentToDrawBarrier.dstQueueFamilyIndex = _graphicsQueueFamily;
 			}
 
-			presentToDrawBarrier.image = _swapchain._colorImages[i]._imageHandle;
+			presentToDrawBarrier.image = _renderPass._colorImages[i]._imageHandle;
 			presentToDrawBarrier.subresourceRange = subResourceRange;
 
 			vkCmdPipelineBarrier(_graphicsCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
@@ -1629,7 +1632,7 @@ namespace Engine::Vulkan
 
 			VkRenderPassBeginInfo renderPassBeginInfo = {};
 			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			renderPassBeginInfo.renderPass = _renderPass;
+			renderPassBeginInfo.renderPass = _renderPass._handle;
 			renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[i];
 			renderPassBeginInfo.renderArea.offset.x = 0;
 			renderPassBeginInfo.renderArea.offset.y = 0;
@@ -1666,7 +1669,7 @@ namespace Engine::Vulkan
 				drawToPresentBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 				drawToPresentBarrier.srcQueueFamilyIndex = _graphicsQueueFamily;
 				drawToPresentBarrier.dstQueueFamilyIndex = _presentQueueFamily;
-				drawToPresentBarrier.image = _swapchain._colorImages[i]._imageHandle;
+				drawToPresentBarrier.image = _renderPass._colorImages[i]._imageHandle;
 				drawToPresentBarrier.subresourceRange = subResourceRange;
 
 				vkCmdPipelineBarrier(_graphicsCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &drawToPresentBarrier);
@@ -1680,7 +1683,7 @@ namespace Engine::Vulkan
 
 		std::cout << "recorded command buffers" << std::endl;
 
-		// No longer needed
+		// No longer needed.
 		vkDestroyPipelineLayout(_logicalDevice, _pipelineLayout, nullptr);
 	}
 }

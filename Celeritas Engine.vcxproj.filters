@@ -45,28 +45,10 @@
     <ClInclude Include="src\engine\VulkanApplication.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\GltfLoader.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Input.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Mesh.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Scene.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Singleton.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\engine\Time.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\math\Transform.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\VulkanApplication.hpp">
@@ -97,9 +79,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\VulkanApplication.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\GameObject.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\GltfLoader.hpp">
@@ -150,9 +129,6 @@
     <ClInclude Include="src\engine\Time.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\Transform.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\engine\Utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -172,9 +148,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\Scene.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Settings.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\Singleton.hpp">
@@ -216,7 +189,19 @@
     <ClInclude Include="src\utils\Utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\*\*.hpp">
+    <ClInclude Include="src\engine\VulkanApplication.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\settings\GlobalSettings.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\settings\Paths.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\structural\Singleton.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\utils\Utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\*\*.hpp">
@@ -276,28 +261,10 @@
     <ClInclude Include="src\*\*.cpp">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\*\*.cpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\engine\Utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\VulkanApplication.cpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\GltfLoader.cpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Input.cpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Json.cpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Mesh.cpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Scene.cpp">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\VulkanApplication.cpp">
@@ -439,6 +406,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\structural\IUpdatable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\structural\IObservable.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
