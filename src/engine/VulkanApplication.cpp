@@ -124,7 +124,6 @@ namespace Engine::Vulkan
 	Image::Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& size, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& aspectFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags)
 	{
 		_logicalDevice = logicalDevice;
-		_physicalDevice = physicalDevice;
 		_format = imageFormat;
 
 		VkImageCreateInfo imageCreateInfo = { };
@@ -162,7 +161,7 @@ namespace Engine::Vulkan
 		VkMemoryAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = reqs.size;
-		allocInfo.memoryTypeIndex = _physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, memoryPropertiesFlags);
+		allocInfo.memoryTypeIndex = physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, memoryPropertiesFlags);
 
 		VkDeviceMemory mem;
 		vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &mem);
@@ -187,6 +186,10 @@ namespace Engine::Vulkan
 
 	Image::Image(VkDevice& logicalDevice, VkImage& image, const VkFormat& imageFormat)
 	{
+		_imageHandle = image;
+		_logicalDevice = logicalDevice;
+		_format = imageFormat;
+
 		VkImageViewCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		createInfo.image = image;

@@ -186,14 +186,9 @@ namespace Engine::Vulkan
 	public:
 
 		/**
-		 * @brief LogicalDevice .
+		 * @brief See Vulkan specification.
 		 */
 		VkDevice _logicalDevice;
-
-		/**
-		 * @brief Used to query for GPU hardware properties, to know where the buffer can and cannot be stored in memory.
-		 */
-		PhysicalDevice _physicalDevice;
 
 		/**
 		 * @brief Handle that identifies a structure that contains the image data.
