@@ -1,8 +1,6 @@
 #pragma once
 #include <vector>
 
-typedef void (*EventCallback)(void* caller, EventArgs args);
-
 /**
  * @brief Type for sending arguments in event callbacks.
  */
@@ -11,45 +9,45 @@ class EventArgs
 
 };
 
-
 /**
- * @brief Class that gives a type that is able to invoke.
+ * @brief Class that wraps an event, which is just a collection of function pointers.
  */
-class Event
+template <typename ArgType> class Event
 {
+public:
+
+	typedef void (*EventCallback)(void* caller, ArgType args);
+
 	/**
 	 * @brief Underlying event's function pointers.
 	 */
-	std::vector<EventCallback> _callbacks;
-
-public:
+	std::vector<EventCallback> _subscribers;
 
 	/**
 	 * @brief Executes the functions pointed to by the underlying function pointers.
 	 * @param caller
 	 * @param args
 	 */
-	void Invoke(void* caller, EventArgs args)
+	void Invoke(void* caller, ArgType args)
 	{
-		for (auto& callback : _callbacks) {
-			callback(caller, args);
+		for (auto& subscriber : _subscribers) {
+			subscriber(caller, args);
 		}
 	}
 
 	/**
-	 * @brief Adds the underlying function pointers to the given callback.
+	 * @brief Adds the given callback function pointer to the underlying function pointers vector.
 	 * @param callback The callback function.
 	 */
-	void Subscribe(EventCallback c)
+	void Subscribe(EventCallback subscriber)
 	{
-		_callbacks.push_back(c);
+		_subscribers.push_back(subscriber);
 	}
 
 	/**
-	 * @brief Removes the given function from the functio.
-	 *
+	 * @brief Removes the given function from the underlying function pointers vector.
 	 */
-	void Unsubscribe(EventCallback c) {
-		_callbacks.erase(std::remove(_callbacks.begin(), _callbacks.end(), c), _callbacks.end());
+	void Unsubscribe(EventCallback unsubscriber) {
+		_subscribers.erase(std::remove(_subscribers.begin(), _subscribers.end(), unsubscriber), _subscribers.end());
 	}
 };

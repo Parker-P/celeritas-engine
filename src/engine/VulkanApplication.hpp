@@ -8,6 +8,9 @@
 
 namespace Engine::Vulkan
 {
+	class Swapchain;
+	class VulkanApplication;
+
 	/**
 	 * @brief Vulkan's representation of a GPU.
 	 */
@@ -289,7 +292,6 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Creates a render pass.
-		 * 
 		 * @param physicalDevice
 		 * @param logicalDevice
 		 * @param swapchain
@@ -298,14 +300,13 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Removes all attachments from memory and destroys the handles associated with them.
-		 * 
 		 */
 		void Destroy();
 	};
 
 	/**
-	 * @brief The swapchain is an image manager; it manages everything that involves images for render passes (attachments)
-	 * and presenting images to the screen, or more precisely passing the contents of the framebuffers down to the window.
+	 * @brief The swapchain is an image manager; it manages everything that involves presenting images to the screen, 
+	 * or more precisely passing the contents of the framebuffers down to the window.
 	 */
 	class Swapchain
 	{
@@ -364,7 +365,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Event raised whenever the window is resized.
 		 */
-		Event _onWindowResized;
+		Event<VulkanApplication*> _onWindowResized;
 
 		Swapchain() = default;
 
@@ -381,12 +382,13 @@ namespace Engine::Vulkan
 		 * @brief Presents the contents of the framebuffer that is ready to be presented to the window.
 		 * @param imageAvailableSemaphore Semaphore that will be used by Vulkan to signal when an image has finished
 		 * rendering and is available in one of the framebuffers.
-		 * @param renderingFinishedSemaphore Semaphore that will be used by Vulkan 
+		 * @param renderingFinishedSemaphore 
 		 * @param graphicsCommandBuffers
 		 * @param graphicsQueue
 		 * @param presentationQueue
+		 * @param instance Used for the callback to the onWindowResized event.
 		 */
-		void Draw(VkSemaphore& imageAvailableSemaphore, VkSemaphore& renderingFinishedSemaphore, std::vector<VkCommandBuffer>& graphicsCommandBuffers, VkQueue& graphicsQueue, VkQueue& presentationQueue);
+		void Draw(VkSemaphore& imageAvailableSemaphore, VkSemaphore& renderingFinishedSemaphore, std::vector<VkCommandBuffer>& graphicsCommandBuffers, VkQueue& graphicsQueue, VkQueue& presentationQueue, VulkanApplication* instance);
 
 		/**
 		 * @brief Creates one framebuffer for each color attachment.
@@ -424,7 +426,7 @@ namespace Engine::Vulkan
 		VkInstance _instance;
 
 		/**
-		 * @brief Connects the Vulkan API to the windowing system, so that the driver knows how to interact with the window on the screen.
+		 * @brief Connects the Vulkan API to the windowing system, so that Vulkan knows how to interact with the window on the screen.
 		 */
 		VkSurfaceKHR _windowSurface;
 
@@ -666,7 +668,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Event called whenever the window is resized.
 		 */
-		static void OnWindowSizeChanged(void* caller, EventArgs e);
+		static void OnWindowSizeChanged(void* caller, VulkanApplication* instance);
 
 		void Cleanup(bool fullClean);
 
@@ -735,11 +737,6 @@ namespace Engine::Vulkan
 		void CreatePipelineLayout();
 
 		void CreateCommandBuffers();
-
-		/**
-		 * @brief Calls Vulkan commands to take the pictures from the framebuffers and pass them onto our window.
-		 */
-		void Draw();
 
 		/**
 		 * @brief See IUpdatable.

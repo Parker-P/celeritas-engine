@@ -356,7 +356,7 @@ namespace Engine::Vulkan
 		std::cout << "created framebuffers for swap chain image views" << std::endl;
 	}
 
-	void Swapchain::Draw(VkSemaphore& imageAvailableSemaphore, VkSemaphore& renderingFinishedSemaphore, std::vector<VkCommandBuffer>& graphicsCommandBuffers, VkQueue& graphicsQueue, VkQueue& presentationQueue)
+	void Swapchain::Draw(VkSemaphore& imageAvailableSemaphore, VkSemaphore& renderingFinishedSemaphore, std::vector<VkCommandBuffer>& graphicsCommandBuffers, VkQueue& graphicsQueue, VkQueue& presentationQueue, VulkanApplication* instance)
 	{
 		// Acquire image.
 		uint32_t imageIndex;
@@ -364,7 +364,7 @@ namespace Engine::Vulkan
 
 		// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
 		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
-			OnWindowSizeChanged();
+			_onWindowResized.Invoke(this, instance);
 			return;
 		}
 		else if (res != VK_SUCCESS) {
@@ -403,7 +403,7 @@ namespace Engine::Vulkan
 		res = vkQueuePresentKHR(presentationQueue, &presentInfo);
 
 		if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
-			OnWindowSizeChanged();
+			_onWindowResized.Invoke(this, instance);
 		}
 		else if (res != VK_SUCCESS) {
 			std::cerr << "failed to submit present command buffer" << std::endl;
@@ -448,7 +448,7 @@ namespace Engine::Vulkan
 		std::cout << "acquired swap chain images" << std::endl;
 
 		// Create the color images.
-		for (int i = 0; i < actualImageCount; ++i) {
+		for (uint32_t i = 0; i < actualImageCount; ++i) {
 			_colorImages[i] = Image(logicalDevice, images[i], VK_FORMAT_R8G8B8A8_UNORM);
 		}
 
@@ -645,17 +645,10 @@ namespace Engine::Vulkan
 		uint32_t queueFamilyCount = 0;
 		vkGetPhysicalDeviceQueueFamilyProperties(_handle, &queueFamilyCount, nullptr);
 
-		if (queueFamilyCount == 0) {
-			std::cout << "physical device has no queue families!" << std::endl;
-			exit(1);
-		}
-
-		// Find queue family with graphics support
-		// Note: is a transfer queue necessary to copy vertices to the gpu or can a graphics queue handle that?
 		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
 		vkGetPhysicalDeviceQueueFamilyProperties(_handle, &queueFamilyCount, queueFamilies.data());
 
-		std::cout << "physical device has " << queueFamilyCount << " queue families." << std::endl;
+		return queueFamilies;
 	}
 
 	void PhysicalDevice::GetQueueFamilyIndices(const VkQueueFlagBits& queueFlags, bool needsPresentationSupport, const VkSurfaceKHR& surface)
@@ -773,7 +766,7 @@ namespace Engine::Vulkan
 	{
 		while (!glfwWindowShouldClose(_window)) {
 			Update();
-			Draw();
+			_swapchain.Draw(_imageAvailableSemaphore, _renderingFinishedSemaphore, _graphicsCommandBuffers, _graphicsQueue, _presentQueue, this);
 			glfwPollEvents();
 		}
 	}
@@ -793,16 +786,16 @@ namespace Engine::Vulkan
 		Settings::GlobalSettings::Instance()._windowHeight = height;
 	}
 
-	void VulkanApplication::OnWindowSizeChanged(void* caller, EventArgs e)
+	void VulkanApplication::OnWindowSizeChanged(void* caller, VulkanApplication* instance)
 	{
 		windowResized = false;
 
 		// Only recreate objects that are affected by framebuffer size changes.
-		Cleanup(false);
-		_swapchain = Swapchain(_logicalDevice, _physicalDevice, _windowSurface, _swapchain._handle);
-		_renderPass = RenderPass(_physicalDevice, _logicalDevice, _swapchain);
-		CreateGraphicsPipeline();
-		CreateCommandBuffers();
+		instance->Cleanup(false);
+		instance->_swapchain = Swapchain(instance->_logicalDevice, instance->_physicalDevice, instance->_windowSurface, instance->_swapchain._handle);
+		instance->_renderPass = RenderPass(instance->_physicalDevice, instance->_logicalDevice, instance->_swapchain);
+		instance->CreateGraphicsPipeline();
+		instance->CreateCommandBuffers();
 	}
 
 	void VulkanApplication::Cleanup(bool fullClean)
