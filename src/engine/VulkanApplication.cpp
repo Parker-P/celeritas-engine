@@ -22,7 +22,6 @@
 #include "utils/Json.h"
 #include "structural/IUpdatable.h"
 #include "structural/Singleton.hpp"
-#include "structural/Event.hpp"
 #include "settings/GlobalSettings.hpp"
 #include "settings/Paths.hpp"
 #include "engine/Time.hpp"
@@ -217,345 +216,6 @@ namespace Engine::Vulkan
 		vkDestroyImage(_logicalDevice, _imageHandle, nullptr);
 	}
 
-	// Swapchain
-	Swapchain::Swapchain(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface, const VkSwapchainKHR& oldSwapchainHandle)
-	{
-		_logicalDevice = logicalDevice;
-		_physicalDevice = physicalDevice;
-		_windowSurface = windowSurface;
-
-		// Get physical device capabilities for the window surface.
-		VkSurfaceCapabilitiesKHR surfaceCapabilities = _physicalDevice.GetSurfaceCapabilities(windowSurface);
-		std::vector<VkSurfaceFormatKHR> surfaceFormats = _physicalDevice.GetSupportedFormatsForSurface(windowSurface);
-		std::vector<VkPresentModeKHR> presentModes = _physicalDevice.GetSupportedPresentModesForSurface(windowSurface);
-
-		// Determine number of images for swap chain.
-		uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
-		if (surfaceCapabilities.maxImageCount != 0 && imageCount > surfaceCapabilities.maxImageCount) {
-			imageCount = surfaceCapabilities.maxImageCount;
-		}
-
-		std::cout << "using " << imageCount << " images for swap chain" << std::endl;
-
-		VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat(surfaceFormats);
-		_framebufferSize = ChooseFramebufferSize(surfaceCapabilities);
-
-		// Determine transformation to use (preferring no transform).
-		VkSurfaceTransformFlagBitsKHR surfaceTransform;
-		if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
-			surfaceTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-		}
-		else {
-			surfaceTransform = surfaceCapabilities.currentTransform;
-		}
-
-		// Choose presentation mode (preferring MAILBOX ~= triple buffering).
-		VkPresentModeKHR presentMode = ChoosePresentMode(presentModes);
-
-		// Finally, create the swap chain.
-		VkSwapchainCreateInfoKHR createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		createInfo.surface = windowSurface;
-		createInfo.minImageCount = imageCount;
-		createInfo.imageFormat = surfaceFormat.format;
-		createInfo.imageColorSpace = surfaceFormat.colorSpace;
-		createInfo.imageExtent = _framebufferSize;
-		createInfo.imageArrayLayers = 1;
-		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		createInfo.queueFamilyIndexCount = 0;
-		createInfo.pQueueFamilyIndices = nullptr;
-		createInfo.preTransform = surfaceTransform;
-		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-		createInfo.presentMode = presentMode;
-		createInfo.clipped = VK_TRUE;
-		createInfo.oldSwapchain = oldSwapchainHandle;
-
-		if (vkCreateSwapchainKHR(logicalDevice, &createInfo, nullptr, &_handle) != VK_SUCCESS) {
-			std::cerr << "failed to create swapchain" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created swapchain" << std::endl;
-		}
-
-		if (oldSwapchainHandle != VK_NULL_HANDLE) {
-			vkDestroySwapchainKHR(logicalDevice, oldSwapchainHandle, nullptr);
-		}
-		_oldSwapchainHandle = oldSwapchainHandle;
-	}
-
-	VkPresentModeKHR Swapchain::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)
-	{
-		for (const auto& presentMode : presentModes) {
-			if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-				return presentMode;
-			}
-		}
-
-		// If mailbox is unavailable, fall back to FIFO (guaranteed to be available)
-		return VK_PRESENT_MODE_FIFO_KHR;
-	}
-
-	VkSurfaceFormatKHR Swapchain::ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
-	{
-		// We can either choose any format
-		if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED) {
-			return{ VK_FORMAT_R8G8B8A8_UNORM, VK_COLORSPACE_SRGB_NONLINEAR_KHR };
-		}
-
-		// Or go with the standard format - if available
-		for (const auto& availableSurfaceFormat : availableFormats) {
-			if (availableSurfaceFormat.format == VK_FORMAT_R8G8B8A8_UNORM) {
-				return availableSurfaceFormat;
-			}
-		}
-
-		// Or fall back to the first available one
-		return availableFormats[0];
-	}
-
-	VkExtent2D Swapchain::ChooseFramebufferSize(const VkSurfaceCapabilitiesKHR& surfaceCapabilities)
-	{
-		auto& settings = Settings::GlobalSettings::Instance();
-
-		if (surfaceCapabilities.currentExtent.width == -1) {
-			VkExtent2D swapChainExtent = {};
-
-			swapChainExtent.width = std::min(std::max(settings._windowWidth, surfaceCapabilities.minImageExtent.width), surfaceCapabilities.maxImageExtent.width);
-			swapChainExtent.height = std::min(std::max(settings._windowHeight, surfaceCapabilities.minImageExtent.height), surfaceCapabilities.maxImageExtent.height);
-
-			return swapChainExtent;
-		}
-		else {
-			return surfaceCapabilities.currentExtent;
-		}
-	}
-
-	void Swapchain::CreateFramebuffers(RenderPass& renderPass)
-	{
-		_frameBuffers.resize(renderPass._colorImages.size());
-
-		for (size_t i = 0; i < renderPass._colorImages.size(); i++) {
-
-			// We will render to the same depth image for each frame. 
-			// We can just keep clearing and reusing the same depth image for every frame.
-			VkImageView colorAndDepthImages[2] = { renderPass._colorImages[i]._imageViewHandle, renderPass._depthImage._imageViewHandle };
-			VkFramebufferCreateInfo createInfo = {};
-			createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			createInfo.renderPass = renderPass._handle;
-			createInfo.attachmentCount = 2;
-			createInfo.pAttachments = &colorAndDepthImages[0];
-			createInfo.width = _framebufferSize.width;
-			createInfo.height = _framebufferSize.height;
-			createInfo.layers = 1;
-
-			if (vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_frameBuffers[i]) != VK_SUCCESS) {
-				std::cerr << "failed to create framebuffer for swap chain image view #" << i << std::endl;
-				exit(1);
-			}
-		}
-
-		std::cout << "created framebuffers for swap chain image views" << std::endl;
-	}
-
-	void Swapchain::Draw(VkSemaphore& imageAvailableSemaphore, VkSemaphore& renderingFinishedSemaphore, std::vector<VkCommandBuffer>& graphicsCommandBuffers, VkQueue& graphicsQueue, VkQueue& presentationQueue, VulkanApplication* instance)
-	{
-		// Acquire image.
-		uint32_t imageIndex;
-		VkResult res = vkAcquireNextImageKHR(_logicalDevice, _handle, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
-
-		// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
-		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
-			_onWindowResized.Invoke(this, instance);
-			return;
-		}
-		else if (res != VK_SUCCESS) {
-			std::cerr << "failed to acquire image" << std::endl;
-			exit(1);
-		}
-
-		// Wait for image to be available and draw.
-		// This is the stage where the queue should wait on the semaphore.
-		VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		VkSubmitInfo submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = &imageAvailableSemaphore;
-		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = &renderingFinishedSemaphore;
-		submitInfo.pWaitDstStageMask = &waitDstStageMask;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &graphicsCommandBuffers[imageIndex];
-
-		if (auto res = vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS) {
-			std::cerr << "failed to submit draw command buffer" << std::endl;
-			exit(1);
-		}
-
-		// Present drawn image.
-		// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
-		VkPresentInfoKHR presentInfo = {};
-		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = &renderingFinishedSemaphore;
-		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &_handle;
-		presentInfo.pImageIndices = &imageIndex;
-
-		res = vkQueuePresentKHR(presentationQueue, &presentInfo);
-
-		if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
-			_onWindowResized.Invoke(this, instance);
-		}
-		else if (res != VK_SUCCESS) {
-			std::cerr << "failed to submit present command buffer" << std::endl;
-			exit(1);
-		}
-	}
-
-	void Swapchain::Destroy()
-	{
-		for (size_t i = 0; i < _frameBuffers.size(); i++) {
-			vkDestroyFramebuffer(_logicalDevice, _frameBuffers[i], nullptr);
-		}
-	}
-
-	// RenderPass
-	RenderPass::RenderPass(PhysicalDevice& physicalDevice, VkDevice& logicalDevice, Swapchain& swapchain)
-	{
-		_physicalDevice = physicalDevice;
-		_logicalDevice = logicalDevice;
-
-		// Get the color attachment from the swapchain.
-		auto imageFormat = swapchain._surfaceFormat.format;
-
-		// Store the images used by the swap chain.
-		// Note: these are the images that swap chain image indices refer to.
-		// Note: actual number of images may differ from requested number, since it's a lower bound.
-		uint32_t actualImageCount = 0;
-		if (vkGetSwapchainImagesKHR(logicalDevice, swapchain._handle, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
-			std::cerr << "failed to acquire number of swap chain images" << std::endl;
-			exit(1);
-		}
-
-		_colorImages.resize(actualImageCount);
-
-		std::vector<VkImage> images;
-		images.resize(actualImageCount);
-		if (vkGetSwapchainImagesKHR(logicalDevice, swapchain._handle, &actualImageCount, images.data()) != VK_SUCCESS) {
-			std::cerr << "failed to acquire swapchain images" << std::endl;
-			exit(1);
-		}
-
-		std::cout << "acquired swap chain images" << std::endl;
-
-		// Create the color images.
-		for (uint32_t i = 0; i < actualImageCount; ++i) {
-			_colorImages[i] = Image(logicalDevice, images[i], VK_FORMAT_R8G8B8A8_UNORM);
-		}
-
-		// Create the depth attachment.
-		auto& settings = Settings::GlobalSettings::Instance();
-		_depthImage = Image(logicalDevice, physicalDevice, VK_FORMAT_D32_SFLOAT, swapchain._framebufferSize, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-		std::cout << "created image views for swap chain images" << std::endl;
-
-		// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for image.
-		VkAttachmentDescription colorAttachmentDescription = {};
-		colorAttachmentDescription.format = _colorImages.size() > 0 ? _colorImages[0]._format : VK_FORMAT_UNDEFINED;
-		colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-		colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-		// Note: hardware will automatically transition attachment to the specified layout
-		// Note: index refers to attachment descriptions array.
-		VkAttachmentReference colorAttachmentReference = {};
-		colorAttachmentReference.attachment = 0;
-		colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		// Describes how the render pass is going to use the depth attachment.
-		VkAttachmentDescription depthAttachmentDescription = {};
-		depthAttachmentDescription.flags = 0;
-		depthAttachmentDescription.format = _depthImage._format;
-		depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-		depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-		VkAttachmentReference depthAttachmentReference = {};
-		depthAttachmentReference.attachment = 1;
-		depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-		// Note: this is a description of how the attachments of the render pass will be used in this sub pass
-		// e.g. if they will be read in shaders and/or drawn to.
-		VkSubpassDescription subPassDescription = {};
-		subPassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		subPassDescription.colorAttachmentCount = 1;
-		subPassDescription.pColorAttachments = &colorAttachmentReference;
-		subPassDescription.pDepthStencilAttachment = &depthAttachmentReference;
-
-		// Now we have to adjust the renderpass synchronization. Previously, it was possible that multiple frames 
-		// were rendered simultaneously by the GPU. This is a problem when using depth buffers, because one frame 
-		// could overwrite the depth buffer while a previous frame is still rendering to it.
-		// We keep the subpass dependency for the color attachment we were already using.
-		VkSubpassDependency colorDependency = {};
-		colorDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		colorDependency.dstSubpass = 0;
-		colorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		colorDependency.srcAccessMask = 0;
-		colorDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		colorDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-		// This dependency tells Vulkan that the depth attachment in a renderpass cannot be used before 
-		// previous renderpasses have finished using it.
-		VkSubpassDependency depthDependency = {};
-		depthDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		depthDependency.dstSubpass = 0;
-		depthDependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-		depthDependency.srcAccessMask = 0;
-		depthDependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-		depthDependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-		// Create the render pass. We pass in the main image attachment (color) and the depth image attachment, so the GPU knows how to treat
-		// the images.
-		VkAttachmentDescription attachmentDescriptions[2] = { colorAttachmentDescription, depthAttachmentDescription };
-		VkSubpassDependency subpassDependencies[2] = { colorDependency, depthDependency };
-		VkRenderPassCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		createInfo.attachmentCount = 2;
-		createInfo.pAttachments = &attachmentDescriptions[0];
-		createInfo.subpassCount = 1;
-		createInfo.pSubpasses = &subPassDescription;
-		createInfo.dependencyCount = 2;
-		createInfo.pDependencies = &subpassDependencies[0];
-
-		if (vkCreateRenderPass(logicalDevice, &createInfo, nullptr, &_handle) != VK_SUCCESS) {
-			std::cerr << "failed to create render pass" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created render pass" << std::endl;
-		}
-	}
-
-	void RenderPass::Destroy() 
-	{
-		_depthImage.Destroy();
-		for (auto image : _colorImages) {
-			image.Destroy();
-		}
-
-		vkDestroyRenderPass(_logicalDevice, _handle, nullptr);
-	}
-
 	// Physical device
 	PhysicalDevice::PhysicalDevice(VkInstance& instance)
 	{
@@ -717,6 +377,16 @@ namespace Engine::Vulkan
 	}
 
 	// VulkanApplication
+	void VulkanApplication::Run()
+	{
+		InitializeWindow();
+		_input = Input::KeyboardMouse(_window);
+		LoadScene();
+		SetupVulkan();
+		MainLoop();
+		Cleanup(true);
+	}
+
 	VkBool32 VulkanApplication::DebugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData)
 	{
 		if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
@@ -727,16 +397,6 @@ namespace Engine::Vulkan
 		}
 
 		return VK_FALSE;
-	}
-
-	void VulkanApplication::Run()
-	{
-		InitializeWindow();
-		_input = Input::KeyboardMouse(_window);
-		LoadScene();
-		SetupVulkan();
-		MainLoop();
-		Cleanup(true);
 	}
 
 	void VulkanApplication::InitializeWindow()
@@ -757,10 +417,9 @@ namespace Engine::Vulkan
 		CreateSemaphores();
 		CreateCommandPool();
 		CreateVertexAndIndexBuffers();
-		_swapchain = Swapchain(_logicalDevice, _physicalDevice, _windowSurface, nullptr);
-		_swapchain._onWindowResized.Subscribe(OnWindowSizeChanged);
-		_renderPass = RenderPass(_physicalDevice, _logicalDevice, _swapchain);
-		_swapchain.CreateFramebuffers(_renderPass);
+		CreateSwapchain();
+		CreateRenderPass();
+		CreateFramebuffers();
 		CreateGraphicsPipeline();
 		CreateCommandBuffers();
 	}
@@ -769,7 +428,7 @@ namespace Engine::Vulkan
 	{
 		while (!glfwWindowShouldClose(_window)) {
 			Update();
-			_swapchain.Draw(_imageAvailableSemaphore, _renderingFinishedSemaphore, _graphicsCommandBuffers, _graphicsQueue, _presentQueue, this);
+			Draw();
 			glfwPollEvents();
 		}
 	}
@@ -789,16 +448,33 @@ namespace Engine::Vulkan
 		Settings::GlobalSettings::Instance()._windowHeight = height;
 	}
 
-	void VulkanApplication::OnWindowSizeChanged(void* caller, VulkanApplication* instance)
+	void VulkanApplication::WindowSizeChanged()
 	{
 		windowResized = false;
 
 		// Only recreate objects that are affected by framebuffer size changes.
-		instance->Cleanup(false);
-		instance->_swapchain = Swapchain(instance->_logicalDevice, instance->_physicalDevice, instance->_windowSurface, instance->_swapchain._handle);
-		instance->_renderPass = RenderPass(instance->_physicalDevice, instance->_logicalDevice, instance->_swapchain);
-		instance->CreateGraphicsPipeline();
-		instance->CreateCommandBuffers();
+		Cleanup(false);
+		CreateSwapchain();
+		CreateRenderPass();
+		CreateGraphicsPipeline();
+		CreateCommandBuffers();
+	}
+
+	void VulkanApplication::DestroyRenderPass()
+	{
+		_renderPass._depthImage.Destroy();
+		for (auto image : _renderPass._colorImages) {
+			image.Destroy();
+		}
+
+		vkDestroyRenderPass(_logicalDevice, _renderPass._handle, nullptr);
+	}
+
+	void VulkanApplication::DestroySwapchain()
+	{
+		for (size_t i = 0; i < _swapchain._frameBuffers.size(); i++) {
+			vkDestroyFramebuffer(_logicalDevice, _swapchain._frameBuffers[i], nullptr);
+		}
 	}
 
 	void VulkanApplication::Cleanup(bool fullClean)
@@ -806,15 +482,15 @@ namespace Engine::Vulkan
 		vkDeviceWaitIdle(_logicalDevice);
 		vkFreeCommandBuffers(_logicalDevice, _commandPool, (uint32_t)_graphicsCommandBuffers.size(), _graphicsCommandBuffers.data());
 		vkDestroyPipeline(_logicalDevice, _graphicsPipeline, nullptr);
-		_renderPass.Destroy();
-		_swapchain.Destroy();
+		DestroyRenderPass();
+		DestroySwapchain();
 		
 		vkDestroyDescriptorSetLayout(_logicalDevice, _descriptorSetLayout, nullptr);
 
 		if (fullClean) {
 			vkDestroySemaphore(_logicalDevice, _imageAvailableSemaphore, nullptr);
 			vkDestroySemaphore(_logicalDevice, _renderingFinishedSemaphore, nullptr);
-			_renderPass.Destroy();
+			DestroyRenderPass();
 			vkDestroyCommandPool(_logicalDevice, _commandPool, nullptr);
 
 			// Clean up uniform buffer related objects.
@@ -822,11 +498,11 @@ namespace Engine::Vulkan
 			_uniformBuffer.Destroy();
 
 			// Buffers must be destroyed after no command buffers are referring to them anymore.
-			_vertexBuffer->Destroy();
-			_indexBuffer->Destroy();
+			_vertexBuffer.Destroy();
+			_indexBuffer.Destroy();
 
 			// Note: implicitly destroys images (in fact, we're not allowed to do that explicitly).
-			_swapchain.Destroy();
+			DestroySwapchain();
 
 			vkDestroyDevice(_logicalDevice, nullptr);
 
@@ -1096,7 +772,7 @@ namespace Engine::Vulkan
 			_model._mesh._vertices.data(),
 			vertexPositionsSize);
 
-		_vertexBuffer = new Buffer(_logicalDevice,
+		_vertexBuffer = Buffer(_logicalDevice,
 			_physicalDevice,
 			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -1113,7 +789,7 @@ namespace Engine::Vulkan
 			(void*)_model._mesh._faceIndices.data(),
 			faceIndicesSize);
 
-		_indexBuffer = new Buffer(_logicalDevice,
+		_indexBuffer = Buffer(_logicalDevice,
 			_physicalDevice,
 			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -1141,9 +817,9 @@ namespace Engine::Vulkan
 
 		VkBufferCopy copyRegion = {};
 		copyRegion.size = vertexPositionsSize;
-		vkCmdCopyBuffer(copyCommandBuffer, vertexTransferBuffer._handle, _vertexBuffer->_handle, 1, &copyRegion);
+		vkCmdCopyBuffer(copyCommandBuffer, vertexTransferBuffer._handle, _vertexBuffer._handle, 1, &copyRegion);
 		copyRegion.size = faceIndicesSize;
-		vkCmdCopyBuffer(copyCommandBuffer, indexTransferBuffer._handle, _indexBuffer->_handle, 1, &copyRegion);
+		vkCmdCopyBuffer(copyCommandBuffer, indexTransferBuffer._handle, _indexBuffer._handle, 1, &copyRegion);
 
 		vkEndCommandBuffer(copyCommandBuffer);
 
@@ -1165,6 +841,319 @@ namespace Engine::Vulkan
 		std::cout << "set up vertex and index buffers" << std::endl;
 	}
 
+	VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)
+	{
+		for (const auto& presentMode : presentModes) {
+			if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+				return presentMode;
+			}
+		}
+
+		// If mailbox is unavailable, fall back to FIFO (guaranteed to be available)
+		return VK_PRESENT_MODE_FIFO_KHR;
+	}
+
+	VkSurfaceFormatKHR VulkanApplication::ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
+	{
+		// We can either choose any format
+		if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED) {
+			return{ VK_FORMAT_R8G8B8A8_UNORM, VK_COLORSPACE_SRGB_NONLINEAR_KHR };
+		}
+
+		// Or go with the standard format - if available
+		for (const auto& availableSurfaceFormat : availableFormats) {
+			if (availableSurfaceFormat.format == VK_FORMAT_R8G8B8A8_UNORM) {
+				return availableSurfaceFormat;
+			}
+		}
+
+		// Or fall back to the first available one
+		return availableFormats[0];
+	}
+
+	VkExtent2D VulkanApplication::ChooseFramebufferSize(const VkSurfaceCapabilitiesKHR& surfaceCapabilities)
+	{
+		auto& settings = Settings::GlobalSettings::Instance();
+
+		if (surfaceCapabilities.currentExtent.width == -1) {
+			VkExtent2D swapChainExtent = {};
+
+			swapChainExtent.width = std::min(std::max(settings._windowWidth, surfaceCapabilities.minImageExtent.width), surfaceCapabilities.maxImageExtent.width);
+			swapChainExtent.height = std::min(std::max(settings._windowHeight, surfaceCapabilities.minImageExtent.height), surfaceCapabilities.maxImageExtent.height);
+
+			return swapChainExtent;
+		}
+		else {
+			return surfaceCapabilities.currentExtent;
+		}
+	}
+
+	void VulkanApplication::CreateFramebuffers()
+	{
+		_swapchain._frameBuffers.resize(_renderPass._colorImages.size());
+
+		for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
+
+			// We will render to the same depth image for each frame. 
+			// We can just keep clearing and reusing the same depth image for every frame.
+			VkImageView colorAndDepthImages[2] = { _renderPass._colorImages[i]._imageViewHandle, _renderPass._depthImage._imageViewHandle };
+			VkFramebufferCreateInfo createInfo = {};
+			createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			createInfo.renderPass = _renderPass._handle;
+			createInfo.attachmentCount = 2;
+			createInfo.pAttachments = &colorAndDepthImages[0];
+			createInfo.width = _swapchain._framebufferSize.width;
+			createInfo.height = _swapchain._framebufferSize.height;
+			createInfo.layers = 1;
+
+			if (vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_swapchain._frameBuffers[i]) != VK_SUCCESS) {
+				std::cerr << "failed to create framebuffer for swap chain image view #" << i << std::endl;
+				exit(1);
+			}
+		}
+
+		std::cout << "created framebuffers for swap chain image views" << std::endl;
+	}
+
+	void VulkanApplication::Draw()
+	{
+		// Acquire image.
+		uint32_t imageIndex;
+		VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain._handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+		// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
+		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
+			WindowSizeChanged();
+			return;
+		}
+		else if (res != VK_SUCCESS) {
+			std::cerr << "failed to acquire image" << std::endl;
+			exit(1);
+		}
+
+		// Wait for image to be available and draw.
+		// This is the stage where the queue should wait on the semaphore.
+		VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		VkSubmitInfo submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.waitSemaphoreCount = 1;
+		submitInfo.pWaitSemaphores = &_imageAvailableSemaphore;
+		submitInfo.signalSemaphoreCount = 1;
+		submitInfo.pSignalSemaphores = &_renderingFinishedSemaphore;
+		submitInfo.pWaitDstStageMask = &waitDstStageMask;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &_graphicsCommandBuffers[imageIndex];
+
+		if (auto res = vkQueueSubmit(_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS) {
+			std::cerr << "failed to submit draw command buffer" << std::endl;
+			exit(1);
+		}
+
+		// Present drawn image.
+		// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
+		VkPresentInfoKHR presentInfo = {};
+		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		presentInfo.waitSemaphoreCount = 1;
+		presentInfo.pWaitSemaphores = &_renderingFinishedSemaphore;
+		presentInfo.swapchainCount = 1;
+		presentInfo.pSwapchains = &_swapchain._handle;
+		presentInfo.pImageIndices = &imageIndex;
+
+		res = vkQueuePresentKHR(_presentQueue, &presentInfo);
+
+		if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
+			WindowSizeChanged();
+		}
+		else if (res != VK_SUCCESS) {
+			std::cerr << "failed to submit present command buffer" << std::endl;
+			exit(1);
+		}
+	}
+
+	void VulkanApplication::CreateRenderPass()
+	{
+		// Get the color attachment from the swapchain.
+		auto imageFormat = _swapchain._surfaceFormat.format;
+
+		// Store the images used by the swap chain.
+		// Note: these are the images that swap chain image indices refer to.
+		// Note: actual number of images may differ from requested number, since it's a lower bound.
+		uint32_t actualImageCount = 0;
+		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
+			std::cerr << "failed to acquire number of swap chain images" << std::endl;
+			exit(1);
+		}
+
+		_renderPass._colorImages.resize(actualImageCount);
+
+		std::vector<VkImage> images;
+		images.resize(actualImageCount);
+		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, images.data()) != VK_SUCCESS) {
+			std::cerr << "failed to acquire swapchain images" << std::endl;
+			exit(1);
+		}
+
+		std::cout << "acquired swap chain images" << std::endl;
+
+		// Create the color images.
+		for (uint32_t i = 0; i < actualImageCount; ++i) {
+			_renderPass._colorImages[i] = Image(_logicalDevice, images[i], VK_FORMAT_R8G8B8A8_UNORM);
+		}
+
+		// Create the depth attachment.
+		auto& settings = Settings::GlobalSettings::Instance();
+		_renderPass._depthImage = Image(_logicalDevice, _physicalDevice, VK_FORMAT_D32_SFLOAT, _swapchain._framebufferSize, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		std::cout << "created image views for swap chain images" << std::endl;
+
+		// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for image.
+		VkAttachmentDescription colorAttachmentDescription = {};
+		colorAttachmentDescription.format = _renderPass._colorImages.size() > 0 ? _renderPass._colorImages[0]._format : VK_FORMAT_UNDEFINED;
+		colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+		colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+		// Note: hardware will automatically transition attachment to the specified layout
+		// Note: index refers to attachment descriptions array.
+		VkAttachmentReference colorAttachmentReference = {};
+		colorAttachmentReference.attachment = 0;
+		colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		// Describes how the render pass is going to use the depth attachment.
+		VkAttachmentDescription depthAttachmentDescription = {};
+		depthAttachmentDescription.flags = 0;
+		depthAttachmentDescription.format = _renderPass._depthImage._format;
+		depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+		depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		VkAttachmentReference depthAttachmentReference = {};
+		depthAttachmentReference.attachment = 1;
+		depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+		// Note: this is a description of how the attachments of the render pass will be used in this sub pass
+		// e.g. if they will be read in shaders and/or drawn to.
+		VkSubpassDescription subPassDescription = {};
+		subPassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subPassDescription.colorAttachmentCount = 1;
+		subPassDescription.pColorAttachments = &colorAttachmentReference;
+		subPassDescription.pDepthStencilAttachment = &depthAttachmentReference;
+
+		// Now we have to adjust the renderpass synchronization. Previously, it was possible that multiple frames 
+		// were rendered simultaneously by the GPU. This is a problem when using depth buffers, because one frame 
+		// could overwrite the depth buffer while a previous frame is still rendering to it.
+		// We keep the subpass dependency for the color attachment we were already using.
+		VkSubpassDependency colorDependency = {};
+		colorDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		colorDependency.dstSubpass = 0;
+		colorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		colorDependency.srcAccessMask = 0;
+		colorDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		colorDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+		// This dependency tells Vulkan that the depth attachment in a renderpass cannot be used before 
+		// previous renderpasses have finished using it.
+		VkSubpassDependency depthDependency = {};
+		depthDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		depthDependency.dstSubpass = 0;
+		depthDependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+		depthDependency.srcAccessMask = 0;
+		depthDependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+		depthDependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+		// Create the render pass. We pass in the main image attachment (color) and the depth image attachment, so the GPU knows how to treat
+		// the images.
+		VkAttachmentDescription attachmentDescriptions[2] = { colorAttachmentDescription, depthAttachmentDescription };
+		VkSubpassDependency subpassDependencies[2] = { colorDependency, depthDependency };
+		VkRenderPassCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		createInfo.attachmentCount = 2;
+		createInfo.pAttachments = &attachmentDescriptions[0];
+		createInfo.subpassCount = 1;
+		createInfo.pSubpasses = &subPassDescription;
+		createInfo.dependencyCount = 2;
+		createInfo.pDependencies = &subpassDependencies[0];
+
+		if (vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass._handle) != VK_SUCCESS) {
+			std::cerr << "failed to create render pass" << std::endl;
+			exit(1);
+		}
+		else {
+			std::cout << "created render pass" << std::endl;
+		}
+	}
+
+	void VulkanApplication::CreateSwapchain()
+	{
+		// Get physical device capabilities for the window surface.
+		VkSurfaceCapabilitiesKHR surfaceCapabilities = _physicalDevice.GetSurfaceCapabilities(_windowSurface);
+		std::vector<VkSurfaceFormatKHR> surfaceFormats = _physicalDevice.GetSupportedFormatsForSurface(_windowSurface);
+		std::vector<VkPresentModeKHR> presentModes = _physicalDevice.GetSupportedPresentModesForSurface(_windowSurface);
+
+		// Determine number of images for swap chain.
+		uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
+		if (surfaceCapabilities.maxImageCount != 0 && imageCount > surfaceCapabilities.maxImageCount) {
+			imageCount = surfaceCapabilities.maxImageCount;
+		}
+
+		std::cout << "using " << imageCount << " images for swap chain" << std::endl;
+
+		VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat(surfaceFormats);
+		_swapchain._framebufferSize = ChooseFramebufferSize(surfaceCapabilities);
+
+		// Determine transformation to use (preferring no transform).
+		VkSurfaceTransformFlagBitsKHR surfaceTransform;
+		if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
+			surfaceTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+		}
+		else {
+			surfaceTransform = surfaceCapabilities.currentTransform;
+		}
+
+		// Choose presentation mode (preferring MAILBOX ~= triple buffering).
+		VkPresentModeKHR presentMode = ChoosePresentMode(presentModes);
+
+		// Finally, create the swap chain.
+		VkSwapchainCreateInfoKHR createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+		createInfo.surface = _windowSurface;
+		createInfo.minImageCount = imageCount;
+		createInfo.imageFormat = surfaceFormat.format;
+		createInfo.imageColorSpace = surfaceFormat.colorSpace;
+		createInfo.imageExtent = _swapchain._framebufferSize;
+		createInfo.imageArrayLayers = 1;
+		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		createInfo.queueFamilyIndexCount = 0;
+		createInfo.pQueueFamilyIndices = nullptr;
+		createInfo.preTransform = surfaceTransform;
+		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+		createInfo.presentMode = presentMode;
+		createInfo.clipped = VK_TRUE;
+		createInfo.oldSwapchain = _swapchain._oldSwapchainHandle;
+
+		if (vkCreateSwapchainKHR(_logicalDevice, &createInfo, nullptr, &_swapchain._handle) != VK_SUCCESS) {
+			std::cerr << "failed to create swapchain" << std::endl;
+			exit(1);
+		}
+		else {
+			std::cout << "created swapchain" << std::endl;
+		}
+
+		if (_swapchain._oldSwapchainHandle != VK_NULL_HANDLE) {
+			vkDestroySwapchainKHR(_logicalDevice, _swapchain._oldSwapchainHandle, nullptr);
+		}
+		_swapchain._oldSwapchainHandle = _swapchain._handle;
+	}
+
 	void VulkanApplication::UpdateShaderData()
 	{
 		_uniformBufferData.objectToWorld = _model._transform._matrix;
@@ -1176,71 +1165,6 @@ namespace Engine::Vulkan
 
 		_uniformBuffer.UpdateData(&_uniformBufferData, (size_t)sizeof(_uniformBufferData));
 	}
-
-	// Todo: wrap physical device into its own class.
-	// Todo: wrap image into its own class.
-
-	//void VulkanApplication::CreateDepthImage()
-	//{
-	//	_depthImage = 
-
-	//	//VkImageCreateInfo imageCreateInfo = { };
-	//	//imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	//	//imageCreateInfo.pNext = nullptr;
-	//	//imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-	//	//imageCreateInfo.format = _depthFormat;
-
-	//	//_depthExtent = VkExtent3D{ _swapchainExtent.width, _swapchainExtent.height, 1 };
-	//	//imageCreateInfo.extent = _depthExtent;
-	//	//imageCreateInfo.mipLevels = 1;
-	//	//imageCreateInfo.arrayLayers = 1;
-	//	//imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-
-	//	//// Tiling is very important. Tiling describes how the data for the texture is arranged in the GPU. 
-	//	//// For improved performance, GPUs do not store images as 2d arrays of pixels, but instead use complex
-	//	//// custom formats, unique to the GPU brand and even models. VK_IMAGE_TILING_OPTIMAL tells Vulkan 
-	//	//// to let the driver decide how the GPU arranges the memory of the image. If you use VK_IMAGE_TILING_OPTIMAL,
-	//	//// it won’t be possible to read the data from CPU or to write it without changing its tiling first 
-	//	//// (it’s possible to change the tiling of a texture at any point, but this can be a costly operation). 
-	//	//// The other tiling we can care about is VK_IMAGE_TILING_LINEAR, which will store the image as a 2d 
-	//	//// array of pixels. While LINEAR tiling will be a lot slower, it will allow the cpu to safely write 
-	//	//// and read from that memory.
-	//	//imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	//	//imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
-	//	//// Create the image.
-	//	//if (vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_depthImage) != VK_SUCCESS) {
-	//	//	std::cout << "Failed creating depth image." << std::endl;
-	//	//}
-
-	//	//VkMemoryRequirements reqs;
-	//	//vkGetImageMemoryRequirements(_logicalDevice, _depthImage, &reqs);
-
-	//	//VkMemoryAllocateInfo allocInfo{};
-	//	//allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	//	//allocInfo.allocationSize = reqs.size;
-	//	//allocInfo.memoryTypeIndex = GetMemoryTypeIndex(_deviceMemoryProperties, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-	//	//VkDeviceMemory mem;
-	//	//vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem);
-	//	//vkBindImageMemory(_logicalDevice, _depthImage, mem, 0);
-
-	//	//VkImageViewCreateInfo imageViewCreateInfo = {};
-	//	//imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	//	//imageViewCreateInfo.pNext = nullptr;
-	//	//imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	//	//imageViewCreateInfo.image = _depthImage;
-	//	//imageViewCreateInfo.format = _depthFormat;
-	//	//imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-	//	//imageViewCreateInfo.subresourceRange.levelCount = 1;
-	//	//imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-	//	//imageViewCreateInfo.subresourceRange.layerCount = 1;
-	//	//imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-
-	//	//if (vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_depthImageView) != VK_SUCCESS) {
-	//	//	std::cout << "Failed creating depth image view." << std::endl;
-	//	//}
-	//}
 
 	VkShaderModule VulkanApplication::CreateShaderModule(const std::filesystem::path& absolutePath)
 	{
@@ -1643,7 +1567,7 @@ namespace Engine::Vulkan
 			vkCmdBindDescriptorSets(_graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelineLayout, 0, 1, &_descriptorSet, 0, nullptr);
 			vkCmdBindPipeline(_graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
 			VkDeviceSize offset = 0;
-			vkCmdBindVertexBuffers(_graphicsCommandBuffers[i], 0, 1, &_vertexBuffer->_handle, &offset);
+			vkCmdBindVertexBuffers(_graphicsCommandBuffers[i], 0, 1, &_vertexBuffer._handle, &offset);
 
 			// Get the value type of vertex indices. Typically unsigned int (32-bit) but could also be 16-bit.
 			VkIndexType indexType = VK_INDEX_TYPE_NONE_KHR;
@@ -1653,7 +1577,7 @@ namespace Engine::Vulkan
 			if (std::is_same_v<decltype(_model._mesh._faceIndices)::value_type, unsigned int>) {
 				indexType = VK_INDEX_TYPE_UINT32;
 			}
-			vkCmdBindIndexBuffer(_graphicsCommandBuffers[i], _indexBuffer->_handle, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindIndexBuffer(_graphicsCommandBuffers[i], _indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdDrawIndexed(_graphicsCommandBuffers[i], (uint32_t)_model._mesh._faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(_graphicsCommandBuffers[i]);
 #pragma endregion

@@ -245,161 +245,6 @@ namespace Engine::Vulkan
 	};
 
 	/**
-	 * @brief A render pass represents a logical step that the GPU must perform in order to render a final
-	 * presentable image that will be stored in a framebuffer for presentation. To do this, render passes use 
-	 * what are called (in Vulkan gergo) attachments, which are rendered images that contribute to rendering
-	 * the final image that will go in the framebuffer. It is the renderpass's job to also do compositing, which
-	 * is defining the logic according to which the attachments are merged to create the final image. 
-	 * See @see Swapchain to understand what framebuffers are.
-	 */
-	class RenderPass
-	{
-		/**
-		 * @brief See Vulkan specification.
-		 */
-		VkDevice _logicalDevice;
-
-		/**
-		 * @brief See @see PhysicalDevice.
-		 */
-		PhysicalDevice _physicalDevice;
-
-	public:
-
-		/**
-		 * @brief Identifier for Vulkan.
-		 */
-		VkRenderPass _handle;
-
-		/**
-		 * @brief Attachments used by the GPU to write color information to.
-		 */
-		std::vector<Image> _colorImages;
-
-		/**
-		 * @brief Attachment that stores per-pixel depth information for the hardwired depth testing stage.
-		 * This makes sure that the pixels of each triangle are rendered or not, depending on which pixel
-		 * is closer to the camera, which is the information stored in this image.
-		 */
-		Image _depthImage;
-
-		RenderPass() = default;
-
-		/**
-		 * @brief Creates a render pass.
-		 * @param physicalDevice
-		 * @param logicalDevice
-		 * @param swapchain
-		 */
-		RenderPass(PhysicalDevice& physicalDevice, VkDevice& logicalDevice, Swapchain& swapchain);
-
-		/**
-		 * @brief Removes all attachments from memory and destroys the handles associated with them.
-		 */
-		void Destroy();
-	};
-
-	/**
-	 * @brief The swapchain is an image manager; it manages everything that involves presenting images to the screen, 
-	 * or more precisely passing the contents of the framebuffers down to the window.
-	 */
-	class Swapchain
-	{
-		/**
-		 * @brief See Vulkan specification.
-		 */
-		VkDevice _logicalDevice;
-
-		/**
-		 * @brief See @see PhysicalDevice.
-		 */
-		PhysicalDevice _physicalDevice;
-
-		/**
-		 * @brief Used by Vulkan to know where and how to direct the contents of the framebuffers to the window on the screen.
-		 */
-		VkSurfaceKHR _windowSurface;
-
-		/**
-		 * @brief .
-		 */
-		VkSwapchainKHR _oldSwapchainHandle;
-
-		VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
-
-		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-
-		VkExtent2D ChooseFramebufferSize(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
-
-
-	public:
-
-		/**
-		 * @brief These are the buffers that contain the final rendered images shown on screen.
-		 * A framebuffer is stored on a different portion of memory with respect to the depth and
-		 * color images. The depth and color images CONTRIBUTE to generating an image for a
-		 * framebuffer.
-		 */
-		std::vector<VkFramebuffer> _frameBuffers;
-
-		/**
-		 * @brief Dimensions in pixels of the framebuffers.
-		 */
-		VkExtent2D _framebufferSize;
-
-		/**
-		 * @brief Image format that the window surface expects when it has to send images from a framebuffer to a monitor.
-		 */
-		VkSurfaceFormatKHR _surfaceFormat;
-
-		/**
-		 * @brief Identifier for Vulkan.
-		 */
-		VkSwapchainKHR _handle;
-
-		/**
-		 * @brief Event raised whenever the window is resized.
-		 */
-		Event<VulkanApplication*> _onWindowResized;
-
-		Swapchain() = default;
-
-		/**
-		 * @brief Constructor.
-		 * @param logicalDevice
-		 * @param physicalDevice
-		 * @param windowSurface
-		 * @param oldSwapchain
-		 */
-		Swapchain(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface, const VkSwapchainKHR& oldSwapchain);
-
-		/**
-		 * @brief Presents the contents of the framebuffer that is ready to be presented to the window.
-		 * @param imageAvailableSemaphore Semaphore that will be used by Vulkan to signal when an image has finished
-		 * rendering and is available in one of the framebuffers.
-		 * @param renderingFinishedSemaphore 
-		 * @param graphicsCommandBuffers
-		 * @param graphicsQueue
-		 * @param presentationQueue
-		 * @param instance Used for the callback to the onWindowResized event.
-		 */
-		void Draw(VkSemaphore& imageAvailableSemaphore, VkSemaphore& renderingFinishedSemaphore, std::vector<VkCommandBuffer>& graphicsCommandBuffers, VkQueue& graphicsQueue, VkQueue& presentationQueue, VulkanApplication* instance);
-
-		/**
-		 * @brief Creates one framebuffer for each color attachment.
-		 * @param logicalDevice
-		 * @param renderPass Used to tell each framebuffer which attachments are used to generate the image it'll contain.
-		 */
-		void CreateFramebuffers(RenderPass& renderPass);
-
-		/**
-		 * @brief Uses Vulkan calls to deallocate and remove contents of structures allocated for the swapchain from memory,
-		 * such as framebuffers and images.
-		 */
-		void Destroy();
-	};
-
-	/**
 	 * @brief Represents the Vulkan application.
 	 */
 	class VulkanApplication : public IUpdatable
@@ -446,14 +291,86 @@ namespace Engine::Vulkan
 		VkQueue								_presentQueue;
 		uint32_t							_presentQueueFamily;
 
-		VkPhysicalDeviceMemoryProperties	_deviceMemoryProperties;
+		/**
+		 * @brief Semaphore that will be used by Vulkan to signal when an image has finished
+		 * rendering and is available in one of the framebuffers.
+		 */
 		VkSemaphore							_imageAvailableSemaphore;
+
+		/**
+		 * @brief Same as imageAvailableSemaphore.
+		 */
 		VkSemaphore							_renderingFinishedSemaphore;
 
 		/**
-		 * @brief See @see RenderPass for more info.
+		 * @brief Encapsulates info for a render pass. 
+		 * A render pass represents a logical step that the GPU must perform in order to render a final
+		 * presentable image that will be stored in a framebuffer for presentation. To do this, render passes use
+		 * what are called (in Vulkan gergo) attachments, which are rendered images that contribute to rendering
+		 * the final image that will go in the framebuffer. It is the renderpass's job to also do compositing, which
+		 * is defining the logic according to which the attachments are merged to create the final image.
+		 * See @see Swapchain to understand what framebuffers are.
 		 */
-		RenderPass _renderPass;
+		struct {
+			/**
+			 * @brief Identifier for Vulkan.
+			 */
+			VkRenderPass _handle;
+
+			/**
+			 * @brief Attachments used by the GPU to write color information to.
+			 */
+			std::vector<Image> _colorImages;
+
+			/**
+			 * @brief Attachment that stores per-pixel depth information for the hardwired depth testing stage.
+			 * This makes sure that the pixels of each triangle are rendered or not, depending on which pixel
+			 * is closer to the camera, which is the information stored in this image.
+			 */
+			Image _depthImage;
+
+		} _renderPass;
+
+		/**
+		 * @brief The swapchain is an image manager; it manages everything that involves presenting images to the screen,
+		 * or more precisely passing the contents of the framebuffers down to the window.
+		 */
+		struct {
+
+			/**
+			 * @brief Identifier for Vulkan.
+			 */
+			VkSwapchainKHR _handle;
+
+			/**
+			 * @brief These are the buffers that contain the final rendered images shown on screen.
+			 * A framebuffer is stored on a different portion of memory with respect to the depth and
+			 * color images. The depth and color images CONTRIBUTE to generating an image for a
+			 * framebuffer.
+			 */
+			std::vector<VkFramebuffer> _frameBuffers;
+
+			/**
+			 * @brief Dimensions in pixels of the framebuffers.
+			 */
+			VkExtent2D _framebufferSize;
+
+			/**
+			 * @brief Image format that the window surface expects when it has to send images from a framebuffer to a monitor.
+			 */
+			VkSurfaceFormatKHR _surfaceFormat;
+
+			/**
+			 * @brief Used by Vulkan to know where and how to direct the contents of the framebuffers to the window on the screen.
+			 */
+			VkSurfaceKHR _windowSurface;
+
+			/**
+			 * @brief Old swapchain handle used when the swapchain is recreated.
+			 */
+			VkSwapchainKHR _oldSwapchainHandle;
+
+		} _swapchain;
 
 		/**
 		 * @brief The graphics pipeline represents, at the logical level, the entire process
@@ -506,14 +423,14 @@ namespace Engine::Vulkan
 		 * At the hardware level, the contents of the vertex buffer are fed into the array of shader cores,
 		 * and each vertex, along with its attributes, are processed in parallel on each thread of the cores.
 		 */
-		Buffer* _vertexBuffer;
+		Buffer _vertexBuffer;
 
 		/**
 		 * @brief Buffer that stores indices that point into the vertex buffer. This buffer is used by Vulkan when drawing
 		 * using the vkCmdDrawIndexed command. This buffer gives Vulkan information about the order in which to draw
 		 * vertices.
 		 */
-		Buffer* _indexBuffer;
+		Buffer _indexBuffer;
 
 		/**
 		 * Since we are only using one vertex buffer, this variable contains:
@@ -608,10 +525,6 @@ namespace Engine::Vulkan
 			glm::mat4 objectToWorld;
 		} _uniformBufferData;
 
-
-		Swapchain _swapchain;
-		Swapchain _oldSwapchain;
-
 		// Vulkan commands
 		VkCommandPool _commandPool;
 		std::vector<VkCommandBuffer> _graphicsCommandBuffers;
@@ -653,7 +566,12 @@ namespace Engine::Vulkan
 		void MainLoop();
 
 		/**
-		 * Callback for when the window is resized.
+		 * @brief See IUpdatable.
+		 */
+		virtual void Update() override;
+
+		/**
+		 * GLFW callback for when the window is resized.
 		 * @param window
 		 * @param width
 		 * @param height
@@ -661,10 +579,23 @@ namespace Engine::Vulkan
 		static void OnWindowResized(GLFWwindow* window, int width, int height);
 
 		/**
-		 * @brief Event called whenever the window is resized.
+		 * @brief Function called whenever the window is resized.
 		 */
-		static void OnWindowSizeChanged(void* caller, VulkanApplication* instance);
+		void WindowSizeChanged();
 
+		/**
+		 * @brief .
+		 */
+		void DestroyRenderPass();
+		
+		/**
+		 * @brief .
+		 */
+		void DestroySwapchain();
+
+		/**
+		 * @brief Destroys all Vulkan objects by using Vulkan calls, so resources allocated in VRAM are also destroyed.
+		 */
 		void Cleanup(bool fullClean);
 
 		/**
@@ -693,16 +624,38 @@ namespace Engine::Vulkan
 
 		void CreateVertexAndIndexBuffers();
 
+		VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
+
+		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+
+		VkExtent2D ChooseFramebufferSize(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
+
+		/**
+		 * @brief Creates one framebuffer for each color attachment.
+		 * @param logicalDevice
+		 * @param renderPass Used to tell each framebuffer which attachments are used to generate the image it'll contain.
+		 */
+		void CreateFramebuffers();
+
+		/**
+		 * @brief Presents the contents of the framebuffer that is ready to be presented to the window.
+		 */
+		void Draw();
+
+		/**
+		 * @brief Creates the render pass.
+		 */
+		void CreateRenderPass();
+
+		/**
+		 * @brief Creates the swapchain.
+		 */
+		void CreateSwapchain();
+
 		/**
 		 * @brief Update the data that will be sent to the shaders.
 		 */
 		void UpdateShaderData();
-
-		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-
-		VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
-
-		VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
 
 		VkShaderModule CreateShaderModule(const std::filesystem::path& absolutePath);
 
@@ -732,10 +685,5 @@ namespace Engine::Vulkan
 		void CreatePipelineLayout();
 
 		void CreateCommandBuffers();
-
-		/**
-		 * @brief See IUpdatable.
-		 */
-		virtual void Update() override;
 	};
 }
