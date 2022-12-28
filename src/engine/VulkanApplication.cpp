@@ -280,6 +280,13 @@ namespace Engine::Vulkan
 		return false;
 	}
 
+	bool PhysicalDevice::SupportsSurface(uint32_t& queueFamilyIndex, VkSurfaceKHR& surface)
+	{
+		VkBool32 presentSupport = false;
+		vkGetPhysicalDeviceSurfaceSupportKHR(_handle, queueFamilyIndex, surface, &presentSupport);
+		return presentSupport == 0 ? false : true;
+	}
+
 	VkPhysicalDeviceMemoryProperties PhysicalDevice::GetMemoryProperties()
 	{
 		VkPhysicalDeviceMemoryProperties props;
@@ -412,8 +419,10 @@ namespace Engine::Vulkan
 		CreateInstance();
 		CreateDebugCallback();
 		CreateWindowSurface();
-		FindPhysicalDevice();
-		CreateLogicalDevice();
+		_physicalDevice = PhysicalDevice(_instance);
+		FindQueue();
+		CreateLogicalDeviceAndQueue();
+		vkGetDeviceQueue(_logicalDevice, _queue._familyIndex, 0, &_queue._handle);
 		CreateSemaphores();
 		CreateCommandPool();
 		CreateVertexAndIndexBuffers();
@@ -421,7 +430,8 @@ namespace Engine::Vulkan
 		CreateRenderPass();
 		CreateFramebuffers();
 		CreateGraphicsPipeline();
-		CreateCommandBuffers();
+		CreateDrawCommandBuffers();
+		RecordDrawCommands();
 	}
 
 	void VulkanApplication::MainLoop()
@@ -457,17 +467,17 @@ namespace Engine::Vulkan
 		CreateSwapchain();
 		CreateRenderPass();
 		CreateGraphicsPipeline();
-		CreateCommandBuffers();
+		CreateDrawCommandBuffers();
 	}
 
 	void VulkanApplication::DestroyRenderPass()
 	{
-		_renderPass._depthImage.Destroy();
-		for (auto image : _renderPass._colorImages) {
+		_renderPass.depthImage.Destroy();
+		for (auto image : _renderPass.colorImages) {
 			image.Destroy();
 		}
 
-		vkDestroyRenderPass(_logicalDevice, _renderPass._handle, nullptr);
+		vkDestroyRenderPass(_logicalDevice, _renderPass.handle, nullptr);
 	}
 
 	void VulkanApplication::DestroySwapchain()
@@ -480,7 +490,7 @@ namespace Engine::Vulkan
 	void VulkanApplication::Cleanup(bool fullClean)
 	{
 		vkDeviceWaitIdle(_logicalDevice);
-		vkFreeCommandBuffers(_logicalDevice, _commandPool, (uint32_t)_graphicsCommandBuffers.size(), _graphicsCommandBuffers.data());
+		vkFreeCommandBuffers(_logicalDevice, _commandPool, (uint32_t)_drawCommandBuffers.size(), _drawCommandBuffers.data());
 		vkDestroyPipeline(_logicalDevice, _graphicsPipeline, nullptr);
 		DestroyRenderPass();
 		DestroySwapchain();
@@ -552,7 +562,7 @@ namespace Engine::Vulkan
 		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
 		appInfo.apiVersion = VK_API_VERSION_1_0;
 
-		// Get _instance extensions required by GLFW to draw to window
+		// Get instance extensions required by GLFW to draw to the window.
 		unsigned int glfwExtensionCount;
 		const char** glfwExtensions;
 		glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
@@ -566,7 +576,6 @@ namespace Engine::Vulkan
 			extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 		}
 
-		// Check for extensions
 		uint32_t extensionCount = 0;
 		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
 
@@ -597,7 +606,6 @@ namespace Engine::Vulkan
 			}
 		}
 
-		// Initialize Vulkan _instance
 		if (vkCreateInstance(&createInfo, nullptr, &_instance)) {
 			std::cerr << "failed to create _instance!" << std::endl;
 			exit(1);
@@ -617,35 +625,34 @@ namespace Engine::Vulkan
 		std::cout << "created window surface" << std::endl;
 	}
 
-	void VulkanApplication::FindPhysicalDevice()
+	void VulkanApplication::FindQueue()
 	{
-		_physicalDevice = PhysicalDevice(_instance);
+		auto queueFamilyProperties = _physicalDevice.GetAllQueueFamilyProperties();
+
+		for (uint32_t i = 0; i < queueFamilyProperties.size(); i++) {
+			if (_physicalDevice.SupportsSurface(i, _windowSurface) && 
+				queueFamilyProperties[i].queueCount > 0 && 
+				queueFamilyProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+				
+				_queue._familyIndex = i;
+			}
+		}
 	}
 
-	void VulkanApplication::CreateLogicalDevice()
+	void VulkanApplication::CreateLogicalDeviceAndQueue()
 	{
-		// Greate one graphics queue and optionally a separate presentation queue
+		VkDeviceQueueCreateInfo queueCreateInfo{};
+		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueCreateInfo.queueFamilyIndex = _queue._familyIndex;
+		queueCreateInfo.queueCount = 1;
 		float queuePriority = 1.0f;
+		queueCreateInfo.pQueuePriorities = &queuePriority;
 
-		VkDeviceQueueCreateInfo queueCreateInfo[2] = {};
-
-		queueCreateInfo[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCreateInfo[0].queueFamilyIndex = _graphicsQueueFamily;
-		queueCreateInfo[0].queueCount = 1;
-		queueCreateInfo[0].pQueuePriorities = &queuePriority;
-
-		queueCreateInfo[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCreateInfo[0].queueFamilyIndex = _presentQueueFamily;
-		queueCreateInfo[0].queueCount = 1;
-		queueCreateInfo[0].pQueuePriorities = &queuePriority;
-
-		// Create logical device from physical device
-		// Note: there are separate _instance and device extensions!
 		VkDeviceCreateInfo deviceCreateInfo = {};
 		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		deviceCreateInfo.pQueueCreateInfos = queueCreateInfo;
+		deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
 
-		if (_graphicsQueueFamily == _presentQueueFamily) {
+		if (_queue._familyIndex == _queue._familyIndex) {
 			deviceCreateInfo.queueCreateInfoCount = 1;
 		}
 		else {
@@ -673,12 +680,6 @@ namespace Engine::Vulkan
 		}
 
 		std::cout << "created logical device" << std::endl;
-
-		// Get graphics and presentation queues (which may be the same)
-		vkGetDeviceQueue(_logicalDevice, _graphicsQueueFamily, 0, &_graphicsQueue);
-		vkGetDeviceQueue(_logicalDevice, _presentQueueFamily, 0, &_presentQueue);
-
-		std::cout << "acquired graphics and presentation queues" << std::endl;
 	}
 
 	void VulkanApplication::CreateDebugCallback()
@@ -724,7 +725,7 @@ namespace Engine::Vulkan
 		// Create graphics command pool
 		VkCommandPoolCreateInfo poolCreateInfo = {};
 		poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		poolCreateInfo.queueFamilyIndex = _graphicsQueueFamily;
+		poolCreateInfo.queueFamilyIndex = _queue._familyIndex;
 
 		if (vkCreateCommandPool(_logicalDevice, &poolCreateInfo, nullptr, &_commandPool) != VK_SUCCESS) {
 			std::cerr << "failed to create command queue for graphics queue family" << std::endl;
@@ -829,8 +830,8 @@ namespace Engine::Vulkan
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &copyCommandBuffer;
 
-		vkQueueSubmit(_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-		vkQueueWaitIdle(_graphicsQueue);
+		vkQueueSubmit(_queue._handle, 1, &submitInfo, VK_NULL_HANDLE);
+		vkQueueWaitIdle(_queue._handle);
 
 		vkFreeCommandBuffers(_logicalDevice, _commandPool, 1, &copyCommandBuffer);
 #pragma endregion
@@ -890,16 +891,16 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateFramebuffers()
 	{
-		_swapchain._frameBuffers.resize(_renderPass._colorImages.size());
+		_swapchain._frameBuffers.resize(_renderPass.colorImages.size());
 
-		for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
+		for (size_t i = 0; i < _renderPass.colorImages.size(); i++) {
 
 			// We will render to the same depth image for each frame. 
 			// We can just keep clearing and reusing the same depth image for every frame.
-			VkImageView colorAndDepthImages[2] = { _renderPass._colorImages[i]._imageViewHandle, _renderPass._depthImage._imageViewHandle };
+			VkImageView colorAndDepthImages[2] = { _renderPass.colorImages[i]._imageViewHandle, _renderPass.depthImage._imageViewHandle };
 			VkFramebufferCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			createInfo.renderPass = _renderPass._handle;
+			createInfo.renderPass = _renderPass.handle;
 			createInfo.attachmentCount = 2;
 			createInfo.pAttachments = &colorAndDepthImages[0];
 			createInfo.width = _swapchain._framebufferSize.width;
@@ -919,10 +920,10 @@ namespace Engine::Vulkan
 	{
 		// Acquire image.
 		uint32_t imageIndex;
-		VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain._handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+		VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain.handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
 		// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
-		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) {
+		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) {
 			WindowSizeChanged();
 			return;
 		}
@@ -942,9 +943,9 @@ namespace Engine::Vulkan
 		submitInfo.pSignalSemaphores = &_renderingFinishedSemaphore;
 		submitInfo.pWaitDstStageMask = &waitDstStageMask;
 		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &_graphicsCommandBuffers[imageIndex];
+		submitInfo.pCommandBuffers = &_drawCommandBuffers[imageIndex];
 
-		if (auto res = vkQueueSubmit(_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS) {
+		if (auto res = vkQueueSubmit(_queue._handle, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS) {
 			std::cerr << "failed to submit draw command buffer" << std::endl;
 			exit(1);
 		}
@@ -956,10 +957,10 @@ namespace Engine::Vulkan
 		presentInfo.waitSemaphoreCount = 1;
 		presentInfo.pWaitSemaphores = &_renderingFinishedSemaphore;
 		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &_swapchain._handle;
+		presentInfo.pSwapchains = &_swapchain.handle;
 		presentInfo.pImageIndices = &imageIndex;
 
-		res = vkQueuePresentKHR(_presentQueue, &presentInfo);
+		res = vkQueuePresentKHR(_queue._handle, &presentInfo);
 
 		if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
 			WindowSizeChanged();
@@ -979,16 +980,16 @@ namespace Engine::Vulkan
 		// Note: these are the images that swap chain image indices refer to.
 		// Note: actual number of images may differ from requested number, since it's a lower bound.
 		uint32_t actualImageCount = 0;
-		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
+		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain.handle, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
 			std::cerr << "failed to acquire number of swap chain images" << std::endl;
 			exit(1);
 		}
 
-		_renderPass._colorImages.resize(actualImageCount);
+		_renderPass.colorImages.resize(actualImageCount);
 
 		std::vector<VkImage> images;
 		images.resize(actualImageCount);
-		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, images.data()) != VK_SUCCESS) {
+		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain.handle, &actualImageCount, images.data()) != VK_SUCCESS) {
 			std::cerr << "failed to acquire swapchain images" << std::endl;
 			exit(1);
 		}
@@ -997,18 +998,18 @@ namespace Engine::Vulkan
 
 		// Create the color images.
 		for (uint32_t i = 0; i < actualImageCount; ++i) {
-			_renderPass._colorImages[i] = Image(_logicalDevice, images[i], VK_FORMAT_R8G8B8A8_UNORM);
+			_renderPass.colorImages[i] = Image(_logicalDevice, images[i], VK_FORMAT_R8G8B8A8_UNORM);
 		}
 
 		// Create the depth attachment.
 		auto& settings = Settings::GlobalSettings::Instance();
-		_renderPass._depthImage = Image(_logicalDevice, _physicalDevice, VK_FORMAT_D32_SFLOAT, _swapchain._framebufferSize, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		_renderPass.depthImage = Image(_logicalDevice, _physicalDevice, VK_FORMAT_D32_SFLOAT, _swapchain._framebufferSize, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		std::cout << "created image views for swap chain images" << std::endl;
 
 		// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for image.
 		VkAttachmentDescription colorAttachmentDescription = {};
-		colorAttachmentDescription.format = _renderPass._colorImages.size() > 0 ? _renderPass._colorImages[0]._format : VK_FORMAT_UNDEFINED;
+		colorAttachmentDescription.format = _renderPass.colorImages.size() > 0 ? _renderPass.colorImages[0]._format : VK_FORMAT_UNDEFINED;
 		colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
 		colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1026,7 +1027,7 @@ namespace Engine::Vulkan
 		// Describes how the render pass is going to use the depth attachment.
 		VkAttachmentDescription depthAttachmentDescription = {};
 		depthAttachmentDescription.flags = 0;
-		depthAttachmentDescription.format = _renderPass._depthImage._format;
+		depthAttachmentDescription.format = _renderPass.depthImage._format;
 		depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
 		depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1082,7 +1083,7 @@ namespace Engine::Vulkan
 		createInfo.dependencyCount = 2;
 		createInfo.pDependencies = &subpassDependencies[0];
 
-		if (vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass._handle) != VK_SUCCESS) {
+		if (vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass.handle) != VK_SUCCESS) {
 			std::cerr << "failed to create render pass" << std::endl;
 			exit(1);
 		}
@@ -1098,7 +1099,7 @@ namespace Engine::Vulkan
 		std::vector<VkSurfaceFormatKHR> surfaceFormats = _physicalDevice.GetSupportedFormatsForSurface(_windowSurface);
 		std::vector<VkPresentModeKHR> presentModes = _physicalDevice.GetSupportedPresentModesForSurface(_windowSurface);
 
-		// Determine number of images for swap chain.
+		// Determine number of images for swapchain.
 		uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
 		if (surfaceCapabilities.maxImageCount != 0 && imageCount > surfaceCapabilities.maxImageCount) {
 			imageCount = surfaceCapabilities.maxImageCount;
@@ -1140,7 +1141,7 @@ namespace Engine::Vulkan
 		createInfo.clipped = VK_TRUE;
 		createInfo.oldSwapchain = _swapchain._oldSwapchainHandle;
 
-		if (vkCreateSwapchainKHR(_logicalDevice, &createInfo, nullptr, &_swapchain._handle) != VK_SUCCESS) {
+		if (vkCreateSwapchainKHR(_logicalDevice, &createInfo, nullptr, &_swapchain.handle) != VK_SUCCESS) {
 			std::cerr << "failed to create swapchain" << std::endl;
 			exit(1);
 		}
@@ -1151,7 +1152,8 @@ namespace Engine::Vulkan
 		if (_swapchain._oldSwapchainHandle != VK_NULL_HANDLE) {
 			vkDestroySwapchainKHR(_logicalDevice, _swapchain._oldSwapchainHandle, nullptr);
 		}
-		_swapchain._oldSwapchainHandle = _swapchain._handle;
+
+		_swapchain._oldSwapchainHandle = _swapchain.handle;
 	}
 
 	void VulkanApplication::UpdateShaderData()
@@ -1373,7 +1375,7 @@ namespace Engine::Vulkan
 		pipelineCreateInfo.pMultisampleState = &multisampleCreateInfo;
 		pipelineCreateInfo.pColorBlendState = &colorBlendCreateInfo;
 		pipelineCreateInfo.layout = _pipelineLayout;
-		pipelineCreateInfo.renderPass = _renderPass._handle;
+		pipelineCreateInfo.renderPass = _renderPass.handle;
 		pipelineCreateInfo.subpass = 0;
 		pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
 		pipelineCreateInfo.basePipelineIndex = -1;
@@ -1486,25 +1488,28 @@ namespace Engine::Vulkan
 		}
 	}
 
-	void VulkanApplication::CreateCommandBuffers()
+	void VulkanApplication::CreateDrawCommandBuffers()
 	{
 		// Allocate graphics command buffers
-		_graphicsCommandBuffers.resize(_renderPass._colorImages.size());
+		_drawCommandBuffers.resize(_renderPass.colorImages.size());
 
 		VkCommandBufferAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.commandPool = _commandPool;
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandBufferCount = (uint32_t)_renderPass._colorImages.size();
+		allocInfo.commandBufferCount = (uint32_t)_renderPass.colorImages.size();
 
-		if (vkAllocateCommandBuffers(_logicalDevice, &allocInfo, _graphicsCommandBuffers.data()) != VK_SUCCESS) {
-			std::cerr << "failed to allocate graphics command buffers" << std::endl;
+		if (vkAllocateCommandBuffers(_logicalDevice, &allocInfo, _drawCommandBuffers.data()) != VK_SUCCESS) {
+			std::cerr << "failed to allocate draw command buffers" << std::endl;
 			exit(1);
 		}
 		else {
-			std::cout << "allocated graphics command buffers" << std::endl;
+			std::cout << "allocated draw command buffers" << std::endl;
 		}
+	}
 
+	void VulkanApplication::RecordDrawCommands()
+	{
 		// Prepare data for recording command buffers
 		VkCommandBufferBeginInfo beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1518,8 +1523,8 @@ namespace Engine::Vulkan
 		subResourceRange.layerCount = 1;
 
 		// Record command buffer for each swap image
-		for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
-			vkBeginCommandBuffer(_graphicsCommandBuffers[i], &beginInfo);
+		for (size_t i = 0; i < _renderPass.colorImages.size(); i++) {
+			vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
 
 			// If present queue family and graphics queue family are different, then a barrier is necessary
 			// The barrier is also needed initially to transition the image to the present layout
@@ -1529,20 +1534,12 @@ namespace Engine::Vulkan
 			presentToDrawBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 			presentToDrawBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			presentToDrawBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-			if (_presentQueueFamily != _graphicsQueueFamily) {
-				presentToDrawBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-				presentToDrawBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			}
-			else {
-				presentToDrawBarrier.srcQueueFamilyIndex = _presentQueueFamily;
-				presentToDrawBarrier.dstQueueFamilyIndex = _graphicsQueueFamily;
-			}
-
-			presentToDrawBarrier.image = _renderPass._colorImages[i]._imageHandle;
+			presentToDrawBarrier.srcQueueFamilyIndex = _queue._familyIndex;
+			presentToDrawBarrier.dstQueueFamilyIndex = _queue._familyIndex;
+			presentToDrawBarrier.image = _renderPass.colorImages[i]._imageHandle;
 			presentToDrawBarrier.subresourceRange = subResourceRange;
 
-			vkCmdPipelineBarrier(_graphicsCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
+			vkCmdPipelineBarrier(_drawCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
 
 #pragma region RenderPassCommandRecording
 			VkClearValue clearColor = {
@@ -1555,7 +1552,7 @@ namespace Engine::Vulkan
 
 			VkRenderPassBeginInfo renderPassBeginInfo = {};
 			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			renderPassBeginInfo.renderPass = _renderPass._handle;
+			renderPassBeginInfo.renderPass = _renderPass.handle;
 			renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[i];
 			renderPassBeginInfo.renderArea.offset.x = 0;
 			renderPassBeginInfo.renderArea.offset.y = 0;
@@ -1563,11 +1560,11 @@ namespace Engine::Vulkan
 			renderPassBeginInfo.clearValueCount = 2;
 			renderPassBeginInfo.pClearValues = &clearValues[0];
 
-			vkCmdBeginRenderPass(_graphicsCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindDescriptorSets(_graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelineLayout, 0, 1, &_descriptorSet, 0, nullptr);
-			vkCmdBindPipeline(_graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
+			vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelineLayout, 0, 1, &_descriptorSet, 0, nullptr);
+			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
 			VkDeviceSize offset = 0;
-			vkCmdBindVertexBuffers(_graphicsCommandBuffers[i], 0, 1, &_vertexBuffer._handle, &offset);
+			vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &_vertexBuffer._handle, &offset);
 
 			// Get the value type of vertex indices. Typically unsigned int (32-bit) but could also be 16-bit.
 			VkIndexType indexType = VK_INDEX_TYPE_NONE_KHR;
@@ -1577,28 +1574,12 @@ namespace Engine::Vulkan
 			if (std::is_same_v<decltype(_model._mesh._faceIndices)::value_type, unsigned int>) {
 				indexType = VK_INDEX_TYPE_UINT32;
 			}
-			vkCmdBindIndexBuffer(_graphicsCommandBuffers[i], _indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(_graphicsCommandBuffers[i], (uint32_t)_model._mesh._faceIndices.size(), 1, 0, 0, 0);
-			vkCmdEndRenderPass(_graphicsCommandBuffers[i]);
+			vkCmdBindIndexBuffer(_drawCommandBuffers[i], _indexBuffer._handle, 0, indexType);
+			vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)_model._mesh._faceIndices.size(), 1, 0, 0, 0);
+			vkCmdEndRenderPass(_drawCommandBuffers[i]);
 #pragma endregion
 
-			// If present and graphics queue families differ, then another barrier is required.
-			if (_presentQueueFamily != _graphicsQueueFamily) {
-				VkImageMemoryBarrier drawToPresentBarrier = {};
-				drawToPresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-				drawToPresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-				drawToPresentBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-				drawToPresentBarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-				drawToPresentBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-				drawToPresentBarrier.srcQueueFamilyIndex = _graphicsQueueFamily;
-				drawToPresentBarrier.dstQueueFamilyIndex = _presentQueueFamily;
-				drawToPresentBarrier.image = _renderPass._colorImages[i]._imageHandle;
-				drawToPresentBarrier.subresourceRange = subResourceRange;
-
-				vkCmdPipelineBarrier(_graphicsCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &drawToPresentBarrier);
-			}
-
-			if (vkEndCommandBuffer(_graphicsCommandBuffers[i]) != VK_SUCCESS) {
+			if (vkEndCommandBuffer(_drawCommandBuffers[i]) != VK_SUCCESS) {
 				std::cerr << "failed to record command buffer" << std::endl;
 				exit(1);
 			}

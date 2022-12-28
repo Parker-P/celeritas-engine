@@ -35,6 +35,13 @@ namespace Engine::Vulkan
 		bool SupportsSwapchains();
 
 		/**
+		 * @brief Queries the device for surface support for the given queue family and surface.
+		 * @return True if the queue family can contain command buffers which contain commands that will draw
+		 * to the given surface. 
+		 */
+		bool SupportsSurface(uint32_t& queueFamilyIndex, VkSurfaceKHR& surface);
+
+		/**
 		 * @brief Queries the physical device to get its memory properties.
 		 * @return
 		 */
@@ -284,23 +291,39 @@ namespace Engine::Vulkan
 		 * @brief Function pointer called by Vulkan each time it wants to report an error.
 		 * Error reporting is set by enabling validation layers.
 		 */
-		VkDebugReportCallbackEXT			_callback;
+		VkDebugReportCallbackEXT _callback;
 
-		VkQueue								_graphicsQueue;
-		uint32_t							_graphicsQueueFamily;
-		VkQueue								_presentQueue;
-		uint32_t							_presentQueueFamily;
+		/**
+		 * @brief A queue is an ordered collection of commands that gets passed into a command buffer.
+		 */
+		struct Queue 
+		{
+			/**
+			 * @brief Identifier for Vulkan.
+			 */
+			VkQueue _handle;
+
+			/**
+			 * @brief A queue family index enables Vulkan to group queues that serve similar purposes (a.k.a. have the same properties).
+			 */
+			uint32_t _familyIndex;
+		};
+
+		/**
+		 * @brief Queue that supports graphics operations and presentation.
+		 */
+		Queue _queue;
 
 		/**
 		 * @brief Semaphore that will be used by Vulkan to signal when an image has finished
 		 * rendering and is available in one of the framebuffers.
 		 */
-		VkSemaphore							_imageAvailableSemaphore;
+		VkSemaphore _imageAvailableSemaphore;
 
 		/**
 		 * @brief Same as imageAvailableSemaphore.
 		 */
-		VkSemaphore							_renderingFinishedSemaphore;
+		VkSemaphore	_renderingFinishedSemaphore;
 
 		/**
 		 * @brief Encapsulates info for a render pass. 
@@ -315,24 +338,25 @@ namespace Engine::Vulkan
 			/**
 			 * @brief Identifier for Vulkan.
 			 */
-			VkRenderPass _handle;
+			VkRenderPass handle;
 
 			/**
 			 * @brief Attachments used by the GPU to write color information to.
 			 */
-			std::vector<Image> _colorImages;
+			std::vector<Image> colorImages;
 
 			/**
 			 * @brief Attachment that stores per-pixel depth information for the hardwired depth testing stage.
 			 * This makes sure that the pixels of each triangle are rendered or not, depending on which pixel
 			 * is closer to the camera, which is the information stored in this image.
 			 */
-			Image _depthImage;
+			Image depthImage;
 
 		} _renderPass;
 
 		/**
-		 * @brief The swapchain is an image manager; it manages everything that involves presenting images to the screen,
+		 * @brief Encapsulates info for a swapchain.
+		 * The swapchain is an image manager; it manages everything that involves presenting images to the screen,
 		 * or more precisely passing the contents of the framebuffers down to the window.
 		 */
 		struct {
@@ -340,7 +364,7 @@ namespace Engine::Vulkan
 			/**
 			 * @brief Identifier for Vulkan.
 			 */
-			VkSwapchainKHR _handle;
+			VkSwapchainKHR handle;
 
 			/**
 			 * @brief These are the buffers that contain the final rendered images shown on screen.
@@ -527,7 +551,7 @@ namespace Engine::Vulkan
 
 		// Vulkan commands
 		VkCommandPool _commandPool;
-		std::vector<VkCommandBuffer> _graphicsCommandBuffers;
+		std::vector<VkCommandBuffer> _drawCommandBuffers;
 
 		// Game
 		Input::KeyboardMouse& _input = Input::KeyboardMouse::Instance();
@@ -612,7 +636,16 @@ namespace Engine::Vulkan
 
 		void FindPhysicalDevice();
 
-		void CreateLogicalDevice();
+		/**
+		 * @brief Finds the index of a queue family whose queues can contain command buffers that hold
+		 * Vulkan commands that draw to the window surface.
+		 */
+		void FindQueue();
+
+		/**
+		 * @brief Creates the logical device and the queue that will be used to contain Vulkan commands.
+		 */
+		void CreateLogicalDeviceAndQueue();
 
 		void CreateDebugCallback();
 
@@ -638,7 +671,9 @@ namespace Engine::Vulkan
 		void CreateFramebuffers();
 
 		/**
-		 * @brief Presents the contents of the framebuffer that is ready to be presented to the window.
+		 * @brief For each swapchain image, executes the draw commands contained in the corresponding command buffer (by submitting
+		 * them to _queue), then waits for the commands to complete (synchronizing using a semaphore). This draws to a framebuffer.
+		 * The function then presents the image to the window surface, which shows it to the window.
 		 */
 		void Draw();
 
@@ -684,6 +719,15 @@ namespace Engine::Vulkan
 
 		void CreatePipelineLayout();
 
-		void CreateCommandBuffers();
+		/**
+		 * @brief Creates one command buffer for each image in the swapchain (depends on present mode).
+		 * Each command buffer will be submitted to the queue (see _queue)
+		 */
+		void CreateDrawCommandBuffers();
+
+		/**
+		 * @brief For each swapchain image, records draw commands into the corresponding draw command buffer.
+		 */
+		void RecordDrawCommands();
 	};
 }
