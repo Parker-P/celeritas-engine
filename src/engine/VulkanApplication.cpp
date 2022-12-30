@@ -39,6 +39,7 @@
 namespace Engine::Vulkan
 {
 	bool windowResized = false;
+	bool windowMinimized = false;
 
 	// Buffer
 	Buffer::Buffer(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data, size_t sizeInBytes)
@@ -352,7 +353,7 @@ namespace Engine::Vulkan
 		}
 		return surfaceCapabilities;
 	}
-	
+
 	std::vector<VkSurfaceFormatKHR> PhysicalDevice::GetSupportedFormatsForSurface(VkSurfaceKHR& windowSurface) {
 		uint32_t formatCount;
 		if (vkGetPhysicalDeviceSurfaceFormatsKHR(_handle, windowSurface, &formatCount, nullptr) != VK_SUCCESS || formatCount == 0) {
@@ -430,8 +431,10 @@ namespace Engine::Vulkan
 		CreateRenderPass();
 		CreateFramebuffers();
 		CreateGraphicsPipeline();
-		CreateDrawCommandBuffers();
+		AllocateDrawCommandBuffers();
 		RecordDrawCommands();
+
+		LoadTexture();
 	}
 
 	void VulkanApplication::MainLoop()
@@ -454,6 +457,13 @@ namespace Engine::Vulkan
 	void VulkanApplication::OnWindowResized(GLFWwindow* window, int width, int height)
 	{
 		windowResized = true;
+
+		if (width == 0 && height == 0) {
+			windowMinimized = true;
+			return;
+		}
+
+		windowMinimized = false;
 		Settings::GlobalSettings::Instance()._windowWidth = width;
 		Settings::GlobalSettings::Instance()._windowHeight = height;
 	}
@@ -466,16 +476,19 @@ namespace Engine::Vulkan
 		Cleanup(false);
 		CreateSwapchain();
 		CreateRenderPass();
+		CreateFramebuffers();
 		CreateGraphicsPipeline();
-		CreateDrawCommandBuffers();
+		AllocateDrawCommandBuffers();
+		RecordDrawCommands();
+		vkDestroyPipelineLayout(_logicalDevice, _pipelineLayout, nullptr);
 	}
 
 	void VulkanApplication::DestroyRenderPass()
 	{
 		_renderPass.depthImage.Destroy();
-		for (auto image : _renderPass.colorImages) {
+		/*for (auto image : _renderPass.colorImages) {
 			image.Destroy();
-		}
+		}*/
 
 		vkDestroyRenderPass(_logicalDevice, _renderPass.handle, nullptr);
 	}
@@ -494,7 +507,7 @@ namespace Engine::Vulkan
 		vkDestroyPipeline(_logicalDevice, _graphicsPipeline, nullptr);
 		DestroyRenderPass();
 		DestroySwapchain();
-		
+
 		vkDestroyDescriptorSetLayout(_logicalDevice, _descriptorSetLayout, nullptr);
 
 		if (fullClean) {
@@ -630,10 +643,10 @@ namespace Engine::Vulkan
 		auto queueFamilyProperties = _physicalDevice.GetAllQueueFamilyProperties();
 
 		for (uint32_t i = 0; i < queueFamilyProperties.size(); i++) {
-			if (_physicalDevice.SupportsSurface(i, _windowSurface) && 
-				queueFamilyProperties[i].queueCount > 0 && 
+			if (_physicalDevice.SupportsSurface(i, _windowSurface) &&
+				queueFamilyProperties[i].queueCount > 0 &&
 				queueFamilyProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-				
+
 				_queue._familyIndex = i;
 			}
 		}
@@ -918,56 +931,59 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::Draw()
 	{
-		// Acquire image.
-		uint32_t imageIndex;
-		VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain.handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+		if (!windowMinimized) {
 
-		// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
-		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) {
-			WindowSizeChanged();
-			return;
-		}
-		else if (res != VK_SUCCESS) {
-			std::cerr << "failed to acquire image" << std::endl;
-			exit(1);
-		}
+			// Acquire image.
+			uint32_t imageIndex;
+			VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain.handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
-		// Wait for image to be available and draw.
-		// This is the stage where the queue should wait on the semaphore.
-		VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		VkSubmitInfo submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = &_imageAvailableSemaphore;
-		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = &_renderingFinishedSemaphore;
-		submitInfo.pWaitDstStageMask = &waitDstStageMask;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &_drawCommandBuffers[imageIndex];
+			// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
+			if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) {
+				WindowSizeChanged();
+				return;
+			}
+			else if (res != VK_SUCCESS) {
+				std::cerr << "failed to acquire image" << std::endl;
+				exit(1);
+			}
 
-		if (auto res = vkQueueSubmit(_queue._handle, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS) {
-			std::cerr << "failed to submit draw command buffer" << std::endl;
-			exit(1);
-		}
+			// Wait for image to be available and draw.
+			// This is the stage where the queue should wait on the semaphore.
+			VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+			VkSubmitInfo submitInfo = {};
+			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submitInfo.waitSemaphoreCount = 1;
+			submitInfo.pWaitSemaphores = &_imageAvailableSemaphore;
+			submitInfo.signalSemaphoreCount = 1;
+			submitInfo.pSignalSemaphores = &_renderingFinishedSemaphore;
+			submitInfo.pWaitDstStageMask = &waitDstStageMask;
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &_drawCommandBuffers[imageIndex];
 
-		// Present drawn image.
-		// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
-		VkPresentInfoKHR presentInfo = {};
-		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = &_renderingFinishedSemaphore;
-		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &_swapchain.handle;
-		presentInfo.pImageIndices = &imageIndex;
+			if (auto res = vkQueueSubmit(_queue._handle, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS) {
+				std::cerr << "failed to submit draw command buffer" << std::endl;
+				exit(1);
+			}
 
-		res = vkQueuePresentKHR(_queue._handle, &presentInfo);
+			// Present drawn image.
+			// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
+			VkPresentInfoKHR presentInfo = {};
+			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+			presentInfo.waitSemaphoreCount = 1;
+			presentInfo.pWaitSemaphores = &_renderingFinishedSemaphore;
+			presentInfo.swapchainCount = 1;
+			presentInfo.pSwapchains = &_swapchain.handle;
+			presentInfo.pImageIndices = &imageIndex;
 
-		if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
-			WindowSizeChanged();
-		}
-		else if (res != VK_SUCCESS) {
-			std::cerr << "failed to submit present command buffer" << std::endl;
-			exit(1);
+			res = vkQueuePresentKHR(_queue._handle, &presentInfo);
+
+			if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
+				WindowSizeChanged();
+			}
+			else if (res != VK_SUCCESS) {
+				std::cerr << "failed to submit present command buffer" << std::endl;
+				exit(1);
+			}
 		}
 	}
 
@@ -1388,7 +1404,7 @@ namespace Engine::Vulkan
 			std::cout << "created graphics pipeline" << std::endl;
 		}
 
-		// No longer necessary
+		// No longer necessary as it has all been put into the _graphicsPipeline object.
 		vkDestroyShaderModule(_logicalDevice, vertexShaderModule, nullptr);
 		vkDestroyShaderModule(_logicalDevice, fragmentShaderModule, nullptr);
 	}
@@ -1488,7 +1504,7 @@ namespace Engine::Vulkan
 		}
 	}
 
-	void VulkanApplication::CreateDrawCommandBuffers()
+	void VulkanApplication::AllocateDrawCommandBuffers()
 	{
 		// Allocate graphics command buffers
 		_drawCommandBuffers.resize(_renderPass.colorImages.size());
@@ -1585,10 +1601,99 @@ namespace Engine::Vulkan
 			}
 		}
 
-		std::cout << "recorded command buffers" << std::endl;
+		std::cout << "recorded draw commands in draw command buffers." << std::endl;
+	}
 
-		// No longer needed.
-		vkDestroyPipelineLayout(_logicalDevice, _pipelineLayout, nullptr);
+	void VulkanApplication::LoadTexture()
+	{
+
+
+		// Read the file and point to its location in memory.
+		//void* pixel_ptr = pixels;
+		//VkDeviceSize imageSize = texWidth * texHeight * 4;
+
+		//// Allocate temporary buffer for holding texture data to upload.
+		//AllocatedBuffer stagingBuffer = engine.create_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+
+		//// Copy data to buffer.
+		//void* data;
+		//vmaMapMemory(engine._allocator, stagingBuffer._allocation, &data);
+		//memcpy(data, pixel_ptr, static_cast<size_t>(imageSize));
+
+		//// We no longer need the loaded data, so we can free the pixels as they are now in the staging buffer.
+		//vmaUnmapMemory(engine._allocator, stagingBuffer._allocation);
+		//stbi_image_free(pixels);
+
+		//// Allocate and create the image.
+		//VkExtent3D imageExtent;
+		//imageExtent.width = static_cast<uint32_t>(texWidth);
+		//imageExtent.height = static_cast<uint32_t>(texHeight);
+		//imageExtent.depth = 1;
+		//VkFormat image_format = VK_FORMAT_R8G8B8A8_SRGB;
+		//VkImageCreateInfo dimg_info = vkinit::image_create_info(image_format, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, imageExtent);
+		//AllocatedImage newImage;
+		//VmaAllocationCreateInfo dimg_allocinfo = {};
+		//dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+		//vmaCreateImage(engine._allocator, &dimg_info, &dimg_allocinfo, &newImage._image, &newImage._allocation, nullptr);
+
+		//// Transfer the data from the buffer into the allocated image using a command buffer.
+		//// Here we record the commands for copying data from out buffer to the image.
+		//engine.immediate_submit([&](VkCommandBuffer cmd) {
+		//	VkImageSubresourceRange range;
+		//range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		//range.baseMipLevel = 0;
+		//range.levelCount = 1;
+		//range.baseArrayLayer = 0;
+		//range.layerCount = 1;
+
+		//VkImageMemoryBarrier imageBarrier_toTransfer = {};
+		//imageBarrier_toTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		//imageBarrier_toTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		//imageBarrier_toTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		//imageBarrier_toTransfer.image = newImage._image;
+		//imageBarrier_toTransfer.subresourceRange = range;
+		//imageBarrier_toTransfer.srcAccessMask = 0;
+		//imageBarrier_toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+		//// Barrier the image into the transfer-receive layout.
+		//vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toTransfer);
+		//	});
+
+		//VkBufferImageCopy copyRegion = {};
+		//copyRegion.bufferOffset = 0;
+		//copyRegion.bufferRowLength = 0;
+		//copyRegion.bufferImageHeight = 0;
+		//copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		//copyRegion.imageSubresource.mipLevel = 0;
+		//copyRegion.imageSubresource.baseArrayLayer = 0;
+		//copyRegion.imageSubresource.layerCount = 1;
+		//copyRegion.imageExtent = imageExtent;
+
+		//// Copy the buffer into the image.
+		//vkCmdCopyBufferToImage(cmd, stagingBuffer._buffer, newImage._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+
+		//// Barrier the image into the shader readable layout.
+		//VkImageMemoryBarrier imageBarrier_toReadable = imageBarrier_toTransfer;
+		//imageBarrier_toReadable.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		//imageBarrier_toReadable.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		//imageBarrier_toReadable.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		//imageBarrier_toReadable.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		//vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
+
+		//engine.immediate_submit([&](VkCommandBuffer cmd) {
+		//	//transitions and copy commands
+		//	});
+
+		//engine._mainDeletionQueue.push_function([=]() {
+
+		//	vmaDestroyImage(engine._allocator, newImage._image, newImage._allocation);
+		//	});
+
+		//vmaDestroyBuffer(engine._allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+		//std::cout << "Texture loaded successfully " << file << std::endl;
+
+		//outImage = newImage;
+		//return true;
 	}
 }
 

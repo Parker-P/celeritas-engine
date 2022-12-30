@@ -8,9 +8,6 @@
 
 namespace Engine::Vulkan
 {
-	class Swapchain;
-	class VulkanApplication;
-
 	/**
 	 * @brief Vulkan's representation of a GPU.
 	 */
@@ -258,6 +255,10 @@ namespace Engine::Vulkan
 	{
 	public:
 
+		/**
+		 * @brief Runs the application.
+		 * 
+		 */
 		void Run();
 
 	private:
@@ -278,12 +279,12 @@ namespace Engine::Vulkan
 		VkSurfaceKHR _windowSurface;
 
 		/**
-		 * @brief Represents the physical GPU.
+		 * @brief Represents the physical GPU. This is mostly used for querying the GPU about its hardware properties.
 		 */
 		PhysicalDevice _physicalDevice;
 
 		/**
-		 * @brief Represents the GPU at the logical level.
+		 * @brief Represents the GPU and its inner workings at the logical level.
 		 */
 		VkDevice _logicalDevice;
 
@@ -608,12 +609,12 @@ namespace Engine::Vulkan
 		void WindowSizeChanged();
 
 		/**
-		 * @brief .
+		 * @brief Removes any attachments and the render pass object itself from memory.
 		 */
 		void DestroyRenderPass();
 		
 		/**
-		 * @brief .
+		 * @brief Removes the framebuffers and the swapchain object itself from memory.
 		 */
 		void DestroySwapchain();
 
@@ -717,17 +718,25 @@ namespace Engine::Vulkan
 		 */
 		void CreateDescriptorSetLayout(const uint32_t& descriptorCount);
 
+		/**
+		 * @brief Creates the pipeline layout. See _pipelineLayout.
+		 */
 		void CreatePipelineLayout();
 
 		/**
-		 * @brief Creates one command buffer for each image in the swapchain (depends on present mode).
-		 * Each command buffer will be submitted to the queue (see _queue)
+		 * @brief Creates one command buffer for each image in the swapchain (amount depends on present mode).
+		 * Each command buffer will be submitted to the queue (see _queue).
 		 */
-		void CreateDrawCommandBuffers();
+		void AllocateDrawCommandBuffers();
 
 		/**
 		 * @brief For each swapchain image, records draw commands into the corresponding draw command buffer.
 		 */
 		void RecordDrawCommands();
+
+		/**
+		 * @brief .
+		 */
+		void LoadTexture();
 	};
 }
