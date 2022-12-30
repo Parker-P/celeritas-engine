@@ -210,10 +210,16 @@ namespace Engine::Vulkan
 		 */
 		VkFormat _format;
 
+		/**
+		 * @brief Width and height of the image.
+		 */
+		VkExtent2D _size;
+
 		Image() = default;
 
 		/**
 		 * @brief Constructs a Vulkan image.
+		 * 
 		 * @param logicalDevice
 		 * @param physicalDevice
 		 * @param imageFormat

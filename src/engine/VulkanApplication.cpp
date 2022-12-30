@@ -1,4 +1,5 @@
 #define GLFW_INCLUDE_VULKAN
+#define STB_IMAGE_IMPLEMENTATION
 
 #include <windows.h>
 
@@ -17,6 +18,9 @@
 // Math
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
+
+// Image processing
+#include <utils/stb_image.h>
 
 // Project local classes
 #include "utils/Json.h"
@@ -125,6 +129,7 @@ namespace Engine::Vulkan
 	{
 		_logicalDevice = logicalDevice;
 		_format = imageFormat;
+		_size = size;
 
 		VkImageCreateInfo imageCreateInfo = { };
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -1606,94 +1611,84 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::LoadTexture()
 	{
-
-
 		// Read the file and point to its location in memory.
-		//void* pixel_ptr = pixels;
-		//VkDeviceSize imageSize = texWidth * texHeight * 4;
+		int w, h;
+		void* pixels = stbi_load(R"(C:\Code\celeritas-engine\textures\ItalianFlag.jpg)", &w, &h, nullptr, 0);
+		void* pixel_ptr = pixels;
+		VkDeviceSize imageSize = w * h * 4; // 4 bytes, 1 for red, 1 for green, 1 for blue, 1 for alpha.
 
-		//// Allocate temporary buffer for holding texture data to upload.
-		//AllocatedBuffer stagingBuffer = engine.create_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-
-		//// Copy data to buffer.
-		//void* data;
-		//vmaMapMemory(engine._allocator, stagingBuffer._allocation, &data);
-		//memcpy(data, pixel_ptr, static_cast<size_t>(imageSize));
-
-		//// We no longer need the loaded data, so we can free the pixels as they are now in the staging buffer.
-		//vmaUnmapMemory(engine._allocator, stagingBuffer._allocation);
-		//stbi_image_free(pixels);
+		// Allocate a temporary buffer for holding texture data to upload to VRAM.
+		Buffer stagingBuffer = Buffer(_logicalDevice, 
+			_physicalDevice, 
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 
+			pixels, 
+			2000);
 
 		//// Allocate and create the image.
-		//VkExtent3D imageExtent;
-		//imageExtent.width = static_cast<uint32_t>(texWidth);
-		//imageExtent.height = static_cast<uint32_t>(texHeight);
-		//imageExtent.depth = 1;
-		//VkFormat image_format = VK_FORMAT_R8G8B8A8_SRGB;
-		//VkImageCreateInfo dimg_info = vkinit::image_create_info(image_format, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, imageExtent);
-		//AllocatedImage newImage;
-		//VmaAllocationCreateInfo dimg_allocinfo = {};
-		//dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-		//vmaCreateImage(engine._allocator, &dimg_info, &dimg_allocinfo, &newImage._image, &newImage._allocation, nullptr);
+		auto texture = Image(_logicalDevice, 
+			_physicalDevice, 
+			VK_FORMAT_R8G8B8A8_SRGB, 
+			VkExtent2D{(uint32_t)w,(uint32_t)h}, 
+			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT), 
+			VK_IMAGE_ASPECT_NONE, 
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-		//// Transfer the data from the buffer into the allocated image using a command buffer.
-		//// Here we record the commands for copying data from out buffer to the image.
-		//engine.immediate_submit([&](VkCommandBuffer cmd) {
-		//	VkImageSubresourceRange range;
-		//range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		//range.baseMipLevel = 0;
-		//range.levelCount = 1;
-		//range.baseArrayLayer = 0;
-		//range.layerCount = 1;
+		// Transfer the data from the buffer into the allocated image using a command buffer.
+		// Here we record the commands for copying data from the buffer to the image.
+		engine.immediate_submit([&](VkCommandBuffer cmd) {
+			VkImageSubresourceRange range;
+		range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		range.baseMipLevel = 0;
+		range.levelCount = 1;
+		range.baseArrayLayer = 0;
+		range.layerCount = 1;
 
-		//VkImageMemoryBarrier imageBarrier_toTransfer = {};
-		//imageBarrier_toTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		//imageBarrier_toTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		//imageBarrier_toTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		//imageBarrier_toTransfer.image = newImage._image;
-		//imageBarrier_toTransfer.subresourceRange = range;
-		//imageBarrier_toTransfer.srcAccessMask = 0;
-		//imageBarrier_toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		VkImageMemoryBarrier imageBarrier_toTransfer = {};
+		imageBarrier_toTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageBarrier_toTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		imageBarrier_toTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		imageBarrier_toTransfer.image = texture._imageHandle;
+		imageBarrier_toTransfer.subresourceRange = range;
+		imageBarrier_toTransfer.srcAccessMask = 0;
+		imageBarrier_toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
-		//// Barrier the image into the transfer-receive layout.
-		//vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toTransfer);
-		//	});
+		// Barrier the image into the transfer-receive layout.
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toTransfer);
+			});
 
-		//VkBufferImageCopy copyRegion = {};
-		//copyRegion.bufferOffset = 0;
-		//copyRegion.bufferRowLength = 0;
-		//copyRegion.bufferImageHeight = 0;
-		//copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		//copyRegion.imageSubresource.mipLevel = 0;
-		//copyRegion.imageSubresource.baseArrayLayer = 0;
-		//copyRegion.imageSubresource.layerCount = 1;
-		//copyRegion.imageExtent = imageExtent;
+		VkBufferImageCopy copyRegion = {};
+		copyRegion.bufferOffset = 0;
+		copyRegion.bufferRowLength = 0;
+		copyRegion.bufferImageHeight = 0;
+		copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		copyRegion.imageSubresource.mipLevel = 0;
+		copyRegion.imageSubresource.baseArrayLayer = 0;
+		copyRegion.imageSubresource.layerCount = 1;
+		copyRegion.imageExtent = texture._size;
 
-		//// Copy the buffer into the image.
-		//vkCmdCopyBufferToImage(cmd, stagingBuffer._buffer, newImage._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+		// Copy the buffer into the image.
+		vkCmdCopyBufferToImage(cmd, stagingBuffer._buffer, newImage._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
-		//// Barrier the image into the shader readable layout.
-		//VkImageMemoryBarrier imageBarrier_toReadable = imageBarrier_toTransfer;
-		//imageBarrier_toReadable.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		//imageBarrier_toReadable.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		//imageBarrier_toReadable.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		//imageBarrier_toReadable.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		//vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
+		// Barrier the image into the shader readable layout.
+		VkImageMemoryBarrier imageBarrier_toReadable = imageBarrier_toTransfer;
+		imageBarrier_toReadable.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		imageBarrier_toReadable.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageBarrier_toReadable.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		imageBarrier_toReadable.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
 
-		//engine.immediate_submit([&](VkCommandBuffer cmd) {
-		//	//transitions and copy commands
-		//	});
+		engine.immediate_submit([&](VkCommandBuffer cmd) {
+			//transitions and copy commands
+			});
 
-		//engine._mainDeletionQueue.push_function([=]() {
+		engine._mainDeletionQueue.push_function([=]() {
 
-		//	vmaDestroyImage(engine._allocator, newImage._image, newImage._allocation);
-		//	});
+			vmaDestroyImage(engine._allocator, newImage._image, newImage._allocation);
+			});
 
-		//vmaDestroyBuffer(engine._allocator, stagingBuffer._buffer, stagingBuffer._allocation);
-		//std::cout << "Texture loaded successfully " << file << std::endl;
-
-		//outImage = newImage;
-		//return true;
+		vmaDestroyBuffer(engine._allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+		std::cout << "Texture loaded successfully " << file << std::endl;
 	}
 }
 

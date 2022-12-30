@@ -47,6 +47,7 @@
     <ClInclude Include="src\structural\Singleton.hpp" />
     <ClInclude Include="src\engine\Time.hpp" />
     <ClInclude Include="src\engine\math\Transform.hpp" />
+    <ClInclude Include="src\utils\stb_image.h" />
     <ClInclude Include="src\utils\Utils.hpp" />
     <ClInclude Include="src\engine\VulkanApplication.hpp" />
   </ItemGroup>
