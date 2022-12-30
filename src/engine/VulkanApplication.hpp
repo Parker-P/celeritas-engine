@@ -211,9 +211,14 @@ namespace Engine::Vulkan
 		VkFormat _format;
 
 		/**
-		 * @brief Width and height of the image.
+		 * @brief Width and height of the image in pixels.
 		 */
-		VkExtent2D _size;
+		VkExtent2D _sizePixels;
+
+		/**
+		 * @brief Size in bytes.
+		 */
+		size_t _sizeBytes;
 
 		Image() = default;
 

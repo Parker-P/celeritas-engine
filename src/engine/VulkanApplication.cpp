@@ -92,7 +92,7 @@ namespace Engine::Vulkan
 			vkMapMemory(_logicalDevice, _memory, 0, sizeInBytes, 0, &_dataAddress);
 		}
 
-		if (data != nullptr) {
+		if (data != nullptr && _dataAddress != nullptr) {
 			memcpy(_dataAddress, data, sizeInBytes);
 			_size = sizeInBytes;
 		}
@@ -129,7 +129,8 @@ namespace Engine::Vulkan
 	{
 		_logicalDevice = logicalDevice;
 		_format = imageFormat;
-		_size = size;
+		_sizePixels = size;
+		//_sizeBytes = 
 
 		VkImageCreateInfo imageCreateInfo = { };
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -182,10 +183,10 @@ namespace Engine::Vulkan
 		imageViewCreateInfo.subresourceRange.levelCount = 1;
 		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 		imageViewCreateInfo.subresourceRange.layerCount = 1;
-		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		imageViewCreateInfo.subresourceRange.aspectMask = aspectFlags;
 
 		if (vkCreateImageView(logicalDevice, &imageViewCreateInfo, nullptr, &_imageViewHandle) != VK_SUCCESS) {
-			std::cout << "Failed creating depth image view." << std::endl;
+			std::cout << "Failed creating image view." << std::endl;
 		}
 	}
 
@@ -194,6 +195,7 @@ namespace Engine::Vulkan
 		_imageHandle = image;
 		_logicalDevice = logicalDevice;
 		_format = imageFormat;
+		_sizePixels = VkExtent2D{ 0, 0 };
 
 		VkImageViewCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -605,7 +607,7 @@ namespace Engine::Vulkan
 		std::vector<VkExtensionProperties> availableExtensions(extensionCount);
 		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, availableExtensions.data());
 
-		std::cout << "supported extensions:" << std::endl;
+		std::cout << "supported instance extensions:" << std::endl;
 
 		for (const auto& extension : availableExtensions) {
 			std::cout << "\t" << extension.extensionName << std::endl;
@@ -625,11 +627,11 @@ namespace Engine::Vulkan
 		}
 
 		if (vkCreateInstance(&createInfo, nullptr, &_instance)) {
-			std::cerr << "failed to create _instance!" << std::endl;
+			std::cerr << "failed to create instance" << std::endl;
 			exit(1);
 		}
 		else {
-			std::cout << "created vulkan _instance" << std::endl;
+			std::cout << "created vulkan instance" << std::endl;
 		}
 	}
 
@@ -1614,30 +1616,44 @@ namespace Engine::Vulkan
 		// Read the file and point to its location in memory.
 		int w, h;
 		void* pixels = stbi_load(R"(C:\Code\celeritas-engine\textures\ItalianFlag.jpg)", &w, &h, nullptr, 0);
-		void* pixel_ptr = pixels;
-		VkDeviceSize imageSize = w * h * 4; // 4 bytes, 1 for red, 1 for green, 1 for blue, 1 for alpha.
+		VkDeviceSize imageSizeBytes = w * h * 4; // 4 bytes, 1 for red, 1 for green, 1 for blue, 1 for alpha.
 
 		// Allocate a temporary buffer for holding texture data to upload to VRAM.
-		Buffer stagingBuffer = Buffer(_logicalDevice, 
-			_physicalDevice, 
-			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 
-			pixels, 
-			2000);
+		Buffer stagingBuffer = Buffer(_logicalDevice,
+			_physicalDevice,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+			pixels,
+			imageSizeBytes);
 
-		//// Allocate and create the image.
-		auto texture = Image(_logicalDevice, 
-			_physicalDevice, 
-			VK_FORMAT_R8G8B8A8_SRGB, 
-			VkExtent2D{(uint32_t)w,(uint32_t)h}, 
-			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT), 
-			VK_IMAGE_ASPECT_NONE, 
+		// Allocate and create the image.
+		auto texture = Image(_logicalDevice,
+			_physicalDevice,
+			VK_FORMAT_R8G8B8A8_SRGB,
+			VkExtent2D{ (uint32_t)w,(uint32_t)h },
+			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
+			VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
 		// Transfer the data from the buffer into the allocated image using a command buffer.
 		// Here we record the commands for copying data from the buffer to the image.
-		engine.immediate_submit([&](VkCommandBuffer cmd) {
-			VkImageSubresourceRange range;
+		VkCommandBufferAllocateInfo cmdBufInfo = {};
+		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		cmdBufInfo.commandPool = _commandPool;
+		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		cmdBufInfo.commandBufferCount = 1;
+
+		VkCommandBuffer copyCommandBuffer;
+		if (vkAllocateCommandBuffers(_logicalDevice, &cmdBufInfo, &copyCommandBuffer) != VK_SUCCESS) {
+			std::cout << "Failed allocating copy command buffer to copy buffer to texture." << std::endl;
+			exit(1);
+		}
+		VkCommandBufferBeginInfo beginInfo{};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		vkBeginCommandBuffer(copyCommandBuffer, &beginInfo);
+
+		VkImageSubresourceRange range;
 		range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		range.baseMipLevel = 0;
 		range.levelCount = 1;
@@ -1654,8 +1670,7 @@ namespace Engine::Vulkan
 		imageBarrier_toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
 		// Barrier the image into the transfer-receive layout.
-		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toTransfer);
-			});
+		vkCmdPipelineBarrier(copyCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toTransfer);
 
 		VkBufferImageCopy copyRegion = {};
 		copyRegion.bufferOffset = 0;
@@ -1665,10 +1680,11 @@ namespace Engine::Vulkan
 		copyRegion.imageSubresource.mipLevel = 0;
 		copyRegion.imageSubresource.baseArrayLayer = 0;
 		copyRegion.imageSubresource.layerCount = 1;
-		copyRegion.imageExtent = texture._size;
+		copyRegion.imageExtent = VkExtent3D{ texture._sizePixels.width, texture._sizePixels.height, 1 };
+		//copyRegion.imageExtent = VkExtent3D{ texture._size.width, texture._size.height, 1 };
 
 		// Copy the buffer into the image.
-		vkCmdCopyBufferToImage(cmd, stagingBuffer._buffer, newImage._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+		vkCmdCopyBufferToImage(copyCommandBuffer, stagingBuffer._handle, texture._imageHandle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 		// Barrier the image into the shader readable layout.
 		VkImageMemoryBarrier imageBarrier_toReadable = imageBarrier_toTransfer;
@@ -1676,19 +1692,21 @@ namespace Engine::Vulkan
 		imageBarrier_toReadable.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		imageBarrier_toReadable.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		imageBarrier_toReadable.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
+		vkCmdPipelineBarrier(copyCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
 
-		engine.immediate_submit([&](VkCommandBuffer cmd) {
-			//transitions and copy commands
-			});
+		vkEndCommandBuffer(copyCommandBuffer);
 
-		engine._mainDeletionQueue.push_function([=]() {
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &copyCommandBuffer;
+		vkQueueSubmit(_queue._handle, 1, &submitInfo, nullptr);
+		vkQueueWaitIdle(_queue._handle);
 
-			vmaDestroyImage(engine._allocator, newImage._image, newImage._allocation);
-			});
-
-		vmaDestroyBuffer(engine._allocator, stagingBuffer._buffer, stagingBuffer._allocation);
-		std::cout << "Texture loaded successfully " << file << std::endl;
+		vkFreeCommandBuffers(_logicalDevice, _commandPool, 1, &copyCommandBuffer);
+		texture.Destroy();
+		stagingBuffer.Destroy();
+		std::cout << "Texture loaded successfully " << std::endl;
 	}
 }
 
