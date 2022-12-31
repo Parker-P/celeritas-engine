@@ -1270,7 +1270,7 @@ namespace Engine::Vulkan
 		// Describe vertex input.
 		VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo = {};
 		vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertexInputCreateInfo.vertexBindingDescriptionCount = 1;
+		vertexInputCreateInfo.vertexBindingDescriptionCount = 3;
 		vertexInputCreateInfo.pVertexBindingDescriptions = &_vertexBindingDescription;
 		vertexInputCreateInfo.vertexAttributeDescriptionCount = (uint32_t)_vertexAttributeDescriptions.size();
 		vertexInputCreateInfo.pVertexAttributeDescriptions = _vertexAttributeDescriptions.data();
@@ -1370,7 +1370,7 @@ namespace Engine::Vulkan
 		// Describe pipeline layout.
 		// This describes the mapping between memory and shader resources (descriptor sets), which contain the information you want to send to the shaders.
 		// This is for uniform buffers and samplers.
-		int descriptorCount = 1;
+		int descriptorCount = 2;
 		CreateDescriptorSetLayout(descriptorCount);
 		CreateDescriptorPool(descriptorCount);
 
@@ -1418,7 +1418,7 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateDescriptorPool(const uint32_t& descriptorCount)
 	{
-		// This describes how many descriptor sets we'll create from this pool for each type.
+		// This describes how many descriptors we'll create from this pool for each type of descriptor.
 		VkDescriptorPoolSize typeCount;
 		typeCount.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		typeCount.descriptorCount = descriptorCount;
@@ -1475,16 +1475,27 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateDescriptorSetLayout(const uint32_t& descriptorCount)
 	{
-		// This tells Vulkan how many descriptors we want to use.
-		VkDescriptorSetLayoutBinding layoutBinding = {};
-		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		layoutBinding.descriptorCount = descriptorCount;
-		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		// Sending vertex attributes to the vertex shader.
+		VkDescriptorSetLayoutBinding vertexAttributesLayoutBinding = {};
+		vertexAttributesLayoutBinding.binding = 0;
+		vertexAttributesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		//vertexAttributesLayoutBinding.descriptorCount = descriptorCount;
+		vertexAttributesLayoutBinding.descriptorCount = 1;
+		vertexAttributesLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
+		// And textures to the fragment shader.
+		VkDescriptorSetLayoutBinding texturesLayoutBinding = {};
+		texturesLayoutBinding.binding = 1;
+		texturesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		//texturesLayoutBinding.descriptorCount = descriptorCount;
+		texturesLayoutBinding.descriptorCount = 1;
+		texturesLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		VkDescriptorSetLayoutBinding bindings[2] = { vertexAttributesLayoutBinding, texturesLayoutBinding };
 		VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = {};
 		descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptorLayoutCreateInfo.bindingCount = 1;
-		descriptorLayoutCreateInfo.pBindings = &layoutBinding;
+		descriptorLayoutCreateInfo.bindingCount = 2;
+		descriptorLayoutCreateInfo.pBindings = bindings;
 
 		if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &_descriptorSetLayout) != VK_SUCCESS) {
 			std::cerr << "failed to create descriptor layout" << std::endl;
@@ -1611,12 +1622,28 @@ namespace Engine::Vulkan
 		std::cout << "recorded draw commands in draw command buffers." << std::endl;
 	}
 
+	VkFormat VulkanApplication::ChooseImageFormat(const std::filesystem::path& absolutePathToImage)
+	{
+		auto extension = absolutePathToImage.extension();
+
+		if (extension == L".jpg") {
+			return VK_FORMAT_R8G8B8_SRGB;
+		}
+		else if (extension == L".png") {
+			return VK_FORMAT_R8G8B8A8_SRGB;
+		}
+
+		return VK_FORMAT_UNDEFINED;
+	}
+
 	void VulkanApplication::LoadTexture()
 	{
 		// Read the file and point to its location in memory.
+		auto texturePath = R"(C:\Code\celeritas-engine\textures\test.jpg)";
 		int w, h;
-		void* pixels = stbi_load(R"(C:\Code\celeritas-engine\textures\ItalianFlag.jpg)", &w, &h, nullptr, 0);
-		VkDeviceSize imageSizeBytes = w * h * 4; // 4 bytes, 1 for red, 1 for green, 1 for blue, 1 for alpha.
+		void* pixels = stbi_load(texturePath, &w, &h, nullptr, 0);
+		size_t imageSizeBytes = w * h * 3; // 4 bytes, 1 for red, 1 for green, 1 for blue, 1 for alpha.
+		auto format = ChooseImageFormat(texturePath);
 
 		// Allocate a temporary buffer for holding texture data to upload to VRAM.
 		Buffer stagingBuffer = Buffer(_logicalDevice,
@@ -1629,7 +1656,7 @@ namespace Engine::Vulkan
 		// Allocate and create the image.
 		auto texture = Image(_logicalDevice,
 			_physicalDevice,
-			VK_FORMAT_R8G8B8A8_SRGB,
+			format,
 			VkExtent2D{ (uint32_t)w,(uint32_t)h },
 			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
 			VK_IMAGE_ASPECT_COLOR_BIT,

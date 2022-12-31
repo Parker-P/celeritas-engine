@@ -430,7 +430,7 @@ namespace Engine::Vulkan
 		 * a) The programmable stages are custom stages that will be run on the GPU's multi-purpose array of microprocessors using a program (a.k.a shader).
 		 * b) The configurable stages are hardwired stages that can perform their task a different way based on user configuration via calls to the Vulkan API.
 		 * c) The hardwired stages are immutable stages that cannot be changed unless manipulating the hardware.
-		 * The graph of a typical graphics pipeline is shown under docs/GraphicsPipeline.svg (image from Wikipedia).
+		 * The graph of a typical graphics pipeline is shown under docs/GraphicsPipeline.jpg.
 		 *
 		 * More on the programmable stages:
 		 * The programmable stages are the flexible stages that the programmer can fully customize by writing little programs called shaders.
@@ -447,6 +447,9 @@ namespace Engine::Vulkan
 		 *
 		 * Examples of the configurable stages are anti-aliasing and tessellation.
 		 * Examples of hardwired stages are backface-culling, depth testing and alpha blending.
+		 * 
+		 * For a good overall hardware and software explanation of a typical NVidia GPU, see 
+		 * https://developer.nvidia.com/gpugems/gpugems2/part-iv-general-purpose-computation-gpus-primer/chapter-30-geforce-6-series-gpu
 		 */
 		VkPipeline _graphicsPipeline;
 
@@ -746,7 +749,13 @@ namespace Engine::Vulkan
 		void RecordDrawCommands();
 
 		/**
-		 * @brief .
+		 * @brief Chooses the VkFormat (format and color space) for the given texture file.
+		 * 
+		 */
+		VkFormat ChooseImageFormat(const std::filesystem::path& absolutePathToImage);
+
+		/**
+		 * @brief Loads a texture into VRAM.
 		 */
 		void LoadTexture();
 	};

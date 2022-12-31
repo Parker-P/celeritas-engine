@@ -5,9 +5,11 @@
 // Input attributes coming from a vertex buffer.
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
-layout(location = 2) in vec3 inUv;
+layout(location = 2) in vec2 inUv;
 
+// Output variables to send to the next shader stages.
 layout(location = 0) out vec3 fragColor;
+layout (location = 1) out vec2 texCoord;
 
 // Variables coming from descriptor sets.
 layout(set = 0, binding = 0) uniform UniformBuffer {
@@ -49,4 +51,5 @@ void main()
 	vec3 lightDirection = vec3(temp.x, temp.y, temp.z);
 	float colorMultiplier = (dot(-lightDirection, inNormal) + 1.0f) / 2.0f;
 	fragColor = colorMultiplier * vec3(1.0f, 1.0f, 1.0f); // RGB
+	texCoord = inUv;
 }
