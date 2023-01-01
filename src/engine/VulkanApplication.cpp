@@ -538,8 +538,8 @@ namespace Engine::Vulkan
 			vkDestroyCommandPool(_logicalDevice, _commandPool, nullptr);
 
 			// Clean up uniform buffer related objects.
-			vkDestroyDescriptorPool(_logicalDevice, _graphicsPipeline._shaderResources._uniformDescriptorPool, nullptr);
-			_graphicsPipeline._shaderResources._uniformBuffer.Destroy();
+			vkDestroyDescriptorPool(_logicalDevice, _graphicsPipeline._shaderResources._descriptorPool, nullptr);
+			_graphicsPipeline._shaderResources._transformationDataBuffer.Destroy();
 
 			// Buffers must be destroyed after no command buffers are referring to them anymore.
 			_graphicsPipeline._vertexBuffer.Destroy();
@@ -774,7 +774,8 @@ namespace Engine::Vulkan
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\2CylinderEngine.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\axesTest.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
-		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monster.glb)");
+		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monster.glb)");
+		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\ItalianFlagTriangle.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\test.glb)");
 		_model = _scene._objects[0];
 
@@ -1193,18 +1194,6 @@ namespace Engine::Vulkan
 		_swapchain._oldSwapchainHandle = _swapchain.handle;
 	}
 
-	void VulkanApplication::UpdateShaderData()
-	{
-		_graphicsPipeline._shaderResources._uniformBufferData.objectToWorld = _model._transform._matrix;
-		_graphicsPipeline._shaderResources._uniformBufferData.worldToCamera = _mainCamera._view._matrix;
-		_graphicsPipeline._shaderResources._uniformBufferData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov / 2.0f));
-		_graphicsPipeline._shaderResources._uniformBufferData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
-		_graphicsPipeline._shaderResources._uniformBufferData.nearClipDistance = _mainCamera._nearClippingDistance;
-		_graphicsPipeline._shaderResources._uniformBufferData.farClipDistance = _mainCamera._farClippingDistance;
-
-		_graphicsPipeline._shaderResources._uniformBuffer.UpdateData(&_graphicsPipeline._shaderResources._uniformBufferData, (size_t)sizeof(_graphicsPipeline._shaderResources._uniformBufferData));
-	}
-
 	VkShaderModule VulkanApplication::CreateShaderModule(const std::filesystem::path& absolutePath)
 	{
 		std::ifstream file(absolutePath.c_str(), std::ios::ate | std::ios::binary);
@@ -1383,23 +1372,19 @@ namespace Engine::Vulkan
 		colorBlendCreateInfo.blendConstants[2] = 0.0f;
 		colorBlendCreateInfo.blendConstants[3] = 0.0f;
 
-		// Describe pipeline layout.
-		// This describes the mapping between memory and shader resources (descriptor sets), which contain the information you want to send to the shaders.
-		// This is for uniform buffers and samplers.
-		int descriptorCount = 1;
-		CreateDescriptorSetLayout(descriptorCount);
-		_graphicsPipeline._shaderResources._uniformDescriptorPool = CreateDescriptorPool(descriptorCount, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-		_graphicsPipeline._shaderResources._samplerDescriptorPool = CreateDescriptorPool(descriptorCount, VK_DESCRIPTOR_TYPE_SAMPLER);
+		CreateDescriptorSetLayout();
+		CreateDescriptorPool();
 
-		_graphicsPipeline._shaderResources._uniformBuffer = Buffer(_logicalDevice,
+		_graphicsPipeline._shaderResources._transformationDataBuffer = Buffer(_logicalDevice,
 			_physicalDevice,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			&_graphicsPipeline._shaderResources._uniformBufferData,
-			(size_t)sizeof(_graphicsPipeline._shaderResources._uniformBufferData));
+			&_graphicsPipeline._shaderResources._transformationData,
+			(size_t)sizeof(_graphicsPipeline._shaderResources._transformationData));
 
 		UpdateShaderData();
-		AllocateDescriptorSets(1);
+		AllocateDescriptorSets();
+		UpdateDescriptorSetsData();
 		CreatePipelineLayout();
 
 		// Create the graphics pipeline
@@ -1414,13 +1399,13 @@ namespace Engine::Vulkan
 		pipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
 		pipelineCreateInfo.pMultisampleState = &multisampleCreateInfo;
 		pipelineCreateInfo.pColorBlendState = &colorBlendCreateInfo;
-		pipelineCreateInfo.layout = _pipelineLayout;
+		pipelineCreateInfo.layout = _graphicsPipeline._shaderResources._pipelineLayout;
 		pipelineCreateInfo.renderPass = _renderPass.handle;
 		pipelineCreateInfo.subpass = 0;
 		pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
 		pipelineCreateInfo.basePipelineIndex = -1;
 
-		if (vkCreateGraphicsPipelines(_logicalDevice, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_graphicsPipeline) != VK_SUCCESS) {
+		if (vkCreateGraphicsPipelines(_logicalDevice, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_graphicsPipeline._handle) != VK_SUCCESS) {
 			std::cerr << "failed to create graphics pipeline" << std::endl;
 			exit(1);
 		}
@@ -1433,113 +1418,82 @@ namespace Engine::Vulkan
 		vkDestroyShaderModule(_logicalDevice, fragmentShaderModule, nullptr);
 	}
 
-	VkDescriptorPool VulkanApplication::CreateDescriptorPool(const uint32_t& descriptorCount, const VkDescriptorType& descriptorType)
+	void VulkanApplication::AllocateDescriptorSets()
 	{
-		// This describes how many descriptors we'll create from this pool for each type of descriptor.
-		VkDescriptorPoolSize typeCount;
-		typeCount.type = descriptorType;
-		typeCount.descriptorCount = descriptorCount;
+		auto& shaderResources = _graphicsPipeline._shaderResources;
 
-		// maxSets is the maximum number of descriptor sets that can be allocated from the pool.
-		// poolSizeCount is the number of elements in pPoolSizes.
-		// pPoolSizes is a pointer to an array of VkDescriptorPoolSize structures, each containing a descriptor type and number of descriptors of that type to be allocated in the pool.
-		VkDescriptorPoolCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		createInfo.maxSets = 1;
-		createInfo.poolSizeCount = 1;
-		createInfo.pPoolSizes = &typeCount;
-
-		VkDescriptorPool pool{};
-		if (vkCreateDescriptorPool(_logicalDevice, &createInfo, nullptr, &pool) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor pool" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created descriptor pool" << std::endl;
-		}
-
-		return pool;
-	}
-
-	void VulkanApplication::AllocateDescriptorSets(size_t descriptorSetCount)
-	{
-		// There needs to be one descriptor set per binding point in the shader
+		// The amount of sets and descriptor types is defined when creating the descriptor pool.
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = _uniformDescriptorPool;
-		allocInfo.descriptorSetCount = descriptorSetCount;
-		allocInfo.pSetLayouts = &_descriptorSetLayout;
+		allocInfo.descriptorPool = shaderResources._descriptorPool;
+		allocInfo.descriptorSetCount = 2;
+		allocInfo.pSetLayouts = &shaderResources._descriptorSetLayout;
 
-		_descriptorSets.resize(descriptorSetCount);
-		if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, _descriptorSets.data()) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor set" << std::endl;
+		VkDescriptorSet allocatedDescriptorSetHandles[2];
+		if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, allocatedDescriptorSetHandles) != VK_SUCCESS) {
+			std::cerr << "failed to create descriptor sets" << std::endl;
 			exit(1);
 		}
 		else {
-			std::cout << "created descriptor set" << std::endl;
+			std::cout << "created descriptor sets" << std::endl;
+
+			shaderResources._uniformSet._handle = allocatedDescriptorSetHandles[0];
+			shaderResources._samplerSet._handle = allocatedDescriptorSetHandles[1];
 		}
-
-		// This creates the actual descriptor.
-		auto transformationMatricesDescriptorBuffer = _uniformBuffer.GenerateDescriptor();
-
-		// pBufferInfo is a pointer to the start of an array of descriptors.
-		VkWriteDescriptorSet writeDescriptorSet = {};
-		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		writeDescriptorSet.dstSet = _descriptorSets[0];
-		writeDescriptorSet.descriptorCount = 1;
-		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		writeDescriptorSet.pBufferInfo = &transformationMatricesDescriptorBuffer;
-		writeDescriptorSet.dstBinding = 0;
-
-
-		auto textureDescriptorBuffer = _texture.GenerateDescriptor();
-
-		VkSamplerCreateInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		info.pNext = nullptr;
-		info.magFilter = VK_FILTER_LINEAR;
-		info.minFilter = VK_FILTER_LINEAR;
-		info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	
-		VkWriteDescriptorSet write = {};
-		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		write.pNext = nullptr;
-		write.dstBinding = 1;
-		write.dstSet = _descriptorSets[0];
-		write.descriptorCount = 1;
-		write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		write.pImageInfo = &textureDescriptorBuffer;
-
-		vkUpdateDescriptorSets(_logicalDevice, 1, &writeDescriptorSet, 0, nullptr);
 	}
 
-	void VulkanApplication::CreateDescriptorSetLayout(const uint32_t& descriptorCount)
+	void VulkanApplication::UpdateDescriptorSetsData()
 	{
+		auto& shaderResources = _graphicsPipeline._shaderResources;
+
+		// This creates the actual descriptor.
+		auto transformationMatricesDescriptorBuffer = shaderResources._transformationDataBuffer.GenerateDescriptor();
+
+		// This structure gives Vulkan info about how and where to send the descriptors to the shaders.
+		VkWriteDescriptorSet writeTransformationData = {};
+		writeTransformationData.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeTransformationData.dstSet = shaderResources._uniformSet._handle;
+		writeTransformationData.descriptorCount = 1;
+		writeTransformationData.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		writeTransformationData.pBufferInfo = &transformationMatricesDescriptorBuffer;
+		writeTransformationData.dstBinding = shaderResources._uniformSet._layout.binding;
+
+		auto textureDescriptorBuffer = shaderResources._texture.GenerateDescriptor();
+		VkWriteDescriptorSet writeSamplers = {};
+		writeSamplers.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeSamplers.dstSet = shaderResources._samplerSet._handle;
+		writeSamplers.descriptorCount = 1;
+		writeSamplers.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		writeSamplers.pImageInfo = &textureDescriptorBuffer;
+		writeSamplers.dstBinding = shaderResources._samplerSet._layout.binding;
+
+		VkWriteDescriptorSet updateInfos[2] = { writeTransformationData, writeSamplers };
+		vkUpdateDescriptorSets(_logicalDevice, 2, updateInfos, 0, nullptr);
+	}
+
+	void VulkanApplication::CreateDescriptorSetLayout()
+	{
+		auto& shaderResources = _graphicsPipeline._shaderResources;
+
 		// Sending vertex attributes to the vertex shader.
-		VkDescriptorSetLayoutBinding vertexAttributesLayoutBinding = {};
-		vertexAttributesLayoutBinding.binding = 0;
-		vertexAttributesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		//vertexAttributesLayoutBinding.descriptorCount = descriptorCount;
-		vertexAttributesLayoutBinding.descriptorCount = 1;
-		vertexAttributesLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		shaderResources._uniformSet._layout.binding = 0;
+		shaderResources._uniformSet._layout.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		shaderResources._uniformSet._layout.descriptorCount = 1;
+		shaderResources._uniformSet._layout.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
 		// And textures to the fragment shader.
-		VkDescriptorSetLayoutBinding texturesLayoutBinding = {};
-		texturesLayoutBinding.binding = 1;
-		texturesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-		//texturesLayoutBinding.descriptorCount = descriptorCount;
-		texturesLayoutBinding.descriptorCount = 1;
-		texturesLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		shaderResources._samplerSet._layout.binding = 1;
+		shaderResources._samplerSet._layout.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+		shaderResources._samplerSet._layout.descriptorCount = 1;
+		shaderResources._samplerSet._layout.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-		VkDescriptorSetLayoutBinding bindings[2] = { vertexAttributesLayoutBinding, texturesLayoutBinding };
+		VkDescriptorSetLayoutBinding bindings[2] = { shaderResources._uniformSet._layout, shaderResources._samplerSet._layout };
 		VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = {};
 		descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 		descriptorLayoutCreateInfo.bindingCount = 2;
 		descriptorLayoutCreateInfo.pBindings = bindings;
 
-		if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &_descriptorSetLayout) != VK_SUCCESS) {
+		if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &_graphicsPipeline._shaderResources._descriptorSetLayout) != VK_SUCCESS) {
 			std::cerr << "failed to create descriptor layout" << std::endl;
 			exit(1);
 		}
@@ -1548,14 +1502,57 @@ namespace Engine::Vulkan
 		}
 	}
 
+	void VulkanApplication::CreateDescriptorPool()
+	{
+		auto& shaderResources = _graphicsPipeline._shaderResources;
+
+		// This describes how many descriptors we'll create from this pool for each type of descriptor.
+		VkDescriptorPoolSize uniformPoolSize;
+		uniformPoolSize.type = shaderResources._uniformSet._layout.descriptorType;
+		uniformPoolSize.descriptorCount = shaderResources._uniformSet._layout.descriptorCount;
+
+		VkDescriptorPoolSize samplerPoolSize;
+		samplerPoolSize.type = shaderResources._samplerSet._layout.descriptorType;
+		samplerPoolSize.descriptorCount = shaderResources._samplerSet._layout.descriptorCount;
+
+		// maxSets is the maximum number of descriptor sets that can be allocated from the pool.
+		// poolSizeCount is the number of elements in pPoolSizes.
+		// pPoolSizes is a pointer to an array of VkDescriptorPoolSize structures, each containing a descriptor type and number of descriptors of that type to be allocated in the pool.
+		VkDescriptorPoolSize poolSizes[2] = { uniformPoolSize, samplerPoolSize };
+		VkDescriptorPoolCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		createInfo.maxSets = 2;
+		createInfo.poolSizeCount = 2;
+		createInfo.pPoolSizes = poolSizes;
+		if (vkCreateDescriptorPool(_logicalDevice, &createInfo, nullptr, &_graphicsPipeline._shaderResources._descriptorPool) != VK_SUCCESS) {
+			std::cerr << "failed to create descriptor pool" << std::endl;
+			exit(1);
+		}
+		else {
+			std::cout << "created descriptor pool" << std::endl;
+		}
+	}
+
+	void VulkanApplication::UpdateShaderData()
+	{
+		_graphicsPipeline._shaderResources._transformationData.objectToWorld = _model._transform._matrix;
+		_graphicsPipeline._shaderResources._transformationData.worldToCamera = _mainCamera._view._matrix;
+		_graphicsPipeline._shaderResources._transformationData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov / 2.0f));
+		_graphicsPipeline._shaderResources._transformationData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
+		_graphicsPipeline._shaderResources._transformationData.nearClipDistance = _mainCamera._nearClippingDistance;
+		_graphicsPipeline._shaderResources._transformationData.farClipDistance = _mainCamera._farClippingDistance;
+
+		_graphicsPipeline._shaderResources._transformationDataBuffer.UpdateData(&_graphicsPipeline._shaderResources._transformationData, (size_t)sizeof(_graphicsPipeline._shaderResources._transformationData));
+	}
+
 	void VulkanApplication::CreatePipelineLayout()
 	{
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutCreateInfo.setLayoutCount = 1;
-		pipelineLayoutCreateInfo.pSetLayouts = &_descriptorSetLayout;
+		pipelineLayoutCreateInfo.pSetLayouts = &_graphicsPipeline._shaderResources._descriptorSetLayout;
 
-		if (vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_pipelineLayout) != VK_SUCCESS) {
+		if (vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_graphicsPipeline._shaderResources._pipelineLayout) != VK_SUCCESS) {
 			std::cerr << "failed to create pipeline layout" << std::endl;
 			exit(1);
 		}
@@ -1586,6 +1583,8 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::RecordDrawCommands()
 	{
+		auto& shaderResources = _graphicsPipeline._shaderResources;
+
 		// Prepare data for recording command buffers
 		VkCommandBufferBeginInfo beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1637,10 +1636,11 @@ namespace Engine::Vulkan
 			renderPassBeginInfo.pClearValues = &clearValues[0];
 
 			vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelineLayout, 0, 1, _descriptorSets.data(), 0, nullptr);
-			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
+			VkDescriptorSet sets[2] = { shaderResources._uniformSet._handle, shaderResources._samplerSet._handle };
+			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shaderResources._pipelineLayout, 0, 1, sets, 0, nullptr);
+			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 			VkDeviceSize offset = 0;
-			vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &_vertexBuffer._handle, &offset);
+			vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &_graphicsPipeline._vertexBuffer._handle, &offset);
 
 			// Get the value type of vertex indices. Typically unsigned int (32-bit) but could also be 16-bit.
 			VkIndexType indexType = VK_INDEX_TYPE_NONE_KHR;
@@ -1650,7 +1650,7 @@ namespace Engine::Vulkan
 			if (std::is_same_v<decltype(_model._mesh._faceIndices)::value_type, unsigned int>) {
 				indexType = VK_INDEX_TYPE_UINT32;
 			}
-			vkCmdBindIndexBuffer(_drawCommandBuffers[i], _indexBuffer._handle, 0, indexType);
+			vkCmdBindIndexBuffer(_drawCommandBuffers[i], _graphicsPipeline._indexBuffer._handle, 0, indexType);
 			vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)_model._mesh._faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(_drawCommandBuffers[i]);
 #pragma endregion
@@ -1696,7 +1696,7 @@ namespace Engine::Vulkan
 			imageSizeBytes);
 
 		// Allocate and create the image.
-		_texture = Image(_logicalDevice,
+		_graphicsPipeline._shaderResources._texture = Image(_logicalDevice,
 			_physicalDevice,
 			format,
 			VkExtent2D{ (uint32_t)w,(uint32_t)h },
@@ -1733,7 +1733,7 @@ namespace Engine::Vulkan
 		imageBarrier_toTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		imageBarrier_toTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		imageBarrier_toTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		imageBarrier_toTransfer.image = _texture._imageHandle;
+		imageBarrier_toTransfer.image = _graphicsPipeline._shaderResources._texture._imageHandle;
 		imageBarrier_toTransfer.subresourceRange = range;
 		imageBarrier_toTransfer.srcAccessMask = 0;
 		imageBarrier_toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -1749,11 +1749,11 @@ namespace Engine::Vulkan
 		copyRegion.imageSubresource.mipLevel = 0;
 		copyRegion.imageSubresource.baseArrayLayer = 0;
 		copyRegion.imageSubresource.layerCount = 1;
-		copyRegion.imageExtent = VkExtent3D{ _texture._sizePixels.width, _texture._sizePixels.height, 1 };
+		copyRegion.imageExtent = VkExtent3D{ _graphicsPipeline._shaderResources._texture._sizePixels.width, _graphicsPipeline._shaderResources._texture._sizePixels.height, 1 };
 		//copyRegion.imageExtent = VkExtent3D{ texture._size.width, texture._size.height, 1 };
 
 		// Copy the buffer into the image.
-		vkCmdCopyBufferToImage(copyCommandBuffer, stagingBuffer._handle, _texture._imageHandle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+		vkCmdCopyBufferToImage(copyCommandBuffer, stagingBuffer._handle, _graphicsPipeline._shaderResources._texture._imageHandle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 		// Barrier the image into the shader readable layout.
 		VkImageMemoryBarrier imageBarrier_toReadable = imageBarrier_toTransfer;

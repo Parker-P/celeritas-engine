@@ -259,7 +259,8 @@ namespace Engine::Vulkan
 		Image(VkDevice& logicalDevice, VkImage& image, const VkFormat& imageFormat);
 
 		/**
-		 * @brief .
+		 * @brief Generates an image descriptor. An image descriptor is bound to a sampler, which tells Vulkan how to instruct
+		 * the actual GPU hardware samplers on how to read and sample the particular texture.
 		 */
 		VkDescriptorImageInfo GenerateDescriptor();
 
@@ -542,7 +543,7 @@ namespace Engine::Vulkan
 				 * @brief The Vulkan buffer that contains the data that will be sent to the shaders. This buffer will be a descriptor, which will
 				 * be pointed to by a descriptor set. The descriptor set is the structure that actually ends up in the shaders.
 				 */
-				Buffer _uniformBuffer;
+				Buffer _transformationDataBuffer;
 
 				/**
 				 * @brief This is the data that will go to the vertex shader.
@@ -555,7 +556,7 @@ namespace Engine::Vulkan
 					float farClipDistance;
 					glm::mat4 worldToCamera;
 					glm::mat4 objectToWorld;
-				} _uniformBufferData;
+				} _transformationData;
 
 				/**
 				 * @brief Texture to be sent to the shaders.
@@ -572,18 +573,44 @@ namespace Engine::Vulkan
 				/**
 				 * @brief Descriptor pool from which uniform descriptors are allocated.
 				 */
-				VkDescriptorPool _uniformDescriptorPool;
+				VkDescriptorPool _descriptorPool;
 
 				/**
-				 * @brief Descriptor pool from which sampler descriptors are allocated.
+				 * @brief A descriptor is just a block of data, similar to a buffer, with the difference being that a descriptor
+				 * is specifically designed to be used in shaders. This enables us to exchange data between a program run by the
+				 * CPU's cores with a shader run by the GPU's cores.
 				 */
-				VkDescriptorPool _samplerDescriptorPool;
+				struct Descriptor {
+
+				};
 
 				/**
 				 * @brief A descriptor set has bindings to descriptors, and is used to cluster descriptors with similar properties. A descriptor is just a set of data
 				 * that will be passed into shaders. The shaders will then use these descriptors' data as needed.
 				 */
-				std::vector<VkDescriptorSet> _descriptorSets;
+				struct DescriptorSet {
+
+					/**
+					 * @brief Identifier for Vulkan.
+					 */
+					VkDescriptorSet _handle;
+
+					/**
+					 * @brief Metadata about the descriptor, which describes which shader stage the descriptors inside of it will be available to use.
+					 */
+					VkDescriptorSetLayoutBinding _layout;
+
+				};
+
+				/**
+				 * @brief Descriptor set that contains uniform buffer descriptors.
+				 */
+				DescriptorSet _uniformSet;
+
+				/**
+				 * @brief Descriptor set that contains texture sampler descriptors.
+				 */
+				DescriptorSet _samplerSet;
 
 				/**
 				 * @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
@@ -736,10 +763,9 @@ namespace Engine::Vulkan
 		void CreateSwapchain();
 
 		/**
-		 * @brief Update the data that will be sent to the shaders.
+		 * @brief Compiles the given file and creates a Vulkan structure that describes a shader program
+		 * with the compiled code.
 		 */
-		void UpdateShaderData();
-
 		VkShaderModule CreateShaderModule(const std::filesystem::path& absolutePath);
 
 		/**
@@ -749,21 +775,30 @@ namespace Engine::Vulkan
 		void CreateGraphicsPipeline();
 
 		/**
+		 * @brief Creates a descriptor set, and fills it with the chosen number of descriptors (defined when creating the descriptor pool that will be used to allocate the descriptor set).
+		 */
+		void AllocateDescriptorSets();
+
+		/**
+		 * @brief Updates the data in both the uniform and texture sampler descriptor sets.
+		 */
+		void UpdateDescriptorSetsData();
+
+		/**
+		 * @brief Creates the descriptor set layout.
+		 */
+		void CreateDescriptorSetLayout();
+		
+		/**
 		 * @brief Creates a descriptor pool.
 		 * @param descriptorCount The amount of descriptors you plan to allocate from the pool.
 		 */
-		VkDescriptorPool CreateDescriptorPool(const uint32_t& descriptorCount, const VkDescriptorType& descriptorType);
+		void CreateDescriptorPool();
 
 		/**
-		 * @brief Creates a descriptor set, and fills it with the chosen number of descriptors (defined when creating the descriptor pool that will be used to allocate the descriptor set).
+		 * @brief Update the data that will be sent to the shaders.
 		 */
-		void AllocateDescriptorSets(size_t descriptorSetCount);
-
-		/**
-		 * @brief Creates a descriptor set layout.
-		 * @param descriptorCount The amount of descriptors you plan.
-		 */
-		void CreateDescriptorSetLayout(const uint32_t& descriptorCount);
+		void UpdateShaderData();
 
 		/**
 		 * @brief Creates the pipeline layout. See _pipelineLayout.

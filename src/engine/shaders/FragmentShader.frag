@@ -8,7 +8,7 @@ layout (location = 1) in vec2 texCoord;
 layout(location = 0) out vec4 outColor;
 
 // Variables coming from descriptor sets.
-layout(set = 0, binding = 1) uniform sampler2D tex1;
+layout(set = 1, binding = 1) uniform sampler2D tex1;
 
 void main() {
     vec3 color = texture(tex1,texCoord).xyz;
