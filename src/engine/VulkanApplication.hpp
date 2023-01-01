@@ -34,7 +34,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Queries the device for surface support for the given queue family and surface.
 		 * @return True if the queue family can contain command buffers which contain commands that will draw
-		 * to the given surface. 
+		 * to the given surface.
 		 */
 		bool SupportsSurface(uint32_t& queueFamilyIndex, VkSurfaceKHR& surface);
 
@@ -216,20 +216,25 @@ namespace Engine::Vulkan
 		VkExtent2D _sizePixels;
 
 		/**
-		 * @brief Size in bytes.
+		 * @brief Flags that indicate what type of data this image contains.
 		 */
-		size_t _sizeBytes;
+		VkImageAspectFlagBits _typeFlags;
+
+		/**
+		 * @brief Describes how this image is going to be read by the GPU texture samplers, which feed textures to shaders.
+		 */
+		VkSampler _sampler;
 
 		Image() = default;
 
 		/**
 		 * @brief Constructs a Vulkan image.
-		 * 
+		 *
 		 * @param logicalDevice
 		 * @param physicalDevice
 		 * @param imageFormat
 		 * @param size Width and height of the image in pixels.
-		 * @param usageFlags Gives Vulkan context on what the image is intended to be used for.
+		 * @param usageFlags Gives Vulkan information about how it's going to be used as a render pass attachment. For example an image could be used to store depth information, denoted by using VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT.
 		 * @param aspectFlags Indicates how it's meant to be used and what type of data it contains.
 		 * @param memoryPropertiesFlags This can be any of the following values:
 		 * 1) VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT: this means GPU memory, so VRAM. If this is not set, then regular RAM is assumed.
@@ -243,7 +248,7 @@ namespace Engine::Vulkan
 		 * buffer from the GPU while the buffer is marked HOST_CACHED, you may not be able to get the data or even worse, you may end up reading the wrong chunk of memory.
 		 * Further read: https://asawicki.info/news_1740_vulkan_memory_types_on_pc_and_how_to_use_them
 		 */
-		Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& size, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& aspectFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags);
+		Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& size, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& typeFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags);
 
 		/**
 		 * @brief Constructs an image using a pre-existing image handle.
@@ -252,6 +257,11 @@ namespace Engine::Vulkan
 		 * @param size
 		 */
 		Image(VkDevice& logicalDevice, VkImage& image, const VkFormat& imageFormat);
+
+		/**
+		 * @brief .
+		 */
+		VkDescriptorImageInfo GenerateDescriptor();
 
 		/**
 		 * @brief Uses Vulkan calls to deallocate and remove the contents of the image from memory.
@@ -268,7 +278,7 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Runs the application.
-		 * 
+		 *
 		 */
 		void Run();
 
@@ -308,7 +318,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief A queue is an ordered collection of commands that gets passed into a command buffer.
 		 */
-		struct Queue 
+		struct Queue
 		{
 			/**
 			 * @brief Identifier for Vulkan.
@@ -338,7 +348,7 @@ namespace Engine::Vulkan
 		VkSemaphore	_renderingFinishedSemaphore;
 
 		/**
-		 * @brief Encapsulates info for a render pass. 
+		 * @brief Encapsulates info for a render pass.
 		 * A render pass represents a logical step that the GPU must perform in order to render a final
 		 * presentable image that will be stored in a framebuffer for presentation. To do this, render passes use
 		 * what are called (in Vulkan gergo) attachments, which are rendered images that contribute to rendering
@@ -447,128 +457,151 @@ namespace Engine::Vulkan
 		 *
 		 * Examples of the configurable stages are anti-aliasing and tessellation.
 		 * Examples of hardwired stages are backface-culling, depth testing and alpha blending.
-		 * 
-		 * For a good overall hardware and software explanation of a typical NVidia GPU, see 
+		 *
+		 * For a good overall hardware and software explanation of a typical NVidia GPU, see
 		 * https://developer.nvidia.com/gpugems/gpugems2/part-iv-general-purpose-computation-gpus-primer/chapter-30-geforce-6-series-gpu
 		 */
-		VkPipeline _graphicsPipeline;
+		struct {
 
-		/**
-		 * @brief Buffer that stores vertex attributes. A vertex attribute is a piece of data
-		 * that decorates the vertex with more information, so that the vertex shader can
-		 * do more work based on it. For example a vertex attribute could be a position or a normal vector.
-		 * Based on the normal vector, the vertex shader can perform lighting calculations by computing
-		 * the angle between the source of the light and the normal.
-		 * At the hardware level, the contents of the vertex buffer are fed into the array of shader cores,
-		 * and each vertex, along with its attributes, are processed in parallel on each thread of the cores.
-		 */
-		Buffer _vertexBuffer;
+			/**
+			 * @brief Identifier for Vulkan.
+			 */
+			VkPipeline _handle;
 
-		/**
-		 * @brief Buffer that stores indices that point into the vertex buffer. This buffer is used by Vulkan when drawing
-		 * using the vkCmdDrawIndexed command. This buffer gives Vulkan information about the order in which to draw
-		 * vertices.
-		 */
-		Buffer _indexBuffer;
+			/**
+			 * @brief Buffer that stores vertex attributes. A vertex attribute is a piece of data
+			 * that decorates the vertex with more information, so that the vertex shader can
+			 * do more work based on it. For example a vertex attribute could be a position or a normal vector.
+			 * Based on the normal vector, the vertex shader can perform lighting calculations by computing
+			 * the angle between the source of the light and the normal.
+			 * At the hardware level, the contents of the vertex buffer are fed into the array of shader cores,
+			 * and each vertex, along with its attributes, are processed in parallel on each thread of the cores.
+			 */
+			Buffer _vertexBuffer;
 
-		/**
-		 * Since we are only using one vertex buffer, this variable contains:
-		 * 1) binding: the binding number of the vertex buffer defined when calling vkCmdBindVertexBuffers;
-		 * 2) stride: the offset in bytes between each set of vertex attributes in the vertex buffer identified by the binding number above;
-		 * 3) inputRate: unknown (info hard to find on this)
-		 *
-		 * Useful information:
-		 * Vertex shaders can define input variables, which receive vertex attribute data transferred from
-		 * one or more VkBuffer(s) by drawing commands. Vertex attribute data can be anything, but it's usually
-		 * things like its position, normal and uv coordinates. Vertex shader input variables are bound to vertex buffers
-		 * via an indirect binding, where the vertex shader associates a vertex input attribute number with
-		 * each variable: the "location" decorator. Vertex input attributes (location) are associated to vertex input
-		 * bindings (binding) on a per-pipeline basis, and vertex input bindings (binding) are associated with specific buffers
-		 * (VkBuffer) on a per-draw basis via the vkCmdBindVertexBuffers command. Vertex input attributes and vertex input
-		 * binding descriptions also contain format information controlling how data is extracted from buffer
-		 * memory and converted to the format expected by the vertex shader.
-		 *
-		 * In short:
-		 * Each vertex buffer is identified by a binding number, defined when calling vkCmdBindVertexBuffers.
-		 * Each attribute inside a vertex buffer is identified by a location number, defined when creating a pipeline in a VkVertexInputBindingDescription struct..
-		 */
-		VkVertexInputBindingDescription	_vertexBindingDescription;
+			/**
+			 * @brief Buffer that stores indices that point into the vertex buffer. This buffer is used by Vulkan when drawing
+			 * using the vkCmdDrawIndexed command. This buffer gives Vulkan information about the order in which to draw
+			 * vertices.
+			 */
+			Buffer _indexBuffer;
 
-		/**
-		 * Each VkVertexInputAttributeDescription contains:
-		 * 1) location: identifier for the vertex attribute; also defined in the vertex shader definition of the attribute;
-		 * 2) binding: the binding number of the vertex buffer defined when calling vkCmdBindVertexBuffers;
-		 * 3) format: the format of this attribute/variable, VkFormat;
-		 * 4) offset: the offset of the attribute in bytes within the set of vertex attributes.
-		 *
-		 * Useful information:
-		 * Vertex shaders can define input variables, which receive vertex attribute data transferred from
-		 * one or more VkBuffer(s) by drawing commands. Vertex attribute data can be anything, but it's usually
-		 * things like its position, normal and uv coordinates. Vertex shader input variables are bound to vertex buffers
-		 * via an indirect binding, where the vertex shader associates a vertex input attribute number with
-		 * each variable: the "location" decorator. Vertex input attributes (location) are associated to vertex input
-		 * bindings (binding) on a per-pipeline basis, and vertex input bindings (binding) are associated with specific buffers
-		 * (VkBuffer) on a per-draw basis via the vkCmdBindVertexBuffers command. Vertex input attribute and vertex input
-		 * binding descriptions also contain format information controlling how data is extracted from buffer
-		 * memory and converted to the format expected by the vertex shader.
-		 *
-		 * In short:
-		 * Each vertex buffer is identified by a binding number, defined every time we draw something by calling vkCmdBindVertexBuffers.
-		 * Each attribute inside a vertex buffer is identified by a location number, defined here. The location number is defined when creating a pipeline.
-		 */
-		std::vector<VkVertexInputAttributeDescription> _vertexAttributeDescriptions;
+			/**
+			 * Since we are only using one vertex buffer, this variable contains:
+			 * 1) binding: the binding number of the vertex buffer defined when calling vkCmdBindVertexBuffers;
+			 * 2) stride: the offset in bytes between each set of vertex attributes in the vertex buffer identified by the binding number above;
+			 * 3) inputRate: unknown (info hard to find on this)
+			 *
+			 * Useful information:
+			 * Vertex shaders can define input variables, which receive vertex attribute data transferred from
+			 * one or more VkBuffer(s) by drawing commands. Vertex attribute data can be anything, but it's usually
+			 * things like its position, normal and uv coordinates. Vertex shader input variables are bound to vertex buffers
+			 * via an indirect binding, where the vertex shader associates a vertex input attribute number with
+			 * each variable: the "location" decorator. Vertex input attributes (location) are associated to vertex input
+			 * bindings (binding) on a per-pipeline basis, and vertex input bindings (binding) are associated with specific buffers
+			 * (VkBuffer) on a per-draw basis via the vkCmdBindVertexBuffers command. Vertex input attributes and vertex input
+			 * binding descriptions also contain format information controlling how data is extracted from buffer
+			 * memory and converted to the format expected by the vertex shader.
+			 *
+			 * In short:
+			 * Each vertex buffer is identified by a binding number, defined when calling vkCmdBindVertexBuffers.
+			 * Each attribute inside a vertex buffer is identified by a location number, defined when creating a pipeline in a VkVertexInputBindingDescription struct..
+			 */
+			VkVertexInputBindingDescription	_vertexBindingDescription;
 
-		/**
-		 * @brief The Vulkan buffer that contains the data that will be sent to the shaders. This buffer will be a descriptor, which will
-		 * be pointed to by a descriptor set. The descriptor set is the structure that actually ends up in the shaders.
-		 */
-		Buffer _uniformBuffer;
+			/**
+			 * Each VkVertexInputAttributeDescription contains:
+			 * 1) location: identifier for the vertex attribute; also defined in the vertex shader definition of the attribute;
+			 * 2) binding: the binding number of the vertex buffer defined when calling vkCmdBindVertexBuffers;
+			 * 3) format: the format of this attribute/variable, VkFormat;
+			 * 4) offset: the offset of the attribute in bytes within the set of vertex attributes.
+			 *
+			 * Useful information:
+			 * Vertex shaders can define input variables, which receive vertex attribute data transferred from
+			 * one or more VkBuffer(s) by drawing commands. Vertex attribute data can be anything, but it's usually
+			 * things like its position, normal and uv coordinates. Vertex shader input variables are bound to vertex buffers
+			 * via an indirect binding, where the vertex shader associates a vertex input attribute number with
+			 * each variable: the "location" decorator. Vertex input attributes (location) are associated to vertex input
+			 * bindings (binding) on a per-pipeline basis, and vertex input bindings (binding) are associated with specific buffers
+			 * (VkBuffer) on a per-draw basis via the vkCmdBindVertexBuffers command. Vertex input attribute and vertex input
+			 * binding descriptions also contain format information controlling how data is extracted from buffer
+			 * memory and converted to the format expected by the vertex shader.
+			 *
+			 * In short:
+			 * Each vertex buffer is identified by a binding number, defined every time we draw something by calling vkCmdBindVertexBuffers.
+			 * Each attribute inside a vertex buffer is identified by a location number, defined here. The location number is defined when creating a pipeline.
+			 */
+			std::vector<VkVertexInputAttributeDescription> _vertexAttributeDescriptions;
 
-		/**
-		 * @brief A descriptor set layout object is defined by an array of zero or more descriptor bindings. Each individual descriptor binding is specified
-		 * by a descriptor type, a count (array size) of the number of descriptors in the binding, a set of shader stages that can access the binding, and
-		 * (if using immutable samplers) an array of sampler descriptors.
-		 */
-		VkDescriptorSetLayout _descriptorSetLayout;
+			/**
+			 * @brief Encapsulates all information sent to the shaders as well as the info used to create the Vulkan structures to send data to the shaders.
+			 */
+			struct {
 
-		/**
-		 * @brief A descriptor pool maintains a pool of descriptors, from which descriptor sets are allocated. Descriptor pools are externally synchronized,
-		 * meaning that the application must not allocate and/or free descriptor sets from the same pool in multiple threads simultaneously.
-		 */
-		VkDescriptorPool _descriptorPool;
+				/**
+				 * @brief The Vulkan buffer that contains the data that will be sent to the shaders. This buffer will be a descriptor, which will
+				 * be pointed to by a descriptor set. The descriptor set is the structure that actually ends up in the shaders.
+				 */
+				Buffer _uniformBuffer;
 
-		/**
-		 * @brief A descriptor set has bindings to descriptors, and is used to cluster descriptors with similar properties. A descriptor is just a set of data
-		 * that will be passed into shaders. The shaders will then use these descriptors' data as needed.
-		 */
-		VkDescriptorSet	_descriptorSet;
+				/**
+				 * @brief This is the data that will go to the vertex shader.
+				 */
+				struct
+				{
+					float tanHalfHorizontalFov;
+					float aspectRatio;
+					float nearClipDistance;
+					float farClipDistance;
+					glm::mat4 worldToCamera;
+					glm::mat4 objectToWorld;
+				} _uniformBufferData;
 
-		/**
-		 * @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
-		 * push constant ranges are combined to form a pipeline layout object describing the complete set of resources that can be accessed by a pipeline.
-		 * The pipeline layout represents a sequence of descriptor sets with each having a specific layout. This sequence of layouts is used to determine
-		 * the interface between shader stages and shader resources. Each pipeline is created using a pipeline layout.
-		 */
-		VkPipelineLayout _pipelineLayout;
+				/**
+				 * @brief Texture to be sent to the shaders.
+				 */
+				Image _texture;
 
-		/**
-		 * @brief This is the data that will go to the vertex shader.
-		 */
-		struct
-		{
-			float tanHalfHorizontalFov;
-			float aspectRatio;
-			float nearClipDistance;
-			float farClipDistance;
-			glm::mat4 worldToCamera;
-			glm::mat4 objectToWorld;
-		} _uniformBufferData;
+				/**
+				 * @brief A descriptor set layout object is defined by an array of zero or more descriptor bindings. Each individual descriptor binding is specified
+				 * by a descriptor type, a count (array size) of the number of descriptors in the binding, a set of shader stages that can access the binding, and
+				 * (if using immutable samplers) an array of sampler descriptors.
+				 */
+				VkDescriptorSetLayout _descriptorSetLayout;
 
-		// Vulkan commands
+				/**
+				 * @brief Descriptor pool from which uniform descriptors are allocated.
+				 */
+				VkDescriptorPool _uniformDescriptorPool;
+
+				/**
+				 * @brief Descriptor pool from which sampler descriptors are allocated.
+				 */
+				VkDescriptorPool _samplerDescriptorPool;
+
+				/**
+				 * @brief A descriptor set has bindings to descriptors, and is used to cluster descriptors with similar properties. A descriptor is just a set of data
+				 * that will be passed into shaders. The shaders will then use these descriptors' data as needed.
+				 */
+				std::vector<VkDescriptorSet> _descriptorSets;
+
+				/**
+				 * @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
+				 * push constant ranges are combined to form a pipeline layout object describing the complete set of resources that can be accessed by a pipeline.
+				 * The pipeline layout represents a sequence of descriptor sets with each having a specific layout. This sequence of layouts is used to determine
+				 * the interface between shader stages and shader resources. Each pipeline is created using a pipeline layout.
+				 */
+				VkPipelineLayout _pipelineLayout;
+
+			} _shaderResources;
+
+		} _graphicsPipeline;
+
+		// Vulkan commands.
 		VkCommandPool _commandPool;
 		std::vector<VkCommandBuffer> _drawCommandBuffers;
 
-		// Game
+		// Game.
 		Input::KeyboardMouse& _input = Input::KeyboardMouse::Instance();
 		Settings::GlobalSettings& _settings = Settings::GlobalSettings::Instance();
 		Scenes::Scene _scene;
@@ -626,7 +659,7 @@ namespace Engine::Vulkan
 		 * @brief Removes any attachments and the render pass object itself from memory.
 		 */
 		void DestroyRenderPass();
-		
+
 		/**
 		 * @brief Removes the framebuffers and the swapchain object itself from memory.
 		 */
@@ -719,12 +752,12 @@ namespace Engine::Vulkan
 		 * @brief Creates a descriptor pool.
 		 * @param descriptorCount The amount of descriptors you plan to allocate from the pool.
 		 */
-		void CreateDescriptorPool(const uint32_t& descriptorCount);
+		VkDescriptorPool CreateDescriptorPool(const uint32_t& descriptorCount, const VkDescriptorType& descriptorType);
 
 		/**
 		 * @brief Creates a descriptor set, and fills it with the chosen number of descriptors (defined when creating the descriptor pool that will be used to allocate the descriptor set).
 		 */
-		void CreateDescriptorSets();
+		void AllocateDescriptorSets(size_t descriptorSetCount);
 
 		/**
 		 * @brief Creates a descriptor set layout.
@@ -750,7 +783,7 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Chooses the VkFormat (format and color space) for the given texture file.
-		 * 
+		 *
 		 */
 		VkFormat ChooseImageFormat(const std::filesystem::path& absolutePathToImage);
 

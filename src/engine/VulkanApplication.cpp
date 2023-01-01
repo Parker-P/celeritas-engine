@@ -125,12 +125,12 @@ namespace Engine::Vulkan
 	}
 
 	// Image
-	Image::Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& size, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& aspectFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags)
+	Image::Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& size, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& typeFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags)
 	{
 		_logicalDevice = logicalDevice;
 		_format = imageFormat;
 		_sizePixels = size;
-		//_sizeBytes = 
+		_typeFlags = typeFlags;
 
 		VkImageCreateInfo imageCreateInfo = { };
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -183,7 +183,7 @@ namespace Engine::Vulkan
 		imageViewCreateInfo.subresourceRange.levelCount = 1;
 		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 		imageViewCreateInfo.subresourceRange.layerCount = 1;
-		imageViewCreateInfo.subresourceRange.aspectMask = aspectFlags;
+		imageViewCreateInfo.subresourceRange.aspectMask = typeFlags;
 
 		if (vkCreateImageView(logicalDevice, &imageViewCreateInfo, nullptr, &_imageViewHandle) != VK_SUCCESS) {
 			std::cout << "Failed creating image view." << std::endl;
@@ -216,6 +216,21 @@ namespace Engine::Vulkan
 			std::cerr << "failed to create image view." << std::endl;
 			exit(1);
 		}
+	}
+
+	VkDescriptorImageInfo Image::GenerateDescriptor() {
+		VkSamplerCreateInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		info.pNext = nullptr;
+		info.magFilter = VK_FILTER_LINEAR;
+		info.minFilter = VK_FILTER_LINEAR;
+		info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+		vkCreateSampler(_logicalDevice, &info, nullptr, &_sampler);
+
+		return VkDescriptorImageInfo{ _sampler, _imageViewHandle, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
 	}
 
 	void Image::Destroy()
@@ -434,14 +449,13 @@ namespace Engine::Vulkan
 		CreateSemaphores();
 		CreateCommandPool();
 		CreateVertexAndIndexBuffers();
+		LoadTexture();
 		CreateSwapchain();
 		CreateRenderPass();
 		CreateFramebuffers();
 		CreateGraphicsPipeline();
 		AllocateDrawCommandBuffers();
 		RecordDrawCommands();
-
-		LoadTexture();
 	}
 
 	void VulkanApplication::MainLoop()
@@ -487,7 +501,7 @@ namespace Engine::Vulkan
 		CreateGraphicsPipeline();
 		AllocateDrawCommandBuffers();
 		RecordDrawCommands();
-		vkDestroyPipelineLayout(_logicalDevice, _pipelineLayout, nullptr);
+		vkDestroyPipelineLayout(_logicalDevice, _graphicsPipeline._shaderResources._pipelineLayout, nullptr);
 	}
 
 	void VulkanApplication::DestroyRenderPass()
@@ -511,11 +525,11 @@ namespace Engine::Vulkan
 	{
 		vkDeviceWaitIdle(_logicalDevice);
 		vkFreeCommandBuffers(_logicalDevice, _commandPool, (uint32_t)_drawCommandBuffers.size(), _drawCommandBuffers.data());
-		vkDestroyPipeline(_logicalDevice, _graphicsPipeline, nullptr);
+		vkDestroyPipeline(_logicalDevice, _graphicsPipeline._handle, nullptr);
 		DestroyRenderPass();
 		DestroySwapchain();
 
-		vkDestroyDescriptorSetLayout(_logicalDevice, _descriptorSetLayout, nullptr);
+		vkDestroyDescriptorSetLayout(_logicalDevice, _graphicsPipeline._shaderResources._descriptorSetLayout, nullptr);
 
 		if (fullClean) {
 			vkDestroySemaphore(_logicalDevice, _imageAvailableSemaphore, nullptr);
@@ -524,12 +538,12 @@ namespace Engine::Vulkan
 			vkDestroyCommandPool(_logicalDevice, _commandPool, nullptr);
 
 			// Clean up uniform buffer related objects.
-			vkDestroyDescriptorPool(_logicalDevice, _descriptorPool, nullptr);
-			_uniformBuffer.Destroy();
+			vkDestroyDescriptorPool(_logicalDevice, _graphicsPipeline._shaderResources._uniformDescriptorPool, nullptr);
+			_graphicsPipeline._shaderResources._uniformBuffer.Destroy();
 
 			// Buffers must be destroyed after no command buffers are referring to them anymore.
-			_vertexBuffer.Destroy();
-			_indexBuffer.Destroy();
+			_graphicsPipeline._vertexBuffer.Destroy();
+			_graphicsPipeline._indexBuffer.Destroy();
 
 			// Note: implicitly destroys images (in fact, we're not allowed to do that explicitly).
 			DestroySwapchain();
@@ -793,7 +807,7 @@ namespace Engine::Vulkan
 			_model._mesh._vertices.data(),
 			vertexPositionsSize);
 
-		_vertexBuffer = Buffer(_logicalDevice,
+		_graphicsPipeline._vertexBuffer = Buffer(_logicalDevice,
 			_physicalDevice,
 			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -810,7 +824,7 @@ namespace Engine::Vulkan
 			(void*)_model._mesh._faceIndices.data(),
 			faceIndicesSize);
 
-		_indexBuffer = Buffer(_logicalDevice,
+		_graphicsPipeline._indexBuffer = Buffer(_logicalDevice,
 			_physicalDevice,
 			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -838,9 +852,9 @@ namespace Engine::Vulkan
 
 		VkBufferCopy copyRegion = {};
 		copyRegion.size = vertexPositionsSize;
-		vkCmdCopyBuffer(copyCommandBuffer, vertexTransferBuffer._handle, _vertexBuffer._handle, 1, &copyRegion);
+		vkCmdCopyBuffer(copyCommandBuffer, vertexTransferBuffer._handle, _graphicsPipeline._vertexBuffer._handle, 1, &copyRegion);
 		copyRegion.size = faceIndicesSize;
-		vkCmdCopyBuffer(copyCommandBuffer, indexTransferBuffer._handle, _indexBuffer._handle, 1, &copyRegion);
+		vkCmdCopyBuffer(copyCommandBuffer, indexTransferBuffer._handle, _graphicsPipeline._indexBuffer._handle, 1, &copyRegion);
 
 		vkEndCommandBuffer(copyCommandBuffer);
 
@@ -1181,14 +1195,14 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::UpdateShaderData()
 	{
-		_uniformBufferData.objectToWorld = _model._transform._matrix;
-		_uniformBufferData.worldToCamera = _mainCamera._view._matrix;
-		_uniformBufferData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov / 2.0f));
-		_uniformBufferData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
-		_uniformBufferData.nearClipDistance = _mainCamera._nearClippingDistance;
-		_uniformBufferData.farClipDistance = _mainCamera._farClippingDistance;
+		_graphicsPipeline._shaderResources._uniformBufferData.objectToWorld = _model._transform._matrix;
+		_graphicsPipeline._shaderResources._uniformBufferData.worldToCamera = _mainCamera._view._matrix;
+		_graphicsPipeline._shaderResources._uniformBufferData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov / 2.0f));
+		_graphicsPipeline._shaderResources._uniformBufferData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
+		_graphicsPipeline._shaderResources._uniformBufferData.nearClipDistance = _mainCamera._nearClippingDistance;
+		_graphicsPipeline._shaderResources._uniformBufferData.farClipDistance = _mainCamera._farClippingDistance;
 
-		_uniformBuffer.UpdateData(&_uniformBufferData, (size_t)sizeof(_uniformBufferData));
+		_graphicsPipeline._shaderResources._uniformBuffer.UpdateData(&_graphicsPipeline._shaderResources._uniformBufferData, (size_t)sizeof(_graphicsPipeline._shaderResources._uniformBufferData));
 	}
 
 	VkShaderModule VulkanApplication::CreateShaderModule(const std::filesystem::path& absolutePath)
@@ -1243,39 +1257,41 @@ namespace Engine::Vulkan
 		VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderCreateInfo, fragmentShaderCreateInfo };
 
 		// Vertex attribute binding - gives the vertex shader more info about a particular vertex buffer, denoted by the binding number. See binding for more info.
-		_vertexBindingDescription.binding = 0;
-		_vertexBindingDescription.stride = sizeof(Vertex);
-		_vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+		_graphicsPipeline._vertexBindingDescription.binding = 0;
+		_graphicsPipeline._vertexBindingDescription.stride = sizeof(Vertex);
+		_graphicsPipeline._vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 		// Describe how the shader should read vertex attributes when getting a vertex from the vertex buffer.
 		// Object-space positions.
-		_vertexAttributeDescriptions.resize(3);
-		_vertexAttributeDescriptions[0].location = 0;
-		_vertexAttributeDescriptions[0].binding = 0;
-		_vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-		_vertexAttributeDescriptions[0].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Position);
+		_graphicsPipeline._vertexAttributeDescriptions.resize(3);
+		_graphicsPipeline._vertexAttributeDescriptions[0].location = 0;
+		_graphicsPipeline._vertexAttributeDescriptions[0].binding = 0;
+		_graphicsPipeline._vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+		_graphicsPipeline._vertexAttributeDescriptions[0].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Position);
 
 		// Normals.
-		_vertexAttributeDescriptions[1].location = 1;
-		_vertexAttributeDescriptions[1].binding = 0;
-		_vertexAttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		_vertexAttributeDescriptions[1].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Normal);
+		_graphicsPipeline._vertexAttributeDescriptions[1].location = 1;
+		_graphicsPipeline._vertexAttributeDescriptions[1].binding = 0;
+		_graphicsPipeline._vertexAttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		_graphicsPipeline._vertexAttributeDescriptions[1].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Normal);
 
 		// UV coordinates.
-		_vertexAttributeDescriptions[2].location = 2;
-		_vertexAttributeDescriptions[2].binding = 0;
-		_vertexAttributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-		_vertexAttributeDescriptions[2].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::UV);
+		_graphicsPipeline._vertexAttributeDescriptions[2].location = 2;
+		_graphicsPipeline._vertexAttributeDescriptions[2].binding = 0;
+		_graphicsPipeline._vertexAttributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+		_graphicsPipeline._vertexAttributeDescriptions[2].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::UV);
 
 		// Describe vertex input.
 		VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo = {};
 		vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertexInputCreateInfo.vertexBindingDescriptionCount = 3;
-		vertexInputCreateInfo.pVertexBindingDescriptions = &_vertexBindingDescription;
-		vertexInputCreateInfo.vertexAttributeDescriptionCount = (uint32_t)_vertexAttributeDescriptions.size();
-		vertexInputCreateInfo.pVertexAttributeDescriptions = _vertexAttributeDescriptions.data();
+		vertexInputCreateInfo.vertexBindingDescriptionCount = 1;
+		vertexInputCreateInfo.pVertexBindingDescriptions = &_graphicsPipeline._vertexBindingDescription;
+		vertexInputCreateInfo.vertexAttributeDescriptionCount = (uint32_t)_graphicsPipeline._vertexAttributeDescriptions.size();
+		vertexInputCreateInfo.pVertexAttributeDescriptions = _graphicsPipeline._vertexAttributeDescriptions.data();
 
 		// Describe input assembly - this allows Vulkan to know how many indices make up a face for the vkCmdDrawIndexed function.
+		// The input assembly is the very first stage of the graphics pipeline, where vertices and indices are loaded from VRAM and assembled,
+		// to then be passed to the shaders.
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyCreateInfo = {};
 		inputAssemblyCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		inputAssemblyCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -1370,19 +1386,20 @@ namespace Engine::Vulkan
 		// Describe pipeline layout.
 		// This describes the mapping between memory and shader resources (descriptor sets), which contain the information you want to send to the shaders.
 		// This is for uniform buffers and samplers.
-		int descriptorCount = 2;
+		int descriptorCount = 1;
 		CreateDescriptorSetLayout(descriptorCount);
-		CreateDescriptorPool(descriptorCount);
+		_graphicsPipeline._shaderResources._uniformDescriptorPool = CreateDescriptorPool(descriptorCount, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+		_graphicsPipeline._shaderResources._samplerDescriptorPool = CreateDescriptorPool(descriptorCount, VK_DESCRIPTOR_TYPE_SAMPLER);
 
-		_uniformBuffer = Buffer(_logicalDevice,
+		_graphicsPipeline._shaderResources._uniformBuffer = Buffer(_logicalDevice,
 			_physicalDevice,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			&_uniformBufferData,
-			(size_t)sizeof(_uniformBufferData));
+			&_graphicsPipeline._shaderResources._uniformBufferData,
+			(size_t)sizeof(_graphicsPipeline._shaderResources._uniformBufferData));
 
 		UpdateShaderData();
-		CreateDescriptorSets();
+		AllocateDescriptorSets(1);
 		CreatePipelineLayout();
 
 		// Create the graphics pipeline
@@ -1416,11 +1433,11 @@ namespace Engine::Vulkan
 		vkDestroyShaderModule(_logicalDevice, fragmentShaderModule, nullptr);
 	}
 
-	void VulkanApplication::CreateDescriptorPool(const uint32_t& descriptorCount)
+	VkDescriptorPool VulkanApplication::CreateDescriptorPool(const uint32_t& descriptorCount, const VkDescriptorType& descriptorType)
 	{
 		// This describes how many descriptors we'll create from this pool for each type of descriptor.
 		VkDescriptorPoolSize typeCount;
-		typeCount.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		typeCount.type = descriptorType;
 		typeCount.descriptorCount = descriptorCount;
 
 		// maxSets is the maximum number of descriptor sets that can be allocated from the pool.
@@ -1432,25 +1449,29 @@ namespace Engine::Vulkan
 		createInfo.poolSizeCount = 1;
 		createInfo.pPoolSizes = &typeCount;
 
-		if (vkCreateDescriptorPool(_logicalDevice, &createInfo, nullptr, &_descriptorPool) != VK_SUCCESS) {
+		VkDescriptorPool pool{};
+		if (vkCreateDescriptorPool(_logicalDevice, &createInfo, nullptr, &pool) != VK_SUCCESS) {
 			std::cerr << "failed to create descriptor pool" << std::endl;
 			exit(1);
 		}
 		else {
 			std::cout << "created descriptor pool" << std::endl;
 		}
+
+		return pool;
 	}
 
-	void VulkanApplication::CreateDescriptorSets()
+	void VulkanApplication::AllocateDescriptorSets(size_t descriptorSetCount)
 	{
 		// There needs to be one descriptor set per binding point in the shader
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = _descriptorPool;
-		allocInfo.descriptorSetCount = 1;
+		allocInfo.descriptorPool = _uniformDescriptorPool;
+		allocInfo.descriptorSetCount = descriptorSetCount;
 		allocInfo.pSetLayouts = &_descriptorSetLayout;
 
-		if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, &_descriptorSet) != VK_SUCCESS) {
+		_descriptorSets.resize(descriptorSetCount);
+		if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, _descriptorSets.data()) != VK_SUCCESS) {
 			std::cerr << "failed to create descriptor set" << std::endl;
 			exit(1);
 		}
@@ -1464,11 +1485,32 @@ namespace Engine::Vulkan
 		// pBufferInfo is a pointer to the start of an array of descriptors.
 		VkWriteDescriptorSet writeDescriptorSet = {};
 		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		writeDescriptorSet.dstSet = _descriptorSet;
+		writeDescriptorSet.dstSet = _descriptorSets[0];
 		writeDescriptorSet.descriptorCount = 1;
 		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		writeDescriptorSet.pBufferInfo = &transformationMatricesDescriptorBuffer;
 		writeDescriptorSet.dstBinding = 0;
+
+
+		auto textureDescriptorBuffer = _texture.GenerateDescriptor();
+
+		VkSamplerCreateInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		info.pNext = nullptr;
+		info.magFilter = VK_FILTER_LINEAR;
+		info.minFilter = VK_FILTER_LINEAR;
+		info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	
+		VkWriteDescriptorSet write = {};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.pNext = nullptr;
+		write.dstBinding = 1;
+		write.dstSet = _descriptorSets[0];
+		write.descriptorCount = 1;
+		write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		write.pImageInfo = &textureDescriptorBuffer;
 
 		vkUpdateDescriptorSets(_logicalDevice, 1, &writeDescriptorSet, 0, nullptr);
 	}
@@ -1486,7 +1528,7 @@ namespace Engine::Vulkan
 		// And textures to the fragment shader.
 		VkDescriptorSetLayoutBinding texturesLayoutBinding = {};
 		texturesLayoutBinding.binding = 1;
-		texturesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		texturesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
 		//texturesLayoutBinding.descriptorCount = descriptorCount;
 		texturesLayoutBinding.descriptorCount = 1;
 		texturesLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -1595,7 +1637,7 @@ namespace Engine::Vulkan
 			renderPassBeginInfo.pClearValues = &clearValues[0];
 
 			vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelineLayout, 0, 1, &_descriptorSet, 0, nullptr);
+			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelineLayout, 0, 1, _descriptorSets.data(), 0, nullptr);
 			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
 			VkDeviceSize offset = 0;
 			vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &_vertexBuffer._handle, &offset);
@@ -1654,7 +1696,7 @@ namespace Engine::Vulkan
 			imageSizeBytes);
 
 		// Allocate and create the image.
-		auto texture = Image(_logicalDevice,
+		_texture = Image(_logicalDevice,
 			_physicalDevice,
 			format,
 			VkExtent2D{ (uint32_t)w,(uint32_t)h },
@@ -1691,7 +1733,7 @@ namespace Engine::Vulkan
 		imageBarrier_toTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		imageBarrier_toTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		imageBarrier_toTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		imageBarrier_toTransfer.image = texture._imageHandle;
+		imageBarrier_toTransfer.image = _texture._imageHandle;
 		imageBarrier_toTransfer.subresourceRange = range;
 		imageBarrier_toTransfer.srcAccessMask = 0;
 		imageBarrier_toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -1707,11 +1749,11 @@ namespace Engine::Vulkan
 		copyRegion.imageSubresource.mipLevel = 0;
 		copyRegion.imageSubresource.baseArrayLayer = 0;
 		copyRegion.imageSubresource.layerCount = 1;
-		copyRegion.imageExtent = VkExtent3D{ texture._sizePixels.width, texture._sizePixels.height, 1 };
+		copyRegion.imageExtent = VkExtent3D{ _texture._sizePixels.width, _texture._sizePixels.height, 1 };
 		//copyRegion.imageExtent = VkExtent3D{ texture._size.width, texture._size.height, 1 };
 
 		// Copy the buffer into the image.
-		vkCmdCopyBufferToImage(copyCommandBuffer, stagingBuffer._handle, texture._imageHandle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+		vkCmdCopyBufferToImage(copyCommandBuffer, stagingBuffer._handle, _texture._imageHandle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 		// Barrier the image into the shader readable layout.
 		VkImageMemoryBarrier imageBarrier_toReadable = imageBarrier_toTransfer;
@@ -1731,7 +1773,6 @@ namespace Engine::Vulkan
 		vkQueueWaitIdle(_queue._handle);
 
 		vkFreeCommandBuffers(_logicalDevice, _commandPool, 1, &copyCommandBuffer);
-		texture.Destroy();
 		stagingBuffer.Destroy();
 		std::cout << "Texture loaded successfully " << std::endl;
 	}
