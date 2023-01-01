@@ -529,7 +529,8 @@ namespace Engine::Vulkan
 		DestroyRenderPass();
 		DestroySwapchain();
 
-		vkDestroyDescriptorSetLayout(_logicalDevice, _graphicsPipeline._shaderResources._descriptorSetLayout, nullptr);
+		vkDestroyDescriptorSetLayout(_logicalDevice, _graphicsPipeline._shaderResources._uniformSet._layout, nullptr);
+		vkDestroyDescriptorSetLayout(_logicalDevice, _graphicsPipeline._shaderResources._samplerSet._layout, nullptr);
 
 		if (fullClean) {
 			vkDestroySemaphore(_logicalDevice, _imageAvailableSemaphore, nullptr);
@@ -1423,11 +1424,12 @@ namespace Engine::Vulkan
 		auto& shaderResources = _graphicsPipeline._shaderResources;
 
 		// The amount of sets and descriptor types is defined when creating the descriptor pool.
+		VkDescriptorSetLayout layouts[2] = { shaderResources._uniformSet._layout, shaderResources._samplerSet._layout };
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		allocInfo.descriptorPool = shaderResources._descriptorPool;
 		allocInfo.descriptorSetCount = 2;
-		allocInfo.pSetLayouts = &shaderResources._descriptorSetLayout;
+		allocInfo.pSetLayouts = layouts;
 
 		VkDescriptorSet allocatedDescriptorSetHandles[2];
 		if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, allocatedDescriptorSetHandles) != VK_SUCCESS) {
@@ -1454,18 +1456,18 @@ namespace Engine::Vulkan
 		writeTransformationData.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		writeTransformationData.dstSet = shaderResources._uniformSet._handle;
 		writeTransformationData.descriptorCount = 1;
-		writeTransformationData.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		writeTransformationData.descriptorType = shaderResources._uniformSet._layoutBinding.descriptorType;
 		writeTransformationData.pBufferInfo = &transformationMatricesDescriptorBuffer;
-		writeTransformationData.dstBinding = shaderResources._uniformSet._layout.binding;
+		writeTransformationData.dstBinding = shaderResources._uniformSet._layoutBinding.binding;
 
 		auto textureDescriptorBuffer = shaderResources._texture.GenerateDescriptor();
 		VkWriteDescriptorSet writeSamplers = {};
 		writeSamplers.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		writeSamplers.dstSet = shaderResources._samplerSet._handle;
 		writeSamplers.descriptorCount = 1;
-		writeSamplers.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		writeSamplers.descriptorType = shaderResources._samplerSet._layoutBinding.descriptorType;
 		writeSamplers.pImageInfo = &textureDescriptorBuffer;
-		writeSamplers.dstBinding = shaderResources._samplerSet._layout.binding;
+		writeSamplers.dstBinding = shaderResources._samplerSet._layoutBinding.binding;
 
 		VkWriteDescriptorSet updateInfos[2] = { writeTransformationData, writeSamplers };
 		vkUpdateDescriptorSets(_logicalDevice, 2, updateInfos, 0, nullptr);
@@ -1475,30 +1477,41 @@ namespace Engine::Vulkan
 	{
 		auto& shaderResources = _graphicsPipeline._shaderResources;
 
-		// Sending vertex attributes to the vertex shader.
-		shaderResources._uniformSet._layout.binding = 0;
-		shaderResources._uniformSet._layout.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		shaderResources._uniformSet._layout.descriptorCount = 1;
-		shaderResources._uniformSet._layout.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		// Enabling access to vertex attributes to the vertex shader.
+		shaderResources._uniformSet._layoutBinding.binding = 0;
+		shaderResources._uniformSet._layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		shaderResources._uniformSet._layoutBinding.descriptorCount = 1;
+		shaderResources._uniformSet._layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-		// And textures to the fragment shader.
-		shaderResources._samplerSet._layout.binding = 1;
-		shaderResources._samplerSet._layout.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-		shaderResources._samplerSet._layout.descriptorCount = 1;
-		shaderResources._samplerSet._layout.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-		VkDescriptorSetLayoutBinding bindings[2] = { shaderResources._uniformSet._layout, shaderResources._samplerSet._layout };
 		VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = {};
 		descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptorLayoutCreateInfo.bindingCount = 2;
-		descriptorLayoutCreateInfo.pBindings = bindings;
+		descriptorLayoutCreateInfo.bindingCount = 1;
+		descriptorLayoutCreateInfo.pBindings = &shaderResources._uniformSet._layoutBinding;
 
-		if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &_graphicsPipeline._shaderResources._descriptorSetLayout) != VK_SUCCESS) {
+		if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &shaderResources._uniformSet._layout) != VK_SUCCESS) {
 			std::cerr << "failed to create descriptor layout" << std::endl;
 			exit(1);
 		}
 		else {
-			std::cout << "created descriptor layout" << std::endl;
+			std::cout << "created descriptor layout for uniform set" << std::endl;
+
+			// And textures for the fragment shader.
+			shaderResources._samplerSet._layoutBinding.binding = 1;
+			shaderResources._samplerSet._layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+			shaderResources._samplerSet._layoutBinding.descriptorCount = 1;
+			shaderResources._samplerSet._layoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+			descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+			descriptorLayoutCreateInfo.bindingCount = 1;
+			descriptorLayoutCreateInfo.pBindings = &shaderResources._samplerSet._layoutBinding;
+
+			if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &shaderResources._samplerSet._layout) != VK_SUCCESS) {
+				std::cerr << "failed to create descriptor set layout for sampler set" << std::endl;
+				exit(1);
+			}
+			else {
+				std::cout << "created descriptor layout for sampler set" << std::endl;
+			}
 		}
 	}
 
@@ -1508,12 +1521,12 @@ namespace Engine::Vulkan
 
 		// This describes how many descriptors we'll create from this pool for each type of descriptor.
 		VkDescriptorPoolSize uniformPoolSize;
-		uniformPoolSize.type = shaderResources._uniformSet._layout.descriptorType;
-		uniformPoolSize.descriptorCount = shaderResources._uniformSet._layout.descriptorCount;
+		uniformPoolSize.type = shaderResources._uniformSet._layoutBinding.descriptorType;
+		uniformPoolSize.descriptorCount = shaderResources._uniformSet._layoutBinding.descriptorCount;
 
 		VkDescriptorPoolSize samplerPoolSize;
-		samplerPoolSize.type = shaderResources._samplerSet._layout.descriptorType;
-		samplerPoolSize.descriptorCount = shaderResources._samplerSet._layout.descriptorCount;
+		samplerPoolSize.type = shaderResources._samplerSet._layoutBinding.descriptorType;
+		samplerPoolSize.descriptorCount = shaderResources._samplerSet._layoutBinding.descriptorCount;
 
 		// maxSets is the maximum number of descriptor sets that can be allocated from the pool.
 		// poolSizeCount is the number of elements in pPoolSizes.
@@ -1547,10 +1560,13 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreatePipelineLayout()
 	{
+		auto& shaderResources = _graphicsPipeline._shaderResources;
+
+		VkDescriptorSetLayout layouts[2] = { shaderResources._uniformSet._layout, shaderResources._samplerSet._layout };
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutCreateInfo.setLayoutCount = 1;
-		pipelineLayoutCreateInfo.pSetLayouts = &_graphicsPipeline._shaderResources._descriptorSetLayout;
+		pipelineLayoutCreateInfo.setLayoutCount = 2;
+		pipelineLayoutCreateInfo.pSetLayouts = layouts;
 
 		if (vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_graphicsPipeline._shaderResources._pipelineLayout) != VK_SUCCESS) {
 			std::cerr << "failed to create pipeline layout" << std::endl;

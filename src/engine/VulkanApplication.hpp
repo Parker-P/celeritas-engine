@@ -564,13 +564,6 @@ namespace Engine::Vulkan
 				Image _texture;
 
 				/**
-				 * @brief A descriptor set layout object is defined by an array of zero or more descriptor bindings. Each individual descriptor binding is specified
-				 * by a descriptor type, a count (array size) of the number of descriptors in the binding, a set of shader stages that can access the binding, and
-				 * (if using immutable samplers) an array of sampler descriptors.
-				 */
-				VkDescriptorSetLayout _descriptorSetLayout;
-
-				/**
 				 * @brief Descriptor pool from which uniform descriptors are allocated.
 				 */
 				VkDescriptorPool _descriptorPool;
@@ -598,7 +591,14 @@ namespace Engine::Vulkan
 					/**
 					 * @brief Metadata about the descriptor, which describes which shader stage the descriptors inside of it will be available to use.
 					 */
-					VkDescriptorSetLayoutBinding _layout;
+					VkDescriptorSetLayoutBinding _layoutBinding;
+
+					/**
+					 * @brief A descriptor set layout object is defined by an array of zero or more descriptor bindings. Each individual descriptor binding is specified
+					 * by a descriptor type, a count (array size) of the number of descriptors in the binding, a set of shader stages that can access the binding, and
+					 * (if using immutable samplers) an array of sampler descriptors.
+					 */
+					VkDescriptorSetLayout _layout;
 
 				};
 
