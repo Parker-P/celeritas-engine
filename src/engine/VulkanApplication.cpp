@@ -222,15 +222,15 @@ namespace Engine::Vulkan
 		VkSamplerCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 		info.pNext = nullptr;
-		info.magFilter = VK_FILTER_LINEAR;
-		info.minFilter = VK_FILTER_LINEAR;
+		info.magFilter = VK_FILTER_NEAREST;
+		info.minFilter = VK_FILTER_NEAREST;
 		info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 		info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 		info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
 		vkCreateSampler(_logicalDevice, &info, nullptr, &_sampler);
 
-		return VkDescriptorImageInfo{ _sampler, _imageViewHandle, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+		return VkDescriptorImageInfo{ _sampler, _imageViewHandle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
 	}
 
 	void Image::Destroy()
@@ -453,6 +453,20 @@ namespace Engine::Vulkan
 		CreateSwapchain();
 		CreateRenderPass();
 		CreateFramebuffers();
+		CreateDescriptorSetLayout();
+		CreateDescriptorPool();
+
+		_graphicsPipeline._shaderResources._transformationDataBuffer = Buffer(_logicalDevice,
+			_physicalDevice,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+			&_graphicsPipeline._shaderResources._transformationData,
+			(size_t)sizeof(_graphicsPipeline._shaderResources._transformationData));
+
+		UpdateShaderData();
+		AllocateDescriptorSets();
+		UpdateDescriptorSetsData();
+		CreatePipelineLayout();
 		CreateGraphicsPipeline();
 		AllocateDrawCommandBuffers();
 		RecordDrawCommands();
@@ -1361,7 +1375,7 @@ namespace Engine::Vulkan
 		colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
 		colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
-		// Note: all attachments must have the same values unless a device feature is enabled
+		// Note: all attachments must have the same values unless a device feature is enabled.
 		VkPipelineColorBlendStateCreateInfo colorBlendCreateInfo = {};
 		colorBlendCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 		colorBlendCreateInfo.logicOpEnable = VK_FALSE;
@@ -1373,22 +1387,7 @@ namespace Engine::Vulkan
 		colorBlendCreateInfo.blendConstants[2] = 0.0f;
 		colorBlendCreateInfo.blendConstants[3] = 0.0f;
 
-		CreateDescriptorSetLayout();
-		CreateDescriptorPool();
-
-		_graphicsPipeline._shaderResources._transformationDataBuffer = Buffer(_logicalDevice,
-			_physicalDevice,
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			&_graphicsPipeline._shaderResources._transformationData,
-			(size_t)sizeof(_graphicsPipeline._shaderResources._transformationData));
-
-		UpdateShaderData();
-		AllocateDescriptorSets();
-		UpdateDescriptorSetsData();
-		CreatePipelineLayout();
-
-		// Create the graphics pipeline
+		// Create the graphics pipeline.
 		VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
 		pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 		pipelineCreateInfo.stageCount = 2;
@@ -1494,24 +1493,24 @@ namespace Engine::Vulkan
 		}
 		else {
 			std::cout << "created descriptor layout for uniform set" << std::endl;
+		}
 
-			// And textures for the fragment shader.
-			shaderResources._samplerSet._layoutBinding.binding = 1;
-			shaderResources._samplerSet._layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-			shaderResources._samplerSet._layoutBinding.descriptorCount = 1;
-			shaderResources._samplerSet._layoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		// And textures for the fragment shader.
+		shaderResources._samplerSet._layoutBinding.binding = 1;
+		shaderResources._samplerSet._layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		shaderResources._samplerSet._layoutBinding.descriptorCount = 1;
+		shaderResources._samplerSet._layoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-			descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-			descriptorLayoutCreateInfo.bindingCount = 1;
-			descriptorLayoutCreateInfo.pBindings = &shaderResources._samplerSet._layoutBinding;
+		descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		descriptorLayoutCreateInfo.bindingCount = 1;
+		descriptorLayoutCreateInfo.pBindings = &shaderResources._samplerSet._layoutBinding;
 
-			if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &shaderResources._samplerSet._layout) != VK_SUCCESS) {
-				std::cerr << "failed to create descriptor set layout for sampler set" << std::endl;
-				exit(1);
-			}
-			else {
-				std::cout << "created descriptor layout for sampler set" << std::endl;
-			}
+		if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &shaderResources._samplerSet._layout) != VK_SUCCESS) {
+			std::cerr << "failed to create descriptor set layout for sampler set" << std::endl;
+			exit(1);
+		}
+		else {
+			std::cout << "created descriptor layout for sampler set" << std::endl;
 		}
 	}
 
@@ -1653,7 +1652,7 @@ namespace Engine::Vulkan
 
 			vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			VkDescriptorSet sets[2] = { shaderResources._uniformSet._handle, shaderResources._samplerSet._handle };
-			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shaderResources._pipelineLayout, 0, 1, sets, 0, nullptr);
+			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shaderResources._pipelineLayout, 0, 2, sets, 0, nullptr);
 			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 			VkDeviceSize offset = 0;
 			vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &_graphicsPipeline._vertexBuffer._handle, &offset);
