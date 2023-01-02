@@ -8,7 +8,7 @@ layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inUv;
 
 // Output variables to send to the next shader stages.
-layout(location = 0) out vec3 fragColor;
+layout(location = 0) out vec3 vertexColor;
 layout (location = 1) out vec2 texCoord;
 
 // Variables coming from descriptor sets.
@@ -50,6 +50,6 @@ void main()
 	vec4 temp = vec4(0.0f, -1.0f, 0.0f, 0.0f);
 	vec3 lightDirection = vec3(temp.x, temp.y, temp.z);
 	float colorMultiplier = (dot(-lightDirection, inNormal) + 1.0f) / 2.0f;
-	fragColor = colorMultiplier * vec3(1.0f, 1.0f, 1.0f); // RGB
+	vertexColor = colorMultiplier * vec3(1.0f, 1.0f, 1.0f); // RGB
 	texCoord = inUv;
 }
