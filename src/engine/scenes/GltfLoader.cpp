@@ -163,7 +163,7 @@ namespace Engine::Scenes
 					int NORMAL = (int)attributes.get("NORMAL");
 					primitive.vertexAttributes.normalsAccessorIndex = NORMAL;
 
-					int TEXCOORD_0 = (int)attributes.get("TEXCOORD_0");;
+					int TEXCOORD_0 = (int)attributes.get("TEXCOORD_0");
 					if (((json::jobject)attributes).has_key("TEXCOORD_0")) {
 						TEXCOORD_0 = (int)attributes.get("TEXCOORD_0");
 					}

@@ -788,9 +788,9 @@ namespace Engine::Vulkan
 	void VulkanApplication::LoadScene() {
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\2CylinderEngine.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\axesTest.glb)");
-		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
+		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monster.glb)");
-		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\ItalianFlagTriangle.glb)");
+		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\ItalianFlagTriangle.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\test.glb)");
 		_model = _scene._objects[0];
 
@@ -1696,7 +1696,7 @@ namespace Engine::Vulkan
 	void VulkanApplication::LoadTexture()
 	{
 		// Read the file and point to its location in memory.
-		auto texturePath = R"(C:\Code\celeritas-engine\textures\test.jpg)";
+		auto texturePath = R"(C:\Code\celeritas-engine\textures\ItalianFlag.jpg)";
 		int w, h;
 		void* pixels = stbi_load(texturePath, &w, &h, nullptr, 0);
 		size_t imageSizeBytes = w * h * 3; // 4 bytes, 1 for red, 1 for green, 1 for blue, 1 for alpha.
