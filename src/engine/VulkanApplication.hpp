@@ -271,6 +271,118 @@ namespace Engine::Vulkan
 	};
 
 	/**
+	 * @brief A descriptor is just a block of data, similar to a buffer, with the difference being that a descriptor is bound to metadata
+	 * that Vulkan uses to enable their use in shaders. This allows us to exchange data between a program run by the CPU's cores with a shader run 
+	 * by the GPU's cores.
+	 * A descriptor is accessed by a shader by using an index and a binding number, similar to vertex attributes, which are accessed 
+	 * by the vertex shader using a binding and a location number.
+	 * For example, in a shader, a descriptor set is declared as follows:
+	 * #version 450
+	 *
+	 * // Descriptor set declaration. The shader will access the descriptor set at index 0 with binding number 1.
+	 * layout(set = 0, binding = 0) uniform UniformBuffer 
+	 * {
+	 *     ... data in the uniform buffer ...
+	 * } uniformBuffer;
+	 *
+	 * void main() 
+	 * {
+     *		... shader code ...
+	 * }
+	 */
+	class Descriptor
+	{
+
+		/**
+		 * @brief Metadata that Vulkan uses to write the data this descriptor contains to the descriptor set it belongs to.
+		 */
+		VkWriteDescriptorSet _bindingMetadata;
+
+	public:
+
+		/**
+		 * @brief Wrapper that describes a buffer.
+		 */
+		VkDescriptorBufferInfo _descriptorBufferInfo;
+
+		/**
+		 * @brief Wrapper that describes an image.
+		 */
+		VkDescriptorImageInfo _descriptorImageInfo;
+
+		/**
+		 * @brief Binding number used by the shaders to know which descriptor to access within a descriptor set.
+		 */
+		uint32_t _bindingNumber;
+
+		/**
+		 * @brief Constructs a descriptor given a descriptor type and a buffer.
+		 * @param type Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a structure that contains an image and some metadata that tells the GPU how to read it.
+		 * @param pBuffer Pointer to a buffer.
+		 * @param bindingNumber Binding number used by a shader to know which descriptor to access within a descriptor set.
+		 */
+		Descriptor(const VkDescriptorType& type, Buffer& buffer, const uint32_t& bindingNumber);
+
+		/**
+		 * @brief Constructs a descriptor given a descriptor type and an image.
+		 * @param type Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a structure that contains an image and some metadata that tells the GPU how to read it.
+		 * @param pImage Pointer to an image.
+		 * @param bindingNumber Binding number used by a shader to know which descriptor to access within a descriptor set.
+		 */
+		Descriptor(const VkDescriptorType& type, Image& image, const uint32_t& bindingNumber);
+
+		/**
+		 * @brief A descriptor set needs to access the _bindingMetadata of this class in order to have information on how to update it.
+		 */
+		friend class DescriptorSet;
+	};
+
+	/**
+	 * @brief A descriptor set has bindings to descriptors, and is used to cluster descriptors of the same type.
+	 */
+	class DescriptorSet 
+	{
+
+	public:
+
+		/**
+		 * @brief Identifier for Vulkan.
+		 */
+		VkDescriptorSet _handle;
+
+		/**
+		 * @brief Metadata about the descriptor, which describes which shader stage will be able to access the descriptor set.
+		 */
+		VkDescriptorSetLayoutBinding _layoutBinding;
+
+		/**
+		 * @brief A descriptor set layout object is defined by an array of zero or more descriptor bindings. Each individual descriptor binding is specified
+		 * by a descriptor type, a count (array size) of the number of descriptors in the binding, a set of shader stages that can access the binding, and
+		 * (if using immutable samplers) an array of sampler descriptors.
+		 */
+		VkDescriptorSetLayout _layout;
+
+		/**
+		 * @brief Constructs a descriptor set.
+		 * @param logicalDevice Logical device used to call Vulkan functions.
+		 * @param setIndex Set index number used by the shaders to identify the descriptor set to access.
+		 * @param shaderFlags Flags to define which shader/s can access this descriptor set.
+		 * @param descriptors Descriptors. Must all be of the same type and compatible with the type of data they contain (image or buffer).
+		 */
+		DescriptorSet(VkDevice& logicalDevice, const uint32_t& indexNumber, const VkShaderStageFlagBits& shaderFlags, const std::vector<Descriptor>& descriptors);
+	};
+
+	/**
+	 * @brief A descriptor pool is a container for descriptor sets and acts as a facility to allocate memory for them.
+	 */
+	class DescriptorPool
+	{
+	public:
+
+		DescriptorPool(std::vector<DescriptorSet> descriptorSets);
+	};
+
+	/**
 	 * @brief Represents the Vulkan application.
 	 */
 	class VulkanApplication : public IUpdatable
@@ -563,44 +675,8 @@ namespace Engine::Vulkan
 				 */
 				Image _texture;
 
-				/**
-				 * @brief Descriptor pool from which uniform descriptors are allocated.
-				 */
+				
 				VkDescriptorPool _descriptorPool;
-
-				/**
-				 * @brief A descriptor is just a block of data, similar to a buffer, with the difference being that a descriptor
-				 * is specifically designed to be used in shaders. This enables us to exchange data between a program run by the
-				 * CPU's cores with a shader run by the GPU's cores.
-				 */
-				struct Descriptor {
-
-				};
-
-				/**
-				 * @brief A descriptor set has bindings to descriptors, and is used to cluster descriptors with similar properties. A descriptor is just a set of data
-				 * that will be passed into shaders. The shaders will then use these descriptors' data as needed.
-				 */
-				struct DescriptorSet {
-
-					/**
-					 * @brief Identifier for Vulkan.
-					 */
-					VkDescriptorSet _handle;
-
-					/**
-					 * @brief Metadata about the descriptor, which describes which shader stage the descriptors inside of it will be available to use.
-					 */
-					VkDescriptorSetLayoutBinding _layoutBinding;
-
-					/**
-					 * @brief A descriptor set layout object is defined by an array of zero or more descriptor bindings. Each individual descriptor binding is specified
-					 * by a descriptor type, a count (array size) of the number of descriptors in the binding, a set of shader stages that can access the binding, and
-					 * (if using immutable samplers) an array of sampler descriptors.
-					 */
-					VkDescriptorSetLayout _layout;
-
-				};
 
 				/**
 				 * @brief Descriptor set that contains uniform buffer descriptors.
@@ -785,7 +861,7 @@ namespace Engine::Vulkan
 		void UpdateDescriptorSetsData();
 
 		/**
-		 * @brief Creates the descriptor set layout.
+		 * @brief Creates the descriptor set layout. See _graphicsPipeline._shaderResources.
 		 */
 		void CreateDescriptorSetLayout();
 		

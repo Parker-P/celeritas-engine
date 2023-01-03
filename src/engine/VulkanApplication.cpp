@@ -45,7 +45,7 @@ namespace Engine::Vulkan
 	bool windowResized = false;
 	bool windowMinimized = false;
 
-	// Buffer
+	// Buffer.
 	Buffer::Buffer(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data, size_t sizeInBytes)
 	{
 		_logicalDevice = logicalDevice;
@@ -124,7 +124,7 @@ namespace Engine::Vulkan
 		vkFreeMemory(_logicalDevice, _memory, nullptr);
 	}
 
-	// Image
+	// Image.
 	Image::Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& size, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& typeFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags)
 	{
 		_logicalDevice = logicalDevice;
@@ -156,7 +156,6 @@ namespace Engine::Vulkan
 		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCreateInfo.usage = usageFlags;
 
-		// Create the image.
 		if (vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, &_imageHandle) != VK_SUCCESS) {
 			std::cout << "Failed creating depth image." << std::endl;
 		}
@@ -239,7 +238,7 @@ namespace Engine::Vulkan
 		vkDestroyImage(_logicalDevice, _imageHandle, nullptr);
 	}
 
-	// Physical device
+	// Physical device.
 	PhysicalDevice::PhysicalDevice(VkInstance& instance)
 	{
 		// Try to find 1 Vulkan supported device.
@@ -406,7 +405,105 @@ namespace Engine::Vulkan
 		return presentModes;
 	}
 
-	// VulkanApplication
+	// Descriptor.
+	Descriptor::Descriptor(const VkDescriptorType& type, Buffer& buffer, const uint32_t& bindingNumber)
+	{
+		_descriptorBufferInfo = buffer.GenerateDescriptor();
+		_bindingMetadata.descriptorType = type;
+		_bindingNumber = bindingNumber;
+	}
+
+	Descriptor::Descriptor(const VkDescriptorType& type, Image& image, const uint32_t& bindingNumber)
+	{
+		_descriptorImageInfo = image.GenerateDescriptor();
+		_bindingMetadata.descriptorType = type;
+		_bindingNumber = bindingNumber;
+	}
+
+	// Descriptor set.
+	DescriptorSet::DescriptorSet(VkDevice& logicalDevice, const uint32_t& indexNumber, const VkShaderStageFlagBits& shaderFlags, const std::vector<Descriptor>& descriptors)
+	{
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
+
+		// Prep work for the descriptor set layout.
+		for (auto descriptor : descriptors) {
+			VkDescriptorSetLayoutBinding binding;
+			binding.binding = descriptor.;
+			binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			binding.descriptorCount = 1;
+			binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		}
+		
+
+		VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = {};
+		descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		descriptorLayoutCreateInfo.bindingCount = 1;
+		descriptorLayoutCreateInfo.pBindings = &shaderResources._uniformSet._layoutBinding;
+
+		if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &shaderResources._uniformSet._layout) != VK_SUCCESS) {
+			std::cerr << "failed to create descriptor layout" << std::endl;
+			exit(1);
+		}
+		else {
+			std::cout << "created descriptor layout for uniform set" << std::endl;
+		}
+
+		// And textures for the fragment shader.
+		shaderResources._samplerSet._layoutBinding.binding = 1;
+		shaderResources._samplerSet._layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		shaderResources._samplerSet._layoutBinding.descriptorCount = 1;
+		shaderResources._samplerSet._layoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		descriptorLayoutCreateInfo.bindingCount = 1;
+		descriptorLayoutCreateInfo.pBindings = &shaderResources._samplerSet._layoutBinding;
+
+		if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &shaderResources._samplerSet._layout) != VK_SUCCESS) {
+			std::cerr << "failed to create descriptor set layout for sampler set" << std::endl;
+			exit(1);
+		}
+		else {
+			std::cout << "created descriptor layout for sampler set" << std::endl;
+		}
+
+
+
+		// 
+	}
+
+	// Descriptor pool.
+	DescriptorPool::DescriptorPool(uint32_t maxSets)
+	{
+		auto& shaderResources = _graphicsPipeline._shaderResources;
+
+		// This describes how many descriptors we'll create from this pool for each type of descriptor.
+		VkDescriptorPoolSize uniformPoolSize;
+		uniformPoolSize.type = shaderResources._uniformSet._layoutBinding.descriptorType;
+		uniformPoolSize.descriptorCount = shaderResources._uniformSet._layoutBinding.descriptorCount;
+
+		VkDescriptorPoolSize samplerPoolSize;
+		samplerPoolSize.type = shaderResources._samplerSet._layoutBinding.descriptorType;
+		samplerPoolSize.descriptorCount = shaderResources._samplerSet._layoutBinding.descriptorCount;
+
+		// maxSets is the maximum number of descriptor sets that can be allocated from the pool.
+		// poolSizeCount is the number of elements in pPoolSizes.
+		// pPoolSizes is a pointer to an array of VkDescriptorPoolSize structures, each containing a descriptor type and number of descriptors of that type to be allocated in the pool.
+		VkDescriptorPoolSize poolSizes[2] = { uniformPoolSize, samplerPoolSize };
+		VkDescriptorPoolCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		createInfo.maxSets = maxSets;
+		createInfo.poolSizeCount = 2;
+		createInfo.pPoolSizes = poolSizes;
+		if (vkCreateDescriptorPool(_logicalDevice, &createInfo, nullptr, &_graphicsPipeline._shaderResources._descriptorPool) != VK_SUCCESS) {
+			std::cerr << "failed to create descriptor pool" << std::endl;
+			exit(1);
+		}
+		else {
+			std::cout << "created descriptor pool" << std::endl;
+		}
+	}
+
+	// VulkanApplication.
 	void VulkanApplication::Run()
 	{
 		InitializeWindow();
@@ -466,6 +563,7 @@ namespace Engine::Vulkan
 		UpdateShaderData();
 		AllocateDescriptorSets();
 		UpdateDescriptorSetsData();
+		auto transformations = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, _graphicsPipeline._shaderResources._transformationDataBuffer, 0);
 		CreatePipelineLayout();
 		CreateGraphicsPipeline();
 		AllocateDrawCommandBuffers();
@@ -1791,6 +1889,7 @@ namespace Engine::Vulkan
 		stagingBuffer.Destroy();
 		std::cout << "Texture loaded successfully " << std::endl;
 	}
+	
 }
 
 int main()
