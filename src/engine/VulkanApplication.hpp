@@ -318,6 +318,11 @@ namespace Engine::Vulkan
 		uint32_t _bindingNumber;
 
 		/**
+		 * @brief Default constructor.
+		 */
+		Descriptor() = default;
+
+		/**
 		 * @brief Constructs a descriptor given a descriptor type and a buffer.
 		 * @param type Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a structure that contains an image and some metadata that tells the GPU how to read it.
 		 * @param pBuffer Pointer to a buffer.
@@ -340,6 +345,10 @@ namespace Engine::Vulkan
 	 */
 	class DescriptorSet 
 	{
+		/**
+		 * @brief Used for Vulkan calls.
+		 */
+		VkDevice _logicalDevice;
 
 	public:
 
@@ -356,9 +365,10 @@ namespace Engine::Vulkan
 		VkDescriptorSetLayout _layout;
 
 		/**
-		 * @brief Index number of the descriptor set, used by the shader to access a specific descriptor within the set.
+		 * @brief Set index number used by the shaders to identify the descriptor set to access. This number is set only after memory for the
+		 * descriptor set has been allocated by a descriptor pool.
 		 */
-		uint32_t _indexNumber;
+		short _indexNumber;
 
 		/**
 		 * @brief Descriptors this set contains.
@@ -366,13 +376,23 @@ namespace Engine::Vulkan
 		std::vector<Descriptor> _descriptors;
 
 		/**
+		 * @brief After having allocated GPU-accessible memory for the descriptor set, writes the data contained in its descriptors 
+		 * to the correct allocated portion of memory.
+		 */
+		void SendDescriptorData();
+
+		/**
+		 * @brief Default constructor.
+		 */
+		DescriptorSet() = default;
+
+		/**
 		 * @brief Constructs a descriptor set.
 		 * @param logicalDevice Logical device used to call Vulkan functions.
-		 * @param setIndex Set index number used by the shaders to identify the descriptor set to access.
 		 * @param shaderFlags Flags to define which shader/s can access this descriptor set.
 		 * @param descriptors Descriptors. Must all be of the same type and compatible with the type of data they contain (image or buffer).
 		 */
-		DescriptorSet(VkDevice& logicalDevice, const uint32_t& indexNumber, const VkShaderStageFlagBits& shaderStageFlags, const std::vector<Descriptor>& descriptors);
+		DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, const std::vector<Descriptor>& descriptors);
 	};
 
 	/**
@@ -395,17 +415,17 @@ namespace Engine::Vulkan
 		 */
 		void AllocateDescriptorSets();
 
-		/**
-		 * @brief Sorts descriptor sets in ascending order using their index number.
-		 */
-		void SortDescriptorSetsByIndex();
-
 	public:
 
 		/**
 		 * @brief Identifier for Vulkan.
 		 */
 		VkDescriptorPool _handle;
+
+		/**
+		 * @brief Default constructor.
+		 */
+		DescriptorPool() = default;
 
 		/**
 		 * @brief Constructs a descriptor pool and allocates memory for the given descriptor sets.

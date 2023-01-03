@@ -421,9 +421,29 @@ namespace Engine::Vulkan
 	}
 
 	// Descriptor set.
-	DescriptorSet::DescriptorSet(VkDevice& logicalDevice, const uint32_t& indexNumber, const VkShaderStageFlagBits& shaderStageFlags, const std::vector<Descriptor>& descriptors)
+	void DescriptorSet::SendDescriptorData()
 	{
-		_indexNumber = indexNumber;
+		std::vector<VkWriteDescriptorSet> writeInfos(_descriptors.size());
+
+		for (int i = 0; i < _descriptors.size(); ++i) {
+			VkWriteDescriptorSet writeInfo = {};
+			writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeInfo.dstSet = _handle;
+			writeInfo.descriptorCount = _descriptors.size();
+			writeInfo.descriptorType = _descriptors[i]._type;
+			writeInfo.pBufferInfo = _descriptors[i]._bufferInfo.range == 0 ? nullptr : &_descriptors[i]._bufferInfo;
+			writeInfo.pImageInfo = _descriptors[i]._imageInfo.sampler == VK_NULL_HANDLE ? nullptr : &_descriptors[i]._imageInfo;
+			writeInfo.dstBinding = _descriptors[i]._bindingNumber;
+			writeInfos.push_back(writeInfo);
+		}
+
+		vkUpdateDescriptorSets(_logicalDevice, writeInfos.size(), writeInfos.data(), 0, nullptr);
+	}
+
+	DescriptorSet::DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, const std::vector<Descriptor>& descriptors)
+	{
+		_logicalDevice = logicalDevice;
+		_indexNumber = -1;
 		_descriptors = descriptors;
 		std::vector<VkDescriptorSetLayoutBinding> bindings;
 
@@ -443,11 +463,11 @@ namespace Engine::Vulkan
 		descriptorSetLayoutCreateInfo.pBindings = bindings.data();
 
 		if (vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &_layout) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor layout" << std::endl;
+			std::cerr << "failed to create descriptor set layout" << std::endl;
 			exit(1);
 		}
 		else {
-			std::cout << "created descriptor layout for uniform set" << std::endl;
+			std::cout << "created descriptor set layout" << std::endl;
 		}
 	}
 
@@ -460,29 +480,26 @@ namespace Engine::Vulkan
 			layouts.push_back(descriptorSet._layout);
 		}
 
-		SortDescriptorSetsByIndex();
-
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		allocInfo.descriptorPool = _handle;
 		allocInfo.descriptorSetCount = _descriptorSets.size();
 		allocInfo.pSetLayouts = layouts.data();
 
-		VkDescriptorSet allocatedDescriptorSetHandles[2];
-		if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, allocatedDescriptorSetHandles) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor sets" << std::endl;
+		std::vector<VkDescriptorSet> allocatedDescriptorSetHandles(_descriptorSets.size());
+		if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, allocatedDescriptorSetHandles.data()) != VK_SUCCESS) {
+			std::cerr << "failed to create allocate descriptor sets" << std::endl;
 			exit(1);
 		}
 		else {
-			std::cout << "created descriptor sets" << std::endl;
+			std::cout << "allocated descriptor sets" << std::endl;
 
-			shaderResources._uniformSet._handle = allocatedDescriptorSetHandles[0];
-			shaderResources._samplerSet._handle = allocatedDescriptorSetHandles[1];
+			for (int i = 0; i < allocatedDescriptorSetHandles.size(); ++i) {
+				_descriptorSets[i]._indexNumber = i;
+				_descriptorSets[i]._handle = allocatedDescriptorSetHandles[i];
+				_descriptorSets[i].SendDescriptorData();
+			}
 		}
-	}
-
-	void DescriptorPool::SortDescriptorSetsByIndex()
-	{
 	}
 
 	DescriptorPool::DescriptorPool(VkDevice& logicalDevice, const std::vector<DescriptorSet>& descriptorSets)
@@ -570,8 +587,8 @@ namespace Engine::Vulkan
 
 		auto transformationsDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, _graphicsPipeline._shaderResources._transformationDataBuffer, 0);
 		auto textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, _graphicsPipeline._shaderResources._texture, 0);
-		auto uniformBuffersSet = DescriptorSet(_logicalDevice, 0, VK_SHADER_STAGE_VERTEX_BIT, { transformationsDescriptor });
-		auto textureSamplersSet = DescriptorSet(_logicalDevice, 0, VK_SHADER_STAGE_FRAGMENT_BIT, { transformationsDescriptor });
+		auto uniformBuffersSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { transformationsDescriptor });
+		auto textureSamplersSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { textureDescriptor });
 		auto pool = DescriptorPool(_logicalDevice, { uniformBuffersSet, textureSamplersSet });
 
 		_graphicsPipeline._shaderResources._transformationDataBuffer = Buffer(_logicalDevice,
@@ -1561,76 +1578,76 @@ namespace Engine::Vulkan
 		}
 	}
 
-	void VulkanApplication::UpdateDescriptorSetsData()
-	{
-		auto& shaderResources = _graphicsPipeline._shaderResources;
+	//void VulkanApplication::UpdateDescriptorSetsData()
+	//{
+	//	auto& shaderResources = _graphicsPipeline._shaderResources;
 
-		// This creates the actual descriptor.
-		auto transformationMatricesDescriptorBuffer = shaderResources._transformationDataBuffer.GenerateDescriptor();
+	//	// This creates the actual descriptor.
+	//	auto transformationMatricesDescriptorBuffer = shaderResources._transformationDataBuffer.GenerateDescriptor();
 
-		// This structure gives Vulkan info about how and where to send the descriptors to the shaders.
-		VkWriteDescriptorSet writeTransformationData = {};
-		writeTransformationData.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		writeTransformationData.dstSet = shaderResources._uniformSet._handle;
-		writeTransformationData.descriptorCount = 1;
-		writeTransformationData.descriptorType = shaderResources._uniformSet._layoutBinding.descriptorType;
-		writeTransformationData.pBufferInfo = &transformationMatricesDescriptorBuffer;
-		writeTransformationData.dstBinding = shaderResources._uniformSet._layoutBinding.binding;
+	//	// This structure gives Vulkan info about how and where to send the descriptors to the shaders.
+	//	VkWriteDescriptorSet writeTransformationData = {};
+	//	writeTransformationData.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	//	writeTransformationData.dstSet = shaderResources._uniformSet._handle;
+	//	writeTransformationData.descriptorCount = 1;
+	//	writeTransformationData.descriptorType = shaderResources._uniformSet._layoutBinding.descriptorType;
+	//	writeTransformationData.pBufferInfo = &transformationMatricesDescriptorBuffer;
+	//	writeTransformationData.dstBinding = shaderResources._uniformSet._layoutBinding.binding;
 
-		auto textureDescriptorBuffer = shaderResources._texture.GenerateDescriptor();
-		VkWriteDescriptorSet writeSamplers = {};
-		writeSamplers.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		writeSamplers.dstSet = shaderResources._samplerSet._handle;
-		writeSamplers.descriptorCount = 1;
-		writeSamplers.descriptorType = shaderResources._samplerSet._layoutBinding.descriptorType;
-		writeSamplers.pImageInfo = &textureDescriptorBuffer;
-		writeSamplers.dstBinding = shaderResources._samplerSet._layoutBinding.binding;
+	//	auto textureDescriptorBuffer = shaderResources._texture.GenerateDescriptor();
+	//	VkWriteDescriptorSet writeSamplers = {};
+	//	writeSamplers.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	//	writeSamplers.dstSet = shaderResources._samplerSet._handle;
+	//	writeSamplers.descriptorCount = 1;
+	//	writeSamplers.descriptorType = shaderResources._samplerSet._layoutBinding.descriptorType;
+	//	writeSamplers.pImageInfo = &textureDescriptorBuffer;
+	//	writeSamplers.dstBinding = shaderResources._samplerSet._layoutBinding.binding;
 
-		VkWriteDescriptorSet updateInfos[2] = { writeTransformationData, writeSamplers };
-		vkUpdateDescriptorSets(_logicalDevice, 2, updateInfos, 0, nullptr);
-	}
+	//	VkWriteDescriptorSet updateInfos[2] = { writeTransformationData, writeSamplers };
+	//	vkUpdateDescriptorSets(_logicalDevice, 2, updateInfos, 0, nullptr);
+	//}
 
-	void VulkanApplication::CreateDescriptorSetLayout()
-	{
-		auto& shaderResources = _graphicsPipeline._shaderResources;
+	//void VulkanApplication::CreateDescriptorSetLayout()
+	//{
+	//	auto& shaderResources = _graphicsPipeline._shaderResources;
 
-		// Enabling access to vertex attributes to the vertex shader.
-		shaderResources._uniformSet._layoutBinding.binding = 0;
-		shaderResources._uniformSet._layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		shaderResources._uniformSet._layoutBinding.descriptorCount = 1;
-		shaderResources._uniformSet._layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	//	// Enabling access to vertex attributes to the vertex shader.
+	//	shaderResources._uniformSet._layoutBinding.binding = 0;
+	//	shaderResources._uniformSet._layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	//	shaderResources._uniformSet._layoutBinding.descriptorCount = 1;
+	//	shaderResources._uniformSet._layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-		VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = {};
-		descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptorLayoutCreateInfo.bindingCount = 1;
-		descriptorLayoutCreateInfo.pBindings = &shaderResources._uniformSet._layoutBinding;
+	//	VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = {};
+	//	descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	//	descriptorLayoutCreateInfo.bindingCount = 1;
+	//	descriptorLayoutCreateInfo.pBindings = &shaderResources._uniformSet._layoutBinding;
 
-		if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &shaderResources._uniformSet._layout) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor layout" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created descriptor layout for uniform set" << std::endl;
-		}
+	//	if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &shaderResources._uniformSet._layout) != VK_SUCCESS) {
+	//		std::cerr << "failed to create descriptor layout" << std::endl;
+	//		exit(1);
+	//	}
+	//	else {
+	//		std::cout << "created descriptor layout for uniform set" << std::endl;
+	//	}
 
-		// And textures for the fragment shader.
-		shaderResources._samplerSet._layoutBinding.binding = 1;
-		shaderResources._samplerSet._layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		shaderResources._samplerSet._layoutBinding.descriptorCount = 1;
-		shaderResources._samplerSet._layoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	//	// And textures for the fragment shader.
+	//	shaderResources._samplerSet._layoutBinding.binding = 1;
+	//	shaderResources._samplerSet._layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	//	shaderResources._samplerSet._layoutBinding.descriptorCount = 1;
+	//	shaderResources._samplerSet._layoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-		descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptorLayoutCreateInfo.bindingCount = 1;
-		descriptorLayoutCreateInfo.pBindings = &shaderResources._samplerSet._layoutBinding;
+	//	descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	//	descriptorLayoutCreateInfo.bindingCount = 1;
+	//	descriptorLayoutCreateInfo.pBindings = &shaderResources._samplerSet._layoutBinding;
 
-		if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &shaderResources._samplerSet._layout) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor set layout for sampler set" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created descriptor layout for sampler set" << std::endl;
-		}
-	}
+	//	if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &shaderResources._samplerSet._layout) != VK_SUCCESS) {
+	//		std::cerr << "failed to create descriptor set layout for sampler set" << std::endl;
+	//		exit(1);
+	//	}
+	//	else {
+	//		std::cout << "created descriptor layout for sampler set" << std::endl;
+	//	}
+	//}
 
 	void VulkanApplication::CreateDescriptorPool()
 	{
