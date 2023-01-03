@@ -293,25 +293,27 @@ namespace Engine::Vulkan
 	class Descriptor
 	{
 
-		/**
-		 * @brief Metadata that Vulkan uses to write the data this descriptor contains to the descriptor set it belongs to.
-		 */
-		VkWriteDescriptorSet _bindingMetadata;
+		
 
 	public:
 
 		/**
 		 * @brief Wrapper that describes a buffer.
 		 */
-		VkDescriptorBufferInfo _descriptorBufferInfo;
+		VkDescriptorBufferInfo _bufferInfo;
 
 		/**
 		 * @brief Wrapper that describes an image.
 		 */
-		VkDescriptorImageInfo _descriptorImageInfo;
+		VkDescriptorImageInfo _imageInfo;
 
 		/**
-		 * @brief Binding number used by the shaders to know which descriptor to access within a descriptor set.
+		 * @brief Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a structure that contains an image and some metadata that tells the GPU how to read it.
+		 */
+		VkDescriptorType _type;
+
+		/**
+		 * @brief Binding number used by the shaders to know which descriptor to access within the descriptor set this descriptor belongs to.
 		 */
 		uint32_t _bindingNumber;
 
@@ -331,10 +333,6 @@ namespace Engine::Vulkan
 		 */
 		Descriptor(const VkDescriptorType& type, Image& image, const uint32_t& bindingNumber);
 
-		/**
-		 * @brief A descriptor set needs to access the _bindingMetadata of this class in order to have information on how to update it.
-		 */
-		friend class DescriptorSet;
 	};
 
 	/**
@@ -351,16 +349,21 @@ namespace Engine::Vulkan
 		VkDescriptorSet _handle;
 
 		/**
-		 * @brief Metadata about the descriptor, which describes which shader stage will be able to access the descriptor set.
-		 */
-		VkDescriptorSetLayoutBinding _layoutBinding;
-
-		/**
 		 * @brief A descriptor set layout object is defined by an array of zero or more descriptor bindings. Each individual descriptor binding is specified
 		 * by a descriptor type, a count (array size) of the number of descriptors in the binding, a set of shader stages that can access the binding, and
 		 * (if using immutable samplers) an array of sampler descriptors.
 		 */
 		VkDescriptorSetLayout _layout;
+
+		/**
+		 * @brief Index number of the descriptor set, used by the shader to access a specific descriptor within the set.
+		 */
+		uint32_t _indexNumber;
+
+		/**
+		 * @brief Descriptors this set contains.
+		 */
+		std::vector<Descriptor> _descriptors;
 
 		/**
 		 * @brief Constructs a descriptor set.
@@ -369,7 +372,7 @@ namespace Engine::Vulkan
 		 * @param shaderFlags Flags to define which shader/s can access this descriptor set.
 		 * @param descriptors Descriptors. Must all be of the same type and compatible with the type of data they contain (image or buffer).
 		 */
-		DescriptorSet(VkDevice& logicalDevice, const uint32_t& indexNumber, const VkShaderStageFlagBits& shaderFlags, const std::vector<Descriptor>& descriptors);
+		DescriptorSet(VkDevice& logicalDevice, const uint32_t& indexNumber, const VkShaderStageFlagBits& shaderStageFlags, const std::vector<Descriptor>& descriptors);
 	};
 
 	/**
@@ -377,9 +380,39 @@ namespace Engine::Vulkan
 	 */
 	class DescriptorPool
 	{
+		/**
+		 * @brief Used to make Vulkan creation calls.
+		 */
+		VkDevice _logicalDevice;
+
+		/**
+		 * @brief Descriptor sets the pool contains.
+		 */
+		std::vector<DescriptorSet> _descriptorSets;
+
+		/**
+		 * @brief .
+		 */
+		void AllocateDescriptorSets();
+
+		/**
+		 * @brief Sorts descriptor sets in ascending order using their index number.
+		 */
+		void SortDescriptorSetsByIndex();
+
 	public:
 
-		DescriptorPool(std::vector<DescriptorSet> descriptorSets);
+		/**
+		 * @brief Identifier for Vulkan.
+		 */
+		VkDescriptorPool _handle;
+
+		/**
+		 * @brief Constructs a descriptor pool and allocates memory for the given descriptor sets.
+		 * @param logicalDevice Used for the Vulkan call to create the descriptor pool and to allocate memory for the given descriptor sets.
+		 * @param descriptorSets Descriptor sets to allocate memory for.
+		 */
+		DescriptorPool(VkDevice& logicalDevice, const std::vector<DescriptorSet>& descriptorSets);
 	};
 
 	/**
