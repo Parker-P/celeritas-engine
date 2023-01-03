@@ -409,14 +409,17 @@ namespace Engine::Vulkan
 	Descriptor::Descriptor(const VkDescriptorType& type, Buffer& buffer, const uint32_t& bindingNumber)
 	{
 		_bufferInfo = buffer.GenerateDescriptor();
+		_imageInfo = VkDescriptorImageInfo{};
 		_type = type;
 		_bindingNumber = bindingNumber;
 	}
 
 	Descriptor::Descriptor(const VkDescriptorType& type, Image& image, const uint32_t& bindingNumber)
 	{
+		_bufferInfo = VkDescriptorBufferInfo{};
 		_imageInfo = image.GenerateDescriptor();
-		_type = type;
+		//_type = type;
+		_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		_bindingNumber = bindingNumber;
 	}
 
@@ -449,12 +452,11 @@ namespace Engine::Vulkan
 
 		// Prep work for the descriptor set layout.
 		for (auto& descriptor : descriptors) {
-			VkDescriptorSetLayoutBinding binding;
+			VkDescriptorSetLayoutBinding binding{};
 			binding.binding = descriptor._bindingNumber;
 			binding.descriptorType = descriptor._type;
 			binding.descriptorCount = descriptors.size();
 			binding.stageFlags = shaderStageFlags;
-			binding.pImmutableSamplers = 0;
 			bindings.push_back(binding);
 		}
 
@@ -489,7 +491,7 @@ namespace Engine::Vulkan
 
 		std::vector<VkDescriptorSet> allocatedDescriptorSetHandles(_descriptorSets.size());
 		if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, allocatedDescriptorSetHandles.data()) != VK_SUCCESS) {
-			std::cerr << "failed to create allocate descriptor sets" << std::endl;
+			std::cerr << "failed to allocate descriptor sets" << std::endl;
 			exit(1);
 		}
 		else {
