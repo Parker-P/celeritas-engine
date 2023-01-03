@@ -454,6 +454,7 @@ namespace Engine::Vulkan
 			binding.descriptorType = descriptor._type;
 			binding.descriptorCount = descriptors.size();
 			binding.stageFlags = shaderStageFlags;
+			binding.pImmutableSamplers = 0;
 			bindings.push_back(binding);
 		}
 
@@ -536,6 +537,30 @@ namespace Engine::Vulkan
 		AllocateDescriptorSets();
 	}
 
+	void DescriptorPool::UpdateDescriptor(const uint32_t& setIndex, const uint32_t& descriptorIndex, Buffer& data)
+	{
+		for (auto& descriptorSet : _descriptorSets) {
+			for (auto& descriptor : descriptorSet._descriptors) {
+				if (descriptorSet._indexNumber = setIndex && descriptorSet._indexNumber == descriptorIndex) {
+					descriptor._bufferInfo = data.GenerateDescriptor();
+					descriptorSet.SendDescriptorData();
+				}
+			}
+		}
+	}
+
+	void DescriptorPool::UpdateDescriptor(const uint32_t& setIndex, const uint32_t& descriptorIndex, Image& data)
+	{
+		for (auto& descriptorSet : _descriptorSets) {
+			for (auto& descriptor : descriptorSet._descriptors) {
+				if (descriptorSet._indexNumber = setIndex && descriptorSet._indexNumber == descriptorIndex) {
+					descriptor._imageInfo = data.GenerateDescriptor();
+					descriptorSet.SendDescriptorData();
+				}
+			}
+		}
+	}
+
 	// VulkanApplication.
 	void VulkanApplication::Run()
 	{
@@ -579,17 +604,10 @@ namespace Engine::Vulkan
 		CreateSemaphores();
 		CreateCommandPool();
 		CreateVertexAndIndexBuffers();
-		LoadTexture();
 		CreateSwapchain();
 		CreateRenderPass();
 		CreateFramebuffers();
-		CreateDescriptorSetLayout();
-
-		auto transformationsDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, _graphicsPipeline._shaderResources._transformationDataBuffer, 0);
-		auto textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, _graphicsPipeline._shaderResources._texture, 0);
-		auto uniformBuffersSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { transformationsDescriptor });
-		auto textureSamplersSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { textureDescriptor });
-		auto pool = DescriptorPool(_logicalDevice, { uniformBuffersSet, textureSamplersSet });
+		LoadTexture();
 
 		_graphicsPipeline._shaderResources._transformationDataBuffer = Buffer(_logicalDevice,
 			_physicalDevice,
@@ -598,9 +616,15 @@ namespace Engine::Vulkan
 			&_graphicsPipeline._shaderResources._transformationData,
 			(size_t)sizeof(_graphicsPipeline._shaderResources._transformationData));
 
+		auto transformationsDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, _graphicsPipeline._shaderResources._transformationDataBuffer, 0);
+		auto textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, _graphicsPipeline._shaderResources._texture, 0);
+		auto uniformBuffersSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { transformationsDescriptor });
+		auto textureSamplersSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { textureDescriptor });
+		auto pool = DescriptorPool(_logicalDevice, { uniformBuffersSet, textureSamplersSet });
+
 		UpdateShaderData();
-		AllocateDescriptorSets();
-		UpdateDescriptorSetsData();
+		pool.UpdateDescriptor(uniformBuffersSet._indexNumber, transformationsDescriptor._bindingNumber, _graphicsPipeline._shaderResources._transformationDataBuffer);
+
 		CreatePipelineLayout();
 		CreateGraphicsPipeline();
 		AllocateDrawCommandBuffers();
@@ -1553,30 +1577,30 @@ namespace Engine::Vulkan
 		vkDestroyShaderModule(_logicalDevice, fragmentShaderModule, nullptr);
 	}
 
-	void VulkanApplication::AllocateDescriptorSets()
-	{
-		auto& shaderResources = _graphicsPipeline._shaderResources;
+	//void VulkanApplication::AllocateDescriptorSets()
+	//{
+	//	auto& shaderResources = _graphicsPipeline._shaderResources;
 
-		// The amount of sets and descriptor types is defined when creating the descriptor pool.
-		VkDescriptorSetLayout layouts[2] = { shaderResources._uniformSet._layout, shaderResources._samplerSet._layout };
-		VkDescriptorSetAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = shaderResources._descriptorPool;
-		allocInfo.descriptorSetCount = 2;
-		allocInfo.pSetLayouts = layouts;
+	//	// The amount of sets and descriptor types is defined when creating the descriptor pool.
+	//	VkDescriptorSetLayout layouts[2] = { shaderResources._uniformSet._layout, shaderResources._samplerSet._layout };
+	//	VkDescriptorSetAllocateInfo allocInfo = {};
+	//	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	//	allocInfo.descriptorPool = shaderResources._descriptorPool;
+	//	allocInfo.descriptorSetCount = 2;
+	//	allocInfo.pSetLayouts = layouts;
 
-		VkDescriptorSet allocatedDescriptorSetHandles[2];
-		if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, allocatedDescriptorSetHandles) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor sets" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created descriptor sets" << std::endl;
+	//	VkDescriptorSet allocatedDescriptorSetHandles[2];
+	//	if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, allocatedDescriptorSetHandles) != VK_SUCCESS) {
+	//		std::cerr << "failed to create descriptor sets" << std::endl;
+	//		exit(1);
+	//	}
+	//	else {
+	//		std::cout << "created descriptor sets" << std::endl;
 
-			shaderResources._uniformSet._handle = allocatedDescriptorSetHandles[0];
-			shaderResources._samplerSet._handle = allocatedDescriptorSetHandles[1];
-		}
-	}
+	//		shaderResources._uniformSet._handle = allocatedDescriptorSetHandles[0];
+	//		shaderResources._samplerSet._handle = allocatedDescriptorSetHandles[1];
+	//	}
+	//}
 
 	//void VulkanApplication::UpdateDescriptorSetsData()
 	//{
@@ -1649,36 +1673,36 @@ namespace Engine::Vulkan
 	//	}
 	//}
 
-	void VulkanApplication::CreateDescriptorPool()
-	{
-		auto& shaderResources = _graphicsPipeline._shaderResources;
+	//void VulkanApplication::CreateDescriptorPool()
+	//{
+	//	auto& shaderResources = _graphicsPipeline._shaderResources;
 
-		// This describes how many descriptors we'll create from this pool for each type of descriptor.
-		VkDescriptorPoolSize uniformPoolSize;
-		uniformPoolSize.type = shaderResources._uniformSet._layoutBinding.descriptorType;
-		uniformPoolSize.descriptorCount = shaderResources._uniformSet._layoutBinding.descriptorCount;
+	//	// This describes how many descriptors we'll create from this pool for each type of descriptor.
+	//	VkDescriptorPoolSize uniformPoolSize;
+	//	uniformPoolSize.type = shaderResources._uniformSet._layoutBinding.descriptorType;
+	//	uniformPoolSize.descriptorCount = shaderResources._uniformSet._layoutBinding.descriptorCount;
 
-		VkDescriptorPoolSize samplerPoolSize;
-		samplerPoolSize.type = shaderResources._samplerSet._layoutBinding.descriptorType;
-		samplerPoolSize.descriptorCount = shaderResources._samplerSet._layoutBinding.descriptorCount;
+	//	VkDescriptorPoolSize samplerPoolSize;
+	//	samplerPoolSize.type = shaderResources._samplerSet._layoutBinding.descriptorType;
+	//	samplerPoolSize.descriptorCount = shaderResources._samplerSet._layoutBinding.descriptorCount;
 
-		// maxSets is the maximum number of descriptor sets that can be allocated from the pool.
-		// poolSizeCount is the number of elements in pPoolSizes.
-		// pPoolSizes is a pointer to an array of VkDescriptorPoolSize structures, each containing a descriptor type and number of descriptors of that type to be allocated in the pool.
-		VkDescriptorPoolSize poolSizes[2] = { uniformPoolSize, samplerPoolSize };
-		VkDescriptorPoolCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		createInfo.maxSets = 2;
-		createInfo.poolSizeCount = 2;
-		createInfo.pPoolSizes = poolSizes;
-		if (vkCreateDescriptorPool(_logicalDevice, &createInfo, nullptr, &_graphicsPipeline._shaderResources._descriptorPool) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor pool" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created descriptor pool" << std::endl;
-		}
-	}
+	//	// maxSets is the maximum number of descriptor sets that can be allocated from the pool.
+	//	// poolSizeCount is the number of elements in pPoolSizes.
+	//	// pPoolSizes is a pointer to an array of VkDescriptorPoolSize structures, each containing a descriptor type and number of descriptors of that type to be allocated in the pool.
+	//	VkDescriptorPoolSize poolSizes[2] = { uniformPoolSize, samplerPoolSize };
+	//	VkDescriptorPoolCreateInfo createInfo = {};
+	//	createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	//	createInfo.maxSets = 2;
+	//	createInfo.poolSizeCount = 2;
+	//	createInfo.pPoolSizes = poolSizes;
+	//	if (vkCreateDescriptorPool(_logicalDevice, &createInfo, nullptr, &_graphicsPipeline._shaderResources._descriptorPool) != VK_SUCCESS) {
+	//		std::cerr << "failed to create descriptor pool" << std::endl;
+	//		exit(1);
+	//	}
+	//	else {
+	//		std::cout << "created descriptor pool" << std::endl;
+	//	}
+	//}
 
 	void VulkanApplication::UpdateShaderData()
 	{

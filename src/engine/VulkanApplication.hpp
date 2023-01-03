@@ -293,8 +293,6 @@ namespace Engine::Vulkan
 	class Descriptor
 	{
 
-		
-
 	public:
 
 		/**
@@ -308,7 +306,8 @@ namespace Engine::Vulkan
 		VkDescriptorImageInfo _imageInfo;
 
 		/**
-		 * @brief Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a structure that contains an image and some metadata that tells the GPU how to read it.
+		 * @brief Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a 
+		 * structure that contains an image and some metadata that tells the GPU how to read it.
 		 */
 		VkDescriptorType _type;
 
@@ -324,7 +323,8 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Constructs a descriptor given a descriptor type and a buffer.
-		 * @param type Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a structure that contains an image and some metadata that tells the GPU how to read it.
+		 * @param type Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a 
+		 * structure that contains an image and some metadata that tells the GPU how to read it.
 		 * @param pBuffer Pointer to a buffer.
 		 * @param bindingNumber Binding number used by a shader to know which descriptor to access within a descriptor set.
 		 */
@@ -332,7 +332,8 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Constructs a descriptor given a descriptor type and an image.
-		 * @param type Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a structure that contains an image and some metadata that tells the GPU how to read it.
+		 * @param type Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a 
+		 * structure that contains an image and some metadata that tells the GPU how to read it.
 		 * @param pImage Pointer to an image.
 		 * @param bindingNumber Binding number used by a shader to know which descriptor to access within a descriptor set.
 		 */
@@ -433,6 +434,24 @@ namespace Engine::Vulkan
 		 * @param descriptorSets Descriptor sets to allocate memory for.
 		 */
 		DescriptorPool(VkDevice& logicalDevice, const std::vector<DescriptorSet>& descriptorSets);
+
+		/**
+		 * @brief Updates a descriptor identified by its set index and descriptor index (called set and binding in the shaders respectively)
+		 * with the data contained in the given buffer.
+		 * @param setIndex Descriptor set index.
+		 * @param descriptorIndex Descriptor index a.k.a. binding.
+		 * @param data The buffer whose data will be sent to the allocated descriptor set.
+		 */
+		void UpdateDescriptor(const uint32_t& setIndex, const uint32_t& descriptorIndex, Buffer& data);
+
+		/**
+		 * @brief Updates a descriptor identified by its set indexand descriptor index (called set and binding in the shaders respectively)
+		 * with the data contained in the given image.
+		 * @param setIndex Descriptor set index.
+		 * @param descriptorIndex Descriptor index a.k.a. binding.
+		 * @param data The buffer whose data will be sent to the allocated descriptor set.
+		 */
+		void UpdateDescriptor(const uint32_t& setIndex, const uint32_t& descriptorIndex, Image& data);
 	};
 
 	/**
