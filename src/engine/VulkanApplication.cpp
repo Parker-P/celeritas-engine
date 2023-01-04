@@ -418,32 +418,31 @@ namespace Engine::Vulkan
 	{
 		_bufferInfo = VkDescriptorBufferInfo{};
 		_imageInfo = image.GenerateDescriptor();
-		//_type = type;
-		_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		_type = type;
 		_bindingNumber = bindingNumber;
 	}
 
 	// Descriptor set.
 	void DescriptorSet::SendDescriptorData()
 	{
-		std::vector<VkWriteDescriptorSet> writeInfos(_descriptors.size());
+		std::vector<VkWriteDescriptorSet> writeInfos;
 
 		for (int i = 0; i < _descriptors.size(); ++i) {
 			VkWriteDescriptorSet writeInfo = {};
 			writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writeInfo.dstSet = _handle;
 			writeInfo.descriptorCount = _descriptors.size();
-			writeInfo.descriptorType = _descriptors[i]._type;
-			writeInfo.pBufferInfo = _descriptors[i]._bufferInfo.range == 0 ? nullptr : &_descriptors[i]._bufferInfo;
-			writeInfo.pImageInfo = _descriptors[i]._imageInfo.sampler == VK_NULL_HANDLE ? nullptr : &_descriptors[i]._imageInfo;
-			writeInfo.dstBinding = _descriptors[i]._bindingNumber;
+			writeInfo.descriptorType = _descriptors[i]->_type;
+			writeInfo.pBufferInfo = _descriptors[i]->_bufferInfo.range == 0 ? nullptr : &_descriptors[i]->_bufferInfo;
+			writeInfo.pImageInfo = _descriptors[i]->_imageInfo.sampler == VK_NULL_HANDLE ? nullptr : &_descriptors[i]->_imageInfo;
+			writeInfo.dstBinding = _descriptors[i]->_bindingNumber;
 			writeInfos.push_back(writeInfo);
 		}
 
 		vkUpdateDescriptorSets(_logicalDevice, writeInfos.size(), writeInfos.data(), 0, nullptr);
 	}
 
-	DescriptorSet::DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, const std::vector<Descriptor>& descriptors)
+	DescriptorSet::DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, std::vector<Descriptor*> descriptors)
 	{
 		_logicalDevice = logicalDevice;
 		_indexNumber = -1;
@@ -453,8 +452,8 @@ namespace Engine::Vulkan
 		// Prep work for the descriptor set layout.
 		for (auto& descriptor : descriptors) {
 			VkDescriptorSetLayoutBinding binding{};
-			binding.binding = descriptor._bindingNumber;
-			binding.descriptorType = descriptor._type;
+			binding.binding = descriptor->_bindingNumber;
+			binding.descriptorType = descriptor->_type;
 			binding.descriptorCount = descriptors.size();
 			binding.stageFlags = shaderStageFlags;
 			bindings.push_back(binding);
@@ -480,7 +479,7 @@ namespace Engine::Vulkan
 		// The amount of sets and descriptor types is defined when creating the descriptor pool.
 		std::vector<VkDescriptorSetLayout> layouts;
 		for (auto& descriptorSet : _descriptorSets) {
-			layouts.push_back(descriptorSet._layout);
+			layouts.push_back(descriptorSet->_layout);
 		}
 
 		VkDescriptorSetAllocateInfo allocInfo = {};
@@ -498,24 +497,26 @@ namespace Engine::Vulkan
 			std::cout << "allocated descriptor sets" << std::endl;
 
 			for (int i = 0; i < allocatedDescriptorSetHandles.size(); ++i) {
-				_descriptorSets[i]._indexNumber = i;
-				_descriptorSets[i]._handle = allocatedDescriptorSetHandles[i];
-				_descriptorSets[i].SendDescriptorData();
+				_descriptorSets[i]->_indexNumber = i;
+				_descriptorSets[i]->_handle = allocatedDescriptorSetHandles[i];
+				_descriptorSets[i]->SendDescriptorData();
 			}
 		}
 	}
 
-	DescriptorPool::DescriptorPool(VkDevice& logicalDevice, const std::vector<DescriptorSet>& descriptorSets)
+	DescriptorPool::DescriptorPool(VkDevice& logicalDevice, std::vector<DescriptorSet*> descriptorSets)
 	{
 		_descriptorSets = descriptorSets;
+		_logicalDevice = logicalDevice;
 
 		std::vector<VkDescriptorPoolSize> poolSizes;
 		for (auto& descriptorSet : descriptorSets) {
-			if (descriptorSet._descriptors.size() != 0) {
-				if (descriptorSet._descriptors[0]._type != VK_DESCRIPTOR_TYPE_MAX_ENUM) {
-					VkDescriptorPoolSize samplerPoolSize;
-					samplerPoolSize.type = descriptorSet._descriptors[0]._type;
-					samplerPoolSize.descriptorCount = descriptorSet._descriptors.size();
+			if (descriptorSet->_descriptors.size() != 0) {
+				if (descriptorSet->_descriptors[0]->_type != VK_DESCRIPTOR_TYPE_MAX_ENUM) {
+					VkDescriptorPoolSize poolSize{};
+					poolSize.type = descriptorSet->_descriptors[0]->_type;
+					poolSize.descriptorCount = descriptorSet->_descriptors.size();
+					poolSizes.push_back(poolSize);
 				}
 			}
 		}
@@ -539,25 +540,25 @@ namespace Engine::Vulkan
 		AllocateDescriptorSets();
 	}
 
-	void DescriptorPool::UpdateDescriptor(const uint32_t& setIndex, const uint32_t& descriptorIndex, Buffer& data)
+	void DescriptorPool::UpdateDescriptor(Descriptor& d, Buffer& data)
 	{
 		for (auto& descriptorSet : _descriptorSets) {
-			for (auto& descriptor : descriptorSet._descriptors) {
-				if (descriptorSet._indexNumber = setIndex && descriptorSet._indexNumber == descriptorIndex) {
-					descriptor._bufferInfo = data.GenerateDescriptor();
-					descriptorSet.SendDescriptorData();
+			for (auto& descriptor : descriptorSet->_descriptors) {
+				if (descriptor == &d) {
+					descriptor->_bufferInfo = data.GenerateDescriptor();
+					descriptorSet->SendDescriptorData();
 				}
 			}
 		}
 	}
 
-	void DescriptorPool::UpdateDescriptor(const uint32_t& setIndex, const uint32_t& descriptorIndex, Image& data)
+	void DescriptorPool::UpdateDescriptor(Descriptor& d, Image& data)
 	{
 		for (auto& descriptorSet : _descriptorSets) {
-			for (auto& descriptor : descriptorSet._descriptors) {
-				if (descriptorSet._indexNumber = setIndex && descriptorSet._indexNumber == descriptorIndex) {
-					descriptor._imageInfo = data.GenerateDescriptor();
-					descriptorSet.SendDescriptorData();
+			for (auto& descriptor : descriptorSet->_descriptors) {
+				if (descriptor == &d) {
+					descriptor->_imageInfo = data.GenerateDescriptor();
+					descriptorSet->SendDescriptorData();
 				}
 			}
 		}
@@ -611,21 +612,23 @@ namespace Engine::Vulkan
 		CreateFramebuffers();
 		LoadTexture();
 
-		_graphicsPipeline._shaderResources._transformationDataBuffer = Buffer(_logicalDevice,
+		auto& shaderResources = _graphicsPipeline._shaderResources;
+
+		shaderResources._transformationDataBuffer = Buffer(_logicalDevice,
 			_physicalDevice,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			&_graphicsPipeline._shaderResources._transformationData,
-			(size_t)sizeof(_graphicsPipeline._shaderResources._transformationData));
+			&shaderResources._transformationData,
+			(size_t)sizeof(shaderResources._transformationData));
 
-		auto transformationsDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, _graphicsPipeline._shaderResources._transformationDataBuffer, 0);
-		auto textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, _graphicsPipeline._shaderResources._texture, 0);
-		auto uniformBuffersSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { transformationsDescriptor });
-		auto textureSamplersSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { textureDescriptor });
-		auto pool = DescriptorPool(_logicalDevice, { uniformBuffersSet, textureSamplersSet });
+		shaderResources._transformationsDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, shaderResources._transformationDataBuffer, 0);
+		shaderResources._textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, shaderResources._texture, 0);
+		shaderResources._uniformSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &shaderResources._transformationsDescriptor });
+		shaderResources._samplerSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &shaderResources._textureDescriptor });
+		shaderResources._descriptorPool = DescriptorPool(_logicalDevice, { &shaderResources._uniformSet, &shaderResources._samplerSet });
 
 		UpdateShaderData();
-		pool.UpdateDescriptor(uniformBuffersSet._indexNumber, transformationsDescriptor._bindingNumber, _graphicsPipeline._shaderResources._transformationDataBuffer);
+		shaderResources._descriptorPool.UpdateDescriptor(shaderResources._transformationsDescriptor, shaderResources._transformationDataBuffer);
 
 		CreatePipelineLayout();
 		CreateGraphicsPipeline();
@@ -714,7 +717,7 @@ namespace Engine::Vulkan
 			vkDestroyCommandPool(_logicalDevice, _commandPool, nullptr);
 
 			// Clean up uniform buffer related objects.
-			vkDestroyDescriptorPool(_logicalDevice, _graphicsPipeline._shaderResources._descriptorPool, nullptr);
+			vkDestroyDescriptorPool(_logicalDevice, _graphicsPipeline._shaderResources._descriptorPool._handle, nullptr);
 			_graphicsPipeline._shaderResources._transformationDataBuffer.Destroy();
 
 			// Buffers must be destroyed after no command buffers are referring to them anymore.

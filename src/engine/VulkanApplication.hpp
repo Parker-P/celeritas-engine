@@ -374,7 +374,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Descriptors this set contains.
 		 */
-		std::vector<Descriptor> _descriptors;
+		std::vector<Descriptor*> _descriptors;
 
 		/**
 		 * @brief After having allocated GPU-accessible memory for the descriptor set, writes the data contained in its descriptors 
@@ -393,7 +393,7 @@ namespace Engine::Vulkan
 		 * @param shaderFlags Flags to define which shader/s can access this descriptor set.
 		 * @param descriptors Descriptors. Must all be of the same type and compatible with the type of data they contain (image or buffer).
 		 */
-		DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, const std::vector<Descriptor>& descriptors);
+		DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, std::vector<Descriptor*> descriptors);
 	};
 
 	/**
@@ -409,7 +409,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Descriptor sets the pool contains.
 		 */
-		std::vector<DescriptorSet> _descriptorSets;
+		std::vector<DescriptorSet*> _descriptorSets;
 
 		/**
 		 * @brief .
@@ -433,7 +433,7 @@ namespace Engine::Vulkan
 		 * @param logicalDevice Used for the Vulkan call to create the descriptor pool and to allocate memory for the given descriptor sets.
 		 * @param descriptorSets Descriptor sets to allocate memory for.
 		 */
-		DescriptorPool(VkDevice& logicalDevice, const std::vector<DescriptorSet>& descriptorSets);
+		DescriptorPool(VkDevice& logicalDevice, std::vector<DescriptorSet*> descriptorSets);
 
 		/**
 		 * @brief Updates a descriptor identified by its set index and descriptor index (called set and binding in the shaders respectively)
@@ -442,7 +442,7 @@ namespace Engine::Vulkan
 		 * @param descriptorIndex Descriptor index a.k.a. binding.
 		 * @param data The buffer whose data will be sent to the allocated descriptor set.
 		 */
-		void UpdateDescriptor(const uint32_t& setIndex, const uint32_t& descriptorIndex, Buffer& data);
+		void UpdateDescriptor(Descriptor& d, Buffer& data);
 
 		/**
 		 * @brief Updates a descriptor identified by its set indexand descriptor index (called set and binding in the shaders respectively)
@@ -451,7 +451,7 @@ namespace Engine::Vulkan
 		 * @param descriptorIndex Descriptor index a.k.a. binding.
 		 * @param data The buffer whose data will be sent to the allocated descriptor set.
 		 */
-		void UpdateDescriptor(const uint32_t& setIndex, const uint32_t& descriptorIndex, Image& data);
+		void UpdateDescriptor(Descriptor& d, Image& data);
 	};
 
 	/**
@@ -747,8 +747,10 @@ namespace Engine::Vulkan
 				 */
 				Image _texture;
 
-				
-				VkDescriptorPool _descriptorPool;
+				/**
+				 * @brief Descriptor pool that contains all descriptor sets.
+				 */
+				DescriptorPool _descriptorPool;
 
 				/**
 				 * @brief Descriptor set that contains uniform buffer descriptors.
@@ -759,6 +761,16 @@ namespace Engine::Vulkan
 				 * @brief Descriptor set that contains texture sampler descriptors.
 				 */
 				DescriptorSet _samplerSet;
+
+				/**
+				 * @brief Descriptor that contains transformations for the vertex shader.
+				 */
+				Descriptor _transformationsDescriptor;
+
+				/**
+				 * @brief Desscriptor that contains a texture.
+				 */
+				Descriptor _textureDescriptor;
 
 				/**
 				 * @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
