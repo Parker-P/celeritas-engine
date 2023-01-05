@@ -3,7 +3,7 @@
 
 #include <windows.h>
 
-// STL
+// STL.
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -15,14 +15,14 @@
 #include <map>
 #include <bitset>
 
-// Math
+// Math.
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 
-// Image processing
+// Image processing.
 #include <utils/stb_image.h>
 
-// Project local classes
+// Project local classes.
 #include "utils/Json.h"
 #include "structural/IUpdatable.h"
 #include "structural/Singleton.hpp"
@@ -601,9 +601,8 @@ namespace Engine::Vulkan
 		CreateDebugCallback();
 		CreateWindowSurface();
 		_physicalDevice = PhysicalDevice(_instance);
-		FindQueue();
+		FindQueueFamilyIndex();
 		CreateLogicalDeviceAndQueue();
-		vkGetDeviceQueue(_logicalDevice, _queue._familyIndex, 0, &_queue._handle);
 		CreateSemaphores();
 		CreateCommandPool();
 		CreateVertexAndIndexBuffers();
@@ -611,25 +610,6 @@ namespace Engine::Vulkan
 		CreateRenderPass();
 		CreateFramebuffers();
 		LoadTexture();
-
-		auto& shaderResources = _graphicsPipeline._shaderResources;
-
-		shaderResources._transformationDataBuffer = Buffer(_logicalDevice,
-			_physicalDevice,
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			&shaderResources._transformationData,
-			(size_t)sizeof(shaderResources._transformationData));
-
-		shaderResources._transformationsDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, shaderResources._transformationDataBuffer, 0);
-		shaderResources._textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, shaderResources._texture, 0);
-		shaderResources._uniformSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &shaderResources._transformationsDescriptor });
-		shaderResources._samplerSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &shaderResources._textureDescriptor });
-		shaderResources._descriptorPool = DescriptorPool(_logicalDevice, { &shaderResources._uniformSet, &shaderResources._samplerSet });
-
-		UpdateShaderData();
-		shaderResources._descriptorPool.UpdateDescriptor(shaderResources._transformationsDescriptor, shaderResources._transformationDataBuffer);
-
 		CreatePipelineLayout();
 		CreateGraphicsPipeline();
 		AllocateDrawCommandBuffers();
@@ -684,12 +664,12 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::DestroyRenderPass()
 	{
-		_renderPass.depthImage.Destroy();
+		_renderPass._depthImage.Destroy();
 		/*for (auto image : _renderPass.colorImages) {
 			image.Destroy();
 		}*/
 
-		vkDestroyRenderPass(_logicalDevice, _renderPass.handle, nullptr);
+		vkDestroyRenderPass(_logicalDevice, _renderPass._handle, nullptr);
 	}
 
 	void VulkanApplication::DestroySwapchain()
@@ -838,7 +818,7 @@ namespace Engine::Vulkan
 		std::cout << "created window surface" << std::endl;
 	}
 
-	void VulkanApplication::FindQueue()
+	void VulkanApplication::FindQueueFamilyIndex()
 	{
 		auto queueFamilyProperties = _physicalDevice.GetAllQueueFamilyProperties();
 
@@ -864,13 +844,7 @@ namespace Engine::Vulkan
 		VkDeviceCreateInfo deviceCreateInfo = {};
 		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 		deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
-
-		if (_queue._familyIndex == _queue._familyIndex) {
-			deviceCreateInfo.queueCreateInfoCount = 1;
-		}
-		else {
-			deviceCreateInfo.queueCreateInfoCount = 2;
-		}
+		deviceCreateInfo.queueCreateInfoCount = 1;
 
 		// Necessary for shader (for some reason)
 		VkPhysicalDeviceFeatures enabledFeatures = {};
@@ -893,6 +867,8 @@ namespace Engine::Vulkan
 		}
 
 		std::cout << "created logical device" << std::endl;
+
+		vkGetDeviceQueue(_logicalDevice, _queue._familyIndex, 0, &_queue._handle);
 	}
 
 	void VulkanApplication::CreateDebugCallback()
@@ -1105,16 +1081,16 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateFramebuffers()
 	{
-		_swapchain._frameBuffers.resize(_renderPass.colorImages.size());
+		_swapchain._frameBuffers.resize(_renderPass._colorImages.size());
 
-		for (size_t i = 0; i < _renderPass.colorImages.size(); i++) {
+		for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
 
 			// We will render to the same depth image for each frame. 
 			// We can just keep clearing and reusing the same depth image for every frame.
-			VkImageView colorAndDepthImages[2] = { _renderPass.colorImages[i]._imageViewHandle, _renderPass.depthImage._imageViewHandle };
+			VkImageView colorAndDepthImages[2] = { _renderPass._colorImages[i]._imageViewHandle, _renderPass._depthImage._imageViewHandle };
 			VkFramebufferCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			createInfo.renderPass = _renderPass.handle;
+			createInfo.renderPass = _renderPass._handle;
 			createInfo.attachmentCount = 2;
 			createInfo.pAttachments = &colorAndDepthImages[0];
 			createInfo.width = _swapchain._framebufferSize.width;
@@ -1136,7 +1112,7 @@ namespace Engine::Vulkan
 
 			// Acquire image.
 			uint32_t imageIndex;
-			VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain.handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+			VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain._handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
 			// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
 			if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) {
@@ -1173,7 +1149,7 @@ namespace Engine::Vulkan
 			presentInfo.waitSemaphoreCount = 1;
 			presentInfo.pWaitSemaphores = &_renderingFinishedSemaphore;
 			presentInfo.swapchainCount = 1;
-			presentInfo.pSwapchains = &_swapchain.handle;
+			presentInfo.pSwapchains = &_swapchain._handle;
 			presentInfo.pImageIndices = &imageIndex;
 
 			res = vkQueuePresentKHR(_queue._handle, &presentInfo);
@@ -1197,16 +1173,16 @@ namespace Engine::Vulkan
 		// Note: these are the images that swap chain image indices refer to.
 		// Note: actual number of images may differ from requested number, since it's a lower bound.
 		uint32_t actualImageCount = 0;
-		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain.handle, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
+		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
 			std::cerr << "failed to acquire number of swap chain images" << std::endl;
 			exit(1);
 		}
 
-		_renderPass.colorImages.resize(actualImageCount);
+		_renderPass._colorImages.resize(actualImageCount);
 
 		std::vector<VkImage> images;
 		images.resize(actualImageCount);
-		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain.handle, &actualImageCount, images.data()) != VK_SUCCESS) {
+		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, images.data()) != VK_SUCCESS) {
 			std::cerr << "failed to acquire swapchain images" << std::endl;
 			exit(1);
 		}
@@ -1215,18 +1191,18 @@ namespace Engine::Vulkan
 
 		// Create the color images.
 		for (uint32_t i = 0; i < actualImageCount; ++i) {
-			_renderPass.colorImages[i] = Image(_logicalDevice, images[i], VK_FORMAT_R8G8B8A8_UNORM);
+			_renderPass._colorImages[i] = Image(_logicalDevice, images[i], VK_FORMAT_R8G8B8A8_UNORM);
 		}
 
 		// Create the depth attachment.
 		auto& settings = Settings::GlobalSettings::Instance();
-		_renderPass.depthImage = Image(_logicalDevice, _physicalDevice, VK_FORMAT_D32_SFLOAT, _swapchain._framebufferSize, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		_renderPass._depthImage = Image(_logicalDevice, _physicalDevice, VK_FORMAT_D32_SFLOAT, _swapchain._framebufferSize, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		std::cout << "created image views for swap chain images" << std::endl;
 
 		// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for image.
 		VkAttachmentDescription colorAttachmentDescription = {};
-		colorAttachmentDescription.format = _renderPass.colorImages.size() > 0 ? _renderPass.colorImages[0]._format : VK_FORMAT_UNDEFINED;
+		colorAttachmentDescription.format = _renderPass._colorImages.size() > 0 ? _renderPass._colorImages[0]._format : VK_FORMAT_UNDEFINED;
 		colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
 		colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1244,7 +1220,7 @@ namespace Engine::Vulkan
 		// Describes how the render pass is going to use the depth attachment.
 		VkAttachmentDescription depthAttachmentDescription = {};
 		depthAttachmentDescription.flags = 0;
-		depthAttachmentDescription.format = _renderPass.depthImage._format;
+		depthAttachmentDescription.format = _renderPass._depthImage._format;
 		depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
 		depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1300,7 +1276,7 @@ namespace Engine::Vulkan
 		createInfo.dependencyCount = 2;
 		createInfo.pDependencies = &subpassDependencies[0];
 
-		if (vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass.handle) != VK_SUCCESS) {
+		if (vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass._handle) != VK_SUCCESS) {
 			std::cerr << "failed to create render pass" << std::endl;
 			exit(1);
 		}
@@ -1358,7 +1334,7 @@ namespace Engine::Vulkan
 		createInfo.clipped = VK_TRUE;
 		createInfo.oldSwapchain = _swapchain._oldSwapchainHandle;
 
-		if (vkCreateSwapchainKHR(_logicalDevice, &createInfo, nullptr, &_swapchain.handle) != VK_SUCCESS) {
+		if (vkCreateSwapchainKHR(_logicalDevice, &createInfo, nullptr, &_swapchain._handle) != VK_SUCCESS) {
 			std::cerr << "failed to create swapchain" << std::endl;
 			exit(1);
 		}
@@ -1370,7 +1346,7 @@ namespace Engine::Vulkan
 			vkDestroySwapchainKHR(_logicalDevice, _swapchain._oldSwapchainHandle, nullptr);
 		}
 
-		_swapchain._oldSwapchainHandle = _swapchain.handle;
+		_swapchain._oldSwapchainHandle = _swapchain._handle;
 	}
 
 	VkShaderModule VulkanApplication::CreateShaderModule(const std::filesystem::path& absolutePath)
@@ -1564,7 +1540,7 @@ namespace Engine::Vulkan
 		pipelineCreateInfo.pMultisampleState = &multisampleCreateInfo;
 		pipelineCreateInfo.pColorBlendState = &colorBlendCreateInfo;
 		pipelineCreateInfo.layout = _graphicsPipeline._shaderResources._pipelineLayout;
-		pipelineCreateInfo.renderPass = _renderPass.handle;
+		pipelineCreateInfo.renderPass = _renderPass._handle;
 		pipelineCreateInfo.subpass = 0;
 		pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
 		pipelineCreateInfo.basePipelineIndex = -1;
@@ -1582,156 +1558,47 @@ namespace Engine::Vulkan
 		vkDestroyShaderModule(_logicalDevice, fragmentShaderModule, nullptr);
 	}
 
-	//void VulkanApplication::AllocateDescriptorSets()
-	//{
-	//	auto& shaderResources = _graphicsPipeline._shaderResources;
-
-	//	// The amount of sets and descriptor types is defined when creating the descriptor pool.
-	//	VkDescriptorSetLayout layouts[2] = { shaderResources._uniformSet._layout, shaderResources._samplerSet._layout };
-	//	VkDescriptorSetAllocateInfo allocInfo = {};
-	//	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	//	allocInfo.descriptorPool = shaderResources._descriptorPool;
-	//	allocInfo.descriptorSetCount = 2;
-	//	allocInfo.pSetLayouts = layouts;
-
-	//	VkDescriptorSet allocatedDescriptorSetHandles[2];
-	//	if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, allocatedDescriptorSetHandles) != VK_SUCCESS) {
-	//		std::cerr << "failed to create descriptor sets" << std::endl;
-	//		exit(1);
-	//	}
-	//	else {
-	//		std::cout << "created descriptor sets" << std::endl;
-
-	//		shaderResources._uniformSet._handle = allocatedDescriptorSetHandles[0];
-	//		shaderResources._samplerSet._handle = allocatedDescriptorSetHandles[1];
-	//	}
-	//}
-
-	//void VulkanApplication::UpdateDescriptorSetsData()
-	//{
-	//	auto& shaderResources = _graphicsPipeline._shaderResources;
-
-	//	// This creates the actual descriptor.
-	//	auto transformationMatricesDescriptorBuffer = shaderResources._transformationDataBuffer.GenerateDescriptor();
-
-	//	// This structure gives Vulkan info about how and where to send the descriptors to the shaders.
-	//	VkWriteDescriptorSet writeTransformationData = {};
-	//	writeTransformationData.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	//	writeTransformationData.dstSet = shaderResources._uniformSet._handle;
-	//	writeTransformationData.descriptorCount = 1;
-	//	writeTransformationData.descriptorType = shaderResources._uniformSet._layoutBinding.descriptorType;
-	//	writeTransformationData.pBufferInfo = &transformationMatricesDescriptorBuffer;
-	//	writeTransformationData.dstBinding = shaderResources._uniformSet._layoutBinding.binding;
-
-	//	auto textureDescriptorBuffer = shaderResources._texture.GenerateDescriptor();
-	//	VkWriteDescriptorSet writeSamplers = {};
-	//	writeSamplers.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	//	writeSamplers.dstSet = shaderResources._samplerSet._handle;
-	//	writeSamplers.descriptorCount = 1;
-	//	writeSamplers.descriptorType = shaderResources._samplerSet._layoutBinding.descriptorType;
-	//	writeSamplers.pImageInfo = &textureDescriptorBuffer;
-	//	writeSamplers.dstBinding = shaderResources._samplerSet._layoutBinding.binding;
-
-	//	VkWriteDescriptorSet updateInfos[2] = { writeTransformationData, writeSamplers };
-	//	vkUpdateDescriptorSets(_logicalDevice, 2, updateInfos, 0, nullptr);
-	//}
-
-	//void VulkanApplication::CreateDescriptorSetLayout()
-	//{
-	//	auto& shaderResources = _graphicsPipeline._shaderResources;
-
-	//	// Enabling access to vertex attributes to the vertex shader.
-	//	shaderResources._uniformSet._layoutBinding.binding = 0;
-	//	shaderResources._uniformSet._layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	//	shaderResources._uniformSet._layoutBinding.descriptorCount = 1;
-	//	shaderResources._uniformSet._layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-	//	VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo = {};
-	//	descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	//	descriptorLayoutCreateInfo.bindingCount = 1;
-	//	descriptorLayoutCreateInfo.pBindings = &shaderResources._uniformSet._layoutBinding;
-
-	//	if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &shaderResources._uniformSet._layout) != VK_SUCCESS) {
-	//		std::cerr << "failed to create descriptor layout" << std::endl;
-	//		exit(1);
-	//	}
-	//	else {
-	//		std::cout << "created descriptor layout for uniform set" << std::endl;
-	//	}
-
-	//	// And textures for the fragment shader.
-	//	shaderResources._samplerSet._layoutBinding.binding = 1;
-	//	shaderResources._samplerSet._layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	//	shaderResources._samplerSet._layoutBinding.descriptorCount = 1;
-	//	shaderResources._samplerSet._layoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-	//	descriptorLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	//	descriptorLayoutCreateInfo.bindingCount = 1;
-	//	descriptorLayoutCreateInfo.pBindings = &shaderResources._samplerSet._layoutBinding;
-
-	//	if (vkCreateDescriptorSetLayout(_logicalDevice, &descriptorLayoutCreateInfo, nullptr, &shaderResources._samplerSet._layout) != VK_SUCCESS) {
-	//		std::cerr << "failed to create descriptor set layout for sampler set" << std::endl;
-	//		exit(1);
-	//	}
-	//	else {
-	//		std::cout << "created descriptor layout for sampler set" << std::endl;
-	//	}
-	//}
-
-	//void VulkanApplication::CreateDescriptorPool()
-	//{
-	//	auto& shaderResources = _graphicsPipeline._shaderResources;
-
-	//	// This describes how many descriptors we'll create from this pool for each type of descriptor.
-	//	VkDescriptorPoolSize uniformPoolSize;
-	//	uniformPoolSize.type = shaderResources._uniformSet._layoutBinding.descriptorType;
-	//	uniformPoolSize.descriptorCount = shaderResources._uniformSet._layoutBinding.descriptorCount;
-
-	//	VkDescriptorPoolSize samplerPoolSize;
-	//	samplerPoolSize.type = shaderResources._samplerSet._layoutBinding.descriptorType;
-	//	samplerPoolSize.descriptorCount = shaderResources._samplerSet._layoutBinding.descriptorCount;
-
-	//	// maxSets is the maximum number of descriptor sets that can be allocated from the pool.
-	//	// poolSizeCount is the number of elements in pPoolSizes.
-	//	// pPoolSizes is a pointer to an array of VkDescriptorPoolSize structures, each containing a descriptor type and number of descriptors of that type to be allocated in the pool.
-	//	VkDescriptorPoolSize poolSizes[2] = { uniformPoolSize, samplerPoolSize };
-	//	VkDescriptorPoolCreateInfo createInfo = {};
-	//	createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	//	createInfo.maxSets = 2;
-	//	createInfo.poolSizeCount = 2;
-	//	createInfo.pPoolSizes = poolSizes;
-	//	if (vkCreateDescriptorPool(_logicalDevice, &createInfo, nullptr, &_graphicsPipeline._shaderResources._descriptorPool) != VK_SUCCESS) {
-	//		std::cerr << "failed to create descriptor pool" << std::endl;
-	//		exit(1);
-	//	}
-	//	else {
-	//		std::cout << "created descriptor pool" << std::endl;
-	//	}
-	//}
-
 	void VulkanApplication::UpdateShaderData()
 	{
-		_graphicsPipeline._shaderResources._transformationData.objectToWorld = _model._transform._matrix;
-		_graphicsPipeline._shaderResources._transformationData.worldToCamera = _mainCamera._view._matrix;
-		_graphicsPipeline._shaderResources._transformationData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov / 2.0f));
-		_graphicsPipeline._shaderResources._transformationData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
-		_graphicsPipeline._shaderResources._transformationData.nearClipDistance = _mainCamera._nearClippingDistance;
-		_graphicsPipeline._shaderResources._transformationData.farClipDistance = _mainCamera._farClippingDistance;
+		auto& shaderResources = _graphicsPipeline._shaderResources;
 
-		_graphicsPipeline._shaderResources._transformationDataBuffer.UpdateData(&_graphicsPipeline._shaderResources._transformationData, (size_t)sizeof(_graphicsPipeline._shaderResources._transformationData));
+		shaderResources._transformationData.objectToWorld = _model._transform._matrix;
+		shaderResources._transformationData.worldToCamera = _mainCamera._view._matrix;
+		shaderResources._transformationData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov / 2.0f));
+		shaderResources._transformationData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
+		shaderResources._transformationData.nearClipDistance = _mainCamera._nearClippingDistance;
+		shaderResources._transformationData.farClipDistance = _mainCamera._farClippingDistance;
+
+		shaderResources._transformationDataBuffer.UpdateData(&shaderResources._transformationData, (size_t)sizeof(shaderResources._transformationData));
 	}
 
 	void VulkanApplication::CreatePipelineLayout()
 	{
 		auto& shaderResources = _graphicsPipeline._shaderResources;
 
-		VkDescriptorSetLayout layouts[2] = { shaderResources._uniformSet._layout, shaderResources._samplerSet._layout };
+		shaderResources._transformationDataBuffer = Buffer(_logicalDevice,
+			_physicalDevice,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+			&shaderResources._transformationData,
+			(size_t)sizeof(shaderResources._transformationData));
+
+		shaderResources._transformationsDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, shaderResources._transformationDataBuffer, 0);
+		shaderResources._textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, shaderResources._texture, 0);
+		shaderResources._uniformSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &shaderResources._transformationsDescriptor });
+		shaderResources._samplerSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &shaderResources._textureDescriptor });
+		shaderResources._descriptorPool = DescriptorPool(_logicalDevice, { &shaderResources._uniformSet, &shaderResources._samplerSet });
+
+		UpdateShaderData();
+		shaderResources._descriptorPool.UpdateDescriptor(shaderResources._transformationsDescriptor, shaderResources._transformationDataBuffer);
+
+		std::vector<VkDescriptorSetLayout> layouts = { shaderResources._uniformSet._layout, shaderResources._samplerSet._layout };
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutCreateInfo.setLayoutCount = 2;
-		pipelineLayoutCreateInfo.pSetLayouts = layouts;
+		pipelineLayoutCreateInfo.setLayoutCount = layouts.size();
+		pipelineLayoutCreateInfo.pSetLayouts = layouts.data();
 
-		if (vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_graphicsPipeline._shaderResources._pipelineLayout) != VK_SUCCESS) {
+		if (vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &shaderResources._pipelineLayout) != VK_SUCCESS) {
 			std::cerr << "failed to create pipeline layout" << std::endl;
 			exit(1);
 		}
@@ -1743,13 +1610,13 @@ namespace Engine::Vulkan
 	void VulkanApplication::AllocateDrawCommandBuffers()
 	{
 		// Allocate graphics command buffers
-		_drawCommandBuffers.resize(_renderPass.colorImages.size());
+		_drawCommandBuffers.resize(_renderPass._colorImages.size());
 
 		VkCommandBufferAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.commandPool = _commandPool;
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandBufferCount = (uint32_t)_renderPass.colorImages.size();
+		allocInfo.commandBufferCount = (uint32_t)_renderPass._colorImages.size();
 
 		if (vkAllocateCommandBuffers(_logicalDevice, &allocInfo, _drawCommandBuffers.data()) != VK_SUCCESS) {
 			std::cerr << "failed to allocate draw command buffers" << std::endl;
@@ -1777,7 +1644,7 @@ namespace Engine::Vulkan
 		subResourceRange.layerCount = 1;
 
 		// Record command buffer for each swap image
-		for (size_t i = 0; i < _renderPass.colorImages.size(); i++) {
+		for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
 			vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
 
 			// If present queue family and graphics queue family are different, then a barrier is necessary
@@ -1790,7 +1657,7 @@ namespace Engine::Vulkan
 			presentToDrawBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 			presentToDrawBarrier.srcQueueFamilyIndex = _queue._familyIndex;
 			presentToDrawBarrier.dstQueueFamilyIndex = _queue._familyIndex;
-			presentToDrawBarrier.image = _renderPass.colorImages[i]._imageHandle;
+			presentToDrawBarrier.image = _renderPass._colorImages[i]._imageHandle;
 			presentToDrawBarrier.subresourceRange = subResourceRange;
 
 			vkCmdPipelineBarrier(_drawCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
@@ -1806,7 +1673,7 @@ namespace Engine::Vulkan
 
 			VkRenderPassBeginInfo renderPassBeginInfo = {};
 			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			renderPassBeginInfo.renderPass = _renderPass.handle;
+			renderPassBeginInfo.renderPass = _renderPass._handle;
 			renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[i];
 			renderPassBeginInfo.renderArea.offset.x = 0;
 			renderPassBeginInfo.renderArea.offset.y = 0;
@@ -1832,12 +1699,12 @@ namespace Engine::Vulkan
 			vkCmdBindIndexBuffer(_drawCommandBuffers[i], _graphicsPipeline._indexBuffer._handle, 0, indexType);
 			vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)_model._mesh._faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(_drawCommandBuffers[i]);
-#pragma endregion
 
 			if (vkEndCommandBuffer(_drawCommandBuffers[i]) != VK_SUCCESS) {
 				std::cerr << "failed to record command buffer" << std::endl;
 				exit(1);
 			}
+#pragma endregion
 		}
 
 		std::cout << "recorded draw commands in draw command buffers." << std::endl;
@@ -1953,15 +1820,14 @@ namespace Engine::Vulkan
 
 		vkFreeCommandBuffers(_logicalDevice, _commandPool, 1, &copyCommandBuffer);
 		stagingBuffer.Destroy();
-		std::cout << "Texture loaded successfully " << std::endl;
+		std::cout << "texture loaded successfully" << std::endl;
 	}
 
 }
 
 int main()
 {
-	auto& globalSettings = Settings::GlobalSettings::Instance();
-	globalSettings.Load(Settings::Paths::_settings());
+	Settings::GlobalSettings::Instance().Load(Settings::Paths::_settings());
 	Engine::Vulkan::VulkanApplication app;
 	app.Run();
 

@@ -11,7 +11,7 @@ layout(location = 2) in vec2 inUv;
 layout(location = 0) out vec3 vertexColor;
 layout (location = 1) out vec2 texCoord;
 
-// Variables coming from descriptor sets.
+// Variables coming from descriptor with binding number 0 at descriptor set 0.
 layout(set = 0, binding = 0) uniform UniformBuffer {
 	float tanHalfHorizontalFov;
 	float aspectRatio;
@@ -36,8 +36,8 @@ void main()
 	// This is exactly how the projection transformation was thought about but in reverse; the point in space outside the window moves towards your pupil untill it
 	// eventually hits the window. When it hits the window, you just take the distance from the center of the window to the hit point: these will be your 2D screen
 	// coordinates.
-	// This calculation is based on the fact that Vulkan's coordinate system is X right, Y down, Z forward and follows the right hand rule.
-	// In our engine we have X right, Y up, Z forward, and we follow the left hand rule.
+	// This calculation is based on the fact that Vulkan's coordinate system is X right, Y down, Z forward (follows the right hand rule).
+	// In our engine we have X right, Y up, Z forward (we follow the left hand rule).
 	float xCoord = (cameraSpacePosition.x) / (cameraSpacePosition.z * uniformBuffer.tanHalfHorizontalFov * uniformBuffer.aspectRatio);
 	float yCoord = (-cameraSpacePosition.y) / (cameraSpacePosition.z * uniformBuffer.tanHalfHorizontalFov);
 	float zCoord = (cameraSpacePosition.z - uniformBuffer.nearClipDistance) / (uniformBuffer.farClipDistance - uniformBuffer.nearClipDistance);
@@ -51,5 +51,7 @@ void main()
 	vec3 lightDirection = vec3(temp.x, temp.y, temp.z);
 	float colorMultiplier = (dot(-lightDirection, inNormal) + 1.0f) / 2.0f;
 	vertexColor = colorMultiplier * vec3(1.0f, 1.0f, 1.0f); // RGB
+
+	// Forward the uv coordinate of the vertex to the fragment stage.
 	texCoord = inUv;
 }

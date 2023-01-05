@@ -166,7 +166,8 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Updates the data contained in this buffer. Notes: buffer must be marked as VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT and its
-		 * memory mapped to the _dataAddress member for this to work.
+		 * memory mapped to the _dataAddress member for this to work. To update a GPU only buffer, you need to use a staging buffer and
+		 * submit a buffer transfer command to a queue, then have Vulkan execute the command.
 		 *
 		 * @param data Address of where the data begins in memory.
 		 * @param sizeInBytes Size of the data in bytes.
@@ -279,7 +280,7 @@ namespace Engine::Vulkan
 	 * For example, in a shader, a descriptor set is declared as follows:
 	 * #version 450
 	 *
-	 * // Descriptor set declaration. The shader will access the descriptor set at index 0 with binding number 1.
+	 * // Descriptor declaration. The shader will access the descriptor set at index 0 with binding number 0.
 	 * layout(set = 0, binding = 0) uniform UniformBuffer 
 	 * {
 	 *     ... data in the uniform buffer ...
@@ -377,8 +378,7 @@ namespace Engine::Vulkan
 		std::vector<Descriptor*> _descriptors;
 
 		/**
-		 * @brief After having allocated GPU-accessible memory for the descriptor set, writes the data contained in its descriptors 
-		 * to the correct allocated portion of memory.
+		 * @brief Writes the data contained in its descriptors to the correct GPU-visible allocated portion of memory.
 		 */
 		void SendDescriptorData();
 
@@ -545,19 +545,19 @@ namespace Engine::Vulkan
 			/**
 			 * @brief Identifier for Vulkan.
 			 */
-			VkRenderPass handle;
+			VkRenderPass _handle;
 
 			/**
 			 * @brief Attachments used by the GPU to write color information to.
 			 */
-			std::vector<Image> colorImages;
+			std::vector<Image> _colorImages;
 
 			/**
 			 * @brief Attachment that stores per-pixel depth information for the hardwired depth testing stage.
 			 * This makes sure that the pixels of each triangle are rendered or not, depending on which pixel
 			 * is closer to the camera, which is the information stored in this image.
 			 */
-			Image depthImage;
+			Image _depthImage;
 
 		} _renderPass;
 
@@ -571,7 +571,7 @@ namespace Engine::Vulkan
 			/**
 			 * @brief Identifier for Vulkan.
 			 */
-			VkSwapchainKHR handle;
+			VkSwapchainKHR _handle;
 
 			/**
 			 * @brief These are the buffers that contain the final rendered images shown on screen.
@@ -875,7 +875,7 @@ namespace Engine::Vulkan
 		 * @brief Finds the index of a queue family whose queues can contain command buffers that hold
 		 * Vulkan commands that draw to the window surface.
 		 */
-		void FindQueue();
+		void FindQueueFamilyIndex();
 
 		/**
 		 * @brief Creates the logical device and the queue that will be used to contain Vulkan commands.
