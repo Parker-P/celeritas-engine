@@ -38,13 +38,13 @@ void main()
 	// coordinates.
 	// This calculation is based on the fact that Vulkan's coordinate system is X right, Y down, Z forward (follows the right hand rule).
 	// In our engine we have X right, Y up, Z forward (we follow the left hand rule).
-	float xCoord = (cameraSpacePosition.x) / (cameraSpacePosition.z * uniformBuffer.tanHalfHorizontalFov * uniformBuffer.aspectRatio);
-	float yCoord = (-cameraSpacePosition.y) / (cameraSpacePosition.z * uniformBuffer.tanHalfHorizontalFov);
+	float xCoord = cameraSpacePosition.x / (uniformBuffer.tanHalfHorizontalFov * uniformBuffer.aspectRatio);
+	float yCoord = -cameraSpacePosition.y / uniformBuffer.tanHalfHorizontalFov;
 	float zCoord = (cameraSpacePosition.z - uniformBuffer.nearClipDistance) / (uniformBuffer.farClipDistance - uniformBuffer.nearClipDistance);
 
 	// Remember that the next stages are going to divide each component of gl_position by its w component, meaning that
 	// gl_position = vec4(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w, gl_position.w / gl_position.w)
-	gl_Position = vec4(xCoord, yCoord, zCoord, 1.0f);
+	gl_Position = vec4(xCoord, yCoord, zCoord * cameraSpacePosition.z, cameraSpacePosition.z);
 	
 	// Calculate the color of each vertex so the fragment shader can interpolate the pixels rendered between them.
 	vec4 temp = vec4(0.0f, -1.0f, 0.0f, 0.0f);
