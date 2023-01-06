@@ -72,7 +72,7 @@ namespace Engine::Scenes
 			std::cout << "Loading scene " << filename << "\n";
 			GltfData gltfData{};
 
-			// Header
+			// Header.
 			unsigned int intSize = sizeof(uint32_t);
 			char* intBuffer = new char[intSize];
 			file.read(intBuffer, intSize);
@@ -82,7 +82,7 @@ namespace Engine::Scenes
 			file.read(intBuffer, intSize);
 			gltfData.header.fileLength = ToUInt32(intBuffer);
 
-			// JSON
+			// JSON.
 			auto jsonChunkType = 0x4E4F534A; // JSON chunk type as defined in the gltf spec, which is just JSON as a char string, but converted to an integer by concatenating the bits of each character.
 			auto isJson = false;
 			while (!isJson) {
@@ -100,7 +100,7 @@ namespace Engine::Scenes
 			}
 
 
-			// Binary
+			// Binary.
 			file.read(intBuffer, intSize);
 			gltfData.binaryBuffer.chunkLength = ToUInt32(intBuffer);
 			file.read(intBuffer, intSize);
@@ -108,9 +108,9 @@ namespace Engine::Scenes
 			gltfData.binaryBuffer.data = new char[gltfData.binaryBuffer.chunkLength];
 			file.read(gltfData.binaryBuffer.data, gltfData.binaryBuffer.chunkLength);
 
-			// Parse the JSON data
-			json::parsing::parse_results json = json::parsing::parse(gltfData.json.data);
-			json::jobject rootObj = json::jobject::parse(json.value);
+			// Parse the JSON data.
+			sjson::parsing::parse_results json = sjson::parsing::parse(gltfData.json.data);
+			sjson::jobject rootObj = sjson::jobject::parse(json.value);
 
 			// To get the vertex positions you need to:
 			// 1) access the "meshes" array and read the "attributes" array inside 
@@ -128,21 +128,21 @@ namespace Engine::Scenes
 			//    how big the info is in bytes so you know where to start and how many 
 			//    bytes to read.
 			//    
-			// This approach holds in general for other info as well
+			// This approach holds in general for other info as well.
 
-			// Get meshes data
+			// Get meshes data.
 			GltfScene gltfScene;
 
-			auto meshes = json::jobject::parse(rootObj.get("meshes"));
+			auto meshes = sjson::jobject::parse(rootObj.get("meshes"));
 			auto meshCount = meshes.size();
 
-			auto accessors = json::jobject::parse(rootObj.get("accessors"));
+			auto accessors = sjson::jobject::parse(rootObj.get("accessors"));
 			auto accessorsCount = accessors.size();
 
-			auto bufferViews = json::jobject::parse(rootObj.get("bufferViews"));
+			auto bufferViews = sjson::jobject::parse(rootObj.get("bufferViews"));
 			auto bufferViewsCount = bufferViews.size();
 
-			// Parse each mesh, create a GltfMesh and add each mesh to the GltfScene
+			// Parse each mesh, create a GltfMesh and add each mesh to the GltfScene.
 			for (int i = 0; i < meshCount; ++i) {
 
 				GltfMesh gltfMesh;
@@ -150,9 +150,9 @@ namespace Engine::Scenes
 				auto name = (std::string)meshes.array(i).get("name");
 				gltfMesh.name = name;
 				auto primitives = meshes.array(i).get("primitives");
-				auto primitivesCount = json::jobject::parse(primitives).size();
+				auto primitivesCount = sjson::jobject::parse(primitives).size();
 
-				// Get primitives data
+				// Get primitives data.
 				for (int j = 0; j < primitivesCount; ++j) {
 					GltfMesh::Primitive primitive{};
 					auto attributes = primitives.array(j).get("attributes");
@@ -164,7 +164,7 @@ namespace Engine::Scenes
 					primitive.vertexAttributes.normalsAccessorIndex = NORMAL;
 
 					int TEXCOORD_0 = (int)attributes.get("TEXCOORD_0");
-					if (((json::jobject)attributes).has_key("TEXCOORD_0")) {
+					if (((sjson::jobject)attributes).has_key("TEXCOORD_0")) {
 						TEXCOORD_0 = (int)attributes.get("TEXCOORD_0");
 					}
 					primitive.vertexAttributes.uvCoordsAccessorIndex = TEXCOORD_0;
@@ -177,7 +177,7 @@ namespace Engine::Scenes
 				gltfScene.meshes.push_back(gltfMesh);
 			}
 
-			// Get accessors data
+			// Get accessors data.
 			for (int i = 0; i < accessorsCount; ++i) {
 				auto accessorBufferViewIndex = (int)accessors.array(i).get("bufferView");
 				auto accessorComponentType = (int)accessors.array(i).get("componentType");
@@ -186,26 +186,27 @@ namespace Engine::Scenes
 				gltfScene.accessors.push_back({ accessorBufferViewIndex, accessorComponentType, accessorCount, GetDataType(accessorType) });
 			}
 
-			// Get bufferviews data
+			// Get bufferviews data.
 			for (int i = 0; i < bufferViewsCount; ++i) {
-
 				auto bufferViewLength = (int)bufferViews.array(i).get("byteLength");
-				auto bufferViewStart = (int)bufferViews.array(i).get("byteOffset");
+				auto bufferViewStart = 0;
+				try { bufferViewStart = (int)bufferViews.array(i).get("byteOffset"); }
+				catch (sjson::invalid_key e) {};
 				gltfScene.bufferViews.push_back({ bufferViewLength, bufferViewStart });
 			}
 
-			// Create a local scene from the gltf data
+			// Create a local scene from the gltf data.
 			Scene scene;
 
-			// For each mesh
+			// For each mesh.
 			for (int i = 0; i < gltfScene.meshes.size(); ++i) {
 
-				// For each primitive
+				// For each primitive.
 				GameObject object;
 				Mesh mesh;
 				for (int j = 0; j < gltfScene.meshes[i].primitives.size(); ++j) {
 
-					// Read positions, normals, uvs and face indices
+					// Read positions, normals, uvs and face indices.
 					auto vertexPositionsAccessorIndex = gltfScene.meshes[i].primitives[j].vertexAttributes.positionsAccessorIndex;
 					auto vertexNormalsAccessorIndex = gltfScene.meshes[i].primitives[j].vertexAttributes.normalsAccessorIndex;
 					auto uvCoordsAccessorIndex = gltfScene.meshes[i].primitives[j].vertexAttributes.uvCoordsAccessorIndex;

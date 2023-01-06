@@ -50,7 +50,7 @@ void main()
 	vec4 temp = vec4(0.0f, -1.0f, 0.0f, 0.0f);
 	vec3 lightDirection = vec3(temp.x, temp.y, temp.z);
 	float colorMultiplier = (dot(-lightDirection, inNormal) + 1.0f) / 2.0f;
-	vertexColor = colorMultiplier * vec3(1.0f, 1.0f, 1.0f); // RGB
+	vertexColor = colorMultiplier * vec3(1.0f, 1.0f, 1.0f); // RGB.
 
 	// Forward the uv coordinate of the vertex to the fragment stage.
 	texCoord = inUv;

@@ -25,14 +25,14 @@ namespace Settings
 		// Read the json file and parse it.
 		auto text = Utils::File::ReadAllText(absolutePathToJson);
 
-		json::parsing::parse_results json = json::parsing::parse(text.data());
-		json::jobject rootObj = json::jobject::parse(json.value);
+		sjson::parsing::parse_results json = sjson::parsing::parse(text.data());
+		sjson::jobject rootObj = sjson::jobject::parse(json.value);
 
 		// Get the values from the parsed result.
 		auto evlJson = rootObj.get("EnableValidationLayers");
 		_enableValidationLayers = Utils::Converter::Convert<std::string, bool>(TrimEnds(evlJson));
 
-		auto validationLayers = json::jobject::parse(rootObj.get("ValidationLayers"));
+		auto validationLayers = sjson::jobject::parse(rootObj.get("ValidationLayers"));
 		_validationLayers.resize(validationLayers.size());
 
 		for (int i = 0; i < validationLayers.size(); ++i) {
@@ -44,13 +44,13 @@ namespace Settings
 			_validationLayers[i] = ch;
 		}
 
-		auto windowSize = json::jobject::parse(rootObj.get("WindowSize"));
+		auto windowSize = sjson::jobject::parse(rootObj.get("WindowSize"));
 		auto width = windowSize.get("Width");
 		auto height = windowSize.get("Height");
 		_windowWidth = Utils::Converter::Convert<std::string, int>(width);
 		_windowHeight = Utils::Converter::Convert<std::string, int>(height);
 
-		auto input = json::jobject::parse(rootObj.get("Input"));
+		auto input = sjson::jobject::parse(rootObj.get("Input"));
 		auto sens = input.get("MouseSensitivity");
 		_mouseSensitivity = Utils::Converter::Convert<std::string, float>(sens);
 	}

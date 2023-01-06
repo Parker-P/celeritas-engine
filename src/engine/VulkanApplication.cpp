@@ -20,7 +20,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 // Image processing.
-#include <utils/stb_image.h>
+#include <stb/stb_image.h>
+
+// Scene loading.
+#include <tinygltf/tiny_gltf.h>
 
 // Project local classes.
 #include "utils/Json.h"
@@ -928,10 +931,17 @@ namespace Engine::Vulkan
 	void VulkanApplication::LoadScene() {
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\2CylinderEngine.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\axesTest.glb)");
-		_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
+		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monster.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\ItalianFlagTriangle.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\test.glb)");
+		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\mp5k.glb)");
+		tinygltf::Model model;
+		tinygltf::TinyGLTF loader;
+		std::string err;
+		std::string warn;
+
+		bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, std::filesystem::current_path().string() + R"(\models\mp5k.glb)");
 		_model = _scene._objects[0];
 
 		//std::vector<Scenes::Mesh::Vertex> verts{};

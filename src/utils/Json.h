@@ -19,7 +19,7 @@
 #include <cctype>
 
  /*! \brief Base namespace for simpleson */
-namespace json
+namespace sjson
 {
 	/*! \brief Exception used for invalid JSON keys */
 	class invalid_key : public std::exception
@@ -250,10 +250,10 @@ namespace json
 		 *
 		 * \todo Currently, the comparison just seralizes both objects and compares the strings, which is probably not as efficent as it could be
 		 */
-		bool operator== (const json::jobject other) const { return ((std::string)(*this)) == (std::string)other; }
+		bool operator== (const sjson::jobject other) const { return ((std::string)(*this)) == (std::string)other; }
 
 		/*! \brief Comparison operator */
-		bool operator!= (const json::jobject other) const { return ((std::string)(*this)) != (std::string)other; }
+		bool operator!= (const sjson::jobject other) const { return ((std::string)(*this)) != (std::string)other; }
 
 		/*! \brief Assignment operator */
 		inline jobject& operator=(const jobject rhs)
@@ -269,9 +269,9 @@ namespace json
 		 */
 		jobject& operator+=(const kvp& other)
 		{
-			if (!this->array_flag && this->has_key(other.first)) throw json::parsing_error("Key conflict");
-			if (this->array_flag && other.first != "") throw json::parsing_error("Array cannot have key");
-			if (!this->array_flag && other.first == "") throw json::parsing_error("Missing key");
+			if (!this->array_flag && this->has_key(other.first)) throw sjson::parsing_error("Key conflict");
+			if (this->array_flag && other.first != "") throw sjson::parsing_error("Array cannot have key");
+			if (!this->array_flag && other.first == "") throw sjson::parsing_error("Missing key");
 			this->data.push_back(other);
 			return *this;
 		}
@@ -279,8 +279,8 @@ namespace json
 		/*! \brief Appends one JSON object to another */
 		jobject& operator+=(const jobject& other)
 		{
-			if (this->array_flag != other.array_flag) throw json::parsing_error("Array/object mismatch");
-			json::jobject copy(other);
+			if (this->array_flag != other.array_flag) throw sjson::parsing_error("Array/object mismatch");
+			sjson::jobject copy(other);
 			for (size_t i = 0; i < copy.size(); i++) {
 				this->operator+=(copy.data.at(i));
 			}
@@ -368,9 +368,9 @@ namespace json
 		 */
 		inline std::string get(const std::string& key) const
 		{
-			if (this->array_flag) throw json::invalid_key(key);
+			if (this->array_flag) throw sjson::invalid_key(key);
 			for (size_t i = 0; i < this->size(); i++) if (this->data.at(i).first == key) return this->get(i);
-			throw json::invalid_key(key);
+			throw sjson::invalid_key(key);
 		}
 
 		/*! \brief Removes the entry associated with the key
@@ -408,7 +408,7 @@ namespace json
 			template<typename T>
 			inline T get_number(const char* format) const
 			{
-				return json::parsing::get_number<T>(this->ref().c_str(), format);
+				return sjson::parsing::get_number<T>(this->ref().c_str(), format);
 			}
 
 			/*! \brief Converts a serialized array of numbers to a vector of numbers
@@ -420,11 +420,11 @@ namespace json
 			template<typename T>
 			inline std::vector<T> get_number_array(const char* format) const
 			{
-				std::vector<std::string> numbers = json::parsing::parse_array(this->ref().c_str());
+				std::vector<std::string> numbers = sjson::parsing::parse_array(this->ref().c_str());
 				std::vector<T> result;
 				for (size_t i = 0; i < numbers.size(); i++)
 				{
-					result.push_back(json::parsing::get_number<T>(numbers[i].c_str(), format));
+					result.push_back(sjson::parsing::get_number<T>(numbers[i].c_str(), format));
 				}
 				return result;
 			}
@@ -433,8 +433,8 @@ namespace json
 			/*! \brief Returns a string representation of the value */
 			inline std::string as_string() const
 			{
-				return json::parsing::unescape_quotes(
-					json::parsing::parse(this->ref().c_str()).value.c_str()
+				return sjson::parsing::unescape_quotes(
+					sjson::parsing::parse(this->ref().c_str()).value.c_str()
 				);
 			}
 
@@ -475,13 +475,13 @@ namespace json
 			 *
 			 * \note This method also works for JSON arrays
 			 */
-			inline json::jobject as_object() const
+			inline sjson::jobject as_object() const
 			{
-				return json::jobject::parse(this->ref().c_str());
+				return sjson::jobject::parse(this->ref().c_str());
 			}
 
 			/*! \see json::jobject::entry::as_object() */
-			inline operator json::jobject() const
+			inline operator sjson::jobject() const
 			{
 				return this->as_object();
 			}
@@ -508,16 +508,16 @@ namespace json
 			operator std::vector<double>() const;
 
 			/*! \brief Casts an array of JSON objects */
-			operator std::vector<json::jobject>() const
+			operator std::vector<sjson::jobject>() const
 			{
-				const std::vector<std::string> objs = json::parsing::parse_array(this->ref().c_str());
-				std::vector<json::jobject> results;
-				for (size_t i = 0; i < objs.size(); i++) results.push_back(json::jobject::parse(objs[i].c_str()));
+				const std::vector<std::string> objs = sjson::parsing::parse_array(this->ref().c_str());
+				std::vector<sjson::jobject> results;
+				for (size_t i = 0; i < objs.size(); i++) results.push_back(sjson::jobject::parse(objs[i].c_str()));
 				return results;
 			}
 
 			/*! \brief Casts an array of strings */
-			operator std::vector<std::string>() const { return json::parsing::parse_array(this->ref().c_str()); }
+			operator std::vector<std::string>() const { return sjson::parsing::parse_array(this->ref().c_str()); }
 
 			/*! \brief Casts an array
 			 *
@@ -532,14 +532,14 @@ namespace json
 			/*! \brief Returns true if the value is a boolean and set to true */
 			inline bool is_true() const
 			{
-				json::parsing::parse_results result = json::parsing::parse(this->ref().c_str());
-				return (result.type == json::jtype::jbool && result.value == "true");
+				sjson::parsing::parse_results result = sjson::parsing::parse(this->ref().c_str());
+				return (result.type == sjson::jtype::jbool && result.value == "true");
 			}
 
 			/*! \brief Returns true if the value is a null value */
 			inline bool is_null() const
 			{
-				return json::parsing::parse(this->ref().c_str()).type == json::jtype::jnull;
+				return sjson::parsing::parse(this->ref().c_str()).type == sjson::jtype::jnull;
 			}
 		};
 
@@ -578,7 +578,7 @@ namespace json
 			 */
 			inline const_value get(const std::string& key) const
 			{
-				return const_value(json::jobject::parse(this->data).get(key));
+				return const_value(sjson::jobject::parse(this->data).get(key));
 			}
 
 			/*! \brief Returns another constant value from this array
@@ -590,7 +590,7 @@ namespace json
 			 */
 			inline const_value array(const size_t index) const
 			{
-				return const_value(json::jobject::parse(this->data).get(index));
+				return const_value(sjson::jobject::parse(this->data).get(index));
 			}
 		};
 
@@ -612,7 +612,7 @@ namespace json
 			inline const std::string& ref() const
 			{
 				for (size_t i = 0; i < this->source.size(); i++) if (this->source.data.at(i).first == key) return this->source.data.at(i).second;
-				throw json::invalid_key(key);
+				throw sjson::invalid_key(key);
 			}
 
 		public:
@@ -636,9 +636,9 @@ namespace json
 			const_value array(size_t index) const
 			{
 				const char* value = this->ref().c_str();
-				if (json::jtype::detect(value) != json::jtype::jarray)
+				if (sjson::jtype::detect(value) != sjson::jtype::jarray)
 					throw std::invalid_argument("Input is not an array");
-				const std::vector<std::string> values = json::parsing::parse_array(value);
+				const std::vector<std::string> values = sjson::parsing::parse_array(value);
 				return const_value(values[index]);
 			}
 		};
@@ -647,7 +647,7 @@ namespace json
 		 *
 		 * \todo Currently, proxies only support JSON object and not arrays
 		 */
-		class proxy : public json::jobject::const_proxy
+		class proxy : public sjson::jobject::const_proxy
 		{
 		private:
 			/*! \brief The parent object to be manipulated */
@@ -663,7 +663,7 @@ namespace json
 			template<typename T>
 			inline void set_number(const T value, const char* format)
 			{
-				this->sink.set(key, json::parsing::get_number_string(value, format));
+				this->sink.set(key, sjson::parsing::get_number_string(value, format));
 			}
 
 			/*! \brief Stores an array of values
@@ -685,7 +685,7 @@ namespace json
 				std::vector<std::string> numbers;
 				for (size_t i = 0; i < values.size(); i++)
 				{
-					numbers.push_back(json::parsing::get_number_string(values[i], format));
+					numbers.push_back(sjson::parsing::get_number_string(values[i], format));
 				}
 				this->set_array(numbers);
 			}
@@ -696,14 +696,14 @@ namespace json
 			 * @param key The key for the value to be updated
 			 */
 			proxy(jobject& source, const std::string key)
-				: json::jobject::const_proxy(source, key),
+				: sjson::jobject::const_proxy(source, key),
 				sink(source)
 			{ }
 
 			/*! \brief Assigns a string value */
 			inline void operator= (const std::string value)
 			{
-				this->sink.set(this->key, "\"" + json::parsing::escape_quotes(value.c_str()) + "\"");
+				this->sink.set(this->key, "\"" + sjson::parsing::escape_quotes(value.c_str()) + "\"");
 			}
 
 			/*! \brief Assigns a string value */
@@ -734,7 +734,7 @@ namespace json
 			void operator=(const float input) { this->set_number(input, "%e"); }
 
 			/*! \brief Assigns a JSON object or array */
-			void operator=(json::jobject input)
+			void operator=(sjson::jobject input)
 			{
 				this->sink.set(key, (std::string)input);
 			}
@@ -764,7 +764,7 @@ namespace json
 			void operator=(const std::vector<std::string> input) { this->set_array(input, true); }
 
 			/*! \brief Assigns an array of JSON objects */
-			void operator=(const std::vector<json::jobject> input)
+			void operator=(const std::vector<sjson::jobject> input)
 			{
 				std::vector<std::string> objs;
 				for (size_t i = 0; i < input.size(); i++)
@@ -805,7 +805,7 @@ namespace json
 		 */
 		inline virtual jobject::proxy operator[](const std::string key)
 		{
-			if (this->array_flag) throw json::invalid_key(key);
+			if (this->array_flag) throw sjson::invalid_key(key);
 			return jobject::proxy(*this, key);
 		}
 
@@ -817,7 +817,7 @@ namespace json
 		 */
 		inline virtual const jobject::const_proxy operator[](const std::string key) const
 		{
-			if (this->array_flag) throw json::invalid_key(key);
+			if (this->array_flag) throw sjson::invalid_key(key);
 			return jobject::const_proxy(*this, key);
 		}
 
