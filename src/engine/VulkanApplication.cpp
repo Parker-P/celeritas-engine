@@ -929,13 +929,6 @@ namespace Engine::Vulkan
 	}
 
 	void VulkanApplication::LoadScene() {
-		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\2CylinderEngine.glb)");
-		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\axesTest.glb)");
-		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monkey.glb)");
-		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\monster.glb)");
-		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\ItalianFlagTriangle.glb)");
-		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\test.glb)");
-		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\mp5k.glb)");
 		tinygltf::Model gltfScene;
 		tinygltf::TinyGLTF loader;
 		std::string err;
@@ -943,7 +936,8 @@ namespace Engine::Vulkan
 
 		Scenes::Scene scene;
 
-		auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
+		//auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
+		auto scenePath = std::filesystem::current_path().string() + R"(\models\plane.glb)";
 		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath);
 		std::cout << warn << std::endl;
 		std::cout << err << std::endl;
@@ -963,21 +957,22 @@ namespace Engine::Vulkan
 				auto uvCoords1Accessor = gltfScene.accessors[uvCoords1AccessorIndex];
 				auto uvCoords2Accessor = gltfScene.accessors[uvCoords2AccessorIndex];
 
+				auto vertexPositionsCount = positionsAccessor.count;
 				auto vertexPositionsBufferIndex = gltfScene.bufferViews[positionsAccessor.bufferView].buffer;
 				auto vertexPositionsBufferOffset = gltfScene.bufferViews[positionsAccessor.bufferView].byteOffset;
 				auto vertexPositionsBufferSize = gltfScene.bufferViews[positionsAccessor.bufferView].byteLength;
 				auto vertexPositionsBufferStride = gltfScene.bufferViews[positionsAccessor.bufferView].byteStride;
 				
-				std::vector<glm::vec3> positions(vertexPositionsBufferSize);
-				memcpy(positions.data(), gltfScene.buffers[vertexPositionsBufferIndex].data.data() + vertexPositionsBufferOffset, vertexPositionsBufferSize);
+				std::vector<glm::vec3> vertexPositions(vertexPositionsCount);
+				memcpy(vertexPositions.data(), gltfScene.buffers[vertexPositionsBufferIndex].data.data() + vertexPositionsBufferOffset, vertexPositionsBufferSize);
 
 				auto vertexNormalsBufferIndex = gltfScene.bufferViews[normalsAccessor.bufferView].buffer;
 				auto vertexNormalsBufferOffset = gltfScene.bufferViews[normalsAccessor.bufferView].byteOffset;
 				auto vertexNormalsBufferSize = gltfScene.bufferViews[normalsAccessor.bufferView].byteLength;
 				auto vertexNormalsBufferStride = gltfScene.bufferViews[normalsAccessor.bufferView].byteStride;
 
-				std::vector<glm::vec3> normals(vertexNormalsBufferSize);
-				memcpy(normals.data(), gltfScene.buffers[vertexNormalsBufferIndex].data.data() + vertexNormalsBufferOffset, vertexNormalsBufferSize);
+				std::vector<glm::vec3> vertexNormals(vertexNormalsBufferSize);
+				memcpy(vertexNormals.data(), gltfScene.buffers[vertexNormalsBufferIndex].data.data() + vertexNormalsBufferOffset, vertexNormalsBufferSize);
 				
 				auto uvCoords0BufferIndex = gltfScene.bufferViews[uvCoords0Accessor.bufferView].buffer;
 				auto uvCoords0BufferOffset = gltfScene.bufferViews[uvCoords0Accessor.bufferView].byteOffset;
@@ -1003,12 +998,19 @@ namespace Engine::Vulkan
 				std::vector<glm::vec2> uvCoords2(uvCoords2BufferSize);
 				memcpy(uvCoords2.data(), gltfScene.buffers[uvCoords2BufferIndex].data.data() + uvCoords2BufferOffset, uvCoords2BufferSize);
 
+				gameObject._mesh._vertices.resize(vertexPositions.size());
+				for (int i = 0; i < vertexPositions.size(); ++i) {
+					Scenes::Mesh::Vertex v;
+					v._position = vertexPositions[i];
+					v._normal = vertexNormals[i];
+					//v._uvCoord = uvCoords0[i];
+					//gameObject._mesh._vertices.push_back()
+				}
+
 				scene._objects.push_back(gameObject);
 			}
 		}
 		
-		_model = _scene._objects[0];
-
 		//std::vector<Scenes::Mesh::Vertex> verts{};
 		//std::vector<unsigned int> indices{};
 

@@ -262,7 +262,7 @@ namespace Engine::Scenes
 							// Transform normal vectors to engine-space.
 							auto gltfSpaceVertexNormal = glm::vec4(vertexNormals[i], 1.0f);
 							auto engineSpaceVertexNormal = Math::Transform::GltfToEngine()._matrix * gltfSpaceVertexNormal;
-							vertices.emplace_back(Mesh::Vertex{ glm::vec3(engineSpaceVertexPosition), glm::vec3(engineSpaceVertexNormal), uvCoords[i] });
+							//vertices.emplace_back(Mesh::Vertex{ glm::vec3(engineSpaceVertexPosition), glm::vec3(engineSpaceVertexNormal), uvCoords[i] });
 						}
 
 						mesh._vertices = vertices;
