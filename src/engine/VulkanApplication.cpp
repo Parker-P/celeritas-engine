@@ -1,6 +1,8 @@
 #define GLFW_INCLUDE_VULKAN
 #define STB_IMAGE_IMPLEMENTATION
 #define TINYGLTF_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define _CRT_SECURE_NO_WARNINGS
 
 #include <windows.h>
 
@@ -19,9 +21,6 @@
 // Math.
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
-
-// Image processing.
-#include <stb/stb_image.h>
 
 // Scene loading.
 #include <tinygltf/tiny_gltf.h>
@@ -435,7 +434,7 @@ namespace Engine::Vulkan
 			VkWriteDescriptorSet writeInfo = {};
 			writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writeInfo.dstSet = _handle;
-			writeInfo.descriptorCount = _descriptors.size();
+			writeInfo.descriptorCount = (uint32_t)_descriptors.size();
 			writeInfo.descriptorType = _descriptors[i]->_type;
 			writeInfo.pBufferInfo = _descriptors[i]->_bufferInfo.range == 0 ? nullptr : &_descriptors[i]->_bufferInfo;
 			writeInfo.pImageInfo = _descriptors[i]->_imageInfo.sampler == VK_NULL_HANDLE ? nullptr : &_descriptors[i]->_imageInfo;
@@ -443,7 +442,7 @@ namespace Engine::Vulkan
 			writeInfos.push_back(writeInfo);
 		}
 
-		vkUpdateDescriptorSets(_logicalDevice, writeInfos.size(), writeInfos.data(), 0, nullptr);
+		vkUpdateDescriptorSets(_logicalDevice, (uint32_t)writeInfos.size(), writeInfos.data(), 0, nullptr);
 	}
 
 	DescriptorSet::DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, std::vector<Descriptor*> descriptors)
@@ -458,14 +457,14 @@ namespace Engine::Vulkan
 			VkDescriptorSetLayoutBinding binding{};
 			binding.binding = descriptor->_bindingNumber;
 			binding.descriptorType = descriptor->_type;
-			binding.descriptorCount = descriptors.size();
+			binding.descriptorCount = (uint32_t)descriptors.size();
 			binding.stageFlags = shaderStageFlags;
 			bindings.push_back(binding);
 		}
 
 		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 		descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptorSetLayoutCreateInfo.bindingCount = bindings.size();
+		descriptorSetLayoutCreateInfo.bindingCount = (uint32_t)bindings.size();
 		descriptorSetLayoutCreateInfo.pBindings = bindings.data();
 
 		if (vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &_layout) != VK_SUCCESS) {
@@ -489,7 +488,7 @@ namespace Engine::Vulkan
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		allocInfo.descriptorPool = _handle;
-		allocInfo.descriptorSetCount = _descriptorSets.size();
+		allocInfo.descriptorSetCount = (uint32_t)_descriptorSets.size();
 		allocInfo.pSetLayouts = layouts.data();
 
 		std::vector<VkDescriptorSet> allocatedDescriptorSetHandles(_descriptorSets.size());
@@ -519,7 +518,7 @@ namespace Engine::Vulkan
 				if (descriptorSet->_descriptors[0]->_type != VK_DESCRIPTOR_TYPE_MAX_ENUM) {
 					VkDescriptorPoolSize poolSize{};
 					poolSize.type = descriptorSet->_descriptors[0]->_type;
-					poolSize.descriptorCount = descriptorSet->_descriptors.size();
+					poolSize.descriptorCount = (uint32_t)descriptorSet->_descriptors.size();
 					poolSizes.push_back(poolSize);
 				}
 			}
@@ -530,8 +529,8 @@ namespace Engine::Vulkan
 		// pPoolSizes is a pointer to an array of VkDescriptorPoolSize structures, each containing a descriptor type and number of descriptors of that type to be allocated in the pool.
 		VkDescriptorPoolCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		createInfo.maxSets = descriptorSets.size();
-		createInfo.poolSizeCount = poolSizes.size();
+		createInfo.maxSets = (uint32_t)descriptorSets.size();
+		createInfo.poolSizeCount = (uint32_t)poolSizes.size();
 		createInfo.pPoolSizes = poolSizes.data();
 		if (vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &_handle) != VK_SUCCESS) {
 			std::cerr << "failed to create descriptor pool" << std::endl;
@@ -937,12 +936,77 @@ namespace Engine::Vulkan
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\ItalianFlagTriangle.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\test.glb)");
 		//_scene = Scenes::GltfLoader::LoadScene(std::filesystem::current_path().string() + R"(\models\mp5k.glb)");
-		tinygltf::Model model;
+		tinygltf::Model gltfScene;
 		tinygltf::TinyGLTF loader;
 		std::string err;
 		std::string warn;
 
-		bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, std::filesystem::current_path().string() + R"(\models\mp5k.glb)");
+		Scenes::Scene scene;
+
+		auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
+		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath);
+		std::cout << warn << std::endl;
+		std::cout << err << std::endl;
+
+		for (auto& mesh : gltfScene.meshes) {
+			for (auto& primitive : mesh.primitives) {
+				auto gameObject = Scenes::GameObject();
+				auto vertexPositionsAccessorIndex = primitive.attributes["POSITION"];
+				auto vertexNormalsAccessorIndex = primitive.attributes["NORMAL"];
+				auto uvCoords0AccessorIndex = primitive.attributes["TEXCOORD_0"];
+				auto uvCoords1AccessorIndex = primitive.attributes["TEXCOORD_1"];
+				auto uvCoords2AccessorIndex = primitive.attributes["TEXCOORD_2"];
+
+				auto positionsAccessor = gltfScene.accessors[vertexPositionsAccessorIndex];
+				auto normalsAccessor = gltfScene.accessors[vertexNormalsAccessorIndex];
+				auto uvCoords0Accessor = gltfScene.accessors[uvCoords0AccessorIndex];
+				auto uvCoords1Accessor = gltfScene.accessors[uvCoords1AccessorIndex];
+				auto uvCoords2Accessor = gltfScene.accessors[uvCoords2AccessorIndex];
+
+				auto vertexPositionsBufferIndex = gltfScene.bufferViews[positionsAccessor.bufferView].buffer;
+				auto vertexPositionsBufferOffset = gltfScene.bufferViews[positionsAccessor.bufferView].byteOffset;
+				auto vertexPositionsBufferSize = gltfScene.bufferViews[positionsAccessor.bufferView].byteLength;
+				auto vertexPositionsBufferStride = gltfScene.bufferViews[positionsAccessor.bufferView].byteStride;
+				
+				std::vector<glm::vec3> positions(vertexPositionsBufferSize);
+				memcpy(positions.data(), gltfScene.buffers[vertexPositionsBufferIndex].data.data() + vertexPositionsBufferOffset, vertexPositionsBufferSize);
+
+				auto vertexNormalsBufferIndex = gltfScene.bufferViews[normalsAccessor.bufferView].buffer;
+				auto vertexNormalsBufferOffset = gltfScene.bufferViews[normalsAccessor.bufferView].byteOffset;
+				auto vertexNormalsBufferSize = gltfScene.bufferViews[normalsAccessor.bufferView].byteLength;
+				auto vertexNormalsBufferStride = gltfScene.bufferViews[normalsAccessor.bufferView].byteStride;
+
+				std::vector<glm::vec3> normals(vertexNormalsBufferSize);
+				memcpy(normals.data(), gltfScene.buffers[vertexNormalsBufferIndex].data.data() + vertexNormalsBufferOffset, vertexNormalsBufferSize);
+				
+				auto uvCoords0BufferIndex = gltfScene.bufferViews[uvCoords0Accessor.bufferView].buffer;
+				auto uvCoords0BufferOffset = gltfScene.bufferViews[uvCoords0Accessor.bufferView].byteOffset;
+				auto uvCoords0BufferSize = gltfScene.bufferViews[uvCoords0Accessor.bufferView].byteLength;
+				auto uvCoords0BufferStride = gltfScene.bufferViews[uvCoords0Accessor.bufferView].byteStride;
+
+				std::vector<glm::vec2> uvCoords0(uvCoords0BufferSize);
+				memcpy(uvCoords0.data(), gltfScene.buffers[uvCoords0BufferIndex].data.data() + uvCoords0BufferOffset, uvCoords0BufferSize);
+
+				auto uvCoords1BufferIndex = gltfScene.bufferViews[uvCoords1Accessor.bufferView].buffer;
+				auto uvCoords1BufferOffset = gltfScene.bufferViews[uvCoords1Accessor.bufferView].byteOffset;
+				auto uvCoords1BufferSize = gltfScene.bufferViews[uvCoords1Accessor.bufferView].byteLength;
+				auto uvCoords1BufferStride = gltfScene.bufferViews[uvCoords1Accessor.bufferView].byteStride;
+
+				std::vector<glm::vec2> uvCoords1(uvCoords1BufferSize);
+				memcpy(uvCoords1.data(), gltfScene.buffers[uvCoords1BufferIndex].data.data() + uvCoords1BufferOffset, uvCoords1BufferSize);
+
+				auto uvCoords2BufferIndex = gltfScene.bufferViews[uvCoords2Accessor.bufferView].buffer;
+				auto uvCoords2BufferOffset = gltfScene.bufferViews[uvCoords2Accessor.bufferView].byteOffset;
+				auto uvCoords2BufferSize = gltfScene.bufferViews[uvCoords2Accessor.bufferView].byteLength;
+				auto uvCoords2BufferStride = gltfScene.bufferViews[uvCoords2Accessor.bufferView].byteStride;
+
+				std::vector<glm::vec2> uvCoords2(uvCoords2BufferSize);
+				memcpy(uvCoords2.data(), gltfScene.buffers[uvCoords2BufferIndex].data.data() + uvCoords2BufferOffset, uvCoords2BufferSize);
+
+				scene._objects.push_back(gameObject);
+			}
+		}
+		
 		_model = _scene._objects[0];
 
 		//std::vector<Scenes::Mesh::Vertex> verts{};
@@ -1606,7 +1670,7 @@ namespace Engine::Vulkan
 		std::vector<VkDescriptorSetLayout> layouts = { shaderResources._uniformSet._layout, shaderResources._samplerSet._layout };
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutCreateInfo.setLayoutCount = layouts.size();
+		pipelineLayoutCreateInfo.setLayoutCount = (uint32_t)layouts.size();
 		pipelineLayoutCreateInfo.pSetLayouts = layouts.data();
 
 		if (vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &shaderResources._pipelineLayout) != VK_SUCCESS) {
