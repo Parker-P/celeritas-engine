@@ -1,5 +1,6 @@
 #define GLFW_INCLUDE_VULKAN
 #define STB_IMAGE_IMPLEMENTATION
+#define TINYGLTF_IMPLEMENTATION
 
 #include <windows.h>
 
