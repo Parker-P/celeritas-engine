@@ -129,13 +129,27 @@ namespace Engine::Vulkan
 #pragma endregion
 
 #pragma region ImageFunctions
-	Image::Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& size, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& typeFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags)
+	size_t Image::GetPixelSizeBytes(const VkFormat& format)
+	{
+		if (format == VK_FORMAT_R8G8B8A8_SRGB ||
+			format == VK_FORMAT_D32_SFLOAT) {
+			return 4;
+		}
+		else if (format == VK_FORMAT_R8G8B8_SRGB) {
+			return 3;
+		}
+
+		return 0;
+	}
+
+	Image::Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& sizePixels, void* data, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& typeFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags)
 	{
 		_physicalDevice = physicalDevice;
 		_logicalDevice = logicalDevice;
 		_format = imageFormat;
-		_sizePixels = size;
+		_sizePixels = sizePixels;
 		_typeFlags = typeFlags;
+		_sizeBytes = GetPixelSizeBytes(imageFormat) * sizePixels.width * sizePixels.height;
 
 		VkImageCreateInfo imageCreateInfo = { };
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -143,7 +157,7 @@ namespace Engine::Vulkan
 		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 		imageCreateInfo.format = imageFormat;
 
-		auto imageSize = VkExtent3D{ size.width, size.height, 1 };
+		auto imageSize = VkExtent3D{ sizePixels.width, sizePixels.height, 1 };
 		imageCreateInfo.extent = imageSize;
 		imageCreateInfo.mipLevels = 1;
 		imageCreateInfo.arrayLayers = 1;
@@ -222,15 +236,15 @@ namespace Engine::Vulkan
 		}
 	}
 
-	void Image::SendToGPU(VkCommandPool& commandPool)
+	void Image::SendToGPU(VkCommandPool& commandPool, Queue& queue)
 	{
-		// Allocate a temporary buffer for holding texture data to upload to VRAM.
+		// Allocate a temporary buffer for holding image data to upload to VRAM.
 		Buffer stagingBuffer = Buffer(_logicalDevice,
 			_physicalDevice,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			pixels,
-			imageSizeBytes);
+			_data,
+			_sizeBytes);
 
 		// Transfer the data from the buffer into the allocated image using a command buffer.
 		// Here we record the commands for copying data from the buffer to the image.
@@ -261,7 +275,7 @@ namespace Engine::Vulkan
 		imageBarrier_toTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		imageBarrier_toTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		imageBarrier_toTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		imageBarrier_toTransfer.image = _graphicsPipeline._shaderResources._texture._imageHandle;
+		imageBarrier_toTransfer.image = _imageHandle;
 		imageBarrier_toTransfer.subresourceRange = range;
 		imageBarrier_toTransfer.srcAccessMask = 0;
 		imageBarrier_toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -277,11 +291,11 @@ namespace Engine::Vulkan
 		copyRegion.imageSubresource.mipLevel = 0;
 		copyRegion.imageSubresource.baseArrayLayer = 0;
 		copyRegion.imageSubresource.layerCount = 1;
-		copyRegion.imageExtent = VkExtent3D{ _graphicsPipeline._shaderResources._texture._sizePixels.width, _graphicsPipeline._shaderResources._texture._sizePixels.height, 1 };
+		copyRegion.imageExtent = VkExtent3D{ _sizePixels.width, _sizePixels.height, 1 };
 		//copyRegion.imageExtent = VkExtent3D{ texture._size.width, texture._size.height, 1 };
 
 		// Copy the buffer into the image.
-		vkCmdCopyBufferToImage(copyCommandBuffer, stagingBuffer._handle, _graphicsPipeline._shaderResources._texture._imageHandle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+		vkCmdCopyBufferToImage(copyCommandBuffer, stagingBuffer._handle, _imageHandle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 		// Barrier the image into the shader readable layout.
 		VkImageMemoryBarrier imageBarrier_toReadable = imageBarrier_toTransfer;
@@ -297,10 +311,10 @@ namespace Engine::Vulkan
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &copyCommandBuffer;
-		vkQueueSubmit(_queue._handle, 1, &submitInfo, nullptr);
-		vkQueueWaitIdle(_queue._handle);
+		vkQueueSubmit(queue._handle, 1, &submitInfo, nullptr);
+		vkQueueWaitIdle(queue._handle);
 
-		vkFreeCommandBuffers(_logicalDevice, _commandPool, 1, &copyCommandBuffer);
+		vkFreeCommandBuffers(_logicalDevice, commandPool, 1, &copyCommandBuffer);
 		stagingBuffer.Destroy();
 	}
 
@@ -694,14 +708,14 @@ namespace Engine::Vulkan
 		_physicalDevice = PhysicalDevice(_instance);
 		FindQueueFamilyIndex();
 		CreateLogicalDeviceAndQueue();
-		LoadScene();
 		CreateSemaphores();
 		CreateCommandPool();
+		LoadScene();
 		CreateVertexAndIndexBuffers();
 		CreateSwapchain();
 		CreateRenderPass();
 		CreateFramebuffers();
-		LoadTexture();
+		//LoadTexture();
 		CreatePipelineLayout();
 		CreateGraphicsPipeline();
 		AllocateDrawCommandBuffers();
@@ -1129,13 +1143,16 @@ namespace Engine::Vulkan
 				auto& imageIndex = textures[0].source;
 				auto& imageData = gltfScene.images[imageIndex].image;
 
-				auto texture = Image(_logicalDevice,
+				_graphicsPipeline._shaderResources._texture = Image(_logicalDevice,
 					_physicalDevice,
-					VK_FORMAT_R8G8B8A8_UINT,
+					VK_FORMAT_R8G8B8A8_SRGB,
 					VkExtent2D{ (uint32_t)gltfScene.images[imageIndex].width, (uint32_t)gltfScene.images[imageIndex].height },
-					VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+					&imageData,
+					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
 					VK_IMAGE_ASPECT_COLOR_BIT,
 					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+				_graphicsPipeline._shaderResources._texture.SendToGPU(_commandPool, _queue);
 
 				gameObject._mesh._vertices.resize(vertexPositions.size());
 				for (int i = 0; i < vertexPositions.size(); ++i) {
@@ -1419,7 +1436,8 @@ namespace Engine::Vulkan
 		_renderPass._depthImage = Image(_logicalDevice, 
 			_physicalDevice, 
 			VK_FORMAT_D32_SFLOAT, 
-			_swapchain._framebufferSize, 
+			_swapchain._framebufferSize,
+			nullptr,
 			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 
 			VK_IMAGE_ASPECT_DEPTH_BIT, 
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -1954,98 +1972,22 @@ namespace Engine::Vulkan
 	{
 		// Read the file and point to its location in memory.
 		auto texturePath = R"(C:\Code\celeritas-engine\textures\ItalianFlag.jpg)";
-		int w, h;
-		void* pixels = stbi_load(texturePath, &w, &h, nullptr, 0);
-		size_t imageSizeBytes = w * h * 3; // 4 bytes, 1 for red, 1 for green, 1 for blue, 1 for alpha.
+		int width, height;
+		void* pixels = stbi_load(texturePath, &width, &height, nullptr, 0);
 		auto format = ChooseImageFormat(texturePath);
-
-		// Allocate a temporary buffer for holding texture data to upload to VRAM.
-		Buffer stagingBuffer = Buffer(_logicalDevice,
-			_physicalDevice,
-			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			pixels,
-			imageSizeBytes);
 
 		// Allocate and create the image.
 		_graphicsPipeline._shaderResources._texture = Image(_logicalDevice,
 			_physicalDevice,
 			format,
-			VkExtent2D{ (uint32_t)w,(uint32_t)h },
+			VkExtent2D{ (uint32_t)width,(uint32_t)height },
+			pixels,
 			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-		// Transfer the data from the buffer into the allocated image using a command buffer.
-		// Here we record the commands for copying data from the buffer to the image.
-		VkCommandBufferAllocateInfo cmdBufInfo = {};
-		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cmdBufInfo.commandPool = _commandPool;
-		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		cmdBufInfo.commandBufferCount = 1;
+		_graphicsPipeline._shaderResources._texture.SendToGPU(_commandPool, _queue);
 
-		VkCommandBuffer copyCommandBuffer;
-		if (vkAllocateCommandBuffers(_logicalDevice, &cmdBufInfo, &copyCommandBuffer) != VK_SUCCESS) {
-			std::cout << "Failed allocating copy command buffer to copy buffer to texture." << std::endl;
-			exit(1);
-		}
-		VkCommandBufferBeginInfo beginInfo{};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-		vkBeginCommandBuffer(copyCommandBuffer, &beginInfo);
-
-		VkImageSubresourceRange range;
-		range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		range.baseMipLevel = 0;
-		range.levelCount = 1;
-		range.baseArrayLayer = 0;
-		range.layerCount = 1;
-
-		VkImageMemoryBarrier imageBarrier_toTransfer = {};
-		imageBarrier_toTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		imageBarrier_toTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageBarrier_toTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		imageBarrier_toTransfer.image = _graphicsPipeline._shaderResources._texture._imageHandle;
-		imageBarrier_toTransfer.subresourceRange = range;
-		imageBarrier_toTransfer.srcAccessMask = 0;
-		imageBarrier_toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-		// Barrier the image into the transfer-receive layout.
-		vkCmdPipelineBarrier(copyCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toTransfer);
-
-		VkBufferImageCopy copyRegion = {};
-		copyRegion.bufferOffset = 0;
-		copyRegion.bufferRowLength = 0;
-		copyRegion.bufferImageHeight = 0;
-		copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		copyRegion.imageSubresource.mipLevel = 0;
-		copyRegion.imageSubresource.baseArrayLayer = 0;
-		copyRegion.imageSubresource.layerCount = 1;
-		copyRegion.imageExtent = VkExtent3D{ _graphicsPipeline._shaderResources._texture._sizePixels.width, _graphicsPipeline._shaderResources._texture._sizePixels.height, 1 };
-		//copyRegion.imageExtent = VkExtent3D{ texture._size.width, texture._size.height, 1 };
-
-		// Copy the buffer into the image.
-		vkCmdCopyBufferToImage(copyCommandBuffer, stagingBuffer._handle, _graphicsPipeline._shaderResources._texture._imageHandle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
-
-		// Barrier the image into the shader readable layout.
-		VkImageMemoryBarrier imageBarrier_toReadable = imageBarrier_toTransfer;
-		imageBarrier_toReadable.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		imageBarrier_toReadable.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageBarrier_toReadable.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		imageBarrier_toReadable.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		vkCmdPipelineBarrier(copyCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
-
-		vkEndCommandBuffer(copyCommandBuffer);
-
-		VkSubmitInfo submitInfo{};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &copyCommandBuffer;
-		vkQueueSubmit(_queue._handle, 1, &submitInfo, nullptr);
-		vkQueueWaitIdle(_queue._handle);
-
-		vkFreeCommandBuffers(_logicalDevice, _commandPool, 1, &copyCommandBuffer);
-		stagingBuffer.Destroy();
 		std::cout << "texture loaded successfully" << std::endl;
 	}
 #pragma endregion

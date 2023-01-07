@@ -194,6 +194,22 @@ namespace Engine::Vulkan
 	};
 
 	/**
+		 * @brief A queue is an ordered collection of commands that gets passed into a command buffer.
+		 */
+	struct Queue
+	{
+		/**
+		 * @brief Identifier for Vulkan.
+		 */
+		VkQueue _handle;
+
+		/**
+		 * @brief A queue family index enables Vulkan to group queues that serve similar purposes (a.k.a. have the same properties).
+		 */
+		uint32_t _familyIndex;
+	};
+
+	/**
 	 * @brief Represents a Vulkan image. A Vulkan image uses 2 structures, 1 for storing the data the image contain (VkImage),
 	 * and 1 for decorating that data with metadata (VkImageView) that Vulkan can use in the graphics pipeline to know how to treat it.
 	 */
@@ -208,6 +224,13 @@ namespace Engine::Vulkan
 		 * @brief Physical device.
 		 */
 		PhysicalDevice _physicalDevice;
+
+		/**
+		 * @brief Gets the size of a pixel of the image using its format.
+		 * @param format How the image is stored in memory.
+		 * @return The size of a pixel in bytes if format is valid, 0 otherwise.
+		 */
+		size_t GetPixelSizeBytes(const VkFormat& format);
 
 	public:
 
@@ -233,6 +256,11 @@ namespace Engine::Vulkan
 		VkExtent2D _sizePixels;
 
 		/**
+		 * @brief Image size in bytes.
+		 */
+		size_t _sizeBytes;
+
+		/**
 		 * @brief Flags that indicate what type of data this image contains.
 		 */
 		VkImageAspectFlagBits _typeFlags;
@@ -251,11 +279,11 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Constructs a Vulkan image.
-		 *
 		 * @param logicalDevice
 		 * @param physicalDevice
 		 * @param imageFormat
-		 * @param size Width and height of the image in pixels.
+		 * @param sizePixels Width and height of the image in pixels.
+		 * @param data Pointer to where in memory the data for the image is stored. Use nullptr if the image is intended to be a renderpass attachment.
 		 * @param usageFlags Gives Vulkan information about how it's going to be used as a render pass attachment. For example an image could be used to store depth information, denoted by using VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT.
 		 * @param aspectFlags Indicates how it's meant to be used and what type of data it contains.
 		 * @param memoryPropertiesFlags This can be any of the following values:
@@ -270,7 +298,7 @@ namespace Engine::Vulkan
 		 * buffer from the GPU while the buffer is marked HOST_CACHED, you may not be able to get the data or even worse, you may end up reading the wrong chunk of memory.
 		 * Further read: https://asawicki.info/news_1740_vulkan_memory_types_on_pc_and_how_to_use_them
 		 */
-		Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& size, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& typeFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags);
+		Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& sizePixels, void* data, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& typeFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags);
 
 		/**
 		 * @brief Constructs an image using a pre-existing image handle.
@@ -280,7 +308,7 @@ namespace Engine::Vulkan
 		 */
 		Image(VkDevice& logicalDevice, VkImage& image, const VkFormat& imageFormat);
 
-		void SendToGPU();
+		void SendToGPU(VkCommandPool& commandPool, Queue& queue);
 
 		/**
 		 * @brief Generates an image descriptor. An image descriptor is bound to a sampler, which tells Vulkan how to instruct
@@ -522,22 +550,6 @@ namespace Engine::Vulkan
 		 * Error reporting is set by enabling validation layers.
 		 */
 		VkDebugReportCallbackEXT _callback;
-
-		/**
-		 * @brief A queue is an ordered collection of commands that gets passed into a command buffer.
-		 */
-		struct Queue
-		{
-			/**
-			 * @brief Identifier for Vulkan.
-			 */
-			VkQueue _handle;
-
-			/**
-			 * @brief A queue family index enables Vulkan to group queues that serve similar purposes (a.k.a. have the same properties).
-			 */
-			uint32_t _familyIndex;
-		};
 
 		/**
 		 * @brief Queue that supports graphics operations and presentation.
