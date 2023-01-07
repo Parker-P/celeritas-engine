@@ -38,7 +38,7 @@ namespace Engine::Scenes
 			 * @brief Attribute describing the UV coordinates of the vertex. A vertex might be part of a UV seam, so it could have multiple
 			 * UV coordinates.
 			 */
-			std::vector<glm::vec2> _uvCoord;
+			glm::vec2 _uvCoord;
 
 			/**
 			 * @brief Calculates the offset in bytes of a given attribute given its type.

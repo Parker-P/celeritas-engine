@@ -936,8 +936,10 @@ namespace Engine::Vulkan
 
 		Scenes::Scene scene;
 
-		//auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
-		auto scenePath = std::filesystem::current_path().string() + R"(\models\plane.glb)";
+		//auto scenePath = std::filesystem::current_path().string() + R"(\models\monster.glb)";
+		//auto scenePath = std::filesystem::current_path().string() + R"(\models\monkey.glb)";
+		auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
+		//auto scenePath = std::filesystem::current_path().string() + R"(\models\plane.glb)";
 		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath);
 		std::cout << warn << std::endl;
 		std::cout << err << std::endl;
@@ -945,74 +947,117 @@ namespace Engine::Vulkan
 		for (auto& mesh : gltfScene.meshes) {
 			for (auto& primitive : mesh.primitives) {
 				auto gameObject = Scenes::GameObject();
+				auto faceIndicesAccessorIndex = primitive.indices;
 				auto vertexPositionsAccessorIndex = primitive.attributes["POSITION"];
 				auto vertexNormalsAccessorIndex = primitive.attributes["NORMAL"];
 				auto uvCoords0AccessorIndex = primitive.attributes["TEXCOORD_0"];
 				auto uvCoords1AccessorIndex = primitive.attributes["TEXCOORD_1"];
 				auto uvCoords2AccessorIndex = primitive.attributes["TEXCOORD_2"];
 
+				auto faceIndicesAccessor = gltfScene.accessors[faceIndicesAccessorIndex];
 				auto positionsAccessor = gltfScene.accessors[vertexPositionsAccessorIndex];
 				auto normalsAccessor = gltfScene.accessors[vertexNormalsAccessorIndex];
 				auto uvCoords0Accessor = gltfScene.accessors[uvCoords0AccessorIndex];
 				auto uvCoords1Accessor = gltfScene.accessors[uvCoords1AccessorIndex];
 				auto uvCoords2Accessor = gltfScene.accessors[uvCoords2AccessorIndex];
 
+
+
+				auto faceIndicesCount = faceIndicesAccessor.count;
+				auto faceIndicesBufferIndex = gltfScene.bufferViews[faceIndicesAccessor.bufferView].buffer;
+				auto faceIndicesBufferOffset = gltfScene.bufferViews[faceIndicesAccessor.bufferView].byteOffset;
+				auto faceIndicesBufferStride = faceIndicesAccessor.ByteStride(gltfScene.bufferViews[faceIndicesAccessor.bufferView]);
+				auto faceIndicesBufferSizeBytes = faceIndicesCount * faceIndicesBufferStride;
+
+				std::vector<unsigned int> faceIndices(faceIndicesCount);
+				if (faceIndicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+					for (int i = 0; i < faceIndicesCount; ++i) {
+						unsigned short index = 0;
+						memcpy(&index, gltfScene.buffers[faceIndicesBufferIndex].data.data() + faceIndicesBufferOffset + i * faceIndicesBufferStride, faceIndicesBufferStride);
+						faceIndices[i] = index;
+					}
+				}
+				else if (faceIndicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
+					memcpy(faceIndices.data(), gltfScene.buffers[faceIndicesBufferIndex].data.data() + faceIndicesBufferOffset, faceIndicesBufferSizeBytes);
+				}
+
+
+
 				auto vertexPositionsCount = positionsAccessor.count;
 				auto vertexPositionsBufferIndex = gltfScene.bufferViews[positionsAccessor.bufferView].buffer;
 				auto vertexPositionsBufferOffset = gltfScene.bufferViews[positionsAccessor.bufferView].byteOffset;
-				auto vertexPositionsBufferSize = gltfScene.bufferViews[positionsAccessor.bufferView].byteLength;
-				auto vertexPositionsBufferStride = gltfScene.bufferViews[positionsAccessor.bufferView].byteStride;
-				
-				std::vector<glm::vec3> vertexPositions(vertexPositionsCount);
-				memcpy(vertexPositions.data(), gltfScene.buffers[vertexPositionsBufferIndex].data.data() + vertexPositionsBufferOffset, vertexPositionsBufferSize);
+				auto vertexPositionsBufferStride = positionsAccessor.ByteStride(gltfScene.bufferViews[positionsAccessor.bufferView]);
+				auto vertexPositionsBufferSizeBytes = vertexPositionsCount * vertexPositionsBufferStride;
 
+				std::vector<glm::vec3> vertexPositions(vertexPositionsCount);
+				memcpy(vertexPositions.data(), gltfScene.buffers[vertexPositionsBufferIndex].data.data() + vertexPositionsBufferOffset, vertexPositionsBufferSizeBytes);
+
+
+
+				auto vertexNormalsCount = normalsAccessor.count;
 				auto vertexNormalsBufferIndex = gltfScene.bufferViews[normalsAccessor.bufferView].buffer;
 				auto vertexNormalsBufferOffset = gltfScene.bufferViews[normalsAccessor.bufferView].byteOffset;
-				auto vertexNormalsBufferSize = gltfScene.bufferViews[normalsAccessor.bufferView].byteLength;
-				auto vertexNormalsBufferStride = gltfScene.bufferViews[normalsAccessor.bufferView].byteStride;
+				auto vertexNormalsBufferStride = normalsAccessor.ByteStride(gltfScene.bufferViews[normalsAccessor.bufferView]);
+				auto vertexNormalsBufferSizeBytes = vertexNormalsCount * vertexNormalsBufferStride;
 
-				std::vector<glm::vec3> vertexNormals(vertexNormalsBufferSize);
-				memcpy(vertexNormals.data(), gltfScene.buffers[vertexNormalsBufferIndex].data.data() + vertexNormalsBufferOffset, vertexNormalsBufferSize);
-				
+				std::vector<glm::vec3> vertexNormals(vertexNormalsCount);
+				memcpy(vertexNormals.data(), gltfScene.buffers[vertexNormalsBufferIndex].data.data() + vertexNormalsBufferOffset, vertexNormalsBufferSizeBytes);
+
+
+
+				auto uvCoords0Count = uvCoords0Accessor.count;
 				auto uvCoords0BufferIndex = gltfScene.bufferViews[uvCoords0Accessor.bufferView].buffer;
 				auto uvCoords0BufferOffset = gltfScene.bufferViews[uvCoords0Accessor.bufferView].byteOffset;
-				auto uvCoords0BufferSize = gltfScene.bufferViews[uvCoords0Accessor.bufferView].byteLength;
-				auto uvCoords0BufferStride = gltfScene.bufferViews[uvCoords0Accessor.bufferView].byteStride;
+				auto uvCoords0BufferStride = uvCoords0Accessor.ByteStride(gltfScene.bufferViews[uvCoords0Accessor.bufferView]);
+				auto uvCoords0BufferSize = uvCoords0Count * uvCoords0BufferStride;
 
-				std::vector<glm::vec2> uvCoords0(uvCoords0BufferSize);
+				std::vector<glm::vec2> uvCoords0(uvCoords0Count);
 				memcpy(uvCoords0.data(), gltfScene.buffers[uvCoords0BufferIndex].data.data() + uvCoords0BufferOffset, uvCoords0BufferSize);
 
+
+
+				/*auto uvCoords1Count = uvCoords1Accessor.count;
 				auto uvCoords1BufferIndex = gltfScene.bufferViews[uvCoords1Accessor.bufferView].buffer;
 				auto uvCoords1BufferOffset = gltfScene.bufferViews[uvCoords1Accessor.bufferView].byteOffset;
 				auto uvCoords1BufferSize = gltfScene.bufferViews[uvCoords1Accessor.bufferView].byteLength;
 				auto uvCoords1BufferStride = gltfScene.bufferViews[uvCoords1Accessor.bufferView].byteStride;
 
-				std::vector<glm::vec2> uvCoords1(uvCoords1BufferSize);
+				std::vector<glm::vec2> uvCoords1(uvCoords1Count);
 				memcpy(uvCoords1.data(), gltfScene.buffers[uvCoords1BufferIndex].data.data() + uvCoords1BufferOffset, uvCoords1BufferSize);
 
+
+
+				auto uvCoords2Count = uvCoords2Accessor.count;
 				auto uvCoords2BufferIndex = gltfScene.bufferViews[uvCoords2Accessor.bufferView].buffer;
 				auto uvCoords2BufferOffset = gltfScene.bufferViews[uvCoords2Accessor.bufferView].byteOffset;
 				auto uvCoords2BufferSize = gltfScene.bufferViews[uvCoords2Accessor.bufferView].byteLength;
 				auto uvCoords2BufferStride = gltfScene.bufferViews[uvCoords2Accessor.bufferView].byteStride;
 
-				std::vector<glm::vec2> uvCoords2(uvCoords2BufferSize);
-				memcpy(uvCoords2.data(), gltfScene.buffers[uvCoords2BufferIndex].data.data() + uvCoords2BufferOffset, uvCoords2BufferSize);
+				std::vector<glm::vec2> uvCoords2(uvCoords2Count);
+				memcpy(uvCoords2.data(), gltfScene.buffers[uvCoords2BufferIndex].data.data() + uvCoords2BufferOffset, uvCoords2BufferSize);*/
+
+
 
 				gameObject._mesh._vertices.resize(vertexPositions.size());
 				for (int i = 0; i < vertexPositions.size(); ++i) {
 					Scenes::Mesh::Vertex v;
 					v._position = vertexPositions[i];
 					v._normal = vertexNormals[i];
-					//v._uvCoord = uvCoords0[i];
-					//gameObject._mesh._vertices.push_back()
+					v._uvCoord = uvCoords0[i];
+					gameObject._mesh._vertices[i] = v;
 				}
+
+				gameObject._mesh._faceIndices = faceIndices;
+				gameObject._name = mesh.name;
 
 				scene._objects.push_back(gameObject);
 			}
 		}
-		
+
 		//std::vector<Scenes::Mesh::Vertex> verts{};
 		//std::vector<unsigned int> indices{};
+
+		_model = scene._objects[0];
 
 		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{6.0f, 6.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Tip.
 		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{6.0f, 0.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Lower right.
@@ -1551,7 +1596,7 @@ namespace Engine::Vulkan
 		rasterizationCreateInfo.rasterizerDiscardEnable = VK_FALSE;
 		rasterizationCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
 		rasterizationCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-		rasterizationCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+		rasterizationCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
 		rasterizationCreateInfo.depthBiasEnable = VK_FALSE;
 		rasterizationCreateInfo.depthBiasConstantFactor = 0.0f;
 		rasterizationCreateInfo.depthBiasClamp = 0.0f;

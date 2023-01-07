@@ -21,8 +21,17 @@ namespace Engine::Vulkan
 		 */
 		VkPhysicalDevice _handle;
 
+		/**
+		 * @brief Default constructor.
+		 * 
+		 */
 		PhysicalDevice() = default;
 
+		/**
+		 * @brief Uses Vulkan calls to query the graphics driver for a list of GPUs. If it finds a GPU that supports Vulkan, 
+		 * constructs a physical device object given a Vulkan instance, created using vkCreateInstance().
+		 * @param instance The Vulkan instance.
+		 */
 		PhysicalDevice(VkInstance& instance);
 
 		/**
@@ -135,6 +144,9 @@ namespace Engine::Vulkan
 		 */
 		VkBuffer _handle;
 
+		/**
+		 * @brief Default constructor.
+		 */
 		Buffer() = default;
 
 		/**
@@ -196,7 +208,7 @@ namespace Engine::Vulkan
 		VkDevice _logicalDevice;
 
 		/**
-		 * @brief Handle that identifies a structure that contains the image data.
+		 * @brief Handle that identifies a structure that contains the raw image data.
 		 */
 		VkImage _imageHandle;
 
@@ -222,7 +234,7 @@ namespace Engine::Vulkan
 		VkImageAspectFlagBits _typeFlags;
 
 		/**
-		 * @brief Describes how this image is going to be read by the GPU texture samplers, which feed textures to shaders.
+		 * @brief Describes how this image is going to be read by the physical GPU texture samplers, which feed textures to shaders.
 		 */
 		VkSampler _sampler;
 
@@ -308,7 +320,7 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a 
-		 * structure that contains an image and some metadata that tells the GPU how to read it.
+		 * structure that contains a pointer to an image and some metadata that tells the GPU how to read it.
 		 */
 		VkDescriptorType _type;
 
@@ -660,7 +672,7 @@ namespace Engine::Vulkan
 			 * Based on the normal vector, the vertex shader can perform lighting calculations by computing
 			 * the angle between the source of the light and the normal.
 			 * At the hardware level, the contents of the vertex buffer are fed into the array of shader cores,
-			 * and each vertex, along with its attributes, are processed in parallel on each thread of the cores.
+			 * and each vertex, along with its attributes, are processed by the vertex shader in parallel on each thread of the cores.
 			 */
 			Buffer _vertexBuffer;
 
