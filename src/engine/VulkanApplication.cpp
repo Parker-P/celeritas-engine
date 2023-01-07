@@ -48,7 +48,7 @@ namespace Engine::Vulkan
 	bool windowResized = false;
 	bool windowMinimized = false;
 
-	// Buffer.
+#pragma region BufferFunctions
 	Buffer::Buffer(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data, size_t sizeInBytes)
 	{
 		_logicalDevice = logicalDevice;
@@ -126,10 +126,12 @@ namespace Engine::Vulkan
 		vkDestroyBuffer(_logicalDevice, _handle, nullptr);
 		vkFreeMemory(_logicalDevice, _memory, nullptr);
 	}
+#pragma endregion
 
-	// Image.
+#pragma region ImageFunctions
 	Image::Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& size, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& typeFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags)
 	{
+		_physicalDevice = physicalDevice;
 		_logicalDevice = logicalDevice;
 		_format = imageFormat;
 		_sizePixels = size;
@@ -160,7 +162,7 @@ namespace Engine::Vulkan
 		imageCreateInfo.usage = usageFlags;
 
 		if (vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, &_imageHandle) != VK_SUCCESS) {
-			std::cout << "Failed creating depth image." << std::endl;
+			std::cout << "failed creating image" << std::endl;
 		}
 
 		VkMemoryRequirements reqs;
@@ -188,7 +190,7 @@ namespace Engine::Vulkan
 		imageViewCreateInfo.subresourceRange.aspectMask = typeFlags;
 
 		if (vkCreateImageView(logicalDevice, &imageViewCreateInfo, nullptr, &_imageViewHandle) != VK_SUCCESS) {
-			std::cout << "Failed creating image view." << std::endl;
+			std::cout << "failed creating image view" << std::endl;
 		}
 	}
 
@@ -220,6 +222,88 @@ namespace Engine::Vulkan
 		}
 	}
 
+	void Image::SendToGPU(VkCommandPool& commandPool)
+	{
+		// Allocate a temporary buffer for holding texture data to upload to VRAM.
+		Buffer stagingBuffer = Buffer(_logicalDevice,
+			_physicalDevice,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+			pixels,
+			imageSizeBytes);
+
+		// Transfer the data from the buffer into the allocated image using a command buffer.
+		// Here we record the commands for copying data from the buffer to the image.
+		VkCommandBufferAllocateInfo cmdBufInfo = {};
+		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		cmdBufInfo.commandPool = commandPool;
+		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		cmdBufInfo.commandBufferCount = 1;
+
+		VkCommandBuffer copyCommandBuffer;
+		if (vkAllocateCommandBuffers(_logicalDevice, &cmdBufInfo, &copyCommandBuffer) != VK_SUCCESS) {
+			std::cout << "Failed allocating copy command buffer to copy buffer to texture." << std::endl;
+			exit(1);
+		}
+		VkCommandBufferBeginInfo beginInfo{};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		vkBeginCommandBuffer(copyCommandBuffer, &beginInfo);
+
+		VkImageSubresourceRange range;
+		range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		range.baseMipLevel = 0;
+		range.levelCount = 1;
+		range.baseArrayLayer = 0;
+		range.layerCount = 1;
+
+		VkImageMemoryBarrier imageBarrier_toTransfer = {};
+		imageBarrier_toTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageBarrier_toTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		imageBarrier_toTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		imageBarrier_toTransfer.image = _graphicsPipeline._shaderResources._texture._imageHandle;
+		imageBarrier_toTransfer.subresourceRange = range;
+		imageBarrier_toTransfer.srcAccessMask = 0;
+		imageBarrier_toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+		// Barrier the image into the transfer-receive layout.
+		vkCmdPipelineBarrier(copyCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toTransfer);
+
+		VkBufferImageCopy copyRegion = {};
+		copyRegion.bufferOffset = 0;
+		copyRegion.bufferRowLength = 0;
+		copyRegion.bufferImageHeight = 0;
+		copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		copyRegion.imageSubresource.mipLevel = 0;
+		copyRegion.imageSubresource.baseArrayLayer = 0;
+		copyRegion.imageSubresource.layerCount = 1;
+		copyRegion.imageExtent = VkExtent3D{ _graphicsPipeline._shaderResources._texture._sizePixels.width, _graphicsPipeline._shaderResources._texture._sizePixels.height, 1 };
+		//copyRegion.imageExtent = VkExtent3D{ texture._size.width, texture._size.height, 1 };
+
+		// Copy the buffer into the image.
+		vkCmdCopyBufferToImage(copyCommandBuffer, stagingBuffer._handle, _graphicsPipeline._shaderResources._texture._imageHandle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+
+		// Barrier the image into the shader readable layout.
+		VkImageMemoryBarrier imageBarrier_toReadable = imageBarrier_toTransfer;
+		imageBarrier_toReadable.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		imageBarrier_toReadable.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageBarrier_toReadable.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		imageBarrier_toReadable.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		vkCmdPipelineBarrier(copyCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
+
+		vkEndCommandBuffer(copyCommandBuffer);
+
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &copyCommandBuffer;
+		vkQueueSubmit(_queue._handle, 1, &submitInfo, nullptr);
+		vkQueueWaitIdle(_queue._handle);
+
+		vkFreeCommandBuffers(_logicalDevice, _commandPool, 1, &copyCommandBuffer);
+		stagingBuffer.Destroy();
+	}
+
 	VkDescriptorImageInfo Image::GenerateDescriptor() {
 		VkSamplerCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -240,8 +324,9 @@ namespace Engine::Vulkan
 		vkDestroyImageView(_logicalDevice, _imageViewHandle, nullptr);
 		vkDestroyImage(_logicalDevice, _imageHandle, nullptr);
 	}
+#pragma endregion
 
-	// Physical device.
+#pragma region PhysicalDeviceFunctions
 	PhysicalDevice::PhysicalDevice(VkInstance& instance)
 	{
 		// Try to find 1 Vulkan supported device.
@@ -407,8 +492,9 @@ namespace Engine::Vulkan
 
 		return presentModes;
 	}
+#pragma endregion
 
-	// Descriptor.
+#pragma region DescriptorFunctions
 	Descriptor::Descriptor(const VkDescriptorType& type, Buffer& buffer, const uint32_t& bindingNumber)
 	{
 		_bufferInfo = buffer.GenerateDescriptor();
@@ -424,8 +510,9 @@ namespace Engine::Vulkan
 		_type = type;
 		_bindingNumber = bindingNumber;
 	}
+#pragma endregion
 
-	// Descriptor set.
+#pragma region DescriptorSetFunctions
 	void DescriptorSet::SendDescriptorData()
 	{
 		std::vector<VkWriteDescriptorSet> writeInfos;
@@ -475,8 +562,9 @@ namespace Engine::Vulkan
 			std::cout << "created descriptor set layout" << std::endl;
 		}
 	}
+#pragma endregion
 
-	// Descriptor pool.
+#pragma region DescriptorPoolFunctions
 	void DescriptorPool::AllocateDescriptorSets()
 	{
 		// The amount of sets and descriptor types is defined when creating the descriptor pool.
@@ -566,13 +654,13 @@ namespace Engine::Vulkan
 			}
 		}
 	}
+#pragma endregion
 
-	// VulkanApplication.
+#pragma region VulkanApplicationFunctions
 	void VulkanApplication::Run()
 	{
 		InitializeWindow();
 		_input = Input::KeyboardMouse(_window);
-		LoadScene();
 		SetupVulkan();
 		MainLoop();
 		Cleanup(true);
@@ -606,6 +694,7 @@ namespace Engine::Vulkan
 		_physicalDevice = PhysicalDevice(_instance);
 		FindQueueFamilyIndex();
 		CreateLogicalDeviceAndQueue();
+		LoadScene();
 		CreateSemaphores();
 		CreateCommandPool();
 		CreateVertexAndIndexBuffers();
@@ -1036,7 +1125,17 @@ namespace Engine::Vulkan
 				std::vector<glm::vec2> uvCoords2(uvCoords2Count);
 				memcpy(uvCoords2.data(), gltfScene.buffers[uvCoords2BufferIndex].data.data() + uvCoords2BufferOffset, uvCoords2BufferSize);*/
 
+				auto& textures = gltfScene.textures;
+				auto& imageIndex = textures[0].source;
+				auto& imageData = gltfScene.images[imageIndex].image;
 
+				auto texture = Image(_logicalDevice,
+					_physicalDevice,
+					VK_FORMAT_R8G8B8A8_UINT,
+					VkExtent2D{ (uint32_t)gltfScene.images[imageIndex].width, (uint32_t)gltfScene.images[imageIndex].height },
+					VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+					VK_IMAGE_ASPECT_COLOR_BIT,
+					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
 				gameObject._mesh._vertices.resize(vertexPositions.size());
 				for (int i = 0; i < vertexPositions.size(); ++i) {
@@ -1288,7 +1387,6 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateRenderPass()
 	{
-		// Get the color attachment from the swapchain.
 		auto imageFormat = _swapchain._surfaceFormat.format;
 
 		// Store the images used by the swap chain.
@@ -1311,14 +1409,20 @@ namespace Engine::Vulkan
 
 		std::cout << "acquired swap chain images" << std::endl;
 
-		// Create the color images.
+		// Create the color attachments.
 		for (uint32_t i = 0; i < actualImageCount; ++i) {
 			_renderPass._colorImages[i] = Image(_logicalDevice, images[i], VK_FORMAT_R8G8B8A8_UNORM);
 		}
 
 		// Create the depth attachment.
 		auto& settings = Settings::GlobalSettings::Instance();
-		_renderPass._depthImage = Image(_logicalDevice, _physicalDevice, VK_FORMAT_D32_SFLOAT, _swapchain._framebufferSize, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		_renderPass._depthImage = Image(_logicalDevice, 
+			_physicalDevice, 
+			VK_FORMAT_D32_SFLOAT, 
+			_swapchain._framebufferSize, 
+			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 
+			VK_IMAGE_ASPECT_DEPTH_BIT, 
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		std::cout << "created image views for swap chain images" << std::endl;
 
@@ -1944,6 +2048,7 @@ namespace Engine::Vulkan
 		stagingBuffer.Destroy();
 		std::cout << "texture loaded successfully" << std::endl;
 	}
+#pragma endregion
 
 }
 

@@ -199,13 +199,17 @@ namespace Engine::Vulkan
 	 */
 	class Image
 	{
-
-	public:
-
 		/**
 		 * @brief See Vulkan specification.
 		 */
 		VkDevice _logicalDevice;
+
+		/**
+		 * @brief Physical device.
+		 */
+		PhysicalDevice _physicalDevice;
+
+	public:
 
 		/**
 		 * @brief Handle that identifies a structure that contains the raw image data.
@@ -237,6 +241,11 @@ namespace Engine::Vulkan
 		 * @brief Describes how this image is going to be read by the physical GPU texture samplers, which feed textures to shaders.
 		 */
 		VkSampler _sampler;
+
+		/**
+		 * @brief Raw data of the image.
+		 */
+		void* _data;
 
 		Image() = default;
 
@@ -270,6 +279,8 @@ namespace Engine::Vulkan
 		 * @param size
 		 */
 		Image(VkDevice& logicalDevice, VkImage& image, const VkFormat& imageFormat);
+
+		void SendToGPU();
 
 		/**
 		 * @brief Generates an image descriptor. An image descriptor is bound to a sampler, which tells Vulkan how to instruct
