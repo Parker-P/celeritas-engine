@@ -150,6 +150,7 @@ namespace Engine::Vulkan
 		_sizePixels = sizePixels;
 		_typeFlags = typeFlags;
 		_sizeBytes = GetPixelSizeBytes(imageFormat) * sizePixels.width * sizePixels.height;
+		_data = data;
 
 		VkImageCreateInfo imageCreateInfo = { };
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -1147,7 +1148,7 @@ namespace Engine::Vulkan
 					_physicalDevice,
 					VK_FORMAT_R8G8B8A8_SRGB,
 					VkExtent2D{ (uint32_t)gltfScene.images[imageIndex].width, (uint32_t)gltfScene.images[imageIndex].height },
-					&imageData,
+					imageData.data(),
 					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
 					VK_IMAGE_ASPECT_COLOR_BIT,
 					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
