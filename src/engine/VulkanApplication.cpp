@@ -34,12 +34,12 @@
 #include "engine/Time.hpp"
 #include "engine/input/Input.hpp"
 #include "engine/math/Transform.hpp"
+#include "engine/scenes/Material.hpp"
 #include "engine/scenes/Mesh.hpp"
 #include "engine/scenes/GameObject.hpp"
-#include "engine/scenes/Camera.hpp"
 #include "engine/scenes/Scene.hpp"
+#include "engine/scenes/Camera.hpp"
 #include "utils/Utils.hpp"
-#include "engine/scenes/GltfLoader.hpp"
 #include "engine/math/Transform.hpp"
 #include "engine/VulkanApplication.hpp"
 
@@ -1037,16 +1037,28 @@ namespace Engine::Vulkan
 		tinygltf::TinyGLTF loader;
 		std::string err;
 		std::string warn;
-
 		Scenes::Scene scene;
 
-		//auto scenePath = std::filesystem::current_path().string() + R"(\models\monster.glb)";
-		//auto scenePath = std::filesystem::current_path().string() + R"(\models\monkey.glb)";
 		auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
-		//auto scenePath = std::filesystem::current_path().string() + R"(\models\plane.glb)";
 		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath);
 		std::cout << warn << std::endl;
 		std::cout << err << std::endl;
+
+		std::map<unsigned int, Scenes::Material*> loadedMaterialCache; // Gltf material index, actual material.
+
+		for (int i = 0; i < gltfScene.materials.size(); ++i) {
+			Scenes::Material m;
+			auto& baseColorTextureIndex = gltfScene.materials[i].pbrMetallicRoughness.baseColorTexture.index;
+			m._name = gltfScene.materials[i].name;
+			if (baseColorTextureIndex >= 0) {
+				auto& baseColorimageIndex = gltfScene.textures[baseColorTextureIndex].source;
+				auto& baseColorimageData = gltfScene.images[baseColorimageIndex].image;
+				auto size = VkExtent2D{ (uint32_t)gltfScene.images[baseColorimageIndex].width, (uint32_t)gltfScene.images[baseColorimageIndex].height };
+				m._baseColor = Scenes::Material::Texture(VK_FORMAT_R8G8B8A8_SRGB, baseColorimageData, size);;
+				scene._materials.push_back(m);
+				loadedMaterialCache.emplace(i, scene._materials.data() + scene._materials.size() - 1);
+			}
+		}
 
 		for (auto& mesh : gltfScene.meshes) {
 			for (auto& primitive : mesh.primitives) {
@@ -1057,7 +1069,6 @@ namespace Engine::Vulkan
 				auto uvCoords0AccessorIndex = primitive.attributes["TEXCOORD_0"];
 				auto uvCoords1AccessorIndex = primitive.attributes["TEXCOORD_1"];
 				auto uvCoords2AccessorIndex = primitive.attributes["TEXCOORD_2"];
-
 				auto faceIndicesAccessor = gltfScene.accessors[faceIndicesAccessorIndex];
 				auto positionsAccessor = gltfScene.accessors[vertexPositionsAccessorIndex];
 				auto normalsAccessor = gltfScene.accessors[vertexNormalsAccessorIndex];
@@ -1065,14 +1076,12 @@ namespace Engine::Vulkan
 				auto uvCoords1Accessor = gltfScene.accessors[uvCoords1AccessorIndex];
 				auto uvCoords2Accessor = gltfScene.accessors[uvCoords2AccessorIndex];
 
-
-
+				// Load face indices.
 				auto faceIndicesCount = faceIndicesAccessor.count;
 				auto faceIndicesBufferIndex = gltfScene.bufferViews[faceIndicesAccessor.bufferView].buffer;
 				auto faceIndicesBufferOffset = gltfScene.bufferViews[faceIndicesAccessor.bufferView].byteOffset;
 				auto faceIndicesBufferStride = faceIndicesAccessor.ByteStride(gltfScene.bufferViews[faceIndicesAccessor.bufferView]);
 				auto faceIndicesBufferSizeBytes = faceIndicesCount * faceIndicesBufferStride;
-
 				std::vector<unsigned int> faceIndices(faceIndicesCount);
 				if (faceIndicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
 					for (int i = 0; i < faceIndicesCount; ++i) {
@@ -1085,40 +1094,32 @@ namespace Engine::Vulkan
 					memcpy(faceIndices.data(), gltfScene.buffers[faceIndicesBufferIndex].data.data() + faceIndicesBufferOffset, faceIndicesBufferSizeBytes);
 				}
 
-
-
+				// Load vertex Positions.
 				auto vertexPositionsCount = positionsAccessor.count;
 				auto vertexPositionsBufferIndex = gltfScene.bufferViews[positionsAccessor.bufferView].buffer;
 				auto vertexPositionsBufferOffset = gltfScene.bufferViews[positionsAccessor.bufferView].byteOffset;
 				auto vertexPositionsBufferStride = positionsAccessor.ByteStride(gltfScene.bufferViews[positionsAccessor.bufferView]);
 				auto vertexPositionsBufferSizeBytes = vertexPositionsCount * vertexPositionsBufferStride;
-
 				std::vector<glm::vec3> vertexPositions(vertexPositionsCount);
 				memcpy(vertexPositions.data(), gltfScene.buffers[vertexPositionsBufferIndex].data.data() + vertexPositionsBufferOffset, vertexPositionsBufferSizeBytes);
 
-
-
+				// Load vertex normals.
 				auto vertexNormalsCount = normalsAccessor.count;
 				auto vertexNormalsBufferIndex = gltfScene.bufferViews[normalsAccessor.bufferView].buffer;
 				auto vertexNormalsBufferOffset = gltfScene.bufferViews[normalsAccessor.bufferView].byteOffset;
 				auto vertexNormalsBufferStride = normalsAccessor.ByteStride(gltfScene.bufferViews[normalsAccessor.bufferView]);
 				auto vertexNormalsBufferSizeBytes = vertexNormalsCount * vertexNormalsBufferStride;
-
 				std::vector<glm::vec3> vertexNormals(vertexNormalsCount);
 				memcpy(vertexNormals.data(), gltfScene.buffers[vertexNormalsBufferIndex].data.data() + vertexNormalsBufferOffset, vertexNormalsBufferSizeBytes);
 
-
-
+				// Load UV coordinates for UV slot 0.
 				auto uvCoords0Count = uvCoords0Accessor.count;
 				auto uvCoords0BufferIndex = gltfScene.bufferViews[uvCoords0Accessor.bufferView].buffer;
 				auto uvCoords0BufferOffset = gltfScene.bufferViews[uvCoords0Accessor.bufferView].byteOffset;
 				auto uvCoords0BufferStride = uvCoords0Accessor.ByteStride(gltfScene.bufferViews[uvCoords0Accessor.bufferView]);
 				auto uvCoords0BufferSize = uvCoords0Count * uvCoords0BufferStride;
-
 				std::vector<glm::vec2> uvCoords0(uvCoords0Count);
 				memcpy(uvCoords0.data(), gltfScene.buffers[uvCoords0BufferIndex].data.data() + uvCoords0BufferOffset, uvCoords0BufferSize);
-
-
 
 				/*auto uvCoords1Count = uvCoords1Accessor.count;
 				auto uvCoords1BufferIndex = gltfScene.bufferViews[uvCoords1Accessor.bufferView].buffer;
@@ -1129,8 +1130,6 @@ namespace Engine::Vulkan
 				std::vector<glm::vec2> uvCoords1(uvCoords1Count);
 				memcpy(uvCoords1.data(), gltfScene.buffers[uvCoords1BufferIndex].data.data() + uvCoords1BufferOffset, uvCoords1BufferSize);
 
-
-
 				auto uvCoords2Count = uvCoords2Accessor.count;
 				auto uvCoords2BufferIndex = gltfScene.bufferViews[uvCoords2Accessor.bufferView].buffer;
 				auto uvCoords2BufferOffset = gltfScene.bufferViews[uvCoords2Accessor.bufferView].byteOffset;
@@ -1140,20 +1139,21 @@ namespace Engine::Vulkan
 				std::vector<glm::vec2> uvCoords2(uvCoords2Count);
 				memcpy(uvCoords2.data(), gltfScene.buffers[uvCoords2BufferIndex].data.data() + uvCoords2BufferOffset, uvCoords2BufferSize);*/
 
-				auto& textures = gltfScene.textures;
-				auto& imageIndex = textures[0].source;
-				auto& imageData = gltfScene.images[imageIndex].image;
+				// Load material.
+				if (loadedMaterialCache.count(primitive.material) > 0) {
+					gameObject._mesh._material = loadedMaterialCache[primitive.material];
+				}
 
-				_graphicsPipeline._shaderResources._texture = Image(_logicalDevice,
+				/*_graphicsPipeline._shaderResources._texture = Image(_logicalDevice,
 					_physicalDevice,
 					VK_FORMAT_R8G8B8A8_SRGB,
-					VkExtent2D{ (uint32_t)gltfScene.images[imageIndex].width, (uint32_t)gltfScene.images[imageIndex].height },
+					VkExtent2D{ (uint32_t)baseColorimageWidth, (uint32_t)baseColorimageHeight },
 					imageData.data(),
 					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
 					VK_IMAGE_ASPECT_COLOR_BIT,
 					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-				_graphicsPipeline._shaderResources._texture.SendToGPU(_commandPool, _queue);
+				_graphicsPipeline._shaderResources._texture.SendToGPU(_commandPool, _queue);*/
 
 				gameObject._mesh._vertices.resize(vertexPositions.size());
 				for (int i = 0; i < vertexPositions.size(); ++i) {
@@ -1434,13 +1434,13 @@ namespace Engine::Vulkan
 
 		// Create the depth attachment.
 		auto& settings = Settings::GlobalSettings::Instance();
-		_renderPass._depthImage = Image(_logicalDevice, 
-			_physicalDevice, 
-			VK_FORMAT_D32_SFLOAT, 
+		_renderPass._depthImage = Image(_logicalDevice,
+			_physicalDevice,
+			VK_FORMAT_D32_SFLOAT,
 			_swapchain._framebufferSize,
 			nullptr,
-			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 
-			VK_IMAGE_ASPECT_DEPTH_BIT, 
+			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+			VK_IMAGE_ASPECT_DEPTH_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		std::cout << "created image views for swap chain images" << std::endl;
@@ -1932,16 +1932,7 @@ namespace Engine::Vulkan
 			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 			VkDeviceSize offset = 0;
 			vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &_graphicsPipeline._vertexBuffer._handle, &offset);
-
-			// Get the value type of vertex indices. Typically unsigned int (32-bit) but could also be 16-bit.
-			VkIndexType indexType = VK_INDEX_TYPE_NONE_KHR;
-			if (std::is_same_v<decltype(_model._mesh._faceIndices)::value_type, unsigned short>) {
-				indexType = VK_INDEX_TYPE_UINT16;
-			}
-			if (std::is_same_v<decltype(_model._mesh._faceIndices)::value_type, unsigned int>) {
-				indexType = VK_INDEX_TYPE_UINT32;
-			}
-			vkCmdBindIndexBuffer(_drawCommandBuffers[i], _graphicsPipeline._indexBuffer._handle, 0, indexType);
+			vkCmdBindIndexBuffer(_drawCommandBuffers[i], _graphicsPipeline._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)_model._mesh._faceIndices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(_drawCommandBuffers[i]);
 

@@ -1,11 +1,12 @@
 #include <string>
 #include <iostream>
 #include <filesystem>
+#include <vector>
+#include <map>
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/ext.hpp>
-#include <vector>
-#include <map>
+#include <vulkan/vulkan.h>
 
 #include "structural/IUpdatable.h"
 #include "structural/Singleton.hpp"
@@ -13,8 +14,10 @@
 #include "settings/GlobalSettings.hpp"
 #include "engine/input/Input.hpp"
 #include "engine/math/Transform.hpp"
+#include "engine/scenes/Material.hpp"
 #include "engine/scenes/Mesh.hpp"
 #include "engine/scenes/GameObject.hpp"
+#include "engine/scenes/Scene.hpp"
 #include "engine/scenes/Camera.hpp"
 
 //void Camera::Init(float FOV, float aspectRatio, float nearClipPlaneDistance, float farClipPlaneDistance) {

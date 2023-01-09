@@ -10,8 +10,8 @@ namespace Engine::Scenes
 	public:
 
 		/**
-	 * @brief Represents vertex attributes.
-	 */
+		 * @brief Represents vertex attributes.
+		 */
 		class Vertex
 		{
 		public:
@@ -58,5 +58,10 @@ namespace Engine::Scenes
 		 * A face (triangle) is defined by three consecutive indices in this array.
 		 */
 		std::vector<unsigned int> _faceIndices;
+
+		/**
+		 * @brief Pointer to a scene level material.
+		 */
+		Material* _material;
 	};
 }

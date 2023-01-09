@@ -21,8 +21,8 @@
   <ItemGroup>
     <ClCompile Include="src\engine\scenes\Camera.cpp" />
     <ClCompile Include="src\engine\scenes\GameObject.cpp" />
-    <ClCompile Include="src\engine\scenes\GltfLoader.cpp" />
     <ClCompile Include="src\engine\input\Input.cpp" />
+    <ClCompile Include="src\engine\scenes\Material.cpp" />
     <ClCompile Include="src\utils\Json.cpp" />
     <ClCompile Include="src\game\input\KeyBinds.cpp" />
     <ClCompile Include="src\engine\scenes\Mesh.cpp" />
@@ -81,10 +81,10 @@
     <ClInclude Include="include\nlohmann\thirdparty\hedley\hedley_undef.hpp" />
     <ClInclude Include="include\stb\stb_image_write.h" />
     <ClInclude Include="include\tinygltf\tiny_gltf.h" />
+    <ClInclude Include="src\engine\scenes\Material.hpp" />
     <ClInclude Include="src\settings\Paths.hpp" />
     <ClInclude Include="src\engine\scenes\Camera.hpp" />
     <ClInclude Include="src\engine\scenes\GameObject.hpp" />
-    <ClInclude Include="src\engine\scenes\GltfLoader.hpp" />
     <ClInclude Include="src\engine\input\Input.hpp" />
     <ClInclude Include="src\structural\IUpdatable.h" />
     <ClInclude Include="src\utils\Json.h" />

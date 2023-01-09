@@ -2,7 +2,7 @@
 namespace Engine::Scenes
 {
 	/**
-	 * @brief Represents a physical object in the world.
+	 * @brief Represents a physical object in a celeritas-engine scene.
 	 */
 	class GameObject
 	{
