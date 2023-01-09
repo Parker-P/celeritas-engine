@@ -4,7 +4,7 @@
 #include <vector>
 #include <map>
 
-#include "structural/IUpdatable.h"
+#include "structural/IUpdatable.hpp"
 #include "structural/Singleton.hpp"
 #include "engine/input/Input.hpp"
 

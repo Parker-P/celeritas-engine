@@ -2,10 +2,12 @@
 
 namespace Engine::Scenes
 {
+	class GameObject;
+
 	/**
 	 * @brief Represents a collection of vertices and face indices as triangles.
 	 */
-	class Mesh
+	class Mesh : public IDrawable
 	{
 	public:
 
@@ -49,7 +51,12 @@ namespace Engine::Scenes
 		};
 
 		/**
-		 * @brief Array of vertices that make up the mesh.
+		 * @brief Index into the current scene's game object list.
+		 */
+		unsigned int _gameObject;
+
+		/**
+		 * @brief List of vertices that make up the mesh.
 		 */
 		std::vector<Vertex> _vertices;
 		
@@ -60,8 +67,13 @@ namespace Engine::Scenes
 		std::vector<unsigned int> _faceIndices;
 
 		/**
-		 * @brief Pointer to a scene level material.
+		 * @brief Index into the current scene's material list.
 		 */
-		Material* _material;
+		unsigned int _materialIndex;
+
+		/**
+		 * @brief Uses Vulkan to draw the mesh.
+		 */
+		void Draw() override;
 	};
 }

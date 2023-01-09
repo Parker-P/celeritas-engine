@@ -27,7 +27,8 @@
 
 // Project local classes.
 #include "utils/Json.h"
-#include "structural/IUpdatable.h"
+#include "structural/IUpdatable.hpp"
+#include "structural/IDrawable.hpp"
 #include "structural/Singleton.hpp"
 #include "settings/GlobalSettings.hpp"
 #include "settings/Paths.hpp"
@@ -1044,7 +1045,7 @@ namespace Engine::Vulkan
 		std::cout << warn << std::endl;
 		std::cout << err << std::endl;
 
-		std::map<unsigned int, Scenes::Material*> loadedMaterialCache; // Gltf material index, actual material.
+		std::map<unsigned int, unsigned int> loadedMaterialCache; // Gltf material index, index of the materials in scene._materials.
 
 		for (int i = 0; i < gltfScene.materials.size(); ++i) {
 			Scenes::Material m;
@@ -1056,19 +1057,23 @@ namespace Engine::Vulkan
 				auto size = VkExtent2D{ (uint32_t)gltfScene.images[baseColorimageIndex].width, (uint32_t)gltfScene.images[baseColorimageIndex].height };
 				m._baseColor = Scenes::Material::Texture(VK_FORMAT_R8G8B8A8_SRGB, baseColorimageData, size);;
 				scene._materials.push_back(m);
-				loadedMaterialCache.emplace(i, scene._materials.data() + scene._materials.size() - 1);
+				loadedMaterialCache.emplace(i, scene._materials.size() - 1);
 			}
 		}
 
-		for (auto& mesh : gltfScene.meshes) {
-			for (auto& primitive : mesh.primitives) {
+		for (auto& gltfMesh : gltfScene.meshes) {
+			for (auto& gltfPrimitive : gltfMesh.primitives) {
 				auto gameObject = Scenes::GameObject();
-				auto faceIndicesAccessorIndex = primitive.indices;
-				auto vertexPositionsAccessorIndex = primitive.attributes["POSITION"];
-				auto vertexNormalsAccessorIndex = primitive.attributes["NORMAL"];
-				auto uvCoords0AccessorIndex = primitive.attributes["TEXCOORD_0"];
-				auto uvCoords1AccessorIndex = primitive.attributes["TEXCOORD_1"];
-				auto uvCoords2AccessorIndex = primitive.attributes["TEXCOORD_2"];
+				gameObject._scene = &scene;
+				gameObject._name = gltfMesh.name;
+
+				auto faceIndicesAccessorIndex = gltfPrimitive.indices;
+				auto vertexPositionsAccessorIndex = gltfPrimitive.attributes["POSITION"];
+				auto vertexNormalsAccessorIndex = gltfPrimitive.attributes["NORMAL"];
+				auto uvCoords0AccessorIndex = gltfPrimitive.attributes["TEXCOORD_0"];
+				auto uvCoords1AccessorIndex = gltfPrimitive.attributes["TEXCOORD_1"];
+				auto uvCoords2AccessorIndex = gltfPrimitive.attributes["TEXCOORD_2"];
+
 				auto faceIndicesAccessor = gltfScene.accessors[faceIndicesAccessorIndex];
 				auto positionsAccessor = gltfScene.accessors[vertexPositionsAccessorIndex];
 				auto normalsAccessor = gltfScene.accessors[vertexNormalsAccessorIndex];
@@ -1139,9 +1144,11 @@ namespace Engine::Vulkan
 				std::vector<glm::vec2> uvCoords2(uvCoords2Count);
 				memcpy(uvCoords2.data(), gltfScene.buffers[uvCoords2BufferIndex].data.data() + uvCoords2BufferOffset, uvCoords2BufferSize);*/
 
+				auto& mesh = gameObject._mesh;
+
 				// Load material.
-				if (loadedMaterialCache.count(primitive.material) > 0) {
-					gameObject._mesh._material = loadedMaterialCache[primitive.material];
+				if (loadedMaterialCache.count(gltfPrimitive.material) > 0) {
+					mesh._materialIndex = loadedMaterialCache[gltfPrimitive.material];
 				}
 
 				/*_graphicsPipeline._shaderResources._texture = Image(_logicalDevice,
@@ -1155,19 +1162,18 @@ namespace Engine::Vulkan
 
 				_graphicsPipeline._shaderResources._texture.SendToGPU(_commandPool, _queue);*/
 
-				gameObject._mesh._vertices.resize(vertexPositions.size());
+				mesh._vertices.resize(vertexPositions.size());
 				for (int i = 0; i < vertexPositions.size(); ++i) {
 					Scenes::Mesh::Vertex v;
 					v._position = vertexPositions[i];
 					v._normal = vertexNormals[i];
 					v._uvCoord = uvCoords0[i];
-					gameObject._mesh._vertices[i] = v;
+					mesh._vertices[i] = v;
 				}
 
-				gameObject._mesh._faceIndices = faceIndices;
-				gameObject._name = mesh.name;
-
+				mesh._faceIndices = faceIndices;
 				scene._objects.push_back(gameObject);
+				mesh._gameObject = (unsigned int)(scene._objects.size() - 1);
 			}
 		}
 
@@ -1927,13 +1933,14 @@ namespace Engine::Vulkan
 			renderPassBeginInfo.pClearValues = &clearValues[0];
 
 			vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			VkDescriptorSet sets[2] = { shaderResources._uniformSet._handle, shaderResources._samplerSet._handle };
+			/*VkDescriptorSet sets[2] = { shaderResources._uniformSet._handle, shaderResources._samplerSet._handle };
 			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shaderResources._pipelineLayout, 0, 2, sets, 0, nullptr);
 			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 			VkDeviceSize offset = 0;
 			vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &_graphicsPipeline._vertexBuffer._handle, &offset);
 			vkCmdBindIndexBuffer(_drawCommandBuffers[i], _graphicsPipeline._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)_model._mesh._faceIndices.size(), 1, 0, 0, 0);
+			vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)_model._mesh._faceIndices.size(), 1, 0, 0, 0);*/
+
 			vkCmdEndRenderPass(_drawCommandBuffers[i]);
 
 			if (vkEndCommandBuffer(_drawCommandBuffers[i]) != VK_SUCCESS) {

@@ -255,7 +255,7 @@
     <ClInclude Include="src\settings\Paths.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\structural\IUpdatable.h">
+    <ClInclude Include="src\structural\IUpdatable.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\stb\stb_image.h">
@@ -406,6 +406,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\scenes\Material.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\structural\IDrawable.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

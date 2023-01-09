@@ -3,7 +3,7 @@
 namespace Engine::Math
 {
 	/**
-	 * @brief Represents a column-major 4x4 matrix transform.
+	 * @brief Represents a column-major 4x4 matrix transform in a left handed X right, Y up, Z forward coordinate system.
 	 */
 	class Transform
 	{

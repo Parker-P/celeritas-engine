@@ -5,6 +5,7 @@
 #include <glm/detail/type_vec.hpp>
 #include <vulkan/vulkan.h>
 
+#include "structural/IDrawable.hpp"
 #include "engine/scenes/Material.hpp"
 #include "engine/scenes/Mesh.hpp"
 
@@ -21,5 +22,10 @@ namespace Engine::Scenes
             return sizeof(_position) + sizeof(_normal);
         default: return 0;
         }
+    }
+
+    void Mesh::Draw()
+    {
+
     }
 }

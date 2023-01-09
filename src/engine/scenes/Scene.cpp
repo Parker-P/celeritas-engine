@@ -5,6 +5,7 @@
 #include <glm/detail/type_vec.hpp>
 #include <vulkan/vulkan.h>
 
+#include "structural/IDrawable.hpp"
 #include "engine/scenes/Material.hpp"
 #include "engine/math/Transform.hpp"
 #include "engine/scenes/Mesh.hpp"

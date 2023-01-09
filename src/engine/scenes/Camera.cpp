@@ -8,7 +8,8 @@
 #include <glm/ext.hpp>
 #include <vulkan/vulkan.h>
 
-#include "structural/IUpdatable.h"
+#include "structural/IUpdatable.hpp"
+#include "structural/IDrawable.hpp"
 #include "structural/Singleton.hpp"
 #include "engine/Time.hpp"
 #include "settings/GlobalSettings.hpp"
@@ -51,9 +52,9 @@ namespace Engine::Scenes
 		auto& time = Time::Instance();
 		auto mouseSens = Settings::GlobalSettings::Instance()._mouseSensitivity;
 
-		_yaw += input._deltaMouseX * mouseSens;
+		_yaw += (float)input._deltaMouseX * mouseSens;
 		if ((_pitch + (input._deltaMouseY * mouseSens)) > -90 && (_pitch + (input._deltaMouseY * mouseSens)) < 90) {
-			_pitch += input._deltaMouseY * mouseSens;
+			_pitch += (float)input._deltaMouseY * mouseSens;
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_Q)) {
@@ -134,8 +135,8 @@ namespace Engine::Scenes
 
 		_view._matrix = glm::inverse(_transform._matrix);
 
-		float _deltaScrollY = (input._scrollY - _lastScrollY);
+		float _deltaScrollY = ((float)input._scrollY - _lastScrollY);
 		_horizontalFov -= _deltaScrollY;
-		_lastScrollY = input._scrollY;
+		_lastScrollY = (float)input._scrollY;
 	}
 }
