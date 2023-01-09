@@ -1940,7 +1940,7 @@ namespace Engine::Vulkan
 			vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &_graphicsPipeline._vertexBuffer._handle, &offset);
 			vkCmdBindIndexBuffer(_drawCommandBuffers[i], _graphicsPipeline._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)_model._mesh._faceIndices.size(), 1, 0, 0, 0);*/
-
+			for(auto& gameObject : _scene._objects)
 			vkCmdEndRenderPass(_drawCommandBuffers[i]);
 
 			if (vkEndCommandBuffer(_drawCommandBuffers[i]) != VK_SUCCESS) {
