@@ -72,8 +72,9 @@ namespace Engine::Scenes
 		unsigned int _materialIndex;
 
 		/**
-		 * @brief Uses Vulkan to draw the mesh.
+		 * @brief Records the Vulkan draw commands needed to draw the mesh into the given command buffer.
+		 * The recorded commands will bind all the mesh's resources to the pipeline.
 		 */
-		void Draw() override;
+		void RecordDrawCommands(VkPipeline& pipeline, VkCommandBuffer& commandBuffer) override;
 	};
 }

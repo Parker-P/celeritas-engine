@@ -487,8 +487,7 @@ namespace Engine::Vulkan
 		DescriptorPool(VkDevice& logicalDevice, std::vector<DescriptorSet*> descriptorSets);
 
 		/**
-		 * @brief Updates a descriptor identified by its set index and descriptor index (called set and binding in the shaders respectively)
-		 * with the data contained in the given buffer.
+		 * @brief Updates a descriptor identified by its memory address with the data contained in the given buffer.
 		 * @param setIndex Descriptor set index.
 		 * @param descriptorIndex Descriptor index a.k.a. binding.
 		 * @param data The buffer whose data will be sent to the allocated descriptor set.
@@ -496,8 +495,7 @@ namespace Engine::Vulkan
 		void UpdateDescriptor(Descriptor& d, Buffer& data);
 
 		/**
-		 * @brief Updates a descriptor identified by its set indexand descriptor index (called set and binding in the shaders respectively)
-		 * with the data contained in the given image.
+		 * @brief Updates a descriptor identified by its memory address with the data contained in the given image.
 		 * @param setIndex Descriptor set index.
 		 * @param descriptorIndex Descriptor index a.k.a. binding.
 		 * @param data The buffer whose data will be sent to the allocated descriptor set.
@@ -569,9 +567,8 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Encapsulates info for a render pass.
-		 * A render pass represents a logical step that the GPU must perform in order to render a final
-		 * presentable image that will be stored in a framebuffer for presentation. To do this, render passes use
-		 * what are called (in Vulkan gergo) attachments, which are rendered images that contribute to rendering
+		 * A render pass represents an execution of an entire graphics pipeline to create an image. 
+		 * Render passes use what are called (in Vulkan gergo) attachments. Each attachment is which are rendered images that contribute to rendering
 		 * the final image that will go in the framebuffer. It is the renderpass's job to also do compositing, which
 		 * is defining the logic according to which the attachments are merged to create the final image.
 		 * See @see Swapchain to understand what framebuffers are.
@@ -941,13 +938,6 @@ namespace Engine::Vulkan
 		void CreateFramebuffers();
 
 		/**
-		 * @brief For each swapchain image, executes the draw commands contained in the corresponding command buffer (by submitting
-		 * them to _queue), then waits for the commands to complete (synchronizing using a semaphore). This draws to a framebuffer.
-		 * The function then presents the image to the window surface, which shows it to the window.
-		 */
-		void Draw();
-
-		/**
 		 * @brief Creates the render pass.
 		 */
 		void CreateRenderPass();
@@ -1010,6 +1000,13 @@ namespace Engine::Vulkan
 		 * @brief For each swapchain image, records draw commands into the corresponding draw command buffer.
 		 */
 		void RecordDrawCommands();
+
+		/**
+		 * @brief For each swapchain image, executes the draw commands contained in the corresponding command buffer (by submitting
+		 * them to _queue), then waits for the commands to complete (synchronizing using a semaphore). This draws to a framebuffer.
+		 * The function then presents the image to the window surface, which shows it to the window.
+		 */
+		void Draw();
 
 		/**
 		 * @brief Chooses the VkFormat (format and color space) for the given texture file.

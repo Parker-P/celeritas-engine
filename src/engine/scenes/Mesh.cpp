@@ -24,8 +24,8 @@ namespace Engine::Scenes
         }
     }
 
-    void Mesh::Draw()
+    void Mesh::RecordDrawCommands(VkPipeline& pipeline, VkCommandBuffer& commandBuffer)
     {
-
+        
     }
 }

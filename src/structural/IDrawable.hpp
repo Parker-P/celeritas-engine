@@ -11,5 +11,5 @@ public:
 	/**
 	 * @brief Function called on implementing classes whenever you want to draw the data the class contains.
 	 */
-	virtual void Draw() = 0;
+	virtual void RecordDrawCommands(VkPipeline& pipeline, VkCommandBuffer& commandBuffer) = 0;
 };

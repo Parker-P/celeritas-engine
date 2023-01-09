@@ -1351,64 +1351,6 @@ namespace Engine::Vulkan
 		std::cout << "created framebuffers for swap chain image views" << std::endl;
 	}
 
-	void VulkanApplication::Draw()
-	{
-		if (!windowMinimized) {
-
-			// Acquire image.
-			uint32_t imageIndex;
-			VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain._handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
-
-			// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
-			if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) {
-				WindowSizeChanged();
-				return;
-			}
-			else if (res != VK_SUCCESS) {
-				std::cerr << "failed to acquire image" << std::endl;
-				exit(1);
-			}
-
-			// Wait for image to be available and draw.
-			// This is the stage where the queue should wait on the semaphore.
-			VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-			VkSubmitInfo submitInfo = {};
-			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-			submitInfo.waitSemaphoreCount = 1;
-			submitInfo.pWaitSemaphores = &_imageAvailableSemaphore;
-			submitInfo.signalSemaphoreCount = 1;
-			submitInfo.pSignalSemaphores = &_renderingFinishedSemaphore;
-			submitInfo.pWaitDstStageMask = &waitDstStageMask;
-			submitInfo.commandBufferCount = 1;
-			submitInfo.pCommandBuffers = &_drawCommandBuffers[imageIndex];
-
-			if (auto res = vkQueueSubmit(_queue._handle, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS) {
-				std::cerr << "failed to submit draw command buffer" << std::endl;
-				exit(1);
-			}
-
-			// Present drawn image.
-			// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
-			VkPresentInfoKHR presentInfo = {};
-			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-			presentInfo.waitSemaphoreCount = 1;
-			presentInfo.pWaitSemaphores = &_renderingFinishedSemaphore;
-			presentInfo.swapchainCount = 1;
-			presentInfo.pSwapchains = &_swapchain._handle;
-			presentInfo.pImageIndices = &imageIndex;
-
-			res = vkQueuePresentKHR(_queue._handle, &presentInfo);
-
-			if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
-				WindowSizeChanged();
-			}
-			else if (res != VK_SUCCESS) {
-				std::cerr << "failed to submit present command buffer" << std::endl;
-				exit(1);
-			}
-		}
-	}
-
 	void VulkanApplication::CreateRenderPass()
 	{
 		auto imageFormat = _swapchain._surfaceFormat.format;
@@ -1813,7 +1755,6 @@ namespace Engine::Vulkan
 	{
 		auto& shaderResources = _graphicsPipeline._shaderResources;
 
-		shaderResources._transformationData.objectToWorld = _model._transform._matrix;
 		shaderResources._transformationData.worldToCamera = _mainCamera._view._matrix;
 		shaderResources._transformationData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov / 2.0f));
 		shaderResources._transformationData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
@@ -1833,6 +1774,8 @@ namespace Engine::Vulkan
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
 			&shaderResources._transformationData,
 			(size_t)sizeof(shaderResources._transformationData));
+
+		shaderResources._texture = Image();
 
 		shaderResources._transformationsDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, shaderResources._transformationDataBuffer, 0);
 		shaderResources._textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, shaderResources._texture, 0);
@@ -1940,7 +1883,76 @@ namespace Engine::Vulkan
 			vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &_graphicsPipeline._vertexBuffer._handle, &offset);
 			vkCmdBindIndexBuffer(_drawCommandBuffers[i], _graphicsPipeline._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)_model._mesh._faceIndices.size(), 1, 0, 0, 0);*/
-			for(auto& gameObject : _scene._objects)
+			
+			auto& shaderResources = _graphicsPipeline._shaderResources;
+			
+			for (auto& gameObject : _scene._objects)
+			{
+				auto textureFormat = _scene._materials[gameObject._mesh._materialIndex]._baseColor._format;
+				auto textureSizePixels = _scene._materials[gameObject._mesh._materialIndex]._baseColor._sizePixels;
+				auto textureData = _scene._materials[gameObject._mesh._materialIndex]._baseColor._data;
+				auto texture = Image(_logicalDevice,
+					_physicalDevice,
+					textureFormat,
+					textureSizePixels,
+					textureData.data(),
+					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
+					VK_IMAGE_ASPECT_COLOR_BIT,
+					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+				texture.SendToGPU(_commandPool, _queue);
+
+				shaderResources._transformationData.objectToWorld = gameObject._transform._matrix;
+				shaderResources._descriptorPool.UpdateDescriptor(shaderResources._textureDescriptor, texture);
+				shaderResources._descriptorPool.UpdateDescriptor(shaderResources._transformationsDescriptor, shaderResources._transformationDataBuffer);
+				VkDescriptorSet sets[2] = { shaderResources._uniformSet._handle, shaderResources._samplerSet._handle };
+				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shaderResources._pipelineLayout, 0, 2, sets, 0, nullptr);
+				vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
+				VkDeviceSize offset = 0;
+
+				//// Copy command buffer.
+				//VkCommandBufferBeginInfo bufferBeginInfo = {};
+				//bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+				//bufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+				//
+				//VkCommandBufferAllocateInfo cmdBufInfo = {};
+				//cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+				//cmdBufInfo.commandPool = _commandPool;
+				//cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+				//cmdBufInfo.commandBufferCount = 1;
+
+				//VkCommandBuffer copyCommandBuffer;
+				//vkAllocateCommandBuffers(_logicalDevice, &cmdBufInfo, &copyCommandBuffer);
+
+				//vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
+				auto vertexPositionsSize = Utils::GetVectorSizeInBytes(gameObject._mesh._vertices);
+				auto faceIndicesSize = Utils::GetVectorSizeInBytes(gameObject._mesh._faceIndices);
+				
+				auto vertexTransferBuffer = Buffer(_logicalDevice,
+					_physicalDevice,
+					VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+					gameObject._mesh._vertices.data(),
+					vertexPositionsSize);
+
+				auto indexTransferBuffer = Buffer(_logicalDevice,
+					_physicalDevice,
+					VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+					gameObject._mesh._faceIndices.data(),
+					faceIndicesSize);
+
+				VkBufferCopy copyRegion = {};
+				copyRegion.size = vertexPositionsSize;
+				vkCmdCopyBuffer(_drawCommandBuffers[i], vertexTransferBuffer._handle, _graphicsPipeline._vertexBuffer._handle, 1, &copyRegion);
+				copyRegion.size = faceIndicesSize;
+				vkCmdCopyBuffer(_drawCommandBuffers[i], indexTransferBuffer._handle, _graphicsPipeline._indexBuffer._handle, 1, &copyRegion);
+
+				
+
+				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &_graphicsPipeline._vertexBuffer._handle, &offset);
+				vkCmdBindIndexBuffer(_drawCommandBuffers[i], _graphicsPipeline._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)gameObject._mesh._faceIndices.size(), 1, 0, 0, 0);
+			}
 			vkCmdEndRenderPass(_drawCommandBuffers[i]);
 
 			if (vkEndCommandBuffer(_drawCommandBuffers[i]) != VK_SUCCESS) {
@@ -1951,6 +1963,64 @@ namespace Engine::Vulkan
 		}
 
 		std::cout << "recorded draw commands in draw command buffers." << std::endl;
+	}
+
+	void VulkanApplication::Draw()
+	{
+		if (!windowMinimized) {
+
+			// Acquire image.
+			uint32_t imageIndex;
+			VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain._handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+			// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
+			if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) {
+				WindowSizeChanged();
+				return;
+			}
+			else if (res != VK_SUCCESS) {
+				std::cerr << "failed to acquire image" << std::endl;
+				exit(1);
+			}
+
+			// Wait for image to be available and draw.
+			// This is the stage where the queue should wait on the semaphore.
+			VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+			VkSubmitInfo submitInfo = {};
+			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submitInfo.waitSemaphoreCount = 1;
+			submitInfo.pWaitSemaphores = &_imageAvailableSemaphore;
+			submitInfo.signalSemaphoreCount = 1;
+			submitInfo.pSignalSemaphores = &_renderingFinishedSemaphore;
+			submitInfo.pWaitDstStageMask = &waitDstStageMask;
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &_drawCommandBuffers[imageIndex];
+
+			if (auto res = vkQueueSubmit(_queue._handle, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS) {
+				std::cerr << "failed to submit draw command buffer" << std::endl;
+				exit(1);
+			}
+
+			// Present drawn image.
+			// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
+			VkPresentInfoKHR presentInfo = {};
+			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+			presentInfo.waitSemaphoreCount = 1;
+			presentInfo.pWaitSemaphores = &_renderingFinishedSemaphore;
+			presentInfo.swapchainCount = 1;
+			presentInfo.pSwapchains = &_swapchain._handle;
+			presentInfo.pImageIndices = &imageIndex;
+
+			res = vkQueuePresentKHR(_queue._handle, &presentInfo);
+
+			if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
+				WindowSizeChanged();
+			}
+			else if (res != VK_SUCCESS) {
+				std::cerr << "failed to submit present command buffer" << std::endl;
+				exit(1);
+			}
+		}
 	}
 
 	VkFormat VulkanApplication::ChooseImageFormat(const std::filesystem::path& absolutePathToImage)
