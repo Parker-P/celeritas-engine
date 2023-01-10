@@ -55,10 +55,21 @@ namespace Engine::Scenes
 		 */
 		unsigned int _gameObject;
 
-		/**
-		 * @brief List of vertices that make up the mesh.
-		 */
-		std::vector<Vertex> _vertices;
+		struct
+		{
+			/**
+			 * @brief List of vertices that make up the mesh.
+			 */
+			std::vector<Vertex> _vertexData;
+
+			/**
+			 * @brief Vertex buffer containing _vertexData to be bound to the graphics pipeline just before
+			 * drawing the mesh in a render pass.
+			 */
+			Vulkan::Buffer _vertexBuffer;
+
+		} _vertices;
+		
 		
 		/**
 		 * @brief List of indices, where each index corresponds to a vertex defined in the _vertices array above.

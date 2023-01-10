@@ -30,7 +30,7 @@
     <ClInclude Include="src\utils\Utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\VulkanApplication.hpp">
+    <ClInclude Include="src\engine\vulkan\VulkanApplication.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\VulkanApplication.hpp">
@@ -198,12 +198,6 @@
     <ClInclude Include="src\utils\Utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\Utils.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\VulkanApplication.cpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\engine\VulkanApplication.cpp">
       <Filter>Source Files</Filter>
     </ClInclude>
@@ -225,22 +219,7 @@
     <ClInclude Include="src\engine\scenes\Camera.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\GltfLoader.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Input.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\utils\Json.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Mesh.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Scene.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Singleton.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\Utils.hpp">
@@ -411,6 +390,18 @@
     <ClInclude Include="src\structural\IDrawable.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\engine\vulkan\Buffer.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\vulkan\PhysicalDevice.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\vulkan\Image.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\vulkan\Queue.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\engine\scenes\Camera.cpp">
@@ -428,7 +419,7 @@
     <ClCompile Include="src\engine\scenes\Scene.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\engine\VulkanApplication.cpp">
+    <ClCompile Include="src\engine\vulkan\VulkanApplication.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\engine\scenes\GameObject.cpp">
@@ -447,6 +438,18 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\engine\scenes\Material.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\vulkan\Buffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\vulkan\PhysicalDevice.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\vulkan\Image.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\vulkan\Queue.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

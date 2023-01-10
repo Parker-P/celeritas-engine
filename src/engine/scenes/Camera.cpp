@@ -16,6 +16,8 @@
 #include "engine/input/Input.hpp"
 #include "engine/math/Transform.hpp"
 #include "engine/scenes/Material.hpp"
+#include "engine/vulkan/PhysicalDevice.hpp"
+#include "engine/vulkan/Buffer.hpp"
 #include "engine/scenes/Mesh.hpp"
 #include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Scene.hpp"

@@ -23,6 +23,10 @@
     <ClCompile Include="src\engine\scenes\GameObject.cpp" />
     <ClCompile Include="src\engine\input\Input.cpp" />
     <ClCompile Include="src\engine\scenes\Material.cpp" />
+    <ClCompile Include="src\engine\vulkan\Buffer.cpp" />
+    <ClCompile Include="src\engine\vulkan\PhysicalDevice.cpp" />
+    <ClCompile Include="src\engine\vulkan\Image.cpp" />
+    <ClCompile Include="src\engine\vulkan\Queue.cpp" />
     <ClCompile Include="src\utils\Json.cpp" />
     <ClCompile Include="src\game\input\KeyBinds.cpp" />
     <ClCompile Include="src\engine\scenes\Mesh.cpp" />
@@ -30,7 +34,7 @@
     <ClCompile Include="src\settings\GlobalSettings.cpp" />
     <ClCompile Include="src\engine\Time.cpp" />
     <ClCompile Include="src\engine\math\Transform.cpp" />
-    <ClCompile Include="src\engine\VulkanApplication.cpp" />
+    <ClCompile Include="src\engine\vulkan\VulkanApplication.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\json\json.h" />
@@ -82,6 +86,10 @@
     <ClInclude Include="include\stb\stb_image_write.h" />
     <ClInclude Include="include\tinygltf\tiny_gltf.h" />
     <ClInclude Include="src\engine\scenes\Material.hpp" />
+    <ClInclude Include="src\engine\vulkan\Buffer.hpp" />
+    <ClInclude Include="src\engine\vulkan\PhysicalDevice.hpp" />
+    <ClInclude Include="src\engine\vulkan\Image.hpp" />
+    <ClInclude Include="src\engine\vulkan\Queue.hpp" />
     <ClInclude Include="src\settings\Paths.hpp" />
     <ClInclude Include="src\engine\scenes\Camera.hpp" />
     <ClInclude Include="src\engine\scenes\GameObject.hpp" />
@@ -98,7 +106,7 @@
     <ClInclude Include="src\engine\math\Transform.hpp" />
     <ClInclude Include="include\stb\stb_image.h" />
     <ClInclude Include="src\utils\Utils.hpp" />
-    <ClInclude Include="src\engine\VulkanApplication.hpp" />
+    <ClInclude Include="src\engine\vulkan\VulkanApplication.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="src\settings\GlobalSettings.json" />
