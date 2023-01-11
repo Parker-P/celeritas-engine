@@ -8,11 +8,11 @@ namespace Engine::Vulkan
 	 * by the GPU's cores.
 	 * A descriptor is accessed by a shader by using an index and a binding number, similar to vertex attributes, which are accessed
 	 * by the vertex shader using a binding and a location number.
-	 * For example, in a shader, a descriptor set is declared as follows:
+	 * For example, in a shader, a descriptor is declared as follows:
 	 * #version 450
 	 *
-	 * // Descriptor declaration. The shader will access the descriptor set at index 0 with binding number 0.
-	 * layout(set = 0, binding = 0) uniform UniformBuffer
+	 * // Descriptor declaration. The shader will access the descriptor with binding number 1 at descriptor set with index 2.
+	 * layout(set = 2, binding = 1) uniform UniformBuffer
 	 * {
 	 *     ... data in the uniform buffer ...
 	 * } uniformBuffer;

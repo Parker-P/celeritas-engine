@@ -11,7 +11,9 @@
 #include "structural/IDrawable.hpp"
 #include "engine/vulkan/PhysicalDevice.hpp"
 #include "engine/vulkan/Queue.hpp"
+#include "engine/vulkan/Image.hpp"
 #include "engine/vulkan/Buffer.hpp"
+#include "engine/vulkan/ShaderResources.hpp"
 #include "engine/scenes/Material.hpp"
 #include "engine/scenes/Mesh.hpp"
 

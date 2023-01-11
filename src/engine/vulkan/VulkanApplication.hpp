@@ -388,7 +388,7 @@ namespace Engine::Vulkan
 
 		void CreateWindowSurface();
 
-		void FindPhysicalDevice();
+		//void FindPhysicalDevice();
 
 		/**
 		 * @brief Finds the index of a queue family whose queues can contain command buffers that hold
@@ -449,23 +449,23 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Creates a descriptor set, and fills it with the chosen number of descriptors (defined when creating the descriptor pool that will be used to allocate the descriptor set).
 		 */
-		void AllocateDescriptorSets();
+		//void AllocateDescriptorSets();
 
 		/**
 		 * @brief Updates the data in both the uniform and texture sampler descriptor sets.
 		 */
-		void UpdateDescriptorSetsData();
+		//void UpdateDescriptorSetsData();
 
 		/**
 		 * @brief Creates the descriptor set layout. See _graphicsPipeline._shaderResources.
 		 */
-		void CreateDescriptorSetLayout();
+		//void CreateDescriptorSetLayout();
 		
 		/**
 		 * @brief Creates a descriptor pool.
 		 * @param descriptorCount The amount of descriptors you plan to allocate from the pool.
 		 */
-		void CreateDescriptorPool();
+		//void CreateDescriptorPool();
 
 		/**
 		 * @brief Update the data that will be sent to the shaders.
@@ -504,6 +504,6 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Loads a texture into VRAM.
 		 */
-		void LoadTexture();
+		//void LoadTexture();
 	};
 }

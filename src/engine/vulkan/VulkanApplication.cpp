@@ -39,15 +39,15 @@
 #include "engine/vulkan/PhysicalDevice.hpp"
 #include "engine/vulkan/Queue.hpp"
 #include "engine/vulkan/Buffer.hpp"
-#include "engine/scenes/Mesh.hpp"
-#include "engine/scenes/GameObject.hpp"
-#include "engine/scenes/Scene.hpp"
-#include "engine/scenes/Camera.hpp"
 #include "utils/Utils.hpp"
 #include "engine/math/Transform.hpp"
 #include "engine/vulkan/Queue.hpp"
 #include "engine/vulkan/Image.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
+#include "engine/scenes/Mesh.hpp"
+#include "engine/scenes/GameObject.hpp"
+#include "engine/scenes/Scene.hpp"
+#include "engine/scenes/Camera.hpp"
 #include "engine/vulkan/VulkanApplication.hpp"
 
 namespace Engine::Vulkan
@@ -55,7 +55,6 @@ namespace Engine::Vulkan
 	bool windowResized = false;
 	bool windowMinimized = false;
 
-#pragma region VulkanApplicationFunctions
 	void VulkanApplication::Run()
 	{
 		InitializeWindow();
@@ -545,33 +544,33 @@ namespace Engine::Vulkan
 				_graphicsPipeline._shaderResources._texture.SendToGPU(_commandPool, _queue);*/
 
 				// Gather vertices and face indices.
-				mesh._vertices._vertexData.resize(vertexPositions.size());
+				mesh._shaderResources._vertices._vertexData.resize(vertexPositions.size());
 				for (int i = 0; i < vertexPositions.size(); ++i) {
 					Scenes::Mesh::Vertex v;
 					v._position = vertexPositions[i];
 					v._normal = vertexNormals[i];
 					v._uvCoord = uvCoords0[i];
-					mesh._vertices._vertexData[i] = v;
+					mesh._shaderResources._vertices._vertexData[i] = v;
 				}
-				mesh._faceIndices._indexData = faceIndices;
+				mesh._shaderResources._faceIndices._indexData = faceIndices;
 
 				// Copy vertices to the GPU.
-				mesh._vertices._vertexBuffer = Buffer(_logicalDevice,
+				mesh._shaderResources._vertices._vertexBuffer = Buffer(_logicalDevice,
 					_physicalDevice,
 					(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
 					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-					mesh._vertices._vertexData.data(),
-					Utils::GetVectorSizeInBytes(mesh._vertices._vertexData));
-				mesh._vertices._vertexBuffer.SendToGPU(_commandPool, _queue);
+					mesh._shaderResources._vertices._vertexData.data(),
+					Utils::GetVectorSizeInBytes(mesh._shaderResources._vertices._vertexData));
+				mesh._shaderResources._vertices._vertexBuffer.SendToGPU(_commandPool, _queue);
 
 				// Copy face indices to the GPU.
-				mesh._faceIndices._indexBuffer = Buffer(_logicalDevice,
+				mesh._shaderResources._faceIndices._indexBuffer = Buffer(_logicalDevice,
 					_physicalDevice,
 					(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
 					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-					mesh._faceIndices._indexData.data(),
-					Utils::GetVectorSizeInBytes(mesh._faceIndices._indexData));
-				mesh._faceIndices._indexBuffer.SendToGPU(_commandPool, _queue);
+					mesh._shaderResources._faceIndices._indexData.data(),
+					Utils::GetVectorSizeInBytes(mesh._shaderResources._faceIndices._indexData));
+				mesh._shaderResources._faceIndices._indexBuffer.SendToGPU(_commandPool, _queue);
 
 				_scene._gameObjects.push_back(gameObject);
 				mesh._gameObject = (unsigned int)(_scene._gameObjects.size() - 1);
@@ -1299,16 +1298,16 @@ namespace Engine::Vulkan
 					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 				texture.SendToGPU(_commandPool, _queue);
 
+				vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 				shaderResources._transformationData.objectToWorld = gameObject._transform._matrix;
 				shaderResources._descriptorPool.UpdateDescriptor(shaderResources._textureDescriptor, texture);
 				shaderResources._descriptorPool.UpdateDescriptor(shaderResources._transformationsDescriptor, shaderResources._transformationDataBuffer);
 				VkDescriptorSet sets[2] = { shaderResources._uniformSet._handle, shaderResources._samplerSet._handle };
 				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shaderResources._pipelineLayout, 0, 2, sets, 0, nullptr);
-				vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 				VkDeviceSize offset = 0;
-				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._mesh._vertices._vertexBuffer._handle, &offset);
-				vkCmdBindIndexBuffer(_drawCommandBuffers[i], gameObject._mesh._faceIndices._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)gameObject._mesh._faceIndices._indexData.size(), 1, 0, 0, 0);
+				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._mesh._shaderResources._vertices._vertexBuffer._handle, &offset);
+				vkCmdBindIndexBuffer(_drawCommandBuffers[i], gameObject._mesh._shaderResources._faceIndices._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)gameObject._mesh._shaderResources._faceIndices._indexData.size(), 1, 0, 0, 0);
 			}
 			vkCmdEndRenderPass(_drawCommandBuffers[i]);
 
@@ -1394,30 +1393,28 @@ namespace Engine::Vulkan
 		return VK_FORMAT_UNDEFINED;
 	}
 
-	void VulkanApplication::LoadTexture()
-	{
-		// Read the file and point to its location in memory.
-		auto texturePath = R"(C:\Code\celeritas-engine\textures\ItalianFlag.jpg)";
-		int width, height;
-		void* pixels = stbi_load(texturePath, &width, &height, nullptr, 0);
-		auto format = ChooseImageFormat(texturePath);
+	//void VulkanApplication::LoadTexture()
+	//{
+	//	// Read the file and point to its location in memory.
+	//	auto texturePath = R"(C:\Code\celeritas-engine\textures\ItalianFlag.jpg)";
+	//	int width, height;
+	//	void* pixels = stbi_load(texturePath, &width, &height, nullptr, 0);
+	//	auto format = ChooseImageFormat(texturePath);
 
-		// Allocate and create the image.
-		_graphicsPipeline._shaderResources._texture = Image(_logicalDevice,
-			_physicalDevice,
-			format,
-			VkExtent2D{ (uint32_t)width,(uint32_t)height },
-			pixels,
-			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
-			VK_IMAGE_ASPECT_COLOR_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+	//	// Allocate and create the image.
+	//	_graphicsPipeline._shaderResources._texture = Image(_logicalDevice,
+	//		_physicalDevice,
+	//		format,
+	//		VkExtent2D{ (uint32_t)width,(uint32_t)height },
+	//		pixels,
+	//		(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
+	//		VK_IMAGE_ASPECT_COLOR_BIT,
+	//		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-		_graphicsPipeline._shaderResources._texture.SendToGPU(_commandPool, _queue);
+	//	_graphicsPipeline._shaderResources._texture.SendToGPU(_commandPool, _queue);
 
-		std::cout << "texture loaded successfully" << std::endl;
-	}
-#pragma endregion
-
+	//	std::cout << "texture loaded successfully" << std::endl;
+	//}
 }
 
 int main()
