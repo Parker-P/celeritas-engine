@@ -66,7 +66,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Raw data of the image.
 		 */
-		void* _data;
+		void* _pData;
 
 		Image() = default;
 
@@ -101,6 +101,11 @@ namespace Engine::Vulkan
 		 */
 		Image(VkDevice& logicalDevice, VkImage& image, const VkFormat& imageFormat);
 
+		/**
+		 * @brief Sends the image to the GPU.
+		 * @param commandPool Command pool used to allocate a command buffer that will contain the commands to send the image to VRAM.
+		 * @param queue Queue that will contain the allocated transfer command buffer.
+		 */
 		void SendToGPU(VkCommandPool& commandPool, Queue& queue);
 
 		/**

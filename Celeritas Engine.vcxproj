@@ -23,6 +23,7 @@
     <ClCompile Include="src\engine\scenes\GameObject.cpp" />
     <ClCompile Include="src\engine\input\Input.cpp" />
     <ClCompile Include="src\engine\scenes\Material.cpp" />
+    <ClCompile Include="src\engine\vulkan\ShaderResources.cpp" />
     <ClCompile Include="src\engine\vulkan\Buffer.cpp" />
     <ClCompile Include="src\engine\vulkan\PhysicalDevice.cpp" />
     <ClCompile Include="src\engine\vulkan\Image.cpp" />
@@ -86,6 +87,7 @@
     <ClInclude Include="include\stb\stb_image_write.h" />
     <ClInclude Include="include\tinygltf\tiny_gltf.h" />
     <ClInclude Include="src\engine\scenes\Material.hpp" />
+    <ClInclude Include="src\engine\vulkan\ShaderResources.hpp" />
     <ClInclude Include="src\engine\vulkan\Buffer.hpp" />
     <ClInclude Include="src\engine\vulkan\PhysicalDevice.hpp" />
     <ClInclude Include="src\engine\vulkan\Image.hpp" />

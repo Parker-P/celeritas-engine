@@ -8,181 +8,6 @@
 
 namespace Engine::Vulkan
 {
-	
-
-	/**
-	 * @brief A descriptor is just a block of data, similar to a buffer, with the difference being that a descriptor is bound to metadata
-	 * that Vulkan uses to enable their use in shaders. This allows us to exchange data between a program run by the CPU's cores with a shader run 
-	 * by the GPU's cores.
-	 * A descriptor is accessed by a shader by using an index and a binding number, similar to vertex attributes, which are accessed 
-	 * by the vertex shader using a binding and a location number.
-	 * For example, in a shader, a descriptor set is declared as follows:
-	 * #version 450
-	 *
-	 * // Descriptor declaration. The shader will access the descriptor set at index 0 with binding number 0.
-	 * layout(set = 0, binding = 0) uniform UniformBuffer 
-	 * {
-	 *     ... data in the uniform buffer ...
-	 * } uniformBuffer;
-	 *
-	 * void main() 
-	 * {
-     *		... shader code ...
-	 * }
-	 */
-	class Descriptor
-	{
-
-	public:
-
-		/**
-		 * @brief Wrapper that describes a buffer.
-		 */
-		VkDescriptorBufferInfo _bufferInfo;
-
-		/**
-		 * @brief Wrapper that describes an image.
-		 */
-		VkDescriptorImageInfo _imageInfo;
-
-		/**
-		 * @brief Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a 
-		 * structure that contains a pointer to an image and some metadata that tells the GPU how to read it.
-		 */
-		VkDescriptorType _type;
-
-		/**
-		 * @brief Binding number used by the shaders to know which descriptor to access within the descriptor set this descriptor belongs to.
-		 */
-		uint32_t _bindingNumber;
-
-		/**
-		 * @brief Default constructor.
-		 */
-		Descriptor() = default;
-
-		/**
-		 * @brief Constructs a descriptor given a descriptor type and a buffer and/or image.
-		 * @param type Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a 
-		 * structure that contains an image and some metadata that tells the GPU how to read it.
-		 * @param bindingNumber Binding number used by a shader to know which descriptor to access within a descriptor set.
-		 * @param pBuffer Optional pointer to a buffer.
-		 * @param pBuffer Optional pointer to an image.
-		 */
-		Descriptor(const VkDescriptorType& type, const uint32_t& bindingNumber, Buffer* pBuffer = nullptr, Image* pImage = nullptr);
-
-	};
-
-	/**
-	 * @brief A descriptor set has bindings to descriptors, and is used to cluster descriptors of the same type.
-	 */
-	class DescriptorSet 
-	{
-		/**
-		 * @brief Used for Vulkan calls.
-		 */
-		VkDevice _logicalDevice;
-
-	public:
-
-		/**
-		 * @brief Identifier for Vulkan.
-		 */
-		VkDescriptorSet _handle;
-
-		/**
-		 * @brief A descriptor set layout object is defined by an array of zero or more descriptor bindings. Each individual descriptor binding is specified
-		 * by a descriptor type, a count (array size) of the number of descriptors in the binding, a set of shader stages that can access the binding, and
-		 * (if using immutable samplers) an array of sampler descriptors.
-		 */
-		VkDescriptorSetLayout _layout;
-
-		/**
-		 * @brief Set index number used by the shaders to identify the descriptor set to access. This number is set only after memory for the
-		 * descriptor set has been allocated by a descriptor pool.
-		 */
-		short _indexNumber;
-
-		/**
-		 * @brief Descriptors this set contains.
-		 */
-		std::vector<Descriptor*> _descriptors;
-
-		/**
-		 * @brief Writes the data contained in its descriptors to the correct GPU-visible allocated portion of memory.
-		 */
-		void SendDescriptorData();
-
-		/**
-		 * @brief Default constructor.
-		 */
-		DescriptorSet() = default;
-
-		/**
-		 * @brief Constructs a descriptor set.
-		 * @param logicalDevice Logical device used to call Vulkan functions.
-		 * @param shaderFlags Flags to define which shader/s can access this descriptor set.
-		 * @param descriptors Descriptors. Must all be of the same type and compatible with the type of data they contain (image or buffer).
-		 */
-		DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, std::vector<Descriptor*> descriptors);
-	};
-
-	/**
-	 * @brief A descriptor pool is a container for descriptor sets and acts as a facility to allocate memory for them.
-	 */
-	class DescriptorPool
-	{
-		/**
-		 * @brief Used to make Vulkan creation calls.
-		 */
-		VkDevice _logicalDevice;
-
-		/**
-		 * @brief Descriptor sets the pool contains.
-		 */
-		std::vector<DescriptorSet*> _descriptorSets;
-
-		/**
-		 * @brief .
-		 */
-		void AllocateDescriptorSets();
-
-	public:
-
-		/**
-		 * @brief Identifier for Vulkan.
-		 */
-		VkDescriptorPool _handle;
-
-		/**
-		 * @brief Default constructor.
-		 */
-		DescriptorPool() = default;
-
-		/**
-		 * @brief Constructs a descriptor pool and allocates memory for the given descriptor sets.
-		 * @param logicalDevice Used for the Vulkan call to create the descriptor pool and to allocate memory for the given descriptor sets.
-		 * @param descriptorSets Descriptor sets to allocate memory for.
-		 */
-		DescriptorPool(VkDevice& logicalDevice, std::vector<DescriptorSet*> descriptorSets);
-
-		/**
-		 * @brief Updates a descriptor identified by its memory address with the data contained in the given buffer.
-		 * @param setIndex Descriptor set index.
-		 * @param descriptorIndex Descriptor index a.k.a. binding.
-		 * @param data The buffer whose data will be sent to the allocated descriptor set.
-		 */
-		void UpdateDescriptor(Descriptor& d, Buffer& data);
-
-		/**
-		 * @brief Updates a descriptor identified by its memory address with the data contained in the given image.
-		 * @param setIndex Descriptor set index.
-		 * @param descriptorIndex Descriptor index a.k.a. binding.
-		 * @param data The buffer whose data will be sent to the allocated descriptor set.
-		 */
-		void UpdateDescriptor(Descriptor& d, Image& data);
-	};
-
 	/**
 	 * @brief Represents the Vulkan application.
 	 */
@@ -364,24 +189,6 @@ namespace Engine::Vulkan
 			 * @brief Identifier for Vulkan.
 			 */
 			VkPipeline _handle;
-
-			/**
-			 * @brief Buffer that stores vertex attributes. A vertex attribute is a piece of data
-			 * that decorates the vertex with more information, so that the vertex shader can
-			 * do more work based on it. For example a vertex attribute could be a position or a normal vector.
-			 * Based on the normal vector, the vertex shader can perform lighting calculations by computing
-			 * the angle between the source of the light and the normal.
-			 * At the hardware level, the contents of the vertex buffer are fed into the array of shader cores,
-			 * and each vertex, along with its attributes, are processed by the vertex shader in parallel on each thread of the cores.
-			 */
-			Buffer _vertexBuffer;
-
-			/**
-			 * @brief Buffer that stores indices that point into the vertex buffer. This buffer is used by Vulkan when drawing
-			 * using the vkCmdDrawIndexed command. This buffer gives Vulkan information about the order in which to draw
-			 * vertices.
-			 */
-			Buffer _indexBuffer;
 
 			/**
 			 * Since we are only using one vertex buffer, this variable contains:
@@ -602,7 +409,7 @@ namespace Engine::Vulkan
 
 		void LoadScene();
 
-		void CreateVertexAndIndexBuffers();
+		//void CreateVertexAndIndexBuffers();s
 
 		VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
 
@@ -684,7 +491,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief For each swapchain image, executes the draw commands contained in the corresponding command buffer (by submitting
 		 * them to _queue), then waits for the commands to complete (synchronizing using a semaphore). This draws to a framebuffer.
-		 * The function then presents the image to the window surface, which shows it to the window.
+		 * The function then presents the drawn framebuffer image to the window surface, which shows it to the window.
 		 */
 		void Draw();
 

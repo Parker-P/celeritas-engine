@@ -1,12 +1,15 @@
 #pragma once
 namespace Engine::Scenes
 {
+	/**
+	 * @brief Forward declaration used to define a pointer used to keep track of the scene the game object belongs to.
+	 */
 	class Scene;
 
 	/**
 	 * @brief Represents a physical object in a celeritas-engine scene.
 	 */
-	class GameObject
+	class GameObject : public IUpdatable
 	{
 	public:
 
@@ -29,5 +32,10 @@ namespace Engine::Scenes
 		 * @brief Mesh of this game object.
 		 */
 		Mesh _mesh;
+
+		/**
+		 * @brief Per-frame updates.
+		 */
+		virtual void Update() override;
 	};
 }

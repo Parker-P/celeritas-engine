@@ -26,21 +26,43 @@ namespace Engine::Vulkan
 		VkDeviceMemory _memory;
 
 		/**
-		 * @brief The memory address of the data inside the allocated buffer. This pointer is only assigned to if the buffer
-		 * is marked as VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, otherwise it's nullptr, as it would likely be an address on VRAM
-		 * which the CPU cannot access without passing through Vulkan calls.
+		 * @brief Vulkan buffers have a portion of memory allocated all for themselves, detached from the data you want to copy to them. 
+		 * This is the starting memory address of the data inside the allocated buffer. This pointer is only assigned to if the buffer 
+		 * is marked as VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, otherwise it's nullptr, as it would likely be an address on VRAM which the CPU 
+		 * cannot access without passing through Vulkan calls.
 		 */
-		void* _dataAddress;
+		void* _pBufferData;
 
 		/**
-		 * @brief Size in bytes of the data the buffer contains.
+		 * @brief Vulkan buffers have a portion of memory allocated all for themselves, detached from the data you want to copy to them.
+		 * This is the size, in bytes, of the portion of memory allocated specifically for the buffer. 
 		 */
-		size_t _size;
+		size_t _pBufferDataSize;
+
+		/**
+		 * @brief Vulkan buffers have a portion of memory allocated all for themselves, detached from the data you want to copy to them.
+		 * This is the starting memory address of the data that was to be copied to the allocated buffer. Whether the data has been actually
+		 * copied into the buffer or not depends on whether _pMappedData is nullptr or not. If _pMappedData has not been assigned, there is
+		 * no memory allocated for the buffer that is visible to the CPU, thus no CPU-writable memory has been created. This means that the
+		 * buffer is probably meant to reside in VRAM. To send a buffer to VRAM, use the SendToGPU() member function.
+		 */
+		void* _pData;
+
+		/**
+		 * @brief Vulkan buffers have a portion of memory allocated all for themselves, detached from the data you want to copy to them.
+		 * This is the size, in bytes, of the data inteded to be copied to the buffer.
+		 */
+		size_t _pDataSize;
 
 		/**
 		 * @brief See constructor description.
 		 */
-		VkMemoryPropertyFlagBits _properties;
+		VkBufferUsageFlagBits _usageFlags;
+
+		/**
+		 * @brief See constructor description.
+		 */
+		VkMemoryPropertyFlagBits _propertiesFlags;
 
 	public:
 
@@ -74,7 +96,7 @@ namespace Engine::Vulkan
 		 * @param data Pointer to the start address of the data you want to copy to the buffer.
 		 * @param sizeInBytes Size in bytes of the data you want to copy to the buffer.
 		 */
-		Buffer(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* data = nullptr, size_t sizeInBytes = 0);
+		Buffer(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* pData = nullptr, size_t sizeInBytes = 0);
 
 		/**
 		 * @brief Generates a data structure that Vulkan calls descriptor, which it uses to bind the buffer to a descriptor set.
@@ -83,18 +105,24 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Updates the data contained in this buffer. Notes: buffer must be marked as VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT and its
-		 * memory mapped to the _dataAddress member for this to work. To update a GPU only buffer, you need to use a staging buffer and
-		 * submit a buffer transfer command to a queue, then have Vulkan execute the command.
-		 *
+		 * memory mapped to the _pBufferData member for this to work. To update a GPU only buffer, you need to use a staging buffer and
+		 * submit a buffer transfer command to a queue, then have Vulkan execute the command, done by the SendToGPU member function.
 		 * @param data Address of where the data begins in memory.
 		 * @param sizeInBytes Size of the data in bytes.
 		 */
 		void UpdateData(void* data, size_t sizeInBytes);
 
 		/**
-		 * @brief Destroys the buffer and frees any memory allocated to it.
-		 *
+		 * @brief Sends the buffer to the GPU's VRAM. Will only work if buffer usage is marked as VK_BUFFER_USAGE_TRANSFER_DST_BIT and properties
+		 * marked as VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT.
+		 * @param commandPool Command pool used to allocate a command buffer that will contain the commands to send the buffer to VRAM.
+		 * @param queue Queue that will contain the allocated transfer command buffer.
 		 */
+		void SendToGPU(VkCommandPool& commandPool, Queue& queue);
+
+		/**
+		 * @brief Destroys the buffer and frees any memory allocated to it.
+		 **/
 		void Destroy();
 	};
 }

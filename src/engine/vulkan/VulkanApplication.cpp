@@ -37,6 +37,7 @@
 #include "engine/math/Transform.hpp"
 #include "engine/scenes/Material.hpp"
 #include "engine/vulkan/PhysicalDevice.hpp"
+#include "engine/vulkan/Queue.hpp"
 #include "engine/vulkan/Buffer.hpp"
 #include "engine/scenes/Mesh.hpp"
 #include "engine/scenes/GameObject.hpp"
@@ -46,174 +47,13 @@
 #include "engine/math/Transform.hpp"
 #include "engine/vulkan/Queue.hpp"
 #include "engine/vulkan/Image.hpp"
+#include "engine/vulkan/ShaderResources.hpp"
 #include "engine/vulkan/VulkanApplication.hpp"
 
 namespace Engine::Vulkan
 {
 	bool windowResized = false;
 	bool windowMinimized = false;
-
-#pragma region DescriptorFunctions
-	Descriptor::Descriptor(const VkDescriptorType& type, const uint32_t& bindingNumber, Buffer* pBuffer, Image* pImage)
-	{
-		_bufferInfo = pBuffer == nullptr ? VkDescriptorBufferInfo{} : pBuffer->GenerateDescriptor();
-		_imageInfo = pImage == nullptr ? VkDescriptorImageInfo{} : pImage->GenerateDescriptor();
-		_type = type;
-		_bindingNumber = bindingNumber;
-	}
-#pragma endregion
-
-#pragma region DescriptorSetFunctions
-	void DescriptorSet::SendDescriptorData()
-	{
-		std::vector<VkWriteDescriptorSet> writeInfos;
-
-		bool canUpdate = true;
-		for (auto& descriptor : _descriptors) {
-			if (descriptor->_bufferInfo.range != 0 || descriptor->_imageInfo.sampler != VK_NULL_HANDLE) {
-				VkWriteDescriptorSet writeInfo = {};
-				writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				writeInfo.dstSet = _handle;
-				writeInfo.descriptorCount = (uint32_t)_descriptors.size();
-				writeInfo.descriptorType = descriptor->_type;
-				writeInfo.pBufferInfo = &descriptor->_bufferInfo.range == 0 ? nullptr : &descriptor->_bufferInfo; // Needs stronger check on type.
-				writeInfo.pImageInfo = &descriptor->_imageInfo.sampler == VK_NULL_HANDLE ? nullptr : &descriptor->_imageInfo; // This one too.
-				writeInfo.dstBinding = descriptor->_bindingNumber;
-				writeInfos.push_back(writeInfo);
-			}
-			else {
-				canUpdate = false;
-			}
-		}
-
-		if (canUpdate) {
-			vkUpdateDescriptorSets(_logicalDevice, (uint32_t)writeInfos.size(), writeInfos.data(), 0, nullptr);
-		}
-	}
-
-	DescriptorSet::DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, std::vector<Descriptor*> descriptors)
-	{
-		_logicalDevice = logicalDevice;
-		_indexNumber = -1;
-		_descriptors = descriptors;
-		std::vector<VkDescriptorSetLayoutBinding> bindings;
-
-		// Prep work for the descriptor set layout.
-		for (auto& descriptor : descriptors) {
-			VkDescriptorSetLayoutBinding binding{};
-			binding.binding = descriptor->_bindingNumber;
-			binding.descriptorType = descriptor->_type;
-			binding.descriptorCount = (uint32_t)descriptors.size();
-			binding.stageFlags = shaderStageFlags;
-			bindings.push_back(binding);
-		}
-
-		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
-		descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptorSetLayoutCreateInfo.bindingCount = (uint32_t)bindings.size();
-		descriptorSetLayoutCreateInfo.pBindings = bindings.data();
-
-		if (vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &_layout) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor set layout" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created descriptor set layout" << std::endl;
-		}
-	}
-#pragma endregion
-
-#pragma region DescriptorPoolFunctions
-	void DescriptorPool::AllocateDescriptorSets()
-	{
-		// The amount of sets and descriptor types is defined when creating the descriptor pool.
-		std::vector<VkDescriptorSetLayout> layouts;
-		for (auto& descriptorSet : _descriptorSets) {
-			layouts.push_back(descriptorSet->_layout);
-		}
-
-		VkDescriptorSetAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = _handle;
-		allocInfo.descriptorSetCount = (uint32_t)_descriptorSets.size();
-		allocInfo.pSetLayouts = layouts.data();
-
-		std::vector<VkDescriptorSet> allocatedDescriptorSetHandles(_descriptorSets.size());
-		if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, allocatedDescriptorSetHandles.data()) != VK_SUCCESS) {
-			std::cerr << "failed to allocate descriptor sets" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "allocated descriptor sets" << std::endl;
-
-			for (int i = 0; i < allocatedDescriptorSetHandles.size(); ++i) {
-				_descriptorSets[i]->_indexNumber = i;
-				_descriptorSets[i]->_handle = allocatedDescriptorSetHandles[i];
-				_descriptorSets[i]->SendDescriptorData();
-			}
-		}
-	}
-
-	DescriptorPool::DescriptorPool(VkDevice& logicalDevice, std::vector<DescriptorSet*> descriptorSets)
-	{
-		_descriptorSets = descriptorSets;
-		_logicalDevice = logicalDevice;
-
-		std::vector<VkDescriptorPoolSize> poolSizes;
-		for (auto& descriptorSet : descriptorSets) {
-			if (descriptorSet->_descriptors.size() != 0) {
-				if (descriptorSet->_descriptors[0]->_type != VK_DESCRIPTOR_TYPE_MAX_ENUM) {
-					VkDescriptorPoolSize poolSize{};
-					poolSize.type = descriptorSet->_descriptors[0]->_type;
-					poolSize.descriptorCount = (uint32_t)descriptorSet->_descriptors.size();
-					poolSizes.push_back(poolSize);
-				}
-			}
-		}
-
-		// maxSets is the maximum number of descriptor sets that can be allocated from the pool.
-		// poolSizeCount is the number of elements in pPoolSizes.
-		// pPoolSizes is a pointer to an array of VkDescriptorPoolSize structures, each containing a descriptor type and number of descriptors of that type to be allocated in the pool.
-		VkDescriptorPoolCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		createInfo.maxSets = (uint32_t)descriptorSets.size();
-		createInfo.poolSizeCount = (uint32_t)poolSizes.size();
-		createInfo.pPoolSizes = poolSizes.data();
-		if (vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &_handle) != VK_SUCCESS) {
-			std::cerr << "failed to create descriptor pool" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created descriptor pool" << std::endl;
-		}
-
-		AllocateDescriptorSets();
-	}
-
-	void DescriptorPool::UpdateDescriptor(Descriptor& d, Buffer& data)
-	{
-		for (auto& descriptorSet : _descriptorSets) {
-			for (auto& descriptor : descriptorSet->_descriptors) {
-				if (descriptor == &d) {
-					descriptor->_bufferInfo = data.GenerateDescriptor();
-					descriptorSet->SendDescriptorData();
-				}
-			}
-		}
-	}
-
-	void DescriptorPool::UpdateDescriptor(Descriptor& d, Image& data)
-	{
-		for (auto& descriptorSet : _descriptorSets) {
-			for (auto& descriptor : descriptorSet->_descriptors) {
-				if (descriptor == &d) {
-					descriptor->_imageInfo = data.GenerateDescriptor();
-					descriptorSet->SendDescriptorData();
-				}
-			}
-		}
-	}
-#pragma endregion
 
 #pragma region VulkanApplicationFunctions
 	void VulkanApplication::Run()
@@ -256,7 +96,7 @@ namespace Engine::Vulkan
 		CreateSemaphores();
 		CreateCommandPool();
 		LoadScene();
-		CreateVertexAndIndexBuffers();
+		//CreateVertexAndIndexBuffers();
 		CreateSwapchain();
 		CreateRenderPass();
 		CreateFramebuffers();
@@ -352,8 +192,8 @@ namespace Engine::Vulkan
 			_graphicsPipeline._shaderResources._transformationDataBuffer.Destroy();
 
 			// Buffers must be destroyed after no command buffers are referring to them anymore.
-			_graphicsPipeline._vertexBuffer.Destroy();
-			_graphicsPipeline._indexBuffer.Destroy();
+			/*_graphicsPipeline._vertexBuffer.Destroy();
+			_graphicsPipeline._indexBuffer.Destroy();*/
 
 			// Note: implicitly destroys images (in fact, we're not allowed to do that explicitly).
 			DestroySwapchain();
@@ -704,25 +544,44 @@ namespace Engine::Vulkan
 
 				_graphicsPipeline._shaderResources._texture.SendToGPU(_commandPool, _queue);*/
 
-				mesh._vertices.resize(vertexPositions.size());
+				// Gather vertices and face indices.
+				mesh._vertices._vertexData.resize(vertexPositions.size());
 				for (int i = 0; i < vertexPositions.size(); ++i) {
 					Scenes::Mesh::Vertex v;
 					v._position = vertexPositions[i];
 					v._normal = vertexNormals[i];
 					v._uvCoord = uvCoords0[i];
-					mesh._vertices[i] = v;
+					mesh._vertices._vertexData[i] = v;
 				}
+				mesh._faceIndices._indexData = faceIndices;
 
-				mesh._faceIndices = faceIndices;
-				_scene._objects.push_back(gameObject);
-				mesh._gameObject = (unsigned int)(_scene._objects.size() - 1);
+				// Copy vertices to the GPU.
+				mesh._vertices._vertexBuffer = Buffer(_logicalDevice,
+					_physicalDevice,
+					(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
+					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+					mesh._vertices._vertexData.data(),
+					Utils::GetVectorSizeInBytes(mesh._vertices._vertexData));
+				mesh._vertices._vertexBuffer.SendToGPU(_commandPool, _queue);
+
+				// Copy face indices to the GPU.
+				mesh._faceIndices._indexBuffer = Buffer(_logicalDevice,
+					_physicalDevice,
+					(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
+					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+					mesh._faceIndices._indexData.data(),
+					Utils::GetVectorSizeInBytes(mesh._faceIndices._indexData));
+				mesh._faceIndices._indexBuffer.SendToGPU(_commandPool, _queue);
+
+				_scene._gameObjects.push_back(gameObject);
+				mesh._gameObject = (unsigned int)(_scene._gameObjects.size() - 1);
 			}
 		}
 
 		//std::vector<Scenes::Mesh::Vertex> verts{};
 		//std::vector<unsigned int> indices{};
 
-		_model = _scene._objects[0];
+		_model = _scene._gameObjects[0];
 
 		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{6.0f, 6.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Tip.
 		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{6.0f, 0.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Lower right.
@@ -736,88 +595,88 @@ namespace Engine::Vulkan
 		//_model._mesh._faceIndices = indices;
 	}
 
-	void VulkanApplication::CreateVertexAndIndexBuffers()
-	{
-		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_model._mesh._vertices);
-		auto faceIndicesSize = Utils::GetVectorSizeInBytes(_model._mesh._faceIndices);
-
-#pragma region VerticesToVertexBuffer
-		// Create a buffer used as a middleman buffer to transfer data from the RAM to the VRAM. This buffer will be created in RAM.
-		auto vertexTransferBuffer = Buffer(_logicalDevice,
-			_physicalDevice,
-			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			_model._mesh._vertices.data(),
-			vertexPositionsSize);
-
-		_graphicsPipeline._vertexBuffer = Buffer(_logicalDevice,
-			_physicalDevice,
-			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			nullptr,
-			vertexPositionsSize);
-
-#pragma endregion
-
-#pragma region FaceIndicesToIndexBuffer
-		auto indexTransferBuffer = Buffer(_logicalDevice,
-			_physicalDevice,
-			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			(void*)_model._mesh._faceIndices.data(),
-			faceIndicesSize);
-
-		_graphicsPipeline._indexBuffer = Buffer(_logicalDevice,
-			_physicalDevice,
-			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			nullptr,
-			faceIndicesSize);
-#pragma endregion
-
-#pragma region CommandBufferCreationAndExecution
-		// Now copy data from host visible buffer to gpu only buffer
-		VkCommandBufferBeginInfo bufferBeginInfo = {};
-		bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		bufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-		// Allocate a command buffer for the copy operations to follow
-		VkCommandBufferAllocateInfo cmdBufInfo = {};
-		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cmdBufInfo.commandPool = _commandPool;
-		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		cmdBufInfo.commandBufferCount = 1;
-
-		VkCommandBuffer copyCommandBuffer;
-		vkAllocateCommandBuffers(_logicalDevice, &cmdBufInfo, &copyCommandBuffer);
-
-		vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
-
-		VkBufferCopy copyRegion = {};
-		copyRegion.size = vertexPositionsSize;
-		vkCmdCopyBuffer(copyCommandBuffer, vertexTransferBuffer._handle, _graphicsPipeline._vertexBuffer._handle, 1, &copyRegion);
-		copyRegion.size = faceIndicesSize;
-		vkCmdCopyBuffer(copyCommandBuffer, indexTransferBuffer._handle, _graphicsPipeline._indexBuffer._handle, 1, &copyRegion);
-
-		vkEndCommandBuffer(copyCommandBuffer);
-
-		// Submit to queue
-		VkSubmitInfo submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &copyCommandBuffer;
-
-		vkQueueSubmit(_queue._handle, 1, &submitInfo, VK_NULL_HANDLE);
-		vkQueueWaitIdle(_queue._handle);
-
-		vkFreeCommandBuffers(_logicalDevice, _commandPool, 1, &copyCommandBuffer);
-#pragma endregion
-
-		vertexTransferBuffer.Destroy();
-		indexTransferBuffer.Destroy();
-
-		std::cout << "set up vertex and index buffers" << std::endl;
-	}
+	//	void VulkanApplication::CreateVertexAndIndexBuffers()
+	//	{
+	//		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_model._mesh._vertices);
+	//		auto faceIndicesSize = Utils::GetVectorSizeInBytes(_model._mesh._faceIndices);
+	//
+	//#pragma region VerticesToVertexBuffer
+	//		// Create a buffer used as a middleman buffer to transfer data from the RAM to the VRAM. This buffer will be created in RAM.
+	//		auto vertexTransferBuffer = Buffer(_logicalDevice,
+	//			_physicalDevice,
+	//			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+	//			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+	//			_model._mesh._vertices.data(),
+	//			vertexPositionsSize);
+	//
+	//		_graphicsPipeline._vertexBuffer = Buffer(_logicalDevice,
+	//			_physicalDevice,
+	//			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
+	//			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+	//			nullptr,
+	//			vertexPositionsSize);
+	//
+	//#pragma endregion
+	//
+	//#pragma region FaceIndicesToIndexBuffer
+	//		auto indexTransferBuffer = Buffer(_logicalDevice,
+	//			_physicalDevice,
+	//			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+	//			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+	//			(void*)_model._mesh._faceIndices.data(),
+	//			faceIndicesSize);
+	//
+	//		_graphicsPipeline._indexBuffer = Buffer(_logicalDevice,
+	//			_physicalDevice,
+	//			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
+	//			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+	//			nullptr,
+	//			faceIndicesSize);
+	//#pragma endregion
+	//
+	//#pragma region CommandBufferCreationAndExecution
+	//		// Now copy data from host visible buffer to gpu only buffer
+	//		VkCommandBufferBeginInfo bufferBeginInfo = {};
+	//		bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	//		bufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	//
+	//		// Allocate a command buffer for the copy operations to follow
+	//		VkCommandBufferAllocateInfo cmdBufInfo = {};
+	//		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	//		cmdBufInfo.commandPool = _commandPool;
+	//		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	//		cmdBufInfo.commandBufferCount = 1;
+	//
+	//		VkCommandBuffer copyCommandBuffer;
+	//		vkAllocateCommandBuffers(_logicalDevice, &cmdBufInfo, &copyCommandBuffer);
+	//
+	//		vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
+	//
+	//		VkBufferCopy copyRegion = {};
+	//		copyRegion.size = vertexPositionsSize;
+	//		vkCmdCopyBuffer(copyCommandBuffer, vertexTransferBuffer._handle, _graphicsPipeline._vertexBuffer._handle, 1, &copyRegion);
+	//		copyRegion.size = faceIndicesSize;
+	//		vkCmdCopyBuffer(copyCommandBuffer, indexTransferBuffer._handle, _graphicsPipeline._indexBuffer._handle, 1, &copyRegion);
+	//
+	//		vkEndCommandBuffer(copyCommandBuffer);
+	//
+	//		// Submit to queue
+	//		VkSubmitInfo submitInfo = {};
+	//		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	//		submitInfo.commandBufferCount = 1;
+	//		submitInfo.pCommandBuffers = &copyCommandBuffer;
+	//
+	//		vkQueueSubmit(_queue._handle, 1, &submitInfo, VK_NULL_HANDLE);
+	//		vkQueueWaitIdle(_queue._handle);
+	//
+	//		vkFreeCommandBuffers(_logicalDevice, _commandPool, 1, &copyCommandBuffer);
+	//#pragma endregion
+	//
+	//		vertexTransferBuffer.Destroy();
+	//		indexTransferBuffer.Destroy();
+	//
+	//		std::cout << "set up vertex and index buffers" << std::endl;
+	//	}
 
 	VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)
 	{
@@ -1426,8 +1285,7 @@ namespace Engine::Vulkan
 
 			auto& shaderResources = _graphicsPipeline._shaderResources;
 
-			for (auto& gameObject : _scene._objects)
-			{
+			for (auto& gameObject : _scene._gameObjects) {
 				auto textureFormat = _scene._materials[gameObject._mesh._materialIndex]._baseColor._format;
 				auto textureSizePixels = _scene._materials[gameObject._mesh._materialIndex]._baseColor._sizePixels;
 				auto textureData = _scene._materials[gameObject._mesh._materialIndex]._baseColor._data;
@@ -1448,20 +1306,20 @@ namespace Engine::Vulkan
 				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shaderResources._pipelineLayout, 0, 2, sets, 0, nullptr);
 				vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 				VkDeviceSize offset = 0;
-				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &_graphicsPipeline._vertexBuffer._handle, &offset);
-				vkCmdBindIndexBuffer(_drawCommandBuffers[i], _graphicsPipeline._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)gameObject._mesh._faceIndices.size(), 1, 0, 0, 0);
+				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._mesh._vertices._vertexBuffer._handle, &offset);
+				vkCmdBindIndexBuffer(_drawCommandBuffers[i], gameObject._mesh._faceIndices._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)gameObject._mesh._faceIndices._indexData.size(), 1, 0, 0, 0);
 			}
 			vkCmdEndRenderPass(_drawCommandBuffers[i]);
 
 			if (vkEndCommandBuffer(_drawCommandBuffers[i]) != VK_SUCCESS) {
 				std::cerr << "failed to record command buffer" << std::endl;
 				exit(1);
-			}
 #pragma endregion
-		}
+			}
 
-		std::cout << "recorded draw commands in draw command buffers." << std::endl;
+			std::cout << "recorded draw commands in draw command buffers" << std::endl;
+		}
 	}
 
 	void VulkanApplication::Draw()

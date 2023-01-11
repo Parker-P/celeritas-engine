@@ -32,7 +32,7 @@ namespace Engine::Vulkan
 		_sizePixels = sizePixels;
 		_typeFlags = typeFlags;
 		_sizeBytes = GetPixelSizeBytes(imageFormat) * sizePixels.width * sizePixels.height;
-		_data = data;
+		_pData = data;
 
 		VkImageCreateInfo imageCreateInfo = { };
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -126,7 +126,7 @@ namespace Engine::Vulkan
 			_physicalDevice,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			_data,
+			_pData,
 			_sizeBytes);
 
 		// Transfer the data from the buffer into the allocated image using a command buffer.

@@ -4,7 +4,7 @@ namespace Engine::Scenes
 	/**
 	 * @brief Represents a general-purpose camera.
 	 */
-	class Camera : public GameObject, public IUpdatable
+	class Camera : public GameObject
 	{
 	public:
 

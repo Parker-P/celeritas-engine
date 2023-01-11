@@ -33,9 +33,6 @@
     <ClInclude Include="src\engine\vulkan\VulkanApplication.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\VulkanApplication.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\engine\scenes\GameObject.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -213,16 +210,10 @@
     <ClInclude Include="src\engine\VulkanApplication.cpp">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\VulkanApplication.cpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\engine\scenes\Camera.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\utils\Json.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\engine\Utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\VulkanApplication.hpp">
@@ -402,6 +393,9 @@
     <ClInclude Include="src\engine\vulkan\Queue.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\engine\vulkan\ShaderResources.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\engine\scenes\Camera.cpp">
@@ -450,6 +444,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\engine\vulkan\Queue.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\vulkan\ShaderResources.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
