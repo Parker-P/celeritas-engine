@@ -33,10 +33,10 @@ namespace Engine::Vulkan
 				VkWriteDescriptorSet writeInfo = {};
 				writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeInfo.dstSet = _handle;
-				writeInfo.descriptorCount = (uint32_t)_descriptors.size();
+				writeInfo.descriptorCount = 1;
 				writeInfo.descriptorType = descriptor->_type;
-				writeInfo.pBufferInfo = &descriptor->_bufferInfo.range == 0 ? nullptr : &descriptor->_bufferInfo; // Needs stronger check on type.
-				writeInfo.pImageInfo = &descriptor->_imageInfo.sampler == VK_NULL_HANDLE ? nullptr : &descriptor->_imageInfo; // This one too.
+				writeInfo.pBufferInfo = &descriptor->_bufferInfo.range == 0 ? writeInfo.pBufferInfo : &descriptor->_bufferInfo; // Needs stronger check on type.
+				writeInfo.pImageInfo = &descriptor->_imageInfo.sampler == VK_NULL_HANDLE ? writeInfo.pImageInfo : &descriptor->_imageInfo; // This one too.
 				writeInfo.dstBinding = descriptor->_bindingNumber;
 				writeInfos.push_back(writeInfo);
 			}
@@ -62,7 +62,7 @@ namespace Engine::Vulkan
 			VkDescriptorSetLayoutBinding binding{};
 			binding.binding = descriptor->_bindingNumber;
 			binding.descriptorType = descriptor->_type;
-			binding.descriptorCount = (uint32_t)descriptors.size();
+			binding.descriptorCount = 1;
 			binding.stageFlags = shaderStageFlags;
 			bindings.push_back(binding);
 		}
@@ -153,7 +153,6 @@ namespace Engine::Vulkan
 			for (auto& descriptor : descriptorSet->_descriptors) {
 				if (descriptor == &d) {
 					descriptor->_bufferInfo = data.GenerateDescriptor();
-					descriptorSet->SendDescriptorData();
 				}
 			}
 		}

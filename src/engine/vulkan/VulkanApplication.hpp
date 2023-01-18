@@ -72,7 +72,7 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Encapsulates info for a render pass.
-		 * A render pass represents an execution of an entire graphics pipeline to create an image. 
+		 * A render pass represents an execution of an entire graphics pipeline to create an image.
 		 * Render passes use what are called (in Vulkan gergo) attachments. Each attachment is which are rendered images that contribute to rendering
 		 * the final image that will go in the framebuffer. It is the renderpass's job to also do compositing, which
 		 * is defining the logic according to which the attachments are merged to create the final image.
@@ -238,18 +238,14 @@ namespace Engine::Vulkan
 			std::vector<VkVertexInputAttributeDescription> _vertexAttributeDescriptions;
 
 			/**
-			 * @brief Encapsulates all information sent to the shaders as well as the info used to create the Vulkan structures to send data to the shaders.
+			 * @brief Encapsulates all information sent to the shaders, as well as the info used to create the Vulkan 
+			 * structures to send data to the shaders.
 			 */
 			struct {
 
 				/**
-				 * @brief The Vulkan buffer that contains the data that will be sent to the shaders. This buffer will be a descriptor, which will
-				 * be pointed to by a descriptor set. The descriptor set is the structure that actually ends up in the shaders.
-				 */
-				Buffer _transformationDataBuffer;
-
-				/**
-				 * @brief This is the data that will go to the vertex shader.
+				 * @brief Camera related data directed to the vertex shader. Knowing this, the vertex shader is able to calculate the correct
+				 * Vulkan view volume coordinates.
 				 */
 				struct
 				{
@@ -258,8 +254,26 @@ namespace Engine::Vulkan
 					float nearClipDistance;
 					float farClipDistance;
 					glm::mat4 worldToCamera;
+				} _cameraData;
+
+				/**
+				 * @brief Object related data directed to the vertex shader. Knowing this, the vertex shader is able to calculate the correct
+				 * Vulkan view volume coordinates.
+				 */
+				struct
+				{
 					glm::mat4 objectToWorld;
-				} _transformationData;
+				} _objectData;
+
+				/**
+				 * @brief Vulkan buffer that contains the data contained in the _cameraData struct. See _cameraData.
+				 */
+				Buffer _cameraDataBuffer;
+
+				/**
+				 * @brief Vulkan buffer that contains the data contained in the _objectData struct. See _objectData.
+				 */
+				Buffer _objectDataBuffer;
 
 				/**
 				 * @brief Texture to be sent to the shaders.
@@ -267,12 +281,22 @@ namespace Engine::Vulkan
 				Image _texture;
 
 				/**
-				 * @brief Descriptor pool that contains all descriptor sets.
+				 * @brief Uniform descriptor that contains data contained in _cameraDataBuffer. See _cameraDataBuffer.
 				 */
-				DescriptorPool _descriptorPool;
+				Descriptor _cameraDataDescriptor;
 
 				/**
-				 * @brief Descriptor set that contains uniform buffer descriptors.
+				 * @brief Uniform descriptor that contains data contained in _objectDataBuffer. See _objectDataBuffer.
+				 */
+				Descriptor _objectDataDescriptor;
+
+				/**
+				 * @brief Desscriptor that contains a texture.
+				 */
+				Descriptor _textureDescriptor;
+
+				/**
+				 * @brief Descriptor set that contains uniform descriptors.
 				 */
 				DescriptorSet _uniformSet;
 
@@ -282,14 +306,9 @@ namespace Engine::Vulkan
 				DescriptorSet _samplerSet;
 
 				/**
-				 * @brief Descriptor that contains transformations for the vertex shader.
+				 * @brief Descriptor pool that contains all descriptor sets.
 				 */
-				Descriptor _transformationsDescriptor;
-
-				/**
-				 * @brief Desscriptor that contains a texture.
-				 */
-				Descriptor _textureDescriptor;
+				DescriptorPool _descriptorPool;
 
 				/**
 				 * @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
@@ -449,27 +468,27 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Creates a descriptor set, and fills it with the chosen number of descriptors (defined when creating the descriptor pool that will be used to allocate the descriptor set).
 		 */
-		//void AllocateDescriptorSets();
+		 //void AllocateDescriptorSets();
 
-		/**
-		 * @brief Updates the data in both the uniform and texture sampler descriptor sets.
-		 */
-		//void UpdateDescriptorSetsData();
+		 /**
+		  * @brief Updates the data in both the uniform and texture sampler descriptor sets.
+		  */
+		  //void UpdateDescriptorSetsData();
 
-		/**
-		 * @brief Creates the descriptor set layout. See _graphicsPipeline._shaderResources.
-		 */
-		//void CreateDescriptorSetLayout();
-		
-		/**
-		 * @brief Creates a descriptor pool.
-		 * @param descriptorCount The amount of descriptors you plan to allocate from the pool.
-		 */
-		//void CreateDescriptorPool();
+		  /**
+		   * @brief Creates the descriptor set layout. See _graphicsPipeline._shaderResources.
+		   */
+		   //void CreateDescriptorSetLayout();
 
-		/**
-		 * @brief Update the data that will be sent to the shaders.
-		 */
+		   /**
+			* @brief Creates a descriptor pool.
+			* @param descriptorCount The amount of descriptors you plan to allocate from the pool.
+			*/
+			//void CreateDescriptorPool();
+
+			/**
+			 * @brief Update the data that will be sent to the shaders.
+			 */
 		void UpdateShaderData();
 
 		/**
@@ -504,6 +523,6 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Loads a texture into VRAM.
 		 */
-		//void LoadTexture();
+		 //void LoadTexture();
 	};
 }

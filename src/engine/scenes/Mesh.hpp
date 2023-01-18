@@ -2,8 +2,6 @@
 
 namespace Engine::Scenes
 {
-	class GameObject;
-
 	/**
 	 * @brief Represents a collection of vertices and face indices as triangles.
 	 */
@@ -49,8 +47,6 @@ namespace Engine::Scenes
 			 */
 			static size_t OffsetOf(const AttributeType& attributeType);
 		};
-
-		
 
 		/**
 		 * @brief All mesh-related resources used by shaders.

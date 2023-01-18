@@ -95,11 +95,9 @@ namespace Engine::Vulkan
 		CreateSemaphores();
 		CreateCommandPool();
 		LoadScene();
-		//CreateVertexAndIndexBuffers();
 		CreateSwapchain();
 		CreateRenderPass();
 		CreateFramebuffers();
-		//LoadTexture();
 		CreatePipelineLayout();
 		CreateGraphicsPipeline();
 		AllocateDrawCommandBuffers();
@@ -188,7 +186,7 @@ namespace Engine::Vulkan
 
 			// Clean up uniform buffer related objects.
 			vkDestroyDescriptorPool(_logicalDevice, _graphicsPipeline._shaderResources._descriptorPool._handle, nullptr);
-			_graphicsPipeline._shaderResources._transformationDataBuffer.Destroy();
+			_graphicsPipeline._shaderResources._cameraDataBuffer.Destroy();
 
 			// Buffers must be destroyed after no command buffers are referring to them anymore.
 			/*_graphicsPipeline._vertexBuffer.Destroy();
@@ -593,89 +591,6 @@ namespace Engine::Vulkan
 		//_model._mesh._vertices = verts;
 		//_model._mesh._faceIndices = indices;
 	}
-
-	//	void VulkanApplication::CreateVertexAndIndexBuffers()
-	//	{
-	//		auto vertexPositionsSize = Utils::GetVectorSizeInBytes(_model._mesh._vertices);
-	//		auto faceIndicesSize = Utils::GetVectorSizeInBytes(_model._mesh._faceIndices);
-	//
-	//#pragma region VerticesToVertexBuffer
-	//		// Create a buffer used as a middleman buffer to transfer data from the RAM to the VRAM. This buffer will be created in RAM.
-	//		auto vertexTransferBuffer = Buffer(_logicalDevice,
-	//			_physicalDevice,
-	//			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-	//			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-	//			_model._mesh._vertices.data(),
-	//			vertexPositionsSize);
-	//
-	//		_graphicsPipeline._vertexBuffer = Buffer(_logicalDevice,
-	//			_physicalDevice,
-	//			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-	//			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-	//			nullptr,
-	//			vertexPositionsSize);
-	//
-	//#pragma endregion
-	//
-	//#pragma region FaceIndicesToIndexBuffer
-	//		auto indexTransferBuffer = Buffer(_logicalDevice,
-	//			_physicalDevice,
-	//			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-	//			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-	//			(void*)_model._mesh._faceIndices.data(),
-	//			faceIndicesSize);
-	//
-	//		_graphicsPipeline._indexBuffer = Buffer(_logicalDevice,
-	//			_physicalDevice,
-	//			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-	//			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-	//			nullptr,
-	//			faceIndicesSize);
-	//#pragma endregion
-	//
-	//#pragma region CommandBufferCreationAndExecution
-	//		// Now copy data from host visible buffer to gpu only buffer
-	//		VkCommandBufferBeginInfo bufferBeginInfo = {};
-	//		bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	//		bufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-	//
-	//		// Allocate a command buffer for the copy operations to follow
-	//		VkCommandBufferAllocateInfo cmdBufInfo = {};
-	//		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	//		cmdBufInfo.commandPool = _commandPool;
-	//		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	//		cmdBufInfo.commandBufferCount = 1;
-	//
-	//		VkCommandBuffer copyCommandBuffer;
-	//		vkAllocateCommandBuffers(_logicalDevice, &cmdBufInfo, &copyCommandBuffer);
-	//
-	//		vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
-	//
-	//		VkBufferCopy copyRegion = {};
-	//		copyRegion.size = vertexPositionsSize;
-	//		vkCmdCopyBuffer(copyCommandBuffer, vertexTransferBuffer._handle, _graphicsPipeline._vertexBuffer._handle, 1, &copyRegion);
-	//		copyRegion.size = faceIndicesSize;
-	//		vkCmdCopyBuffer(copyCommandBuffer, indexTransferBuffer._handle, _graphicsPipeline._indexBuffer._handle, 1, &copyRegion);
-	//
-	//		vkEndCommandBuffer(copyCommandBuffer);
-	//
-	//		// Submit to queue
-	//		VkSubmitInfo submitInfo = {};
-	//		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	//		submitInfo.commandBufferCount = 1;
-	//		submitInfo.pCommandBuffers = &copyCommandBuffer;
-	//
-	//		vkQueueSubmit(_queue._handle, 1, &submitInfo, VK_NULL_HANDLE);
-	//		vkQueueWaitIdle(_queue._handle);
-	//
-	//		vkFreeCommandBuffers(_logicalDevice, _commandPool, 1, &copyCommandBuffer);
-	//#pragma endregion
-	//
-	//		vertexTransferBuffer.Destroy();
-	//		indexTransferBuffer.Destroy();
-	//
-	//		std::cout << "set up vertex and index buffers" << std::endl;
-	//	}
 
 	VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)
 	{
@@ -1155,34 +1070,42 @@ namespace Engine::Vulkan
 	{
 		auto& shaderResources = _graphicsPipeline._shaderResources;
 
-		shaderResources._transformationData.worldToCamera = _mainCamera._view._matrix;
-		shaderResources._transformationData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov / 2.0f));
-		shaderResources._transformationData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
-		shaderResources._transformationData.nearClipDistance = _mainCamera._nearClippingDistance;
-		shaderResources._transformationData.farClipDistance = _mainCamera._farClippingDistance;
+		shaderResources._cameraData.worldToCamera = _mainCamera._view._matrix;
+		shaderResources._cameraData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov / 2.0f));
+		shaderResources._cameraData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
+		shaderResources._cameraData.nearClipDistance = _mainCamera._nearClippingDistance;
+		shaderResources._cameraData.farClipDistance = _mainCamera._farClippingDistance;
 
-		shaderResources._transformationDataBuffer.UpdateData(&shaderResources._transformationData, (size_t)sizeof(shaderResources._transformationData));
+		shaderResources._cameraDataBuffer.UpdateData(&shaderResources._cameraData, (size_t)sizeof(shaderResources._cameraData));
 	}
 
 	void VulkanApplication::CreatePipelineLayout()
 	{
 		auto& shaderResources = _graphicsPipeline._shaderResources;
 
-		shaderResources._transformationDataBuffer = Buffer(_logicalDevice,
+		shaderResources._cameraDataBuffer = Buffer(_logicalDevice,
 			_physicalDevice,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			&shaderResources._transformationData,
-			(size_t)sizeof(shaderResources._transformationData));
+			&shaderResources._cameraData,
+			(size_t)sizeof(shaderResources._cameraData));
 
-		shaderResources._transformationsDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0);
+		shaderResources._objectDataBuffer = Buffer(_logicalDevice,
+			_physicalDevice,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+			&shaderResources._objectData,
+			(size_t)sizeof(shaderResources._objectData));
+
+		shaderResources._cameraDataDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0);
+		shaderResources._objectDataDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
 		shaderResources._textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0);
-		shaderResources._uniformSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &shaderResources._transformationsDescriptor });
+		shaderResources._uniformSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &shaderResources._cameraDataDescriptor, &shaderResources._objectDataDescriptor });
 		shaderResources._samplerSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &shaderResources._textureDescriptor });
 		shaderResources._descriptorPool = DescriptorPool(_logicalDevice, { &shaderResources._uniformSet, &shaderResources._samplerSet });
 
 		UpdateShaderData();
-		shaderResources._descriptorPool.UpdateDescriptor(shaderResources._transformationsDescriptor, shaderResources._transformationDataBuffer);
+		shaderResources._descriptorPool.UpdateDescriptor(shaderResources._cameraDataDescriptor, shaderResources._cameraDataBuffer);
 
 		std::vector<VkDescriptorSetLayout> layouts = { shaderResources._uniformSet._layout, shaderResources._samplerSet._layout };
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
@@ -1274,13 +1197,6 @@ namespace Engine::Vulkan
 			renderPassBeginInfo.pClearValues = &clearValues[0];
 
 			vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			/*VkDescriptorSet sets[2] = { shaderResources._uniformSet._handle, shaderResources._samplerSet._handle };
-			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shaderResources._pipelineLayout, 0, 2, sets, 0, nullptr);
-			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
-			VkDeviceSize offset = 0;
-			vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &_graphicsPipeline._vertexBuffer._handle, &offset);
-			vkCmdBindIndexBuffer(_drawCommandBuffers[i], _graphicsPipeline._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)_model._mesh._faceIndices.size(), 1, 0, 0, 0);*/
 
 			auto& shaderResources = _graphicsPipeline._shaderResources;
 
@@ -1299,9 +1215,13 @@ namespace Engine::Vulkan
 				texture.SendToGPU(_commandPool, _queue);
 
 				vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
-				shaderResources._transformationData.objectToWorld = gameObject._transform._matrix;
+				shaderResources._objectData.objectToWorld = gameObject._transform._matrix;
+				shaderResources._objectDataBuffer.UpdateData(&shaderResources._objectData, sizeof(shaderResources._objectData));
+				shaderResources._descriptorPool.UpdateDescriptor(shaderResources._cameraDataDescriptor, shaderResources._cameraDataBuffer);
+				shaderResources._descriptorPool.UpdateDescriptor(shaderResources._objectDataDescriptor, shaderResources._objectDataBuffer);
+				shaderResources._uniformSet.SendDescriptorData();
 				shaderResources._descriptorPool.UpdateDescriptor(shaderResources._textureDescriptor, texture);
-				shaderResources._descriptorPool.UpdateDescriptor(shaderResources._transformationsDescriptor, shaderResources._transformationDataBuffer);
+				shaderResources._samplerSet.SendDescriptorData();
 				VkDescriptorSet sets[2] = { shaderResources._uniformSet._handle, shaderResources._samplerSet._handle };
 				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shaderResources._pipelineLayout, 0, 2, sets, 0, nullptr);
 				VkDeviceSize offset = 0;

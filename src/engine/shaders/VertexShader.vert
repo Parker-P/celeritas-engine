@@ -12,18 +12,23 @@ layout(location = 0) out vec3 vertexColor;
 layout (location = 1) out vec2 texCoord;
 
 // Variables coming from descriptor with binding number 0 at descriptor set 0.
-layout(set = 0, binding = 0) uniform UniformBuffer {
+layout(set = 0, binding = 0) uniform ObjectData {
+	mat4 objectToWorld;
+} objectData;
+
+// Data used to project the world space coordinates of the vertex into Vulkan's viewable volume.
+layout(set = 0, binding = 1) uniform CameraData {
 	float tanHalfHorizontalFov;
 	float aspectRatio;
 	float nearClipDistance;
 	float farClipDistance;
 	mat4 worldToCamera;
-	mat4 objectToWorld;
-} uniformBuffer;
+} cameraData;
 
 void main() 
 {
-    vec4 cameraSpacePosition = uniformBuffer.worldToCamera * uniformBuffer.objectToWorld * vec4(inPosition.x, inPosition.y, inPosition.z, 1.0f);
+    // Coordinates relative to the camera.
+    vec4 cameraSpacePosition = cameraData.worldToCamera * objectData.objectToWorld * vec4(inPosition.x, inPosition.y, inPosition.z, 1.0f);
 	
 	// The idea behind the projection transformation is using the camera as if you were standing behind a glass window: whatever you see out the window gets projected onto
 	// the glass.
@@ -38,9 +43,9 @@ void main()
 	// coordinates.
 	// This calculation is based on the fact that Vulkan's coordinate system is X right, Y down, Z forward (follows the right hand rule).
 	// In our engine we have X right, Y up, Z forward (we follow the left hand rule).
-	float xCoord = cameraSpacePosition.x / (uniformBuffer.tanHalfHorizontalFov * uniformBuffer.aspectRatio);
-	float yCoord = -cameraSpacePosition.y / uniformBuffer.tanHalfHorizontalFov;
-	float zCoord = (cameraSpacePosition.z - uniformBuffer.nearClipDistance) / (uniformBuffer.farClipDistance - uniformBuffer.nearClipDistance);
+	float xCoord = cameraSpacePosition.x / (cameraData.tanHalfHorizontalFov * cameraData.aspectRatio);
+	float yCoord = -cameraSpacePosition.y / cameraData.tanHalfHorizontalFov;
+	float zCoord = (cameraSpacePosition.z - cameraData.nearClipDistance) / (cameraData.farClipDistance - cameraData.nearClipDistance);
 
 	// Remember that the next stages are going to divide each component of gl_position by its w component, meaning that
 	// gl_position = vec4(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w, gl_position.w / gl_position.w)
