@@ -39,10 +39,24 @@ namespace Engine::Scenes
 		struct
 		{
 			/**
+			 * @brief Object-related data directed to the vertex shader. Knowing this, the vertex shader is able to calculate the correct
+			 * Vulkan view volume coordinates.
+			 */
+			struct
+			{
+				glm::mat4 objectToWorld;
+			} _objectData;
+
+			/**
+			 * @brief Contains game-object-related data to go to the shaders.
+			 */
+			Vulkan::Buffer _objectDataBuffer;
+
+			/**
 			 * @brief Descriptor that contains the object-to-world transformation matrix, so the vertex shader knows the positional offset
 			 * of this gameobject's mesh's vertices, and can therefore calculate the correct viewable-volume coordinates.
 			 */
-			Vulkan::Descriptor _transformationData;
+			Vulkan::Descriptor _objectDataDescriptor;
 
 			/**
 			 * @brief Descriptor set that contains the _transformationData descriptor. This descriptor set will be bound to a graphics
@@ -58,7 +72,7 @@ namespace Engine::Scenes
 		} _shaderResources;
 
 		/**
-		 * @brief Per-frame updates.
+		 * @brief Updates per-frame game-object-related information.
 		 */
 		virtual void Update() override;
 	};

@@ -3,10 +3,19 @@
 namespace Engine::Scenes
 {
 	/**
+	 * @brief Forward declaration to promise the compiler that there will be a GameObject class compiled at some point.
+	 * We do this because in the Mesh class defined below, we have a pointer to a GameObject, so that we know which
+	 * game object the mesh is bound to.
+	 */
+	class Scene;
+
+	/**
 	 * @brief Represents a collection of vertices and face indices as triangles.
 	 */
 	class Mesh : public IUpdatable, public IDrawable
 	{
+		
+
 	public:
 
 		/**
@@ -98,17 +107,37 @@ namespace Engine::Scenes
 
 			} _faceIndices;
 
+			/**
+			 * @brief Desscriptor that contains a texture.
+			 */
+			Vulkan::Descriptor _textureDescriptor;
+
+			/**
+			 * @brief Descriptor set that contains texture sampler descriptors.
+			 */
+			Vulkan::DescriptorSet _samplerSet;
+
+			/**
+			 * @brief Descriptor pool that contains all descriptor sets.
+			 */
+			Vulkan::DescriptorPool _descriptorPool;
+
 		} _shaderResources;
 		
 		/**
-		 * @brief Index into the current scene's material list.
+		 * @brief Index into the materials list in the Scene class. See the Material and Scene classes.
 		 */
 		unsigned int _materialIndex;
 
 		/**
-		 * @brief Index into the current scene's game object list.
+		 * @brief Index into the game objects list in the Scene class. See the Material and Scene classes.
 		 */
-		unsigned int _gameObject;
+		unsigned int _gameObjectIndex;
+
+		/**
+		 * @brief Pointer to the scene.
+		 */
+		Scene* _scene;
 
 		/**
 		 * @brief Records the Vulkan draw commands needed to draw the mesh into the given command buffer.

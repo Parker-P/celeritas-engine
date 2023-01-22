@@ -19,7 +19,9 @@ namespace Engine::Scenes
 		 */
 		std::vector<Material> _materials;
 
-		// Inherited via IUpdatable
+		/**
+		 * @brief Updates all game objects.
+		 */
 		virtual void Update() override;
 	};
 }
