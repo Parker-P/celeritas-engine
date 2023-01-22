@@ -14,7 +14,6 @@
 #include "engine/vulkan/Image.hpp"
 #include "engine/vulkan/Buffer.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
-#include "engine/scenes/Scene.hpp"
 #include "engine/scenes/Material.hpp"
 #include "engine/scenes/Mesh.hpp"
 

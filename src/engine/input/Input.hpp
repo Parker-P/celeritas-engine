@@ -35,7 +35,7 @@ namespace Engine::Input
 		std::map<int, Key> _keys;
 
 		/**
-		 * @brief .
+		 * @brief True if the cursor is visible.
 		 */
 		bool _cursorEnabled = false;
 
