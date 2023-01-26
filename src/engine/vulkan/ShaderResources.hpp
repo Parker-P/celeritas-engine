@@ -160,16 +160,12 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Updates a descriptor identified by its memory address with the data contained in the given buffer.
-		 * @param setIndex Descriptor set index.
-		 * @param descriptorIndex Descriptor index a.k.a. binding.
 		 * @param data The buffer whose data will be sent to the allocated descriptor set.
 		 */
 		void UpdateDescriptor(Descriptor& d, Buffer& data);
 
 		/**
 		 * @brief Updates a descriptor identified by its memory address with the data contained in the given image.
-		 * @param setIndex Descriptor set index.
-		 * @param descriptorIndex Descriptor index a.k.a. binding.
 		 * @param data The buffer whose data will be sent to the allocated descriptor set.
 		 */
 		void UpdateDescriptor(Descriptor& d, Image& data);

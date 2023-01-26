@@ -22,7 +22,7 @@ namespace Engine::Vulkan
 		_type = type;
 		_bindingNumber = bindingNumber;
 	}
-	
+
 	void DescriptorSet::SendDescriptorData()
 	{
 		std::vector<VkWriteDescriptorSet> writeInfos;

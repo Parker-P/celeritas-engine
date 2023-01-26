@@ -35,7 +35,6 @@
 #include "engine/Time.hpp"
 #include "engine/input/Input.hpp"
 #include "engine/math/Transform.hpp"
-#include "engine/scenes/Material.hpp"
 #include "engine/vulkan/PhysicalDevice.hpp"
 #include "engine/vulkan/Queue.hpp"
 #include "engine/vulkan/Buffer.hpp"
@@ -43,6 +42,7 @@
 #include "engine/math/Transform.hpp"
 #include "engine/vulkan/Queue.hpp"
 #include "engine/vulkan/Image.hpp"
+#include "engine/scenes/Material.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
 #include "engine/scenes/Mesh.hpp"
 #include "engine/scenes/GameObject.hpp"
@@ -420,8 +420,8 @@ namespace Engine::Vulkan
 		std::string err;
 		std::string warn;
 
-		auto scenePath = std::filesystem::current_path().string() + R"(\models\monkey.glb)";
-		//auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
+		//auto scenePath = std::filesystem::current_path().string() + R"(\models\monkey.glb)";
+		auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
 		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath);
 		std::cout << warn << std::endl;
 		std::cout << err << std::endl;
@@ -433,10 +433,11 @@ namespace Engine::Vulkan
 			auto& baseColorTextureIndex = gltfScene.materials[i].pbrMetallicRoughness.baseColorTexture.index;
 			m._name = gltfScene.materials[i].name;
 			if (baseColorTextureIndex >= 0) {
-				auto& baseColorimageIndex = gltfScene.textures[baseColorTextureIndex].source;
-				auto& baseColorimageData = gltfScene.images[baseColorimageIndex].image;
-				auto size = VkExtent2D{ (uint32_t)gltfScene.images[baseColorimageIndex].width, (uint32_t)gltfScene.images[baseColorimageIndex].height };
-				m._baseColor = Scenes::Material::Texture(VK_FORMAT_R8G8B8A8_SRGB, baseColorimageData, size);;
+				auto& baseColorImageIndex = gltfScene.textures[baseColorTextureIndex].source;
+				auto& baseColorImageData = gltfScene.images[baseColorImageIndex].image;
+				auto size = VkExtent2D{ (uint32_t)gltfScene.images[baseColorImageIndex].width, (uint32_t)gltfScene.images[baseColorImageIndex].height };
+				m._baseColor = Image(_logicalDevice, _physicalDevice, VK_FORMAT_R8G8B8A8_SRGB, size, baseColorImageData.data(), (VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT), VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+				m._baseColor.SendToGPU(_commandPool, _queue);
 				_scene._materials.push_back(m);
 				loadedMaterialCache.emplace(i, _scene._materials.size() - 1);
 			}
@@ -561,22 +562,8 @@ namespace Engine::Vulkan
 					Utils::GetVectorSizeInBytes(mesh._shaderResources._faceIndices._indexData));
 				mesh._shaderResources._faceIndices._indexBuffer.SendToGPU(_commandPool, _queue);
 
-				_scene._gameObjects.push_back(gameObject);
-				mesh._gameObjectIndex = (unsigned int)(_scene._gameObjects.size() - 1);
-
 				// Create descriptor sets to send the needed mesh and object information to the shaders.
-				auto textureFormat = _scene._materials[gameObject._mesh._materialIndex]._baseColor._format;
-				auto textureSizePixels = _scene._materials[gameObject._mesh._materialIndex]._baseColor._sizePixels;
-				auto textureData = _scene._materials[gameObject._mesh._materialIndex]._baseColor._data;
-				auto texture = Image(_logicalDevice,
-					_physicalDevice,
-					textureFormat,
-					textureSizePixels,
-					textureData.data(),
-					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
-					VK_IMAGE_ASPECT_COLOR_BIT,
-					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-				texture.SendToGPU(_commandPool, _queue);
+				auto& texture = _scene._materials[gameObject._mesh._materialIndex]._baseColor;
 
 				gameObject._shaderResources._objectDataBuffer = Buffer(_logicalDevice,
 					_physicalDevice,
@@ -584,9 +571,18 @@ namespace Engine::Vulkan
 					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
 					&gameObject._transform._matrix,
 					sizeof(gameObject._transform._matrix));
-				gameObject._shaderResources._objectDataDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
+
+				gameObject._shaderResources._objectDataDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &gameObject._shaderResources._objectDataBuffer);
+				gameObject._mesh._shaderResources._textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, nullptr, &texture);
+
 				gameObject._shaderResources._uniformSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &gameObject._shaderResources._objectDataDescriptor });
+				gameObject._mesh._shaderResources._samplerSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &gameObject._mesh._shaderResources._textureDescriptor });
+
+				gameObject._mesh._shaderResources._descriptorPool = DescriptorPool(_logicalDevice, { &gameObject._mesh._shaderResources._samplerSet });
 				gameObject._shaderResources._setContainer = DescriptorPool(_logicalDevice, { &gameObject._shaderResources._uniformSet });
+
+				_scene._gameObjects.push_back(gameObject);
+				mesh._gameObjectIndex = (unsigned int)(_scene._gameObjects.size() - 1);
 			}
 		}
 
@@ -1106,16 +1102,19 @@ namespace Engine::Vulkan
 			(size_t)sizeof(shaderResources._cameraData));
 
 		shaderResources._cameraDataDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0);
-		//shaderResources._textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0);
+
 		shaderResources._uniformSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &shaderResources._cameraDataDescriptor });
-		//shaderResources._samplerSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &shaderResources._textureDescriptor });
-		//shaderResources._descriptorPool = DescriptorPool(_logicalDevice, { &shaderResources._uniformSet, &shaderResources._samplerSet });
+
 		shaderResources._descriptorPool = DescriptorPool(_logicalDevice, { &shaderResources._uniformSet });
 
-		UpdateShaderData();
-		shaderResources._descriptorPool.UpdateDescriptor(shaderResources._cameraDataDescriptor, shaderResources._cameraDataBuffer);
+		VkDescriptorSetLayout* gameObjectLayout = nullptr;
+		VkDescriptorSetLayout* meshLayout = nullptr;
+		if (_scene._gameObjects.size() > 0) {
+			gameObjectLayout = &_scene._gameObjects[0]._shaderResources._uniformSet._layout;
+			meshLayout = &_scene._gameObjects[0]._mesh._shaderResources._samplerSet._layout;
+		}
 
-		std::vector<VkDescriptorSetLayout> layouts = { shaderResources._uniformSet._layout };
+		std::vector<VkDescriptorSetLayout> layouts = { shaderResources._uniformSet._layout, *gameObjectLayout, *meshLayout };
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutCreateInfo.setLayoutCount = (uint32_t)layouts.size();
@@ -1128,6 +1127,9 @@ namespace Engine::Vulkan
 		else {
 			std::cout << "created pipeline layout" << std::endl;
 		}
+
+		UpdateShaderData();
+		shaderResources._descriptorPool.UpdateDescriptor(shaderResources._cameraDataDescriptor, shaderResources._cameraDataBuffer);
 	}
 
 	void VulkanApplication::AllocateDrawCommandBuffers()

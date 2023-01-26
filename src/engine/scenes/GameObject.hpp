@@ -59,8 +59,8 @@ namespace Engine::Scenes
 			Vulkan::Descriptor _objectDataDescriptor;
 
 			/**
-			 * @brief Descriptor set that contains the _transformationData descriptor. This descriptor set will be bound to a graphics
-			 * pipeline for each draw call in a render pass that draws this game object's mesh.
+			 * @brief Descriptor set that contains the _objectDataDescriptor descriptor. This descriptor set will be bound to a graphics
+			 * pipeline for each draw call in a render pass that draws this game object's mesh, and will be sent to the vertex shader.
 			 */
 			Vulkan::DescriptorSet _uniformSet;
 

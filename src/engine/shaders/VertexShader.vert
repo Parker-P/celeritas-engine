@@ -12,12 +12,12 @@ layout(location = 0) out vec3 vertexColor;
 layout (location = 1) out vec2 texCoord;
 
 // Variables coming from descriptor with binding number 0 at descriptor set 0.
-layout(set = 0, binding = 0) uniform ObjectData {
+layout(set = 1, binding = 0) uniform ObjectData {
 	mat4 objectToWorld;
 } objectData;
 
 // Data used to project the world space coordinates of the vertex into Vulkan's viewable volume.
-layout(set = 0, binding = 1) uniform CameraData {
+layout(set = 0, binding = 0) uniform CameraData {
 	float tanHalfHorizontalFov;
 	float aspectRatio;
 	float nearClipDistance;

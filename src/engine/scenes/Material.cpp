@@ -4,14 +4,11 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
+#include "engine/vulkan/Queue.hpp"
+#include "engine/vulkan/PhysicalDevice.hpp"
+#include "engine/vulkan/Image.hpp"
 #include "engine/scenes/Material.hpp"
 
 namespace Engine::Scenes 
 {
-	Material::Texture::Texture(VkFormat format, const std::vector<unsigned char>& data, const VkExtent2D& sizePixels)
-	{
-		_format = format;
-		_data = data;
-		_sizePixels = sizePixels;
-	}
 }
