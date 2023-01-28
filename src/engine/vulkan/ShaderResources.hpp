@@ -3,7 +3,7 @@
 namespace Engine::Vulkan
 {
 	/**
-	 * @brief A descriptor is just a block of data, similar to a buffer, with the difference being that a descriptor is bound to metadata
+	 * @brief A descriptor is a block of data, similar to a buffer, with the difference being that a descriptor is bound to metadata
 	 * that Vulkan uses to enable their use in shaders. This allows us to exchange data between a program run by the CPU's cores with a shader run
 	 * by the GPU's cores.
 	 * A descriptor is accessed by a shader by using an index and a binding number, similar to vertex attributes, which are accessed
@@ -90,8 +90,10 @@ namespace Engine::Vulkan
 		VkDescriptorSetLayout _layout;
 
 		/**
-		 * @brief Set index number used by the shaders to identify the descriptor set to access. This number is set only after memory for the
-		 * descriptor set has been allocated by a descriptor pool.
+		 * @brief Set index number used by the shaders to identify the descriptor set to access. When a descriptor set is bound to a pipeline using
+		 * vkCmdBindDescriptorSets(), the function requires an array of descriptor set handles; this binding number is the index in that array where this
+		 * descriptor set's handle is used. It is also important to note that the vkCmdBindDescriptorSets() command is bound to a command buffer; this
+		 * means that the same descriptor set could be used with a different binding number in different calls to vkCmdBindDescriptorSets().
 		 */
 		short _indexNumber;
 
@@ -152,7 +154,7 @@ namespace Engine::Vulkan
 		DescriptorPool() = default;
 
 		/**
-		 * @brief Constructs a descriptor pool and allocates memory for the given descriptor sets.
+		 * @brief Constructs a descriptor pool and allocates GPU memory for the given descriptor sets.
 		 * @param logicalDevice Used for the Vulkan call to create the descriptor pool and to allocate memory for the given descriptor sets.
 		 * @param descriptorSets Descriptor sets to allocate memory for.
 		 */

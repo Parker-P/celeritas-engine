@@ -11,8 +11,9 @@ layout(location = 0) out vec4 outColor;
 layout(set = 2, binding = 0) uniform sampler2D tex1;
 
 void main() {
-    vec3 color = texture(tex1,texCoord).xyz;
+//    vec3 color = texture(tex1,texCoord).xyz;
 //	color = vec3(vertexColor.x * color.x, vertexColor.y * color.y, vertexColor.z * color.z);
-	color = vec3(color.x, color.y, color.z);
-	outColor = vec4(color,1.0f);
+//	color = vec3(color.x, color.y, color.z);
+	vec3 color = vec3(1.0f, 1.0f, 1.0f);
+	outColor = vec4(color.xyz, 1.0f);
 }
