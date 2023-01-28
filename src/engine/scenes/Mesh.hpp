@@ -108,7 +108,7 @@ namespace Engine::Scenes
 			/**
 			 * @brief Descriptor set that contains texture sampler descriptors.
 			 */
-			Vulkan::DescriptorSet _samplerSet;
+			Vulkan::DescriptorSet _samplersSet;
 
 			/**
 			 * @brief Descriptor pool that contains all descriptor sets.
