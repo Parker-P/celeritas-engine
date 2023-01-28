@@ -272,21 +272,17 @@ namespace Engine::Vulkan
 				/**
 				 * @brief Texture to be sent to the shaders.
 				 */
-				Image _texture;
+				//Image _texture;
 
 				/**
 				 * @brief Uniform descriptor that contains data contained in _cameraDataBuffer. See _cameraDataBuffer.
 				 */
 				Descriptor _cameraDataDescriptor;
 
-				
-
 				/**
 				 * @brief Descriptor set that contains uniform descriptors.
 				 */
-				DescriptorSet _uniformSet;
-
-				
+				DescriptorSet _cameraDataSet;
 
 				/**
 				 * @brief Descriptor pool that contains all descriptor sets.

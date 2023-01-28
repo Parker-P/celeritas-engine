@@ -66,7 +66,7 @@ namespace Engine::Vulkan
 	};
 
 	/**
-	 * @brief A descriptor set has bindings to descriptors, and is used to cluster descriptors of the same type.
+	 * @brief A descriptor set has bindings to descriptors, and is used to cluster descriptors.
 	 */
 	class DescriptorSet
 	{
