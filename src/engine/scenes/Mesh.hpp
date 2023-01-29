@@ -113,7 +113,7 @@ namespace Engine::Scenes
 			/**
 			 * @brief Descriptor pool that contains all descriptor sets.
 			 */
-			Vulkan::DescriptorPool _descriptorPool;
+			Vulkan::DescriptorPool _samplersPool;
 
 		} _shaderResources;
 		

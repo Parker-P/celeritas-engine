@@ -104,7 +104,6 @@ namespace Engine::Vulkan
 			std::cout << "allocated descriptor sets" << std::endl;
 
 			for (int i = 0; i < allocatedDescriptorSetHandles.size(); ++i) {
-				_descriptorSets[i]->_indexNumber = i;
 				_descriptorSets[i]->_handle = allocatedDescriptorSetHandles[i];
 				_descriptorSets[i]->SendDescriptorData();
 			}

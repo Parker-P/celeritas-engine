@@ -67,7 +67,7 @@ namespace Engine::Scenes
 			/**
 			 * @brief Descriptor pool used to allocate _uniformSet.
 			 */
-			Vulkan::DescriptorPool _setContainer;
+			Vulkan::DescriptorPool _objectDataPool;
 
 		} _shaderResources;
 

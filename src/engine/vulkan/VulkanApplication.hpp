@@ -256,23 +256,9 @@ namespace Engine::Vulkan
 				} _cameraData;
 
 				/**
-				 * @brief Object related data directed to the vertex shader. Knowing this, the vertex shader is able to calculate the correct
-				 * Vulkan view volume coordinates.
-				 */
-				struct
-				{
-					glm::mat4 objectToWorld;
-				} _objectData;
-
-				/**
 				 * @brief Vulkan buffer that contains the data contained in the _cameraData struct. See _cameraData.
 				 */
 				Buffer _cameraDataBuffer;
-
-				/**
-				 * @brief Texture to be sent to the shaders.
-				 */
-				//Image _texture;
 
 				/**
 				 * @brief Uniform descriptor that contains data contained in _cameraDataBuffer. See _cameraDataBuffer.
@@ -287,7 +273,7 @@ namespace Engine::Vulkan
 				/**
 				 * @brief Descriptor pool that contains all descriptor sets.
 				 */
-				DescriptorPool _descriptorPool;
+				DescriptorPool _cameraDataPool;
 
 				/**
 				 * @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
