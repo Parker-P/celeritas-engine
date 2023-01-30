@@ -439,7 +439,7 @@ namespace Engine::Vulkan
 				m._baseColor = Image(_logicalDevice, _physicalDevice, VK_FORMAT_R8G8B8A8_SRGB, size, baseColorImageData.data(), (VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT), VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 				m._baseColor.SendToGPU(_commandPool, _queue);
 				_scene._materials.push_back(m);
-				loadedMaterialCache.emplace(i, _scene._materials.size() - 1);
+				loadedMaterialCache.emplace(i, (unsigned int)(_scene._materials.size() - 1));
 			}
 		}
 
