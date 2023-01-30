@@ -1075,6 +1075,7 @@ namespace Engine::Vulkan
 	{
 		auto& shaderResources = _graphicsPipeline._shaderResources;
 
+		// Create a descriptor set for camera data.
 		shaderResources._cameraDataBuffer = Buffer(_logicalDevice,
 			_physicalDevice,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -1086,9 +1087,9 @@ namespace Engine::Vulkan
 		shaderResources._cameraDataSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &shaderResources._cameraDataDescriptor });
 		shaderResources._cameraDataPool = DescriptorPool(_logicalDevice, { &shaderResources._cameraDataSet });
 
+		// Then 2 descriptor sets for each object; 1 for the world space coordinates, 1 for its textures.
 		for (auto& gameObject : _scene._gameObjects) {
 
-			// Create descriptor sets to send the needed mesh and object information to the shaders.
 			auto& texture = _scene._materials[gameObject._mesh._materialIndex]._baseColor;
 			gameObject._shaderResources._objectDataBuffer = Buffer(_logicalDevice,
 				_physicalDevice,
@@ -1110,6 +1111,7 @@ namespace Engine::Vulkan
 			gameObject._mesh._shaderResources._samplersSet.SendDescriptorData();
 		}
 
+		// Create the layout.
 		VkDescriptorSetLayout* gameObjectLayout = nullptr;
 		VkDescriptorSetLayout* meshLayout = nullptr;
 		if (_scene._gameObjects.size() > 0) {
