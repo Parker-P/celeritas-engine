@@ -79,7 +79,10 @@ namespace Engine::Math
 
 		glm::vec3 Position();
 
-		void SetPosition(glm::vec3& position);
-
+		/**
+		 * @brief Sets the homogeneous column of the transform matrix, used for position.
+		 * @param position Three-dimentional position.
+		 */
+		void SetPosition(const glm::vec3& position);
 	};
 }

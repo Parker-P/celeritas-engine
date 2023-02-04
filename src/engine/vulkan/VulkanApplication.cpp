@@ -443,11 +443,14 @@ namespace Engine::Vulkan
 			}
 		}
 
+		float p = 0.0f;
 		for (auto& gltfMesh : gltfScene.meshes) {
 			for (auto& gltfPrimitive : gltfMesh.primitives) {
 				auto gameObject = Scenes::GameObject();
 				gameObject._scene = &_scene;
 				gameObject._name = gltfMesh.name;
+				gameObject._transform.SetPosition(glm::vec3{ p+3, 0.0f, 0.0f });
+				p = p + 3;
 
 				auto faceIndicesAccessorIndex = gltfPrimitive.indices;
 				auto vertexPositionsAccessorIndex = gltfPrimitive.attributes["POSITION"];
@@ -1095,11 +1098,11 @@ namespace Engine::Vulkan
 			}
 
 			gameObject._shaderResources._objectDataBuffer = Buffer(_logicalDevice,
-					_physicalDevice,
-					VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-					&gameObject._transform._matrix,
-					sizeof(gameObject._transform._matrix));
+				_physicalDevice,
+				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+				&gameObject._transform._matrix,
+				sizeof(gameObject._transform._matrix));
 
 			gameObject._shaderResources._objectDataDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &gameObject._shaderResources._objectDataBuffer);
 			gameObject._mesh._shaderResources._textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, nullptr, texture);
@@ -1218,23 +1221,23 @@ namespace Engine::Vulkan
 			vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
-			/*for (auto& gameObject : _scene._gameObjects) {
+			for (auto& gameObject : _scene._gameObjects) {
 				VkDescriptorSet sets[3] = { shaderResources._cameraDataSet._handle, gameObject._shaderResources._objectDataSet._handle, gameObject._mesh._shaderResources._samplersSet._handle };
 				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shaderResources._pipelineLayout, 0, 3, sets, 0, nullptr);
 				VkDeviceSize offset = 0;
 				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._mesh._shaderResources._vertices._vertexBuffer._handle, &offset);
 				vkCmdBindIndexBuffer(_drawCommandBuffers[i], gameObject._mesh._shaderResources._faceIndices._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
 				vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)gameObject._mesh._shaderResources._faceIndices._indexData.size(), 1, 0, 0, 0);
-			}*/
+			}
 
-			auto& gameObject = _scene._gameObjects[0];
+			/*auto& gameObject = _scene._gameObjects[3];
 
 			VkDescriptorSet sets[3] = { shaderResources._cameraDataSet._handle, gameObject._shaderResources._objectDataSet._handle, gameObject._mesh._shaderResources._samplersSet._handle };
 			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shaderResources._pipelineLayout, 0, 3, sets, 0, nullptr);
 			VkDeviceSize offset = 0;
 			vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._mesh._shaderResources._vertices._vertexBuffer._handle, &offset);
 			vkCmdBindIndexBuffer(_drawCommandBuffers[i], gameObject._mesh._shaderResources._faceIndices._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)gameObject._mesh._shaderResources._faceIndices._indexData.size(), 1, 0, 0, 0);
+			vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)gameObject._mesh._shaderResources._faceIndices._indexData.size(), 1, 0, 0, 0);*/
 
 			vkCmdEndRenderPass(_drawCommandBuffers[i]);
 

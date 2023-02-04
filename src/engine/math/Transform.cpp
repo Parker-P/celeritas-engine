@@ -65,7 +65,7 @@ namespace Engine::Math
 		_matrix[2][2] = newZ.z;
 	}
 
-	void Transform::SetPosition(glm::vec3& position)
+	void Transform::SetPosition(const glm::vec3& position)
 	{
 		_matrix[3][0] = position.x;
 		_matrix[3][1] = position.y;
