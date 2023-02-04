@@ -11,11 +11,6 @@ layout(location = 2) in vec2 inUv;
 layout(location = 0) out vec3 vertexColor;
 layout (location = 1) out vec2 texCoord;
 
-// Variables coming from descriptor with binding number 0 at descriptor set 0.
-layout(set = 1, binding = 0) uniform ObjectData {
-	mat4 objectToWorld;
-} objectData;
-
 // Data used to project the world space coordinates of the vertex into Vulkan's viewable volume.
 layout(set = 0, binding = 0) uniform CameraData {
 	float tanHalfHorizontalFov;
@@ -24,6 +19,11 @@ layout(set = 0, binding = 0) uniform CameraData {
 	float farClipDistance;
 	mat4 worldToCamera;
 } cameraData;
+
+// Variables coming from descriptor with binding number 0 at descriptor set 1.
+layout(set = 1, binding = 0) uniform ObjectData {
+	mat4 objectToWorld;
+} objectData;
 
 void main() 
 {
