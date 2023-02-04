@@ -1,4 +1,4 @@
-#include <chrono>;
+#include <chrono>
 
 #include "structural/IUpdatable.hpp"
 #include "structural/Singleton.hpp"

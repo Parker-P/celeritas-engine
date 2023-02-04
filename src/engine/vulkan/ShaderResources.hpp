@@ -9,6 +9,7 @@ namespace Engine::Vulkan
 	 * A descriptor is accessed by a shader by using an index and a binding number, similar to vertex attributes, which are accessed
 	 * by the vertex shader using a binding and a location number.
 	 * For example, in a shader, a descriptor is declared as follows:
+	 * 
 	 * #version 450
 	 *
 	 * // Descriptor declaration. The shader will access the descriptor with binding number 1 at descriptor set with index 2.
@@ -21,6 +22,8 @@ namespace Engine::Vulkan
 	 * {
 	 *		... shader code ...
 	 * }
+	 * 
+	 * See the _bindingNumber member, and the _indexNumber member in the DescriptorSet class.
 	 */
 	class Descriptor
 	{
@@ -66,7 +69,7 @@ namespace Engine::Vulkan
 	};
 
 	/**
-	 * @brief A descriptor set has bindings to descriptors, and is used to cluster descriptors.
+	 * @brief A descriptor set has bindings to descriptors, and is used to cluster descriptors. See description for Descriptor.
 	 */
 	class DescriptorSet
 	{
