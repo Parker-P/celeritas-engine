@@ -422,6 +422,7 @@ namespace Engine::Vulkan
 
 		//auto scenePath = std::filesystem::current_path().string() + R"(\models\monkey.glb)";
 		auto scenePath = std::filesystem::current_path().string() + R"(\models\cubes.glb)";
+		//auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
 		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath);
 		std::cout << warn << std::endl;
 		std::cout << err << std::endl;

@@ -16,7 +16,6 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Runs the application.
-		 *
 		 */
 		void Run();
 
