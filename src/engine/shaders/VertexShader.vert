@@ -28,8 +28,8 @@ layout(set = 1, binding = 0) uniform ObjectData {
 void main() 
 {
 
-    // Coordinates relative to the camera.
-	 vec4 cameraSpacePosition = cameraData.worldToCamera * objectData.objectToWorld * vec4(inPosition.x, inPosition.y, inPosition.z, 1.0f);
+  // Coordinates relative to the camera.
+	vec4 cameraSpacePosition = cameraData.worldToCamera * objectData.objectToWorld * vec4(inPosition.x, inPosition.y, inPosition.z, 1.0f);
 	
 	// The idea behind the projection transformation is using the camera as if you were standing behind a glass window: whatever you see out the window gets projected onto
 	// the glass.
