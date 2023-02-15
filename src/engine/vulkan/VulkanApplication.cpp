@@ -444,13 +444,18 @@ namespace Engine::Vulkan
 		}
 
 		float p = 0.0f;
-		for (auto& gltfMesh : gltfScene.meshes) {
+		for (int i = 0; i < gltfScene.nodes.size(); ++i) {
+			auto& gltfMesh = gltfScene.meshes[gltfScene.nodes[i].mesh];
+
 			for (auto& gltfPrimitive : gltfMesh.primitives) {
 				auto gameObject = Scenes::GameObject();
 				gameObject._scene = &_scene;
 				gameObject._name = gltfMesh.name;
-				gameObject._transform.SetPosition(glm::vec3{ p+3, 0.0f, 0.0f });
-				p = p + 3;
+				auto& position = gltfScene.nodes[i].translation;
+
+				if (position.size() == 3) {
+					gameObject._transform.SetPosition(glm::vec3{ position[0], position[1], position[2] });
+				}
 
 				auto faceIndicesAccessorIndex = gltfPrimitive.indices;
 				auto vertexPositionsAccessorIndex = gltfPrimitive.attributes["POSITION"];
