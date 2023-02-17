@@ -23,6 +23,7 @@
     <ClCompile Include="src\engine\scenes\GameObject.cpp" />
     <ClCompile Include="src\engine\input\Input.cpp" />
     <ClCompile Include="src\engine\scenes\Material.cpp" />
+    <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\engine\vulkan\ShaderResources.cpp" />
     <ClCompile Include="src\engine\vulkan\Buffer.cpp" />
     <ClCompile Include="src\engine\vulkan\PhysicalDevice.cpp" />
@@ -35,7 +36,6 @@
     <ClCompile Include="src\settings\GlobalSettings.cpp" />
     <ClCompile Include="src\engine\Time.cpp" />
     <ClCompile Include="src\engine\math\Transform.cpp" />
-    <ClCompile Include="src\engine\vulkan\VulkanApplication.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\json\json.h" />
