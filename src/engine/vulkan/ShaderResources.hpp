@@ -4,7 +4,7 @@ namespace Engine::Vulkan
 {
 	/**
 	 * @brief A descriptor is a block of data, similar to a buffer, with the difference being that a descriptor is bound to metadata
-	 * that Vulkan uses to enable their use in shaders. This allows us to exchange data between a program run by the CPU's cores with a shader run
+	 * that Vulkan uses to enable their use in the shaders of a pipeline. This allows us to exchange data between a program run by the CPU's cores with a shader run
 	 * by the GPU's cores.
 	 * A descriptor is accessed by a shader by using an index and a binding number, similar to vertex attributes, which are accessed
 	 * by the vertex shader using a binding and a location number.
@@ -95,7 +95,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Set index number used by the shaders to identify the descriptor set to access. When a descriptor set is bound to a pipeline using
 		 * vkCmdBindDescriptorSets(), the function requires an array of descriptor set handles; this binding number is the index in that array where this
-		 * descriptor set's handle is used. It is also important to note that the vkCmdBindDescriptorSets() command is bound to a command buffer; this
+		 * descriptor set's handle is used. It's also important to note that the vkCmdBindDescriptorSets() command is bound to a command buffer; this
 		 * means that the same descriptor set could be used with a different binding number in different calls to vkCmdBindDescriptorSets().
 		 */
 		short _indexNumber;

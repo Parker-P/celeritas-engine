@@ -10,7 +10,7 @@ namespace Engine::Vulkan
 	/**
 	 * @brief Represents the Vulkan application.
 	 */
-	class VulkanApplication : public IUpdatable
+	class VulkanApplication : public Structural::IUpdatable
 	{
 	public:
 
@@ -71,7 +71,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Encapsulates info for a render pass.
 		 * A render pass represents an execution of an entire graphics pipeline to create an image.
-		 * Render passes use what are called (in Vulkan gergo) attachments. Each attachment is which are rendered images that contribute to rendering
+		 * Render passes use what are called (in Vulkan gergo) attachments. Attachments are rendered images that contribute to rendering
 		 * the final image that will go in the framebuffer. It is the renderpass's job to also do compositing, which
 		 * is defining the logic according to which the attachments are merged to create the final image.
 		 * See @see Swapchain to understand what framebuffers are.
@@ -111,8 +111,8 @@ namespace Engine::Vulkan
 			/**
 			 * @brief These are the buffers that contain the final rendered images shown on screen.
 			 * A framebuffer is stored on a different portion of memory with respect to the depth and
-			 * color images. The depth and color images CONTRIBUTE to generating an image for a
-			 * framebuffer.
+			 * color attachments used by a render pass. The depth and color images CONTRIBUTE to generating 
+			 * an image for a framebuffer.
 			 */
 			std::vector<VkFramebuffer> _frameBuffers;
 
@@ -430,29 +430,8 @@ namespace Engine::Vulkan
 		void CreateGraphicsPipeline();
 
 		/**
-		 * @brief Creates a descriptor set, and fills it with the chosen number of descriptors (defined when creating the descriptor pool that will be used to allocate the descriptor set).
+		 * @brief Update the data that will be sent to the shaders.
 		 */
-		 //void AllocateDescriptorSets();
-
-		 /**
-		  * @brief Updates the data in both the uniform and texture sampler descriptor sets.
-		  */
-		  //void UpdateDescriptorSetsData();
-
-		  /**
-		   * @brief Creates the descriptor set layout. See _graphicsPipeline._shaderResources.
-		   */
-		   //void CreateDescriptorSetLayout();
-
-		   /**
-			* @brief Creates a descriptor pool.
-			* @param descriptorCount The amount of descriptors you plan to allocate from the pool.
-			*/
-			//void CreateDescriptorPool();
-
-			/**
-			 * @brief Update the data that will be sent to the shaders.
-			 */
 		void UpdateShaderData();
 
 		/**
@@ -483,10 +462,5 @@ namespace Engine::Vulkan
 		 *
 		 */
 		VkFormat ChooseImageFormat(const std::filesystem::path& absolutePathToImage);
-
-		/**
-		 * @brief Loads a texture into VRAM.
-		 */
-		 //void LoadTexture();
 	};
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-class Time : public Singleton<Time>, public IUpdatable
+class Time : public Structural::Singleton<Time>, public Structural::IUpdatable
 {
 public:
 	

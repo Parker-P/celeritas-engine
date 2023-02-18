@@ -28,6 +28,7 @@ namespace Engine::Vulkan
 		std::vector<VkWriteDescriptorSet> writeInfos;
 
 		bool canUpdate = true;
+
 		for (auto& descriptor : _descriptors) {
 			if (descriptor->_bufferInfo.range != 0 || descriptor->_imageInfo.sampler != VK_NULL_HANDLE) {
 				VkWriteDescriptorSet writeInfo = {};

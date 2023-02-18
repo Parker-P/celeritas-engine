@@ -28,7 +28,7 @@
 // Project local classes.
 #include "utils/Json.h"
 #include "structural/IUpdatable.hpp"
-#include "structural/IDrawable.hpp"
+#include "engine/structural/Drawable.hpp"
 #include "structural/Singleton.hpp"
 #include "settings/GlobalSettings.hpp"
 #include "settings/Paths.hpp"
@@ -543,33 +543,21 @@ namespace Engine::Vulkan
 				}
 
 				// Gather vertices and face indices.
-				mesh._shaderResources._vertices._vertexData.resize(vertexPositions.size());
+				std::vector<Scenes::Mesh::Vertex> vertices;
+				vertices.resize(vertexPositions.size());
 				for (int i = 0; i < vertexPositions.size(); ++i) {
 					Scenes::Mesh::Vertex v;
 					v._position = vertexPositions[i];
 					v._normal = vertexNormals[i];
 					v._uvCoord = uvCoords0[i];
-					mesh._shaderResources._vertices._vertexData[i] = v;
+					vertices[i] = v;
 				}
-				mesh._shaderResources._faceIndices._indexData = faceIndices;
 
 				// Copy vertices to the GPU.
-				mesh._shaderResources._vertices._vertexBuffer = Buffer(_logicalDevice,
-					_physicalDevice,
-					(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-					mesh._shaderResources._vertices._vertexData.data(),
-					Utils::GetVectorSizeInBytes(mesh._shaderResources._vertices._vertexData));
-				mesh._shaderResources._vertices._vertexBuffer.SendToGPU(_commandPool, _queue);
+				mesh.CreateVertexBuffer(_physicalDevice, _logicalDevice, _commandPool, _queue, vertices);
 
 				// Copy face indices to the GPU.
-				mesh._shaderResources._faceIndices._indexBuffer = Buffer(_logicalDevice,
-					_physicalDevice,
-					(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-					mesh._shaderResources._faceIndices._indexData.data(),
-					Utils::GetVectorSizeInBytes(mesh._shaderResources._faceIndices._indexData));
-				mesh._shaderResources._faceIndices._indexBuffer.SendToGPU(_commandPool, _queue);
+				mesh.CreateIndexBuffer(_physicalDevice, _logicalDevice, _commandPool, _queue, faceIndices);
 
 				_scene._gameObjects.push_back(gameObject);
 				mesh._gameObjectIndex = (unsigned int)(_scene._gameObjects.size() - 1);
@@ -1103,32 +1091,34 @@ namespace Engine::Vulkan
 				texture = &_scene._materials[gameObject._mesh._materialIndex]._baseColor;
 			}
 
-			gameObject._shaderResources._objectDataBuffer = Buffer(_logicalDevice,
+			gameObject._mesh._shaderResources._objectDataBuffer = Buffer(_logicalDevice,
 				_physicalDevice,
 				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
 				&gameObject._transform._matrix,
 				sizeof(gameObject._transform._matrix));
 
-			gameObject._shaderResources._objectDataDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &gameObject._shaderResources._objectDataBuffer);
+			gameObject._mesh._shaderResources._objectDataDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &gameObject._mesh._shaderResources._objectDataBuffer);
 			gameObject._mesh._shaderResources._textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, nullptr, texture);
 
-			gameObject._shaderResources._objectDataSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &gameObject._shaderResources._objectDataDescriptor });
+			gameObject._mesh._shaderResources._objectDataSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &gameObject._mesh._shaderResources._objectDataDescriptor });
 			gameObject._mesh._shaderResources._samplersSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &gameObject._mesh._shaderResources._textureDescriptor });
 
-			gameObject._shaderResources._objectDataPool = DescriptorPool(_logicalDevice, { &gameObject._shaderResources._objectDataSet });
+			gameObject._mesh._shaderResources._objectDataPool = DescriptorPool(_logicalDevice, { &gameObject._mesh._shaderResources._objectDataSet });
 			gameObject._mesh._shaderResources._samplersPool = DescriptorPool(_logicalDevice, { &gameObject._mesh._shaderResources._samplersSet });
 
-			gameObject._shaderResources._objectDataSet.SendDescriptorData();
+			gameObject._mesh._shaderResources._objectDataSet.SendDescriptorData();
 			gameObject._mesh._shaderResources._samplersSet.SendDescriptorData();
 		}
 
 		VkDescriptorSetLayout* gameObjectLayout = nullptr;
 		VkDescriptorSetLayout* meshLayout = nullptr;
 		if (_scene._gameObjects.size() > 0) {
-			gameObjectLayout = &_scene._gameObjects[0]._shaderResources._objectDataSet._layout;
+			gameObjectLayout = &_scene._gameObjects[0]._mesh._shaderResources._objectDataSet._layout;
 			meshLayout = &_scene._gameObjects[0]._mesh._shaderResources._samplersSet._layout;
 		}
+
+		std::pair<std::vector<VkDescriptorSetLayout>, std::vector<VkPushConstantRange>> layout;
 
 		std::vector<VkDescriptorSetLayout> layouts = { shaderResources._cameraDataSet._layout, *gameObjectLayout, *meshLayout };
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
@@ -1228,7 +1218,7 @@ namespace Engine::Vulkan
 			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
 			for (auto& gameObject : _scene._gameObjects) {
-				VkDescriptorSet sets[3] = { shaderResources._cameraDataSet._handle, gameObject._shaderResources._objectDataSet._handle, gameObject._mesh._shaderResources._samplersSet._handle };
+				VkDescriptorSet sets[3] = { shaderResources._cameraDataSet._handle, gameObject._mesh._shaderResources._objectDataSet._handle, gameObject._mesh._shaderResources._samplersSet._handle };
 				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shaderResources._pipelineLayout, 0, 3, sets, 0, nullptr);
 				VkDeviceSize offset = 0;
 				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._mesh._shaderResources._vertices._vertexBuffer._handle, &offset);
