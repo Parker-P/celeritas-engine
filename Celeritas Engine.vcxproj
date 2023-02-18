@@ -87,6 +87,7 @@
     <ClInclude Include="include\stb\stb_image_write.h" />
     <ClInclude Include="include\tinygltf\tiny_gltf.h" />
     <ClInclude Include="src\engine\scenes\Material.hpp" />
+    <ClInclude Include="src\engine\structural\Pipelineable.hpp" />
     <ClInclude Include="src\engine\vulkan\ShaderResources.hpp" />
     <ClInclude Include="src\engine\vulkan\Buffer.hpp" />
     <ClInclude Include="src\engine\vulkan\PhysicalDevice.hpp" />
@@ -96,7 +97,7 @@
     <ClInclude Include="src\engine\scenes\Camera.hpp" />
     <ClInclude Include="src\engine\scenes\GameObject.hpp" />
     <ClInclude Include="src\engine\input\Input.hpp" />
-    <ClInclude Include="src\engine\structural\IDrawable.hpp" />
+    <ClInclude Include="src\engine\structural\Drawable.hpp" />
     <ClInclude Include="src\structural\IUpdatable.hpp" />
     <ClInclude Include="src\utils\Json.h" />
     <ClInclude Include="src\game\input\KeyBinds.hpp" />

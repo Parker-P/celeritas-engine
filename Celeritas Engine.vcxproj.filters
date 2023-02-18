@@ -366,7 +366,7 @@
     <ClInclude Include="src\engine\scenes\Material.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\structural\IDrawable.hpp">
+    <ClInclude Include="src\engine\structural\Drawable.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\vulkan\Buffer.hpp">
@@ -382,6 +382,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\engine\vulkan\ShaderResources.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\structural\Pipelineable.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
