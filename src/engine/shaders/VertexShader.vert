@@ -28,7 +28,7 @@ layout(set = 1, binding = 0) uniform ObjectData {
 void main() 
 {
 
-  // Coordinates relative to the camera.
+    // Coordinates relative to the camera.
 	vec4 cameraSpacePosition = cameraData.worldToCamera * objectData.objectToWorld * vec4(inPosition.x, inPosition.y, inPosition.z, 1.0f);
 	
 	// The idea behind the projection transformation is using the camera as if you were standing behind a glass window: whatever you see out the window gets projected onto
@@ -39,7 +39,7 @@ void main()
 	// 3) Now focus on something outside the window (has to be a specific point, like the tip of the roof of a house or the leaf of a tree) 
 	// 4) Next, move your head towards the point you are focusing on in a straight line, untill you eventually hit the window with your head
 	// That point on the glass, right in front of your pupil, is what we're looking to calculate.
-	// This is exactly how the projection transformation was thought about but in reverse; the point in space outside the window moves towards your pupil untill it
+	// This is exactly how the projection transformation was thought about but in reverse; the point in space outside the window moves towards your pupil until it
 	// eventually hits the window. When it hits the window, you just take the distance from the center of the window to the hit point: these will be your 2D screen
 	// coordinates.
 	// This calculation is based on the fact that Vulkan's coordinate system is X right, Y down, Z forward (follows the right hand rule).

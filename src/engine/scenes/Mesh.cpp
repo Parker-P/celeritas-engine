@@ -13,6 +13,7 @@
 #include "engine/vulkan/Queue.hpp"
 #include "engine/vulkan/Image.hpp"
 #include "engine/vulkan/Buffer.hpp"
+#include "engine/structural/Pipelineable.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
 #include "engine/scenes/Material.hpp"
 #include "engine/scenes/Mesh.hpp"
@@ -41,10 +42,5 @@ namespace Engine::Scenes
     void Mesh::Update()
     {
 
-    }
-
-    std::pair<std::vector<VkDescriptorSetLayout>, std::vector<VkPushConstantRange>> Mesh::GetPipelineLayout()
-    {
-        return std::pair<std::vector<VkDescriptorSetLayout>, std::vector<VkPushConstantRange>>();
     }
 }

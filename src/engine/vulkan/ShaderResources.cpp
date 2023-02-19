@@ -11,6 +11,7 @@
 #include "engine/vulkan/PhysicalDevice.hpp"
 #include "engine/vulkan/Image.hpp"
 #include "engine/vulkan/Buffer.hpp"
+#include "engine/structural/Pipelineable.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
 
 namespace Engine::Vulkan

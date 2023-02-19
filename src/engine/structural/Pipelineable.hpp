@@ -4,6 +4,7 @@
 
 #include "engine/scenes/Mesh.hpp"
 #include "engine/vulkan/Buffer.hpp"
+#include "engine/structural/Pipelineable.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
 #include <engine/vulkan/PhysicalDevice.hpp>
 

@@ -175,4 +175,12 @@ namespace Engine::Vulkan
 		 */
 		void UpdateDescriptor(Descriptor& d, Image& data);
 	};
+
+	/**
+	 * @brief Contains .
+	 */
+	class ShaderData : public Structural::Singleton<ShaderData>
+	{
+		Pipelineable
+	};
 }

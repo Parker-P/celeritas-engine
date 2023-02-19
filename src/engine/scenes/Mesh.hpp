@@ -8,7 +8,6 @@ namespace Engine::Scenes
 	class Mesh : public Engine::Structural::Drawable, public Structural::IUpdatable
 	{
 
-
 	public:
 
 		/**
@@ -56,7 +55,7 @@ namespace Engine::Scenes
 		struct
 		{
 			/**
-			 * @brief Desscriptor that contains a texture.
+			 * @brief Descriptor that contains a texture.
 			 */
 			Vulkan::Descriptor _textureDescriptor;
 

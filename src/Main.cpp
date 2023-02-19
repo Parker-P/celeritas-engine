@@ -43,6 +43,7 @@
 #include "engine/vulkan/Queue.hpp"
 #include "engine/vulkan/Image.hpp"
 #include "engine/scenes/Material.hpp"
+#include "engine/structural/Pipelineable.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
 #include "engine/scenes/Mesh.hpp"
 #include "engine/scenes/GameObject.hpp"
@@ -1221,9 +1222,9 @@ namespace Engine::Vulkan
 				VkDescriptorSet sets[3] = { shaderResources._cameraDataSet._handle, gameObject._mesh._shaderResources._objectDataSet._handle, gameObject._mesh._shaderResources._samplersSet._handle };
 				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, shaderResources._pipelineLayout, 0, 3, sets, 0, nullptr);
 				VkDeviceSize offset = 0;
-				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._mesh._shaderResources._vertices._vertexBuffer._handle, &offset);
-				vkCmdBindIndexBuffer(_drawCommandBuffers[i], gameObject._mesh._shaderResources._faceIndices._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)gameObject._mesh._shaderResources._faceIndices._indexData.size(), 1, 0, 0, 0);
+				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._mesh._vertices._vertexBuffer._handle, &offset);
+				vkCmdBindIndexBuffer(_drawCommandBuffers[i], gameObject._mesh._faceIndices._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)gameObject._mesh._faceIndices._indexData.size(), 1, 0, 0, 0);
 			}
 
 			vkCmdEndRenderPass(_drawCommandBuffers[i]);
