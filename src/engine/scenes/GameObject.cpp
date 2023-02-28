@@ -6,6 +6,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "structural/IUpdatable.hpp"
+#include "engine/structural/Drawable.hpp"
+#include "engine/structural/Pipelineable.hpp"
 #include "engine/math/Transform.hpp"
 #include "engine/vulkan/PhysicalDevice.hpp"
 #include "engine/vulkan/Queue.hpp"

@@ -2,6 +2,7 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
+#include "engine/structural/Pipelineable.hpp"
 #include "engine/scenes/Mesh.hpp"
 #include "engine/vulkan/Queue.hpp"
 #include "engine/vulkan/Buffer.hpp"
@@ -11,10 +12,10 @@
 namespace Engine::Structural
 {
 	/**
-	 * @brief Used by implementing classes to mark themselves as a class that is meant to bind resources (vertex buffers, index buffer) 
+	 * @brief Used by deriving classes to mark themselves as a class that is meant to bind resources (vertex buffers, index buffer) 
 	 * to a graphics pipeline and send draw commands to the Vulkan API.
 	 */
-	class Drawable
+	class Drawable : public Pipelineable
 	{
 
 	public:

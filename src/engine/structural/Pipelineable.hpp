@@ -23,14 +23,23 @@ namespace Engine::Structural
 	public:
 
 		/**
-		 * @brief Array of pairs; each pair represents a block of data meant to be sent to shaders.
+		 * @brief 
 		 */
 		std::vector<Vulkan::Buffer> _data;
 
+		/**
+		 * @brief .
+		 */
 		std::vector<Vulkan::Descriptor> _descriptors;
 
+		/**
+		 * @brief .
+		 */
 		std::vector<Vulkan::DescriptorSet> _sets;
 
+		/**
+		 * @brief .
+		 */
 		Vulkan::DescriptorPool _pool;
 
 		/**
@@ -38,6 +47,6 @@ namespace Engine::Structural
 		 * For more information, see ShaderResources.cpp and _graphicsPipeline in VulkanApplication.hpp.
 		 * @return A pair of GPU-allocated descriptor set layouts and push constants.
 		 */
-		virtual std::pair<std::vector<VkDescriptorSetLayout>, std::vector<VkPushConstantRange>> CreateShaderResources() = 0;
+		//virtual std::pair<std::vector<VkDescriptorSetLayout>, std::vector<VkPushConstantRange>> CreateShaderResources() = 0;
 	};
 }
