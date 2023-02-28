@@ -7,7 +7,7 @@ namespace Game::Input
 
 	};
 
-	class KeyBinds : public Singleton<KeyBinds>
+	class KeyBinds : public ::Structural::Singleton<KeyBinds>
 	{
 	public:
 		KeyBinds();

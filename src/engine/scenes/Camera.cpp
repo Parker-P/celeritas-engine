@@ -9,7 +9,6 @@
 #include <vulkan/vulkan.h>
 
 #include "structural/IUpdatable.hpp"
-#include "structural/IDrawable.hpp"
 #include "structural/Singleton.hpp"
 #include "engine/Time.hpp"
 #include "settings/GlobalSettings.hpp"
@@ -21,18 +20,14 @@
 #include "engine/vulkan/Image.hpp"
 #include "engine/scenes/Material.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
+#include "engine/scenes/Vertex.hpp"
+#include "engine/structural/Pipelineable.hpp"
+#include "engine/structural/Drawable.hpp"
 #include "engine/scenes/Mesh.hpp"
 #include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Scene.hpp"
 #include "engine/scenes/Camera.hpp"
 
-//void Camera::Init(float FOV, float aspectRatio, float nearClipPlaneDistance, float farClipPlaneDistance) {
-//	//view = glm::lookAt(glm::vec3(1, 1, 1), glm::vec3(0, 0, 0), glm::vec3(0, 0, -1));
-//	init = true;
-//	position = glm::vec3(0.0f, 0.0f, 0.0f);
-//	projection = glm::perspective(glm::radians(FOV), aspectRatio, nearClipPlaneDistance, farClipPlaneDistance);
-//}
-//
 namespace Engine::Scenes
 {
 	Camera::Camera()

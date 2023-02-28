@@ -1,18 +1,12 @@
 #pragma once
-#include <vector>
-#include <vulkan/vulkan.h>
 
-#include "engine/structural/Pipelineable.hpp"
-#include "engine/scenes/Mesh.hpp"
-#include "engine/vulkan/Queue.hpp"
-#include "engine/vulkan/Buffer.hpp"
-#include <engine/vulkan/PhysicalDevice.hpp>
-#include <utils/Utils.hpp>
+// Forward declarations for compilation.
+//namespace Engine::Scenes { class Mesh { class Vertex; }; }
 
 namespace Engine::Structural
 {
 	/**
-	 * @brief Used by deriving classes to mark themselves as a class that is meant to bind resources (vertex buffers, index buffer) 
+	 * @brief Used by deriving classes to mark themselves as a class that is meant to bind resources (vertex buffers, index buffer)
 	 * to a graphics pipeline and send draw commands to the Vulkan API.
 	 */
 	class Drawable : public Pipelineable
@@ -28,7 +22,7 @@ namespace Engine::Structural
 			/**
 			 * @brief List of vertices that make up the mesh.
 			 */
-			std::vector<Scenes::Mesh::Vertex> _vertexData;
+			std::vector<Engine::Scenes::Vertex> _vertexData;
 
 			/**
 			 * @brief Buffer that stores vertex attributes. A vertex attribute is a piece of data
@@ -73,17 +67,7 @@ namespace Engine::Structural
 		 * @param queue The queue that will contain a command buffer allocated from the command pool above; the queue will contain Vulkan commands to send the vertex buffer to VRAM.
 		 * @param vertices The vertex information to send to the GPU.
 		 */
-		void CreateVertexBuffer(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& queue, const std::vector<Scenes::Mesh::Vertex>& vertices)
-		{
-			_vertices._vertexData = vertices;
-			_vertices._vertexBuffer = Engine::Vulkan::Buffer(logicalDevice,
-				physicalDevice,
-				(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				(void*)vertices.data(),
-				Utils::GetVectorSizeInBytes(vertices));
-			_vertices._vertexBuffer.SendToGPU(commandPool, queue);
-		}
+		void CreateVertexBuffer(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& queue, const std::vector<Scenes::Vertex>& vertices);
 
 		/**
 		 * @brief Creates a GPU-only index buffer for the Drawable.
@@ -93,16 +77,6 @@ namespace Engine::Structural
 		 * @param queue The queue that will contain a command buffer allocated from the command pool above; the queue will contain Vulkan commands to send the vertex buffer to VRAM.
 		 * @param indices The index information to send to the GPU.
 		 */
-		void CreateIndexBuffer(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& queue, const std::vector<unsigned int>& indices) 
-		{
-			_faceIndices._indexData = indices;
-			_faceIndices._indexBuffer = Engine::Vulkan::Buffer(logicalDevice,
-				physicalDevice,
-				(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				(void*)indices.data(),
-				Utils::GetVectorSizeInBytes(indices));
-			_faceIndices._indexBuffer.SendToGPU(commandPool, queue);
-		}
+		void CreateIndexBuffer(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& queue, const std::vector<unsigned int>& indices);
 	};
 }

@@ -28,7 +28,6 @@
 // Project local classes.
 #include "utils/Json.h"
 #include "structural/IUpdatable.hpp"
-#include "engine/structural/Drawable.hpp"
 #include "structural/Singleton.hpp"
 #include "settings/GlobalSettings.hpp"
 #include "settings/Paths.hpp"
@@ -43,8 +42,10 @@
 #include "engine/vulkan/Queue.hpp"
 #include "engine/vulkan/Image.hpp"
 #include "engine/scenes/Material.hpp"
-#include "engine/structural/Pipelineable.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
+#include "engine/scenes/Vertex.hpp"
+#include "engine/structural/Pipelineable.hpp"
+#include "engine/structural/Drawable.hpp"
 #include "engine/scenes/Mesh.hpp"
 #include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Scene.hpp"
@@ -544,10 +545,10 @@ namespace Engine::Vulkan
 				}
 
 				// Gather vertices and face indices.
-				std::vector<Scenes::Mesh::Vertex> vertices;
+				std::vector<Scenes::Vertex> vertices;
 				vertices.resize(vertexPositions.size());
 				for (int i = 0; i < vertexPositions.size(); ++i) {
-					Scenes::Mesh::Vertex v;
+					Scenes::Vertex v;
 					v._position = vertexPositions[i];
 					v._normal = vertexNormals[i];
 					v._uvCoord = uvCoords0[i];
@@ -879,7 +880,7 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateGraphicsPipeline()
 	{
-		using Vertex = Scenes::Mesh::Vertex;
+		using Vertex = Scenes::Vertex;
 
 		VkShaderModule vertexShaderModule = CreateShaderModule(Settings::Paths::_vertexShaderPath());
 		VkShaderModule fragmentShaderModule = CreateShaderModule(Settings::Paths::_fragmentShaderPath());

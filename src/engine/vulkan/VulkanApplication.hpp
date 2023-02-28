@@ -10,7 +10,7 @@ namespace Engine::Vulkan
 	/**
 	 * @brief Represents the Vulkan application.
 	 */
-	class VulkanApplication : public Structural::IUpdatable
+	class VulkanApplication : public ::Structural::IUpdatable
 	{
 	public:
 

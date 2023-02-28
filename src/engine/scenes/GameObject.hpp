@@ -9,7 +9,7 @@ namespace Engine::Scenes
 	/**
 	 * @brief Represents a physical object in a celeritas-engine scene.
 	 */
-	class GameObject : public Structural::IUpdatable, public Structural::Drawable
+	class GameObject : public ::Structural::IUpdatable, public Structural::Drawable
 	{
 	public:
 
