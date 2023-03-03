@@ -74,9 +74,14 @@ namespace Engine::Structural
 	public:
 
 		/**
-		 * @brief
+		 * @brief Buffers.
 		 */
-		Array<Vulkan::Buffer> _data;
+		Array<Vulkan::Buffer> _buffers;
+
+		/**
+		 * @brief Images.
+		 */
+		Array<Vulkan::Image> _images;
 
 		/**
 		 * @brief .

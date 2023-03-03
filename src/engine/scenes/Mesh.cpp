@@ -22,32 +22,40 @@
 
 namespace Engine::Scenes
 {
-    void Mesh::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice)
-    {
-		_data = Array<>
+	void Mesh::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice)
+	{
+		_buffers = Structural::Array<Vulkan::Buffer>(1);
+		_images = Structural::Array<Vulkan::Image>(1);
+		_descriptors = Structural::Array<Vulkan::Descriptor>(2);
+		_sets = Structural::Array<Vulkan::DescriptorSet>(2);
 
-		gameObject._mesh._shaderResources._objectDataBuffer = Buffer(_logicalDevice,
-			_physicalDevice,
+		Vulkan::Image* texture = nullptr;
+
+		if (_scene->_materials.size() > 0) {
+			texture = &_scene->_materials[_materialIndex]._baseColor;
+		}
+
+		_buffers[0] = Vulkan::Buffer(logicalDevice,
+			physicalDevice,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			&gameObject._transform._matrix,
+			&_scene->_gameObjects[_gameObjectIndex]._transform._matrix,
 			sizeof(gameObject._transform._matrix));
 
-		gameObject._mesh._shaderResources._objectDataDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &gameObject._mesh._shaderResources._objectDataBuffer);
-		gameObject._mesh._shaderResources._textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, nullptr, texture);
+		_descriptors[0] = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &_buffers[0]);
+		_descriptors[1] = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, nullptr, texture);
 
-		gameObject._mesh._shaderResources._objectDataSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &gameObject._mesh._shaderResources._objectDataDescriptor });
-		gameObject._mesh._shaderResources._samplersSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &gameObject._mesh._shaderResources._textureDescriptor });
+		_sets[0] = Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &_descriptors[0] });
+		_sets[1] = Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &_descriptors[1] });
 
-		gameObject._mesh._shaderResources._objectDataPool = DescriptorPool(_logicalDevice, { &gameObject._mesh._shaderResources._objectDataSet });
-		gameObject._mesh._shaderResources._samplersPool = DescriptorPool(_logicalDevice, { &gameObject._mesh._shaderResources._samplersSet });
+		_pool = Vulkan::DescriptorPool(logicalDevice, { &_sets[0], &_sets[1] });
 
-		gameObject._mesh._shaderResources._objectDataSet.SendDescriptorData();
-		gameObject._mesh._shaderResources._samplersSet.SendDescriptorData();
-    }
+		_sets[0].SendDescriptorData();
+		_sets[1].SendDescriptorData();
+	}
 
-    void Mesh::Update()
-    {
+	void Mesh::Update()
+	{
 
-    }
+	}
 }

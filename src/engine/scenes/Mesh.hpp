@@ -3,7 +3,7 @@
 namespace Engine::Scenes
 {
 	// Forward declarations for the compiler.
-	class Scene;
+	//class Scene;
 
 	/**
 	 * @brief Represents a collection of vertices and face indices as triangles.
@@ -69,15 +69,15 @@ namespace Engine::Scenes
 		/**
 		 * @brief Pointer to the scene so you can use _materialIndex and _gameObjectIndex.
 		 */
-		Scene* _scene;
+		GameObject* _scene;
 
 		/**
-		 * @brief Index into the materials list in the Scene class. See the Material and Scene classes.
+		 * @brief Index into the materials list in the Scene this mesh belongs to. See the Material and Scene classes.
 		 */
 		unsigned int _materialIndex;
 
 		/**
-		 * @brief Index into the game objects list in the Scene class. See the Material and Scene classes.
+		 * @brief Index into the game objects list in the Scene this mesh belongs to. See the GameObject and Scene classes.
 		 */
 		unsigned int _gameObjectIndex;
 
