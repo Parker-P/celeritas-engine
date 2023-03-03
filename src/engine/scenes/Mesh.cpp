@@ -22,6 +22,11 @@
 
 namespace Engine::Scenes
 {
+    void Mesh::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice)
+    {
+
+    }
+
     void Mesh::Update()
     {
 

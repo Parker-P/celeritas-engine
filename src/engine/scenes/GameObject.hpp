@@ -9,19 +9,28 @@ namespace Engine::Scenes
 	/**
 	 * @brief Represents a physical object in a celeritas-engine scene.
 	 */
-	class GameObject : public ::Structural::IUpdatable, public Structural::Drawable
+	class GameObject : public ::Structural::IUpdatable
 	{
 	public:
 
+		GameObject();
+
 		/**
-		 * @brief Scene this game object belongs to.
+		 * @brief Constructor.
+		 * @param name Name of the game object.
+		 * @param scene Scene the game object belongs to.
 		 */
-		Scene* _scene;
+		GameObject(const std::string& name, Scene& scene);
 
 		/**
 		 * @brief Name of the game object.
 		 */
 		std::string _name;
+
+		/**
+		 * @brief Scene this game object belongs to.
+		 */
+		Scene* _scene;
 
 		/**
 		 * @brief Object-to-world transform.

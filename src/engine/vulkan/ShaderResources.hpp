@@ -125,7 +125,7 @@ namespace Engine::Vulkan
 	};
 
 	/**
-	 * @brief A descriptor pool is a container for descriptor sets and acts as a facility to allocate memory for them.
+	 * @brief A descriptor pool acts as a facility to allocate memory for descriptor sets.
 	 */
 	class DescriptorPool
 	{

@@ -74,7 +74,7 @@ namespace Engine::Vulkan
 		 * Render passes use what are called (in Vulkan gergo) attachments. Attachments are rendered images that contribute to rendering
 		 * the final image that will go in the framebuffer. It is the renderpass's job to also do compositing, which
 		 * is defining the logic according to which the attachments are merged to create the final image.
-		 * See @see Swapchain to understand what framebuffers are.
+		 * See Swapchain to understand what framebuffers are.
 		 */
 		struct {
 			/**
@@ -189,7 +189,7 @@ namespace Engine::Vulkan
 			VkPipeline _handle;
 
 			/**
-			 * Since we are only using one vertex buffer, this variable contains:
+			 * This variable contains:
 			 * 1) binding: the binding number of the vertex buffer defined when calling vkCmdBindVertexBuffers;
 			 * 2) stride: the offset in bytes between each set of vertex attributes in the vertex buffer identified by the binding number above;
 			 * 3) inputRate: unknown (info hard to find on this)
@@ -207,7 +207,7 @@ namespace Engine::Vulkan
 			 *
 			 * In short:
 			 * Each vertex buffer is identified by a binding number, defined when calling vkCmdBindVertexBuffers.
-			 * Each attribute inside a vertex buffer is identified by a location number, defined when creating a pipeline in a VkVertexInputBindingDescription struct..
+			 * Each attribute inside a vertex buffer is identified by a location number, defined when creating a pipeline in a VkVertexInputBindingDescription struct.
 			 */
 			VkVertexInputBindingDescription	_vertexBindingDescription;
 
@@ -239,50 +239,37 @@ namespace Engine::Vulkan
 			 * @brief Encapsulates all information sent to the shaders, as well as the info used to create the Vulkan 
 			 * structures to send data to the shaders.
 			 */
-			struct {
+			//struct {
 
-				/**
-				 * @brief Camera related data directed to the vertex shader. Knowing this, the vertex shader is able to calculate the correct
-				 * Vulkan view volume coordinates.
-				 */
-				struct
-				{
-					float tanHalfHorizontalFov;
-					float aspectRatio;
-					float nearClipDistance;
-					float farClipDistance;
-					glm::mat4 worldToCamera;
-				} _cameraData;
+			//	/**
+			//	 * @brief Vulkan buffer that contains the data contained in the _cameraData struct. See _cameraData.
+			//	 */
+			//	Buffer _cameraDataBuffer;
 
-				/**
-				 * @brief Vulkan buffer that contains the data contained in the _cameraData struct. See _cameraData.
-				 */
-				Buffer _cameraDataBuffer;
+			//	/**
+			//	 * @brief Uniform descriptor that contains data contained in _cameraDataBuffer. See _cameraDataBuffer.
+			//	 */
+			//	Descriptor _cameraDataDescriptor;
 
-				/**
-				 * @brief Uniform descriptor that contains data contained in _cameraDataBuffer. See _cameraDataBuffer.
-				 */
-				Descriptor _cameraDataDescriptor;
+			//	/**
+			//	 * @brief Descriptor set that contains uniform descriptors.
+			//	 */
+			//	DescriptorSet _cameraDataSet;
 
-				/**
-				 * @brief Descriptor set that contains uniform descriptors.
-				 */
-				DescriptorSet _cameraDataSet;
+			//	/**
+			//	 * @brief Descriptor pool that contains all descriptor sets.
+			//	 */
+			//	DescriptorPool _cameraDataPool;
 
-				/**
-				 * @brief Descriptor pool that contains all descriptor sets.
-				 */
-				DescriptorPool _cameraDataPool;
+			//	/**
+			//	 * @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
+			//	 * push constant ranges are combined to form a pipeline layout object describing the complete set of resources that can be accessed by a pipeline.
+			//	 * The pipeline layout represents a sequence of descriptor sets with each having a specific layout. This sequence of layouts is used to determine
+			//	 * the interface between shader stages and shader resources. Each pipeline is created using a pipeline layout.
+			//	 */
+			//	VkPipelineLayout _pipelineLayout;
 
-				/**
-				 * @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
-				 * push constant ranges are combined to form a pipeline layout object describing the complete set of resources that can be accessed by a pipeline.
-				 * The pipeline layout represents a sequence of descriptor sets with each having a specific layout. This sequence of layouts is used to determine
-				 * the interface between shader stages and shader resources. Each pipeline is created using a pipeline layout.
-				 */
-				VkPipelineLayout _pipelineLayout;
-
-			} _shaderResources;
+			//} _shaderResources;
 
 		} _graphicsPipeline;
 

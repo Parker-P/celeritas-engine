@@ -1072,9 +1072,11 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreatePipelineLayout()
 	{
-		auto& shaderResources = _graphicsPipeline._shaderResources;
+		//auto& shaderResources = _graphicsPipeline._shaderResources;
 
-		shaderResources._cameraDataBuffer = Buffer(_logicalDevice,
+		_mainCamera.CreateShaderResources(_physicalDevice, _logicalDevice);
+
+		/*shaderResources._cameraDataBuffer = Buffer(_logicalDevice,
 			_physicalDevice,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
@@ -1083,7 +1085,7 @@ namespace Engine::Vulkan
 
 		shaderResources._cameraDataDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, { &shaderResources._cameraDataBuffer });
 		shaderResources._cameraDataSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &shaderResources._cameraDataDescriptor });
-		shaderResources._cameraDataPool = DescriptorPool(_logicalDevice, { &shaderResources._cameraDataSet });
+		shaderResources._cameraDataPool = DescriptorPool(_logicalDevice, { &shaderResources._cameraDataSet });*/
 
 		for (auto& gameObject : _scene._gameObjects) {
 
@@ -1093,6 +1095,8 @@ namespace Engine::Vulkan
 				texture = &_scene._materials[gameObject._mesh._materialIndex]._baseColor;
 			}
 
+			gameObject._mesh.CreateShaderResources(_physicalDevice, _logicalDevice);
+			
 			gameObject._mesh._shaderResources._objectDataBuffer = Buffer(_logicalDevice,
 				_physicalDevice,
 				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,

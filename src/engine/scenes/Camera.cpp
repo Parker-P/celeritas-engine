@@ -46,6 +46,26 @@ namespace Engine::Scenes
 		_up = glm::vec3(0.0f, 1.0f, 0.0f);
 	}
 
+	void Camera::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice)
+	{
+		using namespace Engine::Vulkan;
+
+		_data = Structural::Array<Buffer>(1);
+		_descriptors = Structural::Array<Descriptor>(1);
+		_sets = Structural::Array<DescriptorSet>(1);
+
+		_data[0] = Buffer(logicalDevice,
+			physicalDevice,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+			&_cameraData,
+			(size_t)sizeof(_cameraData));
+
+		_descriptors[0] = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, { &_data[0]});
+		_sets[0] = DescriptorSet(logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, {&_descriptors[0]});
+		_pool = DescriptorPool(logicalDevice, { &_sets[0]});
+	}
+
 	void Camera::Update()
 	{
 		auto& input = Input::KeyboardMouse::Instance();
