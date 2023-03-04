@@ -13,17 +13,16 @@
 #include "engine/vulkan/Buffer.hpp"
 #include "engine/vulkan/Image.hpp"
 #include "engine/Scenes/Vertex.hpp"
-#include "engine/structural/Pipelineable.hpp"
 #include "engine/structural/Drawable.hpp"
 #include "structural/IUpdatable.hpp"
 #include "engine/math/Transform.hpp"
 #include "engine/scenes/Material.hpp"
-#include "engine/structural/Pipelineable.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
+#include "engine/structural/IPipelineable.hpp"
+#include "engine/scenes/Scene.hpp"
+#include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Vertex.hpp"
 #include "engine/scenes/Mesh.hpp"
-#include "engine/scenes/GameObject.hpp"
-#include "engine/scenes/Scene.hpp"
 
 namespace Engine::Scenes
 {

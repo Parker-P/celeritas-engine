@@ -2,17 +2,17 @@
 
 namespace Engine::Scenes
 {
-	// Forward declarations for the compiler.
-	//class Scene;
+	class Scene;
 
 	/**
 	 * @brief Represents a collection of vertices and face indices as triangles.
 	 */
-	class Mesh : public ::Structural::IUpdatable, public Engine::Structural::Drawable
+	class Mesh : public ::Structural::IUpdatable, public Engine::Structural::Drawable, public Structural::IPipelineable
 	{
 
 	public:
 		
+#pragma region Legacy
 		/**
 		 * @brief All mesh-related resources used by shaders.
 		 */
@@ -65,11 +65,12 @@ namespace Engine::Scenes
 		//	Vulkan::DescriptorPool _objectDataPool;
 
 		//} _shaderResources;
+#pragma endregion
 
 		/**
 		 * @brief Pointer to the scene so you can use _materialIndex and _gameObjectIndex.
 		 */
-		GameObject* _scene;
+		Scenes::Scene* _scene;
 
 		/**
 		 * @brief Index into the materials list in the Scene this mesh belongs to. See the Material and Scene classes.
@@ -86,9 +87,21 @@ namespace Engine::Scenes
 		 */
 		virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice);
 
+		/**
+		 * @brief See Pipelinable.
+		 */
+		virtual void UpdateShaderResources() override;
+
 		 /**
-		  * @brief Updates per-frame mesh-related information.
+		  * @brief See IUpdatable.
 		  */
 		virtual void Update() override;
+
+		/**
+		 * @brief Returns the game object this mesh belongs to.
+		 */
+		GameObject GameObject() {
+			return _scene->_gameObjects[_gameObjectIndex];
+		}
 	};
 }

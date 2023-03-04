@@ -44,11 +44,11 @@
 #include "engine/scenes/Material.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
 #include "engine/scenes/Vertex.hpp"
-#include "engine/structural/Pipelineable.hpp"
+#include "engine/structural/IPipelineable.hpp"
 #include "engine/structural/Drawable.hpp"
-#include "engine/scenes/Mesh.hpp"
-#include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Scene.hpp"
+#include "engine/scenes/GameObject.hpp"
+#include "engine/scenes/Mesh.hpp"
 #include "engine/scenes/Camera.hpp"
 #include "engine/vulkan/VulkanApplication.hpp"
 
@@ -150,7 +150,7 @@ namespace Engine::Vulkan
 		CreateGraphicsPipeline();
 		AllocateDrawCommandBuffers();
 		RecordDrawCommands();
-		vkDestroyPipelineLayout(_logicalDevice, _graphicsPipeline._shaderResources._pipelineLayout, nullptr);
+		//vkDestroyPipelineLayout(_logicalDevice, _graphicsPipeline._shaderResources._pipelineLayout, nullptr);
 	}
 
 	void VulkanApplication::DestroyRenderPass()
@@ -172,43 +172,43 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::Cleanup(bool fullClean)
 	{
-		vkDeviceWaitIdle(_logicalDevice);
-		vkFreeCommandBuffers(_logicalDevice, _commandPool, (uint32_t)_drawCommandBuffers.size(), _drawCommandBuffers.data());
-		vkDestroyPipeline(_logicalDevice, _graphicsPipeline._handle, nullptr);
-		DestroyRenderPass();
-		DestroySwapchain();
+		//vkDeviceWaitIdle(_logicalDevice);
+		//vkFreeCommandBuffers(_logicalDevice, _commandPool, (uint32_t)_drawCommandBuffers.size(), _drawCommandBuffers.data());
+		//vkDestroyPipeline(_logicalDevice, _graphicsPipeline._handle, nullptr);
+		//DestroyRenderPass();
+		//DestroySwapchain();
 
-		vkDestroyDescriptorSetLayout(_logicalDevice, _graphicsPipeline._shaderResources._cameraDataSet._layout, nullptr);
-		//vkDestroyDescriptorSetLayout(_logicalDevice, _graphicsPipeline._shaderResources._samplerSet._layout, nullptr);
+		//vkDestroyDescriptorSetLayout(_logicalDevice, _graphicsPipeline._shaderResources._cameraDataSet._layout, nullptr);
+		////vkDestroyDescriptorSetLayout(_logicalDevice, _graphicsPipeline._shaderResources._samplerSet._layout, nullptr);
 
-		if (fullClean) {
-			vkDestroySemaphore(_logicalDevice, _imageAvailableSemaphore, nullptr);
-			vkDestroySemaphore(_logicalDevice, _renderingFinishedSemaphore, nullptr);
-			DestroyRenderPass();
-			vkDestroyCommandPool(_logicalDevice, _commandPool, nullptr);
+		//if (fullClean) {
+		//	vkDestroySemaphore(_logicalDevice, _imageAvailableSemaphore, nullptr);
+		//	vkDestroySemaphore(_logicalDevice, _renderingFinishedSemaphore, nullptr);
+		//	DestroyRenderPass();
+		//	vkDestroyCommandPool(_logicalDevice, _commandPool, nullptr);
 
-			// Clean up uniform buffer related objects.
-			vkDestroyDescriptorPool(_logicalDevice, _graphicsPipeline._shaderResources._cameraDataPool._handle, nullptr);
-			_graphicsPipeline._shaderResources._cameraDataBuffer.Destroy();
+		//	// Clean up uniform buffer related objects.
+		//	vkDestroyDescriptorPool(_logicalDevice, _graphicsPipeline._shaderResources._cameraDataPool._handle, nullptr);
+		//	_graphicsPipeline._shaderResources._cameraDataBuffer.Destroy();
 
-			// Buffers must be destroyed after no command buffers are referring to them anymore.
-			/*_graphicsPipeline._vertexBuffer.Destroy();
-			_graphicsPipeline._indexBuffer.Destroy();*/
+		//	// Buffers must be destroyed after no command buffers are referring to them anymore.
+		//	/*_graphicsPipeline._vertexBuffer.Destroy();
+		//	_graphicsPipeline._indexBuffer.Destroy();*/
 
-			// Note: implicitly destroys images (in fact, we're not allowed to do that explicitly).
-			DestroySwapchain();
+		//	// Note: implicitly destroys images (in fact, we're not allowed to do that explicitly).
+		//	DestroySwapchain();
 
-			vkDestroyDevice(_logicalDevice, nullptr);
+		//	vkDestroyDevice(_logicalDevice, nullptr);
 
-			vkDestroySurfaceKHR(_instance, _windowSurface, nullptr);
+		//	vkDestroySurfaceKHR(_instance, _windowSurface, nullptr);
 
-			if (_settings._enableValidationLayers) {
-				PFN_vkDestroyDebugReportCallbackEXT DestroyDebugReportCallback = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(_instance, "vkDestroyDebugReportCallbackEXT");
-				DestroyDebugReportCallback(_instance, _callback, nullptr);
-			}
+		//	if (_settings._enableValidationLayers) {
+		//		PFN_vkDestroyDebugReportCallbackEXT DestroyDebugReportCallback = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(_instance, "vkDestroyDebugReportCallbackEXT");
+		//		DestroyDebugReportCallback(_instance, _callback, nullptr);
+		//	}
 
-			vkDestroyInstance(_instance, nullptr);
-		}
+		//	vkDestroyInstance(_instance, nullptr);
+		//}
 	} // Cleanup
 
 	bool VulkanApplication::ValidationLayersSupported(const std::vector<const char*>& validationLayers)
@@ -541,7 +541,7 @@ namespace Engine::Vulkan
 
 				// Load material.
 				if (loadedMaterialCache.count(gltfPrimitive.material) > 0) {
-					mesh._materialIndex = loadedMaterialCache[gltfPrimitive.material];
+					mesh->_materialIndex = loadedMaterialCache[gltfPrimitive.material];
 				}
 
 				// Gather vertices and face indices.
@@ -556,13 +556,13 @@ namespace Engine::Vulkan
 				}
 
 				// Copy vertices to the GPU.
-				mesh.CreateVertexBuffer(_physicalDevice, _logicalDevice, _commandPool, _queue, vertices);
+				mesh->CreateVertexBuffer(_physicalDevice, _logicalDevice, _commandPool, _queue, vertices);
 
 				// Copy face indices to the GPU.
-				mesh.CreateIndexBuffer(_physicalDevice, _logicalDevice, _commandPool, _queue, faceIndices);
+				mesh->CreateIndexBuffer(_physicalDevice, _logicalDevice, _commandPool, _queue, faceIndices);
 
 				_scene._gameObjects.push_back(gameObject);
-				mesh._gameObjectIndex = (unsigned int)(_scene._gameObjects.size() - 1);
+				mesh->_gameObjectIndex = (unsigned int)(_scene._gameObjects.size() - 1);
 			}
 		}
 
@@ -1038,7 +1038,7 @@ namespace Engine::Vulkan
 		pipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
 		pipelineCreateInfo.pMultisampleState = &multisampleCreateInfo;
 		pipelineCreateInfo.pColorBlendState = &colorBlendCreateInfo;
-		pipelineCreateInfo.layout = _graphicsPipeline._shaderResources._pipelineLayout;
+		pipelineCreateInfo.layout = _graphicsPipeline._pipelineLayout;
 		pipelineCreateInfo.renderPass = _renderPass._handle;
 		pipelineCreateInfo.subpass = 0;
 		pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
@@ -1057,7 +1057,7 @@ namespace Engine::Vulkan
 		vkDestroyShaderModule(_logicalDevice, fragmentShaderModule, nullptr);
 	}
 
-	void VulkanApplication::UpdateShaderData()
+	/*void VulkanApplication::UpdateShaderData()
 	{
 		auto& shaderResources = _graphicsPipeline._shaderResources;
 
@@ -1068,7 +1068,7 @@ namespace Engine::Vulkan
 		shaderResources._cameraData.farClipDistance = _mainCamera._farClippingDistance;
 
 		shaderResources._cameraDataBuffer.UpdateData(&shaderResources._cameraData, (size_t)sizeof(shaderResources._cameraData));
-	}
+	}*/
 
 	void VulkanApplication::CreatePipelineLayout()
 	{
@@ -1090,14 +1090,14 @@ namespace Engine::Vulkan
 		for (auto& gameObject : _scene._gameObjects) {
 
 			// Create descriptor sets to send the needed mesh and object information to the shaders.
-			Image* texture = nullptr;
+			/*Image* texture = nullptr;
 			if (_scene._materials.size() > 0) {
 				texture = &_scene._materials[gameObject._mesh._materialIndex]._baseColor;
-			}
+			}*/
 
-			gameObject._mesh.CreateShaderResources(_physicalDevice, _logicalDevice);
+			gameObject._mesh->CreateShaderResources(_physicalDevice, _logicalDevice);
 			
-			gameObject._mesh._shaderResources._objectDataBuffer = Buffer(_logicalDevice,
+			/*gameObject._mesh._shaderResources._objectDataBuffer = Buffer(_logicalDevice,
 				_physicalDevice,
 				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
@@ -1114,7 +1114,7 @@ namespace Engine::Vulkan
 			gameObject._mesh._shaderResources._samplersPool = DescriptorPool(_logicalDevice, { &gameObject._mesh._shaderResources._samplersSet });
 
 			gameObject._mesh._shaderResources._objectDataSet.SendDescriptorData();
-			gameObject._mesh._shaderResources._samplersSet.SendDescriptorData();
+			gameObject._mesh._shaderResources._samplersSet.SendDescriptorData();*/
 		}
 
 		VkDescriptorSetLayout* gameObjectLayout = nullptr;

@@ -1,15 +1,13 @@
 #pragma once
+
 namespace Engine::Scenes
 {
-	/**
-	 * @brief Forward declaration used to define a pointer used to keep track of the scene the game object belongs to.
-	 */
-	class Scene;
+	class Mesh;
 
 	/**
 	 * @brief Represents a physical object in a celeritas-engine scene.
 	 */
-	class GameObject : public ::Structural::IUpdatable
+	class GameObject : public ::Structural::IUpdatable, public Structural::IPipelineable
 	{
 	public:
 
@@ -40,7 +38,17 @@ namespace Engine::Scenes
 		/**
 		 * @brief Mesh of this game object.
 		 */
-		Mesh _mesh;
+		Mesh* _mesh;
+
+		/**
+		 * @brief See Pipelinable.
+		 */
+		virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice);
+
+		/**
+		 * @brief See Pipelinable.
+		 */
+		virtual void UpdateShaderResources() override;
 
 		/**
 		 * @brief Updates per-frame game-object-related information.

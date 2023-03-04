@@ -5,9 +5,9 @@
 
 namespace Engine::Vulkan
 {
-	class Descriptor;
+	/*class Descriptor;
 	class DescriptorSet;
-	class DescriptorPool;
+	class DescriptorPool;*/
 }
 
 namespace Engine::Structural
@@ -47,8 +47,8 @@ namespace Engine::Structural
 
 		/**
 		 * @brief Operator overload so you can use the array with indexing.
-		 * @param i
-		 * @return 
+		 * @param i Index of the element you want to obtain.
+		 * @return A reference to the object inside the array.
 		 */
 		T& operator[](unsigned int i)
 		{
@@ -62,47 +62,52 @@ namespace Engine::Structural
 	};
 
 	/**
-	 * @brief Used by deriving classes to be able to bind shader resources (descriptor sets and push constants) to a pipeline.
+	 * @brief Used by deriving classes to be able to bind shader resources (descriptor sets and push constants) to GPU-visible memory, to then be used by a pipeline.
 	 * Information can be sent from application (run by the CPU) accessible memory to shader (run by the GPU) accessible memory, in order for it to be used in
 	 * certain ways in the shader programs. This data structure encapsulates all Vulkan calls needed to enable that. There are 2 ways that data can be sento to
 	 * the shaders: using push constants, or using descriptors.
 	 * The most common and flexible way is using descriptors.
 	 */
-	class Pipelineable
+	class IPipelineable
 	{
 
 	public:
 
 		/**
-		 * @brief Buffers.
+		 * @brief Buffers to be used in descriptors that go in _descriptors.
 		 */
 		Array<Vulkan::Buffer> _buffers;
 
 		/**
-		 * @brief Images.
+		 * @brief Images to be used in descriptors that go in _descriptors.
 		 */
 		Array<Vulkan::Image> _images;
 
 		/**
-		 * @brief .
+		 * @brief Descriptors to be used in _sets.
 		 */
 		Array<Vulkan::Descriptor> _descriptors;
 
 		/**
-		 * @brief .
+		 * @brief Descriptor sets to be allocated by _pool.
 		 */
 		Array<Vulkan::DescriptorSet> _sets;
 
 		/**
-		 * @brief .
+		 * @brief GPU-memory allocator for _sets.
 		 */
-		Vulkan::DescriptorPool _pool;
+		Engine::Vulkan::DescriptorPool _pool;
 
 		/**
-		 * @brief Function that is meant for deriving classes to create shader resources and send them to GPU memory.
+		 * @brief Function that is meant for deriving classes to create shader resources and send them to GPU-visible memory (could be either RAM or VRAM).
 		 * @param physicalDevice Intended to be used to gather GPU information when allocating buffers or images.
 		 * @param logicalDevice Intended to be used for binding created buffers, images, descriptors, descriptor sets etc. to the GPU.
 		 */
 		virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice) = 0;
+
+		/**
+		 * @brief Function that is meant for deriving classes to update the shader resources that have been created with CreateShaderResources.
+		 */
+		virtual void UpdateShaderResources() = 0;
 	};
 }

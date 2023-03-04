@@ -2,10 +2,13 @@
 
 namespace Engine::Scenes
 {
+	// Forward declarations for the compiler.
+	class Scene;
+
 	/**
 	 * @brief Represents a general-purpose camera.
 	 */
-	class Camera : public GameObject, public Engine::Structural::Pipelineable
+	class Camera : public GameObject
 	{
 	public:
 
@@ -76,7 +79,12 @@ namespace Engine::Scenes
 		/**
 		 * @brief See Pipelinable.
 		 */
-		virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice);
+		virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice) override;
+
+		/**
+		 * @brief See Pipelinable.
+		 */
+		virtual void UpdateShaderResources() override;
 
 		/**
 		 * @brief See IUpdatable.

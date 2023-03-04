@@ -21,12 +21,13 @@
 #include "engine/scenes/Material.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
 #include "engine/scenes/Vertex.hpp"
-#include "engine/structural/Pipelineable.hpp"
+#include "engine/structural/IPipelineable.hpp"
 #include "engine/structural/Drawable.hpp"
-#include "engine/scenes/Mesh.hpp"
-#include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Scene.hpp"
+#include "engine/scenes/GameObject.hpp"
+#include "engine/scenes/Mesh.hpp"
 #include "engine/scenes/Camera.hpp"
+#include <utils/Utils.hpp>
 
 namespace Engine::Scenes
 {
@@ -64,6 +65,19 @@ namespace Engine::Scenes
 		_descriptors[0] = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, { &_buffers[0]});
 		_sets[0] = DescriptorSet(logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, {&_descriptors[0]});
 		_pool = DescriptorPool(logicalDevice, { &_sets[0]});
+	}
+
+	void Camera::UpdateShaderResources()
+	{
+		auto& globalSettings = Settings::GlobalSettings::Instance();
+
+		_cameraData.worldToCamera = _view._matrix;
+		_cameraData.tanHalfHorizontalFov = tan(glm::radians(_horizontalFov / 2.0f));
+		_cameraData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(globalSettings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(globalSettings._windowHeight);
+		_cameraData.nearClipDistance = _nearClippingDistance;
+		_cameraData.farClipDistance = _farClippingDistance;
+
+		_buffers[0].UpdateData(&_cameraData, (size_t)sizeof(_cameraData));
 	}
 
 	void Camera::Update()

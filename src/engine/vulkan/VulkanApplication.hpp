@@ -111,7 +111,7 @@ namespace Engine::Vulkan
 			/**
 			 * @brief These are the buffers that contain the final rendered images shown on screen.
 			 * A framebuffer is stored on a different portion of memory with respect to the depth and
-			 * color attachments used by a render pass. The depth and color images CONTRIBUTE to generating 
+			 * color attachments used by a render pass. The depth and color images CONTRIBUTE to generating
 			 * an image for a framebuffer.
 			 */
 			std::vector<VkFramebuffer> _frameBuffers;
@@ -235,41 +235,41 @@ namespace Engine::Vulkan
 			 */
 			std::vector<VkVertexInputAttributeDescription> _vertexAttributeDescriptions;
 
+#pragma region Legacy
 			/**
-			 * @brief Encapsulates all information sent to the shaders, as well as the info used to create the Vulkan 
+			 * @brief Encapsulates all information sent to the shaders, as well as the info used to create the Vulkan
 			 * structures to send data to the shaders.
 			 */
-			//struct {
+			 //struct {
 
-			//	/**
-			//	 * @brief Vulkan buffer that contains the data contained in the _cameraData struct. See _cameraData.
-			//	 */
-			//	Buffer _cameraDataBuffer;
+			 //	/**
+			 //	 * @brief Vulkan buffer that contains the data contained in the _cameraData struct. See _cameraData.
+			 //	 */
+			 //	Buffer _cameraDataBuffer;
 
-			//	/**
-			//	 * @brief Uniform descriptor that contains data contained in _cameraDataBuffer. See _cameraDataBuffer.
-			//	 */
-			//	Descriptor _cameraDataDescriptor;
+			 //	/**
+			 //	 * @brief Uniform descriptor that contains data contained in _cameraDataBuffer. See _cameraDataBuffer.
+			 //	 */
+			 //	Descriptor _cameraDataDescriptor;
 
-			//	/**
-			//	 * @brief Descriptor set that contains uniform descriptors.
-			//	 */
-			//	DescriptorSet _cameraDataSet;
+			 //	/**
+			 //	 * @brief Descriptor set that contains uniform descriptors.
+			 //	 */
+			 //	DescriptorSet _cameraDataSet;
 
-			//	/**
-			//	 * @brief Descriptor pool that contains all descriptor sets.
-			//	 */
-			//	DescriptorPool _cameraDataPool;
+			 //	/**
+			 //	 * @brief Descriptor pool that contains all descriptor sets.
+			 //	 */
+			 //	DescriptorPool _cameraDataPool;
+#pragma endregion
 
-			//	/**
-			//	 * @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
-			//	 * push constant ranges are combined to form a pipeline layout object describing the complete set of resources that can be accessed by a pipeline.
-			//	 * The pipeline layout represents a sequence of descriptor sets with each having a specific layout. This sequence of layouts is used to determine
-			//	 * the interface between shader stages and shader resources. Each pipeline is created using a pipeline layout.
-			//	 */
-			//	VkPipelineLayout _pipelineLayout;
-
-			//} _shaderResources;
+			/**
+			* @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
+			* push constant ranges are combined to form a pipeline layout object describing the complete set of resources that can be accessed by a pipeline.
+			* The pipeline layout represents a sequence of descriptor sets with each having a specific layout. This sequence of layouts is used to determine
+			* the interface between shader stages and shader resources. Each pipeline is created using a pipeline layout.
+			*/
+			VkPipelineLayout _pipelineLayout;
 
 		} _graphicsPipeline;
 
@@ -354,11 +354,12 @@ namespace Engine::Vulkan
 		 */
 		bool ValidationLayersSupported(const std::vector<const char*>& validationLayers);
 
+		/**
+		 * @brief Creates the Vulkan instance that is the root container for all the Vulkan components that will be created.
+		 */
 		void CreateInstance();
 
 		void CreateWindowSurface();
-
-		//void FindPhysicalDevice();
 
 		/**
 		 * @brief Finds the index of a queue family whose queues can contain command buffers that hold
@@ -378,8 +379,6 @@ namespace Engine::Vulkan
 		void CreateCommandPool();
 
 		void LoadScene();
-
-		//void CreateVertexAndIndexBuffers();s
 
 		VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
 

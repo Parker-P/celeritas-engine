@@ -6,10 +6,10 @@
 namespace Engine::Structural
 {
 	/**
-	 * @brief Used by deriving classes to mark themselves as a class that is meant to bind resources (vertex buffers, index buffer)
+	 * @brief Used by deriving classes to mark themselves as a class that is meant to bind drawing resources (vertex buffers, index buffer)
 	 * to a graphics pipeline and send draw commands to the Vulkan API.
 	 */
-	class Drawable : public Pipelineable
+	class Drawable
 	{
 
 	public:
@@ -31,7 +31,8 @@ namespace Engine::Structural
 			 * Based on the normal vector, the vertex shader can perform lighting calculations by computing
 			 * the angle between the source of the light and the normal.
 			 * At the hardware level, the contents of the vertex buffer are fed into the array of shader cores,
-			 * and each vertex, along with its attributes, are processed by the vertex shader in parallel on each thread of the cores.
+			 * and each vertex, along with its attributes, are processed in parallel by multiple instances of the 
+			 * vertex shader on each thread of the cores.
 			 * This buffer is intended to contain _vertexData to be bound to the graphics pipeline just before
 			 * drawing the mesh in a render pass.
 			 */
