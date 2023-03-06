@@ -269,7 +269,7 @@ namespace Engine::Vulkan
 			* The pipeline layout represents a sequence of descriptor sets with each having a specific layout. This sequence of layouts is used to determine
 			* the interface between shader stages and shader resources. Each pipeline is created using a pipeline layout.
 			*/
-			VkPipelineLayout _pipelineLayout;
+			VkPipelineLayout _layout;
 
 		} _graphicsPipeline;
 
@@ -414,11 +414,6 @@ namespace Engine::Vulkan
 		 * @see _graphicsPipeline
 		 */
 		void CreateGraphicsPipeline();
-
-		/**
-		 * @brief Update the data that will be sent to the shaders.
-		 */
-		void UpdateShaderData();
 
 		/**
 		 * @brief Creates the pipeline layout. See _pipelineLayout.

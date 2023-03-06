@@ -23,10 +23,10 @@
 
 namespace Engine::Scenes
 {
-	GameObject::GameObject(const std::string& name, Scene& scene)
+	GameObject::GameObject(const std::string& name, Scene* scene)
 	{
 		_name = name;
-		_scene = &scene;
+		_scene = scene;
 	}
 
 	void GameObject::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice)

@@ -26,6 +26,7 @@
     <ClCompile Include="src\engine\scenes\Material.cpp" />
     <ClCompile Include="src\engine\scenes\Vertex.cpp" />
     <ClCompile Include="src\engine\structural\Drawable.cpp" />
+    <ClCompile Include="src\engine\vulkan\VulkanApplication.cpp" />
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\engine\vulkan\ShaderResources.cpp" />
     <ClCompile Include="src\engine\vulkan\Buffer.cpp" />
@@ -193,6 +194,7 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(VK_SDK_PATH)\\Include;C:\code\celeritas-engine\src;C:\code\celeritas-engine\include</AdditionalIncludeDirectories>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -224,8 +226,10 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
+      <OmitFramePointers>false</OmitFramePointers>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

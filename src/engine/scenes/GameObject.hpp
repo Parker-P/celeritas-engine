@@ -11,14 +11,17 @@ namespace Engine::Scenes
 	{
 	public:
 
-		GameObject();
+		/**
+		 * @brief Default constructor.
+		 */
+		GameObject() = default;
 
 		/**
 		 * @brief Constructor.
 		 * @param name Name of the game object.
 		 * @param scene Scene the game object belongs to.
 		 */
-		GameObject(const std::string& name, Scene& scene);
+		GameObject(const std::string& name, Scene* scene);
 
 		/**
 		 * @brief Name of the game object.

@@ -34,8 +34,8 @@ namespace Engine::Scenes
 			texture = &_scene->_materials[_materialIndex]._baseColor;
 		}
 
-		_descriptors[1] = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, nullptr, texture);
-		_sets[1] = Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &_descriptors[1] });
+		_descriptors[0] = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, nullptr, texture);
+		_sets[0] = Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &_descriptors[0] });
 		_pool = Vulkan::DescriptorPool(logicalDevice, { &_sets[0] });
 		_sets[0].SendDescriptorData();
 	}
