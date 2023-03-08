@@ -423,8 +423,8 @@ namespace Engine::Vulkan
 		std::string warn;
 
 		//auto scenePath = std::filesystem::current_path().string() + R"(\models\monkey.glb)";
-		auto scenePath = std::filesystem::current_path().string() + R"(\models\cubes.glb)";
-		//auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
+		//auto scenePath = std::filesystem::current_path().string() + R"(\models\cubes.glb)";
+		auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
 		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath);
 		std::cout << warn << std::endl;
 		std::cout << err << std::endl;
@@ -446,8 +446,11 @@ namespace Engine::Vulkan
 			}
 		}
 
-		float p = 0.0f;
 		for (int i = 0; i < gltfScene.nodes.size(); ++i) {
+			if (gltfScene.nodes[i].mesh < 0) {
+				continue;
+			}
+
 			auto& gltfMesh = gltfScene.meshes[gltfScene.nodes[i].mesh];
 
 			for (auto& gltfPrimitive : gltfMesh.primitives) {
@@ -479,6 +482,7 @@ namespace Engine::Vulkan
 				auto faceIndicesBufferStride = faceIndicesAccessor.ByteStride(gltfScene.bufferViews[faceIndicesAccessor.bufferView]);
 				auto faceIndicesBufferSizeBytes = faceIndicesCount * faceIndicesBufferStride;
 				std::vector<unsigned int> faceIndices(faceIndicesCount);
+				
 				if (faceIndicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
 					for (int i = 0; i < faceIndicesCount; ++i) {
 						unsigned short index = 0;
@@ -517,24 +521,6 @@ namespace Engine::Vulkan
 				std::vector<glm::vec2> uvCoords0(uvCoords0Count);
 				memcpy(uvCoords0.data(), gltfScene.buffers[uvCoords0BufferIndex].data.data() + uvCoords0BufferOffset, uvCoords0BufferSize);
 
-				/*auto uvCoords1Count = uvCoords1Accessor.count;
-				auto uvCoords1BufferIndex = gltfScene.bufferViews[uvCoords1Accessor.bufferView].buffer;
-				auto uvCoords1BufferOffset = gltfScene.bufferViews[uvCoords1Accessor.bufferView].byteOffset;
-				auto uvCoords1BufferSize = gltfScene.bufferViews[uvCoords1Accessor.bufferView].byteLength;
-				auto uvCoords1BufferStride = gltfScene.bufferViews[uvCoords1Accessor.bufferView].byteStride;
-
-				std::vector<glm::vec2> uvCoords1(uvCoords1Count);
-				memcpy(uvCoords1.data(), gltfScene.buffers[uvCoords1BufferIndex].data.data() + uvCoords1BufferOffset, uvCoords1BufferSize);
-
-				auto uvCoords2Count = uvCoords2Accessor.count;
-				auto uvCoords2BufferIndex = gltfScene.bufferViews[uvCoords2Accessor.bufferView].buffer;
-				auto uvCoords2BufferOffset = gltfScene.bufferViews[uvCoords2Accessor.bufferView].byteOffset;
-				auto uvCoords2BufferSize = gltfScene.bufferViews[uvCoords2Accessor.bufferView].byteLength;
-				auto uvCoords2BufferStride = gltfScene.bufferViews[uvCoords2Accessor.bufferView].byteStride;
-
-				std::vector<glm::vec2> uvCoords2(uvCoords2Count);
-				memcpy(uvCoords2.data(), gltfScene.buffers[uvCoords2BufferIndex].data.data() + uvCoords2BufferOffset, uvCoords2BufferSize);*/
-
 				gameObject._mesh = new Scenes::Mesh{&_scene};
 				auto& mesh = gameObject._mesh;
 
@@ -565,21 +551,7 @@ namespace Engine::Vulkan
 			}
 		}
 
-		//std::vector<Scenes::Mesh::Vertex> verts{};
-		//std::vector<unsigned int> indices{};
-
 		_model = _scene._gameObjects[0];
-
-		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{6.0f, 6.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Tip.
-		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{6.0f, 0.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Lower right.
-		//verts.push_back(Scenes::Mesh::Vertex{ glm::vec3{0.0f, 0.0f, 6.0f}, glm::vec3{}, glm::vec2{} }); // Lower left.
-
-		//indices.push_back(0);
-		//indices.push_back(2);
-		//indices.push_back(1);
-
-		//_model._mesh._vertices = verts;
-		//_model._mesh._faceIndices = indices;
 	}
 
 	VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)
@@ -1056,71 +1028,19 @@ namespace Engine::Vulkan
 		vkDestroyShaderModule(_logicalDevice, fragmentShaderModule, nullptr);
 	}
 
-	/*void VulkanApplication::UpdateShaderData()
-	{
-		auto& shaderResources = _graphicsPipeline._shaderResources;
-
-		shaderResources._cameraData.worldToCamera = _mainCamera._view._matrix;
-		shaderResources._cameraData.tanHalfHorizontalFov = tan(glm::radians(_mainCamera._horizontalFov / 2.0f));
-		shaderResources._cameraData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(_settings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(_settings._windowHeight);
-		shaderResources._cameraData.nearClipDistance = _mainCamera._nearClippingDistance;
-		shaderResources._cameraData.farClipDistance = _mainCamera._farClippingDistance;
-
-		shaderResources._cameraDataBuffer.UpdateData(&shaderResources._cameraData, (size_t)sizeof(shaderResources._cameraData));
-	}*/
-
 	void VulkanApplication::CreatePipelineLayout()
 	{
-		//auto& shaderResources = _graphicsPipeline._shaderResources;
-
 		_mainCamera.CreateShaderResources(_physicalDevice, _logicalDevice);
 
-		/*shaderResources._cameraDataBuffer = Buffer(_logicalDevice,
-			_physicalDevice,
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			&shaderResources._cameraData,
-			(size_t)sizeof(shaderResources._cameraData));
-
-		shaderResources._cameraDataDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, { &shaderResources._cameraDataBuffer });
-		shaderResources._cameraDataSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &shaderResources._cameraDataDescriptor });
-		shaderResources._cameraDataPool = DescriptorPool(_logicalDevice, { &shaderResources._cameraDataSet });*/
-
 		for (auto& gameObject : _scene._gameObjects) {
-
-			// Create descriptor sets to send the needed mesh and object information to the shaders.
-			/*Image* texture = nullptr;
-			if (_scene._materials.size() > 0) {
-				texture = &_scene._materials[gameObject._mesh._materialIndex]._baseColor;
-			}*/
-
 			gameObject.CreateShaderResources(_physicalDevice, _logicalDevice);
 			gameObject._mesh->CreateShaderResources(_physicalDevice, _logicalDevice);
-
-			/*gameObject._mesh._shaderResources._objectDataBuffer = Buffer(_logicalDevice,
-				_physicalDevice,
-				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-				&gameObject._transform._matrix,
-				sizeof(gameObject._transform._matrix));
-
-			gameObject._mesh._shaderResources._objectDataDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &gameObject._mesh._shaderResources._objectDataBuffer);
-			gameObject._mesh._shaderResources._textureDescriptor = Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, nullptr, texture);
-
-			gameObject._mesh._shaderResources._objectDataSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &gameObject._mesh._shaderResources._objectDataDescriptor });
-			gameObject._mesh._shaderResources._samplersSet = DescriptorSet(_logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &gameObject._mesh._shaderResources._textureDescriptor });
-
-			gameObject._mesh._shaderResources._objectDataPool = DescriptorPool(_logicalDevice, { &gameObject._mesh._shaderResources._objectDataSet });
-			gameObject._mesh._shaderResources._samplersPool = DescriptorPool(_logicalDevice, { &gameObject._mesh._shaderResources._samplersSet });
-
-			gameObject._mesh._shaderResources._objectDataSet.SendDescriptorData();
-			gameObject._mesh._shaderResources._samplersSet.SendDescriptorData();*/
 		}
 
 		VkDescriptorSetLayout* gameObjectLayout = nullptr;
 		VkDescriptorSetLayout* meshLayout = nullptr;
+		
 		if (_scene._gameObjects.size() > 0) {
-
 			gameObjectLayout = &_scene._gameObjects[0]._sets[0]._layout;
 			meshLayout = &_scene._gameObjects[0]._mesh->_sets[0]._layout;
 		}
