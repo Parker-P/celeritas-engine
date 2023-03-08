@@ -8,37 +8,52 @@
 #include <vulkan/vulkan.h>
 
 #include "structural/IUpdatable.hpp"
-#include "structural/IDrawable.hpp"
 #include "engine/vulkan/PhysicalDevice.hpp"
 #include "engine/vulkan/Queue.hpp"
 #include "engine/vulkan/Image.hpp"
 #include "engine/vulkan/Buffer.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
+#include "engine/scenes/Vertex.hpp"
+#include "engine/structural/IPipelineable.hpp"
+#include "engine/structural/Drawable.hpp"
 #include "engine/scenes/Material.hpp"
+#include "engine/scenes/Scene.hpp"
+#include "engine/math/Transform.hpp"
+#include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Mesh.hpp"
+#include <utils/Utils.hpp>
 
 namespace Engine::Scenes
 {
-    size_t Mesh::Vertex::OffsetOf(const AttributeType& attributeType)
-    {
-        switch (attributeType) {
-        case AttributeType::Position:
-            return 0;
-        case AttributeType::Normal:
-            return sizeof(_position);
-        case AttributeType::UV:
-            return sizeof(_position) + sizeof(_normal);
-        default: return 0;
-        }
-    }
+	Mesh::Mesh(Scene* scene)
+	{
+		_scene = scene;
+	}
 
-    void Mesh::RecordDrawCommands(VkPipeline& pipeline, VkCommandBuffer& commandBuffer)
-    {
-        
-    }
+	void Mesh::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice)
+	{
+		_images = Structural::Array<Vulkan::Image>(1);
+		_descriptors = Structural::Array<Vulkan::Descriptor>(1);
+		_sets = Structural::Array<Vulkan::DescriptorSet>(1);
+		Vulkan::Image* texture = nullptr;
 
-    void Mesh::Update()
-    {
+		if (_scene->_materials.size() > 0) {
+			texture = &_scene->_materials[_materialIndex]._baseColor;
+		}
 
-    }
+		_descriptors[0] = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, nullptr, texture);
+		_sets[0] = Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &_descriptors[0] });
+		_pool = Vulkan::DescriptorPool(logicalDevice, { &_sets[0] });
+		_sets[0].SendDescriptorData();
+	}
+
+	void Mesh::UpdateShaderResources()
+	{
+		// TODO
+	}
+
+	void Mesh::Update()
+	{
+		// TODO
+	}
 }

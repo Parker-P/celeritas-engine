@@ -1,6 +1,10 @@
 #pragma once
+
 namespace Engine::Scenes
 {
+	// Forward declarations for the compiler.
+	class Scene;
+
 	/**
 	 * @brief Represents a general-purpose camera.
 	 */
@@ -46,9 +50,41 @@ namespace Engine::Scenes
 
 		float _lastScrollY;
 
+		/**
+		 * @brief Camera related data directed to the vertex shader. Knowing this, the vertex shader is able to calculate the correct
+		 * Vulkan view volume coordinates.
+		 */
+		struct
+		{
+			float tanHalfHorizontalFov;
+			float aspectRatio;
+			float nearClipDistance;
+			float farClipDistance;
+			glm::mat4 worldToCamera;
+		} _cameraData;
+
+		/**
+		 * @brief Default constructor.
+		 */
 		Camera();
 
+		/**
+		 * @brief Constructor.
+		 * @param horizontalFov Horizontal FOV in degrees.
+		 * @param nearClippingDistance Clipping distance in engine units, which are meters.
+		 * @param farClippingDistance Far clipping distance in engine units, which are meters.
+		 */
 		Camera(float horizontalFov, float nearClippingDistance, float farClippingDistance);
+
+		/**
+		 * @brief See Pipelinable.
+		 */
+		virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice) override;
+
+		/**
+		 * @brief See Pipelinable.
+		 */
+		virtual void UpdateShaderResources() override;
 
 		/**
 		 * @brief See IUpdatable.

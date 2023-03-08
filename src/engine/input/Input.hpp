@@ -19,7 +19,7 @@ namespace Engine::Input
 		bool IsActive();
 	};
 
-	class KeyboardMouse : public Singleton<KeyboardMouse>, public IUpdatable
+	class KeyboardMouse : public Structural::Singleton<KeyboardMouse>, public Structural::IUpdatable
 	{
 		double _lastMouseX;
 

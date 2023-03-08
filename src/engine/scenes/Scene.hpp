@@ -2,10 +2,13 @@
 
 namespace Engine::Scenes
 {
+	// Forward declarations for the compiler.
+	class GameObject;
+	
 	/**
 	 * @brief Represents a celeritas-engine scene.
 	 */
-	class Scene : public IUpdatable
+	class Scene : public ::Structural::IUpdatable
 	{
 
 	public:

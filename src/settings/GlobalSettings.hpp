@@ -1,7 +1,7 @@
 #pragma once
 namespace Settings
 {
-	class GlobalSettings : public Singleton<GlobalSettings>
+	class GlobalSettings : public Structural::Singleton<GlobalSettings>
 	{
 	public:
 

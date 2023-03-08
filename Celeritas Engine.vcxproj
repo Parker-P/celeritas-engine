@@ -23,6 +23,9 @@
     <ClCompile Include="src\engine\scenes\GameObject.cpp" />
     <ClCompile Include="src\engine\input\Input.cpp" />
     <ClCompile Include="src\engine\scenes\Material.cpp" />
+    <ClCompile Include="src\engine\scenes\Vertex.cpp" />
+    <ClCompile Include="src\engine\structural\Drawable.cpp" />
+    <ClCompile Include="src\engine\vulkan\VulkanApplication.cpp" />
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\engine\vulkan\ShaderResources.cpp" />
     <ClCompile Include="src\engine\vulkan\Buffer.cpp" />
@@ -87,6 +90,9 @@
     <ClInclude Include="include\stb\stb_image_write.h" />
     <ClInclude Include="include\tinygltf\tiny_gltf.h" />
     <ClInclude Include="src\engine\scenes\Material.hpp" />
+    <ClInclude Include="src\engine\scenes\Vertex.hpp" />
+    <ClInclude Include="src\engine\structural\Drawable.hpp" />
+    <ClInclude Include="src\engine\structural\IPipelineable.hpp" />
     <ClInclude Include="src\engine\vulkan\ShaderResources.hpp" />
     <ClInclude Include="src\engine\vulkan\Buffer.hpp" />
     <ClInclude Include="src\engine\vulkan\PhysicalDevice.hpp" />
@@ -96,7 +102,6 @@
     <ClInclude Include="src\engine\scenes\Camera.hpp" />
     <ClInclude Include="src\engine\scenes\GameObject.hpp" />
     <ClInclude Include="src\engine\input\Input.hpp" />
-    <ClInclude Include="src\structural\IDrawable.hpp" />
     <ClInclude Include="src\structural\IUpdatable.hpp" />
     <ClInclude Include="src\utils\Json.h" />
     <ClInclude Include="src\game\input\KeyBinds.hpp" />
@@ -188,6 +193,7 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(VK_SDK_PATH)\\Include;C:\code\celeritas-engine\src;C:\code\celeritas-engine\include</AdditionalIncludeDirectories>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -219,8 +225,10 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
+      <OmitFramePointers>false</OmitFramePointers>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

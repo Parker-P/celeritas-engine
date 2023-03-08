@@ -6,12 +6,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/detail/type_vec.hpp>
 #include <vulkan/vulkan.h>
-
 #include "engine/vulkan/Queue.hpp"
 #include "engine/vulkan/PhysicalDevice.hpp"
 #include "engine/vulkan/Image.hpp"
 #include "engine/vulkan/Buffer.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
+#include "engine/structural/IPipelineable.hpp"
 
 namespace Engine::Vulkan
 {
@@ -28,6 +28,7 @@ namespace Engine::Vulkan
 		std::vector<VkWriteDescriptorSet> writeInfos;
 
 		bool canUpdate = true;
+
 		for (auto& descriptor : _descriptors) {
 			if (descriptor->_bufferInfo.range != 0 || descriptor->_imageInfo.sampler != VK_NULL_HANDLE) {
 				VkWriteDescriptorSet writeInfo = {};

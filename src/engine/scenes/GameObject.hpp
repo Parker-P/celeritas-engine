@@ -1,27 +1,37 @@
 #pragma once
+
 namespace Engine::Scenes
 {
-	/**
-	 * @brief Forward declaration used to define a pointer used to keep track of the scene the game object belongs to.
-	 */
-	class Scene;
+	class Mesh;
 
 	/**
 	 * @brief Represents a physical object in a celeritas-engine scene.
 	 */
-	class GameObject : public IUpdatable
+	class GameObject : public ::Structural::IUpdatable, public Structural::IPipelineable
 	{
 	public:
 
 		/**
-		 * @brief Scene this game object belongs to.
+		 * @brief Default constructor.
 		 */
-		Scene* _scene;
+		GameObject() = default;
+
+		/**
+		 * @brief Constructor.
+		 * @param name Name of the game object.
+		 * @param scene Scene the game object belongs to.
+		 */
+		GameObject(const std::string& name, Scene* scene);
 
 		/**
 		 * @brief Name of the game object.
 		 */
 		std::string _name;
+
+		/**
+		 * @brief Scene this game object belongs to.
+		 */
+		Scene* _scene;
 
 		/**
 		 * @brief Object-to-world transform.
@@ -31,45 +41,17 @@ namespace Engine::Scenes
 		/**
 		 * @brief Mesh of this game object.
 		 */
-		Mesh _mesh;
+		Mesh* _mesh;
 
 		/**
-		 * @brief Contains all game-object-level resources that will go to the shaders.
+		 * @brief See Pipelinable.
 		 */
-		struct
-		{
-			/**
-			 * @brief Object-related data directed to the vertex shader. Knowing this, the vertex shader is able to calculate the correct
-			 * Vulkan view volume coordinates.
-			 */
-			struct
-			{
-				glm::mat4 objectToWorld;
-			} _objectData;
+		virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice);
 
-			/**
-			 * @brief Contains game-object-related data to go to the shaders.
-			 */
-			Vulkan::Buffer _objectDataBuffer;
-
-			/**
-			 * @brief Descriptor that contains the object-to-world transformation matrix, so the vertex shader knows the positional offset
-			 * of this gameobject's mesh's vertices, and can therefore calculate the correct viewable-volume coordinates.
-			 */
-			Vulkan::Descriptor _objectDataDescriptor;
-
-			/**
-			 * @brief Descriptor set that contains the _objectDataDescriptor descriptor. This descriptor set will be bound to a graphics
-			 * pipeline for each draw call in a render pass that draws this game object's mesh, and will be sent to the vertex shader.
-			 */
-			Vulkan::DescriptorSet _objectDataSet;
-
-			/**
-			 * @brief Descriptor pool used to allocate _uniformSet.
-			 */
-			Vulkan::DescriptorPool _objectDataPool;
-
-		} _shaderResources;
+		/**
+		 * @brief See Pipelinable.
+		 */
+		virtual void UpdateShaderResources() override;
 
 		/**
 		 * @brief Updates per-frame game-object-related information.
