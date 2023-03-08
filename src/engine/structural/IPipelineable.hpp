@@ -100,6 +100,7 @@ namespace Engine::Structural
 
 		/**
 		 * @brief Function that is meant for deriving classes to create shader resources and send them to GPU-visible memory (could be either RAM or VRAM).
+		 * Shader resources can either be push constants or descriptors. See ShaderResources.cpp.
 		 * @param physicalDevice Intended to be used to gather GPU information when allocating buffers or images.
 		 * @param logicalDevice Intended to be used for binding created buffers, images, descriptors, descriptor sets etc. to the GPU.
 		 */

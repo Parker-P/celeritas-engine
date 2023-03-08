@@ -25,9 +25,16 @@
 
 namespace Engine::Scenes
 {
+	Mesh::Mesh(Scene* scene)
+	{
+		_scene = scene;
+	}
+
 	void Mesh::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice)
 	{
 		_images = Structural::Array<Vulkan::Image>(1);
+		_descriptors = Structural::Array<Vulkan::Descriptor>(1);
+		_sets = Structural::Array<Vulkan::DescriptorSet>(1);
 		Vulkan::Image* texture = nullptr;
 
 		if (_scene->_materials.size() > 0) {
@@ -42,11 +49,11 @@ namespace Engine::Scenes
 
 	void Mesh::UpdateShaderResources()
 	{
-
+		// TODO
 	}
 
 	void Mesh::Update()
 	{
-
+		// TODO
 	}
 }

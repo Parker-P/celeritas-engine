@@ -342,7 +342,7 @@ namespace Engine::Vulkan
 		void DestroySwapchain();
 
 		/**
-		 * @brief Destroys all Vulkan objects by using Vulkan calls, so resources allocated in VRAM are also destroyed.
+		 * @brief Destroys all Vulkan objects by using Vulkan calls.
 		 */
 		void Cleanup(bool fullClean);
 

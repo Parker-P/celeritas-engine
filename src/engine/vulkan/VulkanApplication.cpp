@@ -535,6 +535,7 @@ namespace Engine::Vulkan
 				std::vector<glm::vec2> uvCoords2(uvCoords2Count);
 				memcpy(uvCoords2.data(), gltfScene.buffers[uvCoords2BufferIndex].data.data() + uvCoords2BufferOffset, uvCoords2BufferSize);*/
 
+				gameObject._mesh = new Scenes::Mesh{&_scene};
 				auto& mesh = gameObject._mesh;
 
 				// Load material.
@@ -1093,6 +1094,7 @@ namespace Engine::Vulkan
 				texture = &_scene._materials[gameObject._mesh._materialIndex]._baseColor;
 			}*/
 
+			gameObject.CreateShaderResources(_physicalDevice, _logicalDevice);
 			gameObject._mesh->CreateShaderResources(_physicalDevice, _logicalDevice);
 
 			/*gameObject._mesh._shaderResources._objectDataBuffer = Buffer(_logicalDevice,

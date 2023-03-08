@@ -165,12 +165,13 @@ namespace Engine::Scenes
 		// Also suppose that our camera is at (0,0,-10). This means that the camera is behind us by 10 units and can likely see the object
 		// somewhat in the upper area of its screen. If we want to see vertex V as if we viewed it from the camera, we would have to move
 		// vertex V 10 units forward from its current position. If instead of moving the camera BACK 10 units we move vertex V FORWARD 10 units, 
-		// we get the exact same effect as if we actually had a camera and moved it backwards. That's it, very simple idea behind the view matrix.
-
+		// we get the exact same effect as if we actually had a camera and moved it backwards.
 		_view._matrix = glm::inverse(_transform._matrix);
 
 		float _deltaScrollY = ((float)input._scrollY - _lastScrollY);
 		_horizontalFov -= _deltaScrollY;
 		_lastScrollY = (float)input._scrollY;
+
+		UpdateShaderResources();
 	}
 }

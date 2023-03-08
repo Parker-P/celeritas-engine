@@ -68,6 +68,12 @@ namespace Engine::Scenes
 #pragma endregion
 
 		/**
+		 * @brief Constructor.
+		 * @param scene Pointer to the scene the mesh belongs to.
+		 */
+		Mesh(Scene* scene);
+
+		/**
 		 * @brief Pointer to the scene so you can use _materialIndex and _gameObjectIndex.
 		 */
 		Scenes::Scene* _scene;

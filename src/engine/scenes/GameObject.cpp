@@ -31,6 +31,7 @@ namespace Engine::Scenes
 
 	void GameObject::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice)
 	{
+		// We send the transformation matrix to the GPU.
 		_buffers = Structural::Array<Vulkan::Buffer>(1);
 		_descriptors = Structural::Array<Vulkan::Descriptor>(1);
 		_sets = Structural::Array<Vulkan::DescriptorSet>(1);
