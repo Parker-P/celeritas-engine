@@ -1,2 +1,2 @@
 # Celeritas Engine
-A game engine built on performance and optimization.
+An academic/personal project that focuses on properly documented code, good architecture and with an emphasis on performance and optimization.
