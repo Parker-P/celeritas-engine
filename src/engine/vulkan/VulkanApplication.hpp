@@ -235,34 +235,6 @@ namespace Engine::Vulkan
 			 */
 			std::vector<VkVertexInputAttributeDescription> _vertexAttributeDescriptions;
 
-#pragma region Legacy
-			/**
-			 * @brief Encapsulates all information sent to the shaders, as well as the info used to create the Vulkan
-			 * structures to send data to the shaders.
-			 */
-			 //struct {
-
-			 //	/**
-			 //	 * @brief Vulkan buffer that contains the data contained in the _cameraData struct. See _cameraData.
-			 //	 */
-			 //	Buffer _cameraDataBuffer;
-
-			 //	/**
-			 //	 * @brief Uniform descriptor that contains data contained in _cameraDataBuffer. See _cameraDataBuffer.
-			 //	 */
-			 //	Descriptor _cameraDataDescriptor;
-
-			 //	/**
-			 //	 * @brief Descriptor set that contains uniform descriptors.
-			 //	 */
-			 //	DescriptorSet _cameraDataSet;
-
-			 //	/**
-			 //	 * @brief Descriptor pool that contains all descriptor sets.
-			 //	 */
-			 //	DescriptorPool _cameraDataPool;
-#pragma endregion
-
 			/**
 			* @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
 			* push constant ranges are combined to form a pipeline layout object describing the complete set of resources that can be accessed by a pipeline.
@@ -282,7 +254,6 @@ namespace Engine::Vulkan
 		Settings::GlobalSettings& _settings = Settings::GlobalSettings::Instance();
 		Scenes::Scene _scene;
 		Scenes::Camera _mainCamera;
-		Scenes::GameObject _model;
 
 		/*
 		 * @brief Function called by Vulkan's validation layers once an error has occourred.

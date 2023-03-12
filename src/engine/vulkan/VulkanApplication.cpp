@@ -425,6 +425,7 @@ namespace Engine::Vulkan
 		//auto scenePath = std::filesystem::current_path().string() + R"(\models\monkey.glb)";
 		//auto scenePath = std::filesystem::current_path().string() + R"(\models\cubes.glb)";
 		auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
+		//auto scenePath = std::filesystem::current_path().string() + R"(\models\free_1972_datsun_4k_textures.glb)";
 		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath);
 		std::cout << warn << std::endl;
 		std::cout << err << std::endl;
@@ -435,6 +436,7 @@ namespace Engine::Vulkan
 			Scenes::Material m;
 			auto& baseColorTextureIndex = gltfScene.materials[i].pbrMetallicRoughness.baseColorTexture.index;
 			m._name = gltfScene.materials[i].name;
+
 			if (baseColorTextureIndex >= 0) {
 				auto& baseColorImageIndex = gltfScene.textures[baseColorTextureIndex].source;
 				auto& baseColorImageData = gltfScene.images[baseColorImageIndex].image;
@@ -454,7 +456,7 @@ namespace Engine::Vulkan
 			auto& gltfMesh = gltfScene.meshes[gltfScene.nodes[i].mesh];
 
 			for (auto& gltfPrimitive : gltfMesh.primitives) {
-				auto gameObject = Scenes::GameObject(gltfMesh.name, &_scene);
+				auto gameObject = Scenes::GameObject(gltfScene.nodes[i].name, &_scene);
 				auto& position = gltfScene.nodes[i].translation;
 
 				if (position.size() == 3) {
@@ -465,15 +467,15 @@ namespace Engine::Vulkan
 				auto vertexPositionsAccessorIndex = gltfPrimitive.attributes["POSITION"];
 				auto vertexNormalsAccessorIndex = gltfPrimitive.attributes["NORMAL"];
 				auto uvCoords0AccessorIndex = gltfPrimitive.attributes["TEXCOORD_0"];
-				auto uvCoords1AccessorIndex = gltfPrimitive.attributes["TEXCOORD_1"];
-				auto uvCoords2AccessorIndex = gltfPrimitive.attributes["TEXCOORD_2"];
+				//auto uvCoords1AccessorIndex = gltfPrimitive.attributes["TEXCOORD_1"];
+				//auto uvCoords2AccessorIndex = gltfPrimitive.attributes["TEXCOORD_2"];
 
 				auto faceIndicesAccessor = gltfScene.accessors[faceIndicesAccessorIndex];
 				auto positionsAccessor = gltfScene.accessors[vertexPositionsAccessorIndex];
 				auto normalsAccessor = gltfScene.accessors[vertexNormalsAccessorIndex];
 				auto uvCoords0Accessor = gltfScene.accessors[uvCoords0AccessorIndex];
-				auto uvCoords1Accessor = gltfScene.accessors[uvCoords1AccessorIndex];
-				auto uvCoords2Accessor = gltfScene.accessors[uvCoords2AccessorIndex];
+				//auto uvCoords1Accessor = gltfScene.accessors[uvCoords1AccessorIndex];
+				//auto uvCoords2Accessor = gltfScene.accessors[uvCoords2AccessorIndex];
 
 				// Load face indices.
 				auto faceIndicesCount = faceIndicesAccessor.count;
@@ -532,6 +534,7 @@ namespace Engine::Vulkan
 				// Gather vertices and face indices.
 				std::vector<Scenes::Vertex> vertices;
 				vertices.resize(vertexPositions.size());
+
 				for (int i = 0; i < vertexPositions.size(); ++i) {
 					Scenes::Vertex v;
 					v._position = vertexPositions[i];
@@ -550,8 +553,6 @@ namespace Engine::Vulkan
 				mesh->_gameObjectIndex = (unsigned int)(_scene._gameObjects.size() - 1);
 			}
 		}
-
-		_model = _scene._gameObjects[0];
 	}
 
 	VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)
