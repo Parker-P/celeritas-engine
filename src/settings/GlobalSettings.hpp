@@ -13,7 +13,7 @@ namespace Settings
 		/**
 		 * @brief Instance validation layers to report problems with Vulkan usage.
 		 */
-		std::vector<const char*> _validationLayers;
+		std::vector<const char*> _pValidationLayers;
 
 		/**
 		 * @brief Window width in pixels.

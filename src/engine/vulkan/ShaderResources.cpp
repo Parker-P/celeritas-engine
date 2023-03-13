@@ -86,17 +86,17 @@ namespace Engine::Vulkan
 	{
 		// The amount of sets and descriptor types is defined when creating the descriptor pool.
 		std::vector<VkDescriptorSetLayout> layouts;
-		for (auto& descriptorSet : _descriptorSets) {
+		for (auto& descriptorSet : _pDescriptorSets) {
 			layouts.push_back(descriptorSet->_layout);
 		}
 
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		allocInfo.descriptorPool = _handle;
-		allocInfo.descriptorSetCount = (uint32_t)_descriptorSets.size();
+		allocInfo.descriptorSetCount = (uint32_t)_pDescriptorSets.size();
 		allocInfo.pSetLayouts = layouts.data();
 
-		std::vector<VkDescriptorSet> allocatedDescriptorSetHandles(_descriptorSets.size());
+		std::vector<VkDescriptorSet> allocatedDescriptorSetHandles(_pDescriptorSets.size());
 		if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, allocatedDescriptorSetHandles.data()) != VK_SUCCESS) {
 			std::cerr << "failed to allocate descriptor sets" << std::endl;
 			exit(1);
@@ -105,15 +105,15 @@ namespace Engine::Vulkan
 			std::cout << "allocated descriptor sets" << std::endl;
 
 			for (int i = 0; i < allocatedDescriptorSetHandles.size(); ++i) {
-				_descriptorSets[i]->_handle = allocatedDescriptorSetHandles[i];
-				_descriptorSets[i]->SendDescriptorData();
+				_pDescriptorSets[i]->_handle = allocatedDescriptorSetHandles[i];
+				_pDescriptorSets[i]->SendDescriptorData();
 			}
 		}
 	}
 
 	DescriptorPool::DescriptorPool(VkDevice& logicalDevice, std::vector<DescriptorSet*> descriptorSets)
 	{
-		_descriptorSets = descriptorSets;
+		_pDescriptorSets = descriptorSets;
 		_logicalDevice = logicalDevice;
 
 		std::vector<VkDescriptorPoolSize> poolSizes;
@@ -149,7 +149,7 @@ namespace Engine::Vulkan
 
 	void DescriptorPool::UpdateDescriptor(Descriptor& d, Buffer& data)
 	{
-		for (auto& descriptorSet : _descriptorSets) {
+		for (auto& descriptorSet : _pDescriptorSets) {
 			for (auto& descriptor : descriptorSet->_descriptors) {
 				if (descriptor == &d) {
 					descriptor->_bufferInfo = data.GenerateDescriptor();
@@ -160,7 +160,7 @@ namespace Engine::Vulkan
 
 	void DescriptorPool::UpdateDescriptor(Descriptor& d, Image& data)
 	{
-		for (auto& descriptorSet : _descriptorSets) {
+		for (auto& descriptorSet : _pDescriptorSets) {
 			for (auto& descriptor : descriptorSet->_descriptors) {
 				if (descriptor == &d) {
 					descriptor->_imageInfo = data.GenerateDescriptor();

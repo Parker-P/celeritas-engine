@@ -27,7 +27,7 @@ namespace Engine::Scenes
 {
 	Mesh::Mesh(Scene* scene)
 	{
-		_scene = scene;
+		_pScene = scene;
 	}
 
 	void Mesh::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice)
@@ -37,8 +37,8 @@ namespace Engine::Scenes
 		_sets = Structural::Array<Vulkan::DescriptorSet>(1);
 		Vulkan::Image* texture = nullptr;
 
-		if (_scene->_materials.size() > 0) {
-			texture = &_scene->_materials[_materialIndex]._baseColor;
+		if (_pScene->_materials.size() > 0) {
+			texture = &_pScene->_materials[_materialIndex]._baseColor;
 		}
 
 		_descriptors[0] = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, nullptr, texture);

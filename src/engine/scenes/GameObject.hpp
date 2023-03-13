@@ -21,7 +21,7 @@ namespace Engine::Scenes
 		 * @param name Name of the game object.
 		 * @param scene Scene the game object belongs to.
 		 */
-		GameObject(const std::string& name, Scene* scene);
+		GameObject(const std::string& name, Scene* pScene);
 
 		/**
 		 * @brief Name of the game object.
@@ -31,7 +31,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Scene this game object belongs to.
 		 */
-		Scene* _scene;
+		Scene* _pScene;
 
 		/**
 		 * @brief Object-to-world transform.
@@ -41,7 +41,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Mesh of this game object.
 		 */
-		Mesh* _mesh;
+		Mesh* _pMesh;
 
 		/**
 		 * @brief See Pipelinable.

@@ -24,7 +24,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Wrapper for the window shown on screen.
 		 */
-		GLFWwindow* _window;
+		GLFWwindow* _pWindow;
 
 		/**
 		 * @brief Root for all Vulkan functionality.
@@ -295,7 +295,7 @@ namespace Engine::Vulkan
 		 * @param width
 		 * @param height
 		 */
-		static void OnWindowResized(GLFWwindow* window, int width, int height);
+		static void OnWindowResized(GLFWwindow* pWindow, int width, int height);
 
 		/**
 		 * @brief Function called whenever the window is resized.
@@ -323,7 +323,7 @@ namespace Engine::Vulkan
 		 * @param validationLayers The validation layers you want to check that the physical device supports.
 		 * @return True if all validation layers are found in the available validation layers, false otherwise.
 		 */
-		bool ValidationLayersSupported(const std::vector<const char*>& validationLayers);
+		bool ValidationLayersSupported(const std::vector<const char*>& pValidationLayers);
 
 		/**
 		 * @brief Creates the Vulkan instance that is the root container for all the Vulkan components that will be created.

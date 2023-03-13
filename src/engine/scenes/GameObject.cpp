@@ -26,7 +26,7 @@ namespace Engine::Scenes
 	GameObject::GameObject(const std::string& name, Scene* scene)
 	{
 		_name = name;
-		_scene = scene;
+		_pScene = scene;
 	}
 
 	void GameObject::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice)
@@ -56,6 +56,6 @@ namespace Engine::Scenes
 
 	void GameObject::Update()
 	{
-		_mesh->Update();
+		_pMesh->Update();
 	}
 }

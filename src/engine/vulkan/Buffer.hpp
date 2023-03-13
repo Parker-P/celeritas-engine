@@ -55,7 +55,7 @@ namespace Engine::Vulkan
          * @param data Address of where the data begins in memory.
          * @param sizeInBytes Size of the data in bytes.
          */
-        void UpdateData(void* data, size_t sizeInBytes);
+        void UpdateData(void* pData, size_t sizeInBytes);
 
         /**
          * @brief Sends the buffer to the GPU's VRAM. Will only work if buffer usage is marked as VK_BUFFER_USAGE_TRANSFER_DST_BIT and properties

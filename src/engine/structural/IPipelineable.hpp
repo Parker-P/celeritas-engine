@@ -29,7 +29,7 @@ namespace Engine::Structural
 		/**
 		 * @brief Data contained in the array.
 		 */
-		T* _data;
+		T* _pData;
 
 		/**
 		 * @brief Default constructor.
@@ -42,7 +42,7 @@ namespace Engine::Structural
 		Array(size_t size)
 		{
 			_size = size;
-			_data = new T[size];
+			_pData = new T[size];
 		}
 
 		/**
@@ -57,7 +57,7 @@ namespace Engine::Structural
 				exit(-1);
 			}
 
-			return _data[i];
+			return _pData[i];
 		}
 	};
 

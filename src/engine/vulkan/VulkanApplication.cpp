@@ -60,7 +60,7 @@ namespace Engine::Vulkan
 	void VulkanApplication::Run()
 	{
 		InitializeWindow();
-		_input = Input::KeyboardMouse(_window);
+		_input = Input::KeyboardMouse(_pWindow);
 		SetupVulkan();
 		MainLoop();
 		Cleanup(true);
@@ -82,8 +82,8 @@ namespace Engine::Vulkan
 	{
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		_window = glfwCreateWindow(_settings._windowWidth, _settings._windowHeight, "Hold The Line!", nullptr, nullptr);
-		glfwSetWindowSizeCallback(_window, VulkanApplication::OnWindowResized);
+		_pWindow = glfwCreateWindow(_settings._windowWidth, _settings._windowHeight, "Hold The Line!", nullptr, nullptr);
+		glfwSetWindowSizeCallback(_pWindow, VulkanApplication::OnWindowResized);
 	}
 
 	void VulkanApplication::SetupVulkan()
@@ -108,7 +108,7 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::MainLoop()
 	{
-		while (!glfwWindowShouldClose(_window)) {
+		while (!glfwWindowShouldClose(_pWindow)) {
 			Update();
 			Draw();
 			glfwPollEvents();
@@ -283,9 +283,9 @@ namespace Engine::Vulkan
 		createInfo.ppEnabledExtensionNames = extensions.data();
 
 		if (_settings._enableValidationLayers) {
-			if (ValidationLayersSupported(_settings._validationLayers)) {
+			if (ValidationLayersSupported(_settings._pValidationLayers)) {
 				createInfo.enabledLayerCount = 1;
-				createInfo.ppEnabledLayerNames = _settings._validationLayers.data();
+				createInfo.ppEnabledLayerNames = _settings._pValidationLayers.data();
 			}
 		}
 
@@ -300,7 +300,7 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreateWindowSurface()
 	{
-		if (glfwCreateWindowSurface(_instance, _window, NULL, &_windowSurface) != VK_SUCCESS) {
+		if (glfwCreateWindowSurface(_instance, _pWindow, NULL, &_windowSurface) != VK_SUCCESS) {
 			std::cerr << "failed to create window surface!" << std::endl;
 			exit(1);
 		}
@@ -348,7 +348,7 @@ namespace Engine::Vulkan
 
 		if (_settings._enableValidationLayers) {
 			deviceCreateInfo.enabledLayerCount = 1;
-			deviceCreateInfo.ppEnabledLayerNames = _settings._validationLayers.data();
+			deviceCreateInfo.ppEnabledLayerNames = _settings._pValidationLayers.data();
 		}
 
 		if (vkCreateDevice(_physicalDevice._handle, &deviceCreateInfo, nullptr, &_logicalDevice) != VK_SUCCESS) {
@@ -523,8 +523,8 @@ namespace Engine::Vulkan
 				std::vector<glm::vec2> uvCoords0(uvCoords0Count);
 				memcpy(uvCoords0.data(), gltfScene.buffers[uvCoords0BufferIndex].data.data() + uvCoords0BufferOffset, uvCoords0BufferSize);
 
-				gameObject._mesh = new Scenes::Mesh{&_scene};
-				auto& mesh = gameObject._mesh;
+				gameObject._pMesh = new Scenes::Mesh{&_scene};
+				auto& mesh = gameObject._pMesh;
 
 				// Load material.
 				if (loadedMaterialCache.count(gltfPrimitive.material) > 0) {
@@ -1035,7 +1035,7 @@ namespace Engine::Vulkan
 
 		for (auto& gameObject : _scene._gameObjects) {
 			gameObject.CreateShaderResources(_physicalDevice, _logicalDevice);
-			gameObject._mesh->CreateShaderResources(_physicalDevice, _logicalDevice);
+			gameObject._pMesh->CreateShaderResources(_physicalDevice, _logicalDevice);
 		}
 
 		VkDescriptorSetLayout* gameObjectLayout = nullptr;
@@ -1043,7 +1043,7 @@ namespace Engine::Vulkan
 		
 		if (_scene._gameObjects.size() > 0) {
 			gameObjectLayout = &_scene._gameObjects[0]._sets[0]._layout;
-			meshLayout = &_scene._gameObjects[0]._mesh->_sets[0]._layout;
+			meshLayout = &_scene._gameObjects[0]._pMesh->_sets[0]._layout;
 		}
 
 		std::vector<VkDescriptorSetLayout> layouts = { _mainCamera._sets[0]._layout, *gameObjectLayout, *meshLayout };
@@ -1139,12 +1139,12 @@ namespace Engine::Vulkan
 			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
 			for (auto& gameObject : _scene._gameObjects) {
-				VkDescriptorSet sets[3] = { _mainCamera._sets[0]._handle, gameObject._sets[0]._handle, gameObject._mesh->_sets[0]._handle };
+				VkDescriptorSet sets[3] = { _mainCamera._sets[0]._handle, gameObject._sets[0]._handle, gameObject._pMesh->_sets[0]._handle };
 				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 3, sets, 0, nullptr);
 				VkDeviceSize offset = 0;
-				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._mesh->_vertices._vertexBuffer._handle, &offset);
-				vkCmdBindIndexBuffer(_drawCommandBuffers[i], gameObject._mesh->_faceIndices._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)gameObject._mesh->_faceIndices._indexData.size(), 1, 0, 0, 0);
+				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._pMesh->_vertices._vertexBuffer._handle, &offset);
+				vkCmdBindIndexBuffer(_drawCommandBuffers[i], gameObject._pMesh->_faceIndices._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)gameObject._pMesh->_faceIndices._indexData.size(), 1, 0, 0, 0);
 			}
 
 			vkCmdEndRenderPass(_drawCommandBuffers[i]);

@@ -33,7 +33,7 @@ namespace Settings
 		_enableValidationLayers = Utils::Converter::Convert<std::string, bool>(TrimEnds(evlJson));
 
 		auto validationLayers = sjson::jobject::parse(rootObj.get("ValidationLayers"));
-		_validationLayers.resize(validationLayers.size());
+		_pValidationLayers.resize(validationLayers.size());
 
 		for (int i = 0; i < validationLayers.size(); ++i) {
 			auto str = validationLayers.array(i).as_string();
@@ -41,7 +41,7 @@ namespace Settings
 			char* ch = new char[length];
 			ch[length] = 0;
 			memcpy(ch, str.data(), length);
-			_validationLayers[i] = ch;
+			_pValidationLayers[i] = ch;
 		}
 
 		auto windowSize = sjson::jobject::parse(rootObj.get("WindowSize"));

@@ -62,9 +62,9 @@ namespace Engine::Input
 		//double _scrollX; // Only used for scroll-pads. For vertical scroll wheels, only the Y value is actually used.
 		double _scrollY;
 
-		static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
-		static void CursorPositionCallback(GLFWwindow* window, double xPos, double yPos);
-		static void ScrollWheelCallback(GLFWwindow* window, double xPos, double yPos);
+		static void KeyCallback(GLFWwindow* pWindow, int key, int scancode, int action, int mods);
+		static void CursorPositionCallback(GLFWwindow* pWindow, double xPos, double yPos);
+		static void ScrollWheelCallback(GLFWwindow* pWindow, double xPos, double yPos);
 
 		/**
 		 * @brief Constructor.
@@ -95,7 +95,7 @@ namespace Engine::Input
 		 * @brief Hides or shows the cursor.
 		 * @param window
 		 */
-		void ToggleCursor(GLFWwindow* window);
+		void ToggleCursor(GLFWwindow* pWindow);
 
 		/**
 		 * @brief See IUpdatable.

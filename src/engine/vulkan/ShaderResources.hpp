@@ -121,7 +121,7 @@ namespace Engine::Vulkan
 		 * @param shaderFlags Flags to define which shader/s can access this descriptor set.
 		 * @param descriptors Descriptors. Must all be of the same type and compatible with the type of data they contain (image or buffer).
 		 */
-		DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, std::vector<Descriptor*> descriptors);
+		DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, std::vector<Descriptor*> pDescriptors);
 	};
 
 	/**
@@ -137,7 +137,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Descriptor sets the pool contains.
 		 */
-		std::vector<DescriptorSet*> _descriptorSets;
+		std::vector<DescriptorSet*> _pDescriptorSets;
 
 		/**
 		 * @brief .
@@ -161,7 +161,7 @@ namespace Engine::Vulkan
 		 * @param logicalDevice Used for the Vulkan call to create the descriptor pool and to allocate memory for the given descriptor sets.
 		 * @param descriptorSets Descriptor sets to allocate memory for.
 		 */
-		DescriptorPool(VkDevice& logicalDevice, std::vector<DescriptorSet*> descriptorSets);
+		DescriptorPool(VkDevice& logicalDevice, std::vector<DescriptorSet*> pDescriptorSets);
 
 		/**
 		 * @brief Updates a descriptor identified by its memory address with the data contained in the given buffer.
