@@ -29,7 +29,7 @@ namespace Engine::Scenes
 		_pScene = scene;
 	}
 
-	void GameObject::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice)
+	void GameObject::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
 		// We send the transformation matrix to the GPU.
 		_buffers = Structural::Array<Vulkan::Buffer>(1);
@@ -46,7 +46,7 @@ namespace Engine::Scenes
 		_descriptors[0] = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &_buffers[0]);
 		_sets[0] = Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &_descriptors[0] });
 		_pool = Vulkan::DescriptorPool(logicalDevice, { &_sets[0] });
-		_sets[0].SendDescriptorData();
+		_sets[0].SendToGPU();
 	}
 
 	void GameObject::UpdateShaderResources()

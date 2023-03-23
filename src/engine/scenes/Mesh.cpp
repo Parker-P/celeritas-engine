@@ -21,6 +21,7 @@
 #include "engine/math/Transform.hpp"
 #include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Mesh.hpp"
+#include "engine/vulkan/Image.hpp"
 #include <utils/Utils.hpp>
 
 namespace Engine::Scenes
@@ -30,7 +31,7 @@ namespace Engine::Scenes
 		_pScene = scene;
 	}
 
-	void Mesh::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice)
+	void Mesh::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
 		_images = Structural::Array<Vulkan::Image>(1);
 		_descriptors = Structural::Array<Vulkan::Descriptor>(1);
@@ -40,11 +41,15 @@ namespace Engine::Scenes
 		if (_pScene->_materials.size() > 0) {
 			texture = &_pScene->_materials[_materialIndex]._baseColor;
 		}
+		else {
+			texture = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
+			texture->SendToGPU(commandPool, graphicsQueue);
+		}
 
 		_descriptors[0] = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, nullptr, texture);
 		_sets[0] = Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &_descriptors[0] });
 		_pool = Vulkan::DescriptorPool(logicalDevice, { &_sets[0] });
-		_sets[0].SendDescriptorData();
+		_sets[0].SendToGPU();
 	}
 
 	void Mesh::UpdateShaderResources()

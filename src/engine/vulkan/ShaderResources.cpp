@@ -23,10 +23,9 @@ namespace Engine::Vulkan
 		_bindingNumber = bindingNumber;
 	}
 
-	void DescriptorSet::SendDescriptorData()
+	void DescriptorSet::SendToGPU()
 	{
 		std::vector<VkWriteDescriptorSet> writeInfos;
-
 		bool canUpdate = true;
 
 		for (auto& descriptor : _descriptors) {
@@ -106,7 +105,7 @@ namespace Engine::Vulkan
 
 			for (int i = 0; i < allocatedDescriptorSetHandles.size(); ++i) {
 				_pDescriptorSets[i]->_handle = allocatedDescriptorSetHandles[i];
-				_pDescriptorSets[i]->SendDescriptorData();
+				_pDescriptorSets[i]->SendToGPU();
 			}
 		}
 	}
@@ -164,7 +163,7 @@ namespace Engine::Vulkan
 			for (auto& descriptor : descriptorSet->_descriptors) {
 				if (descriptor == &d) {
 					descriptor->_imageInfo = data.GenerateDescriptor();
-					descriptorSet->SendDescriptorData();
+					descriptorSet->SendToGPU();
 				}
 			}
 		}

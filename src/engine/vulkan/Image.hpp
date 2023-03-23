@@ -25,6 +25,7 @@ namespace Engine::Vulkan
 		 */
 		size_t GetPixelSizeBytes(const VkFormat& format);
 
+
 	public:
 
 		/**
@@ -113,6 +114,18 @@ namespace Engine::Vulkan
 		 * the actual GPU hardware samplers on how to read and sample the particular texture.
 		 */
 		VkDescriptorImageInfo GenerateDescriptor();
+
+		/**
+		 * @brief Creates a 1x1 pixels image with the one pixel being of the color specified with the red, blue, green and alpha values provided.
+		 * @param logicalDevice Needed to create the image with Vulkan calls.
+		 * @param physicalDevice Needed to create the image with Vulkan calls.
+		 * @param red Red channel value, domain is 0-255.
+		 * @param green Green channel value, domain is 0-255.
+		 * @param blue Blue channel value, domain is 0-255.
+		 * @param alpha Alpha channel value, domain is 0-255.
+		 * @return 
+		 */
+		static Image* SolidColor(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const unsigned char& red, const unsigned char& green, const unsigned char& blue, const unsigned char& alpha);
 
 		/**
 		 * @brief Uses Vulkan calls to deallocate and remove the contents of the image from memory.

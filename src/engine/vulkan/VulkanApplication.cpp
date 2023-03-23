@@ -424,7 +424,8 @@ namespace Engine::Vulkan
 
 		//auto scenePath = std::filesystem::current_path().string() + R"(\models\monkey.glb)";
 		//auto scenePath = std::filesystem::current_path().string() + R"(\models\cubes.glb)";
-		auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
+		//auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
+		auto scenePath = std::filesystem::current_path().string() + R"(\models\SampleMap.glb)";
 		//auto scenePath = std::filesystem::current_path().string() + R"(\models\free_1972_datsun_4k_textures.glb)";
 		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath);
 		std::cout << warn << std::endl;
@@ -1031,11 +1032,11 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreatePipelineLayout()
 	{
-		_mainCamera.CreateShaderResources(_physicalDevice, _logicalDevice);
+		_mainCamera.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
 
 		for (auto& gameObject : _scene._gameObjects) {
-			gameObject.CreateShaderResources(_physicalDevice, _logicalDevice);
-			gameObject._pMesh->CreateShaderResources(_physicalDevice, _logicalDevice);
+			gameObject.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+			gameObject._pMesh->CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
 		}
 
 		VkDescriptorSetLayout* gameObjectLayout = nullptr;

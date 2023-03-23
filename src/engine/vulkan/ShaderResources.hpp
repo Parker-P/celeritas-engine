@@ -93,10 +93,11 @@ namespace Engine::Vulkan
 		VkDescriptorSetLayout _layout;
 
 		/**
-		 * @brief Set index number used by the shaders to identify the descriptor set to access. When a descriptor set is bound to a pipeline using
-		 * vkCmdBindDescriptorSets(), the function requires an array of descriptor set handles; this binding number is the index in that array where this
-		 * descriptor set's handle is used. It's also important to note that the vkCmdBindDescriptorSets() command is bound to a command buffer; this
-		 * means that the same descriptor set could be used with a different binding number in different calls to vkCmdBindDescriptorSets().
+		 * @brief *NOT ACTUALLY USED ANYWHERE* Set index number used by the shaders to identify the descriptor set to access. When a descriptor set is 
+		 * bound to a pipeline using vkCmdBindDescriptorSets(), the function requires an array of descriptor set handles; this binding number is the 
+		 * index in that array where this descriptor set's handle is used. It's also important to note that the vkCmdBindDescriptorSets() command is
+		 * bound to a command buffer; this means that the same descriptor set could be used with a different binding number in different calls to 
+		 * vkCmdBindDescriptorSets().
 		 */
 		short _indexNumber;
 
@@ -108,7 +109,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Writes the data contained in its descriptors to the correct GPU-visible allocated portion of memory.
 		 */
-		void SendDescriptorData();
+		void SendToGPU();
 
 		/**
 		 * @brief Default constructor.
