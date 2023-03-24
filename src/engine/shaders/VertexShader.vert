@@ -8,8 +8,8 @@ layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inUv;
 
 // Output variables to send to the next shader stages.
-layout(location = 0) out vec3 vertexColor;
-layout (location = 1) out vec2 texCoord;
+layout(location = 0) out vec3 outVertexColor;
+layout (location = 1) out vec2 outUVCoord;
 
 // Data used to project the world space coordinates of the vertex into Vulkan's viewable volume.
 layout(set = 0, binding = 0) uniform CameraData {
@@ -25,11 +25,19 @@ layout(set = 1, binding = 0) uniform ObjectData {
 	mat4 objectToWorld;
 } objectData;
 
+layout(set = 2, binding = 0) uniform LightData {
+	vec3 position;
+	vec4 colorIntensity; // X, Y, Z for color, W for intensity.
+} lightData;
+
 void main() 
 {
+    // Coordinates of the vertex relative to the camera.
+	vec4 worldSpacePosition = objectData.objectToWorld * vec4(inPosition.xyz, 1.0f);
+	vec4 worldSpaceNormal = objectData.objectToWorld * vec4(inNormal.xyz, 1.0f);
 
-    // Coordinates relative to the camera.
-	vec4 cameraSpacePosition = cameraData.worldToCamera * objectData.objectToWorld * vec4(inPosition.x, inPosition.y, inPosition.z, 1.0f);
+    // Coordinates of the vertex relative to the camera.
+	vec4 cameraSpacePosition = cameraData.worldToCamera * worldSpacePosition;
 	
 	// The idea behind the projection transformation is using the camera as if you were standing behind a glass window: whatever you see out the window gets projected onto
 	// the glass.
@@ -52,12 +60,11 @@ void main()
 	// gl_position = vec4(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w, gl_position.w / gl_position.w)
 	gl_Position = vec4(xCoord, yCoord, zCoord * cameraSpacePosition.z, cameraSpacePosition.z);
 	
-	// Calculate the color of each vertex so the fragment shader can interpolate the pixels rendered between them.
-	vec4 temp = vec4(0.0f, -1.0f, 0.0f, 0.0f);
-	vec3 lightDirection = vec3(temp.x, temp.y, temp.z);
-	float colorMultiplier = (dot(-lightDirection, inNormal) + 1.0f) / 2.0f;
-	vertexColor = colorMultiplier * vec3(1.0f, 1.0f, 1.0f); // RGB.
+	vec3 directionToLight = normalize(lightData.position - worldSpacePosition.xyz);
+	vec3 lightColor = lightData.colorIntensity.xyz * lightData.colorIntensity.w;
+	vec3 diffuseLight = lightColor * max(dot(worldSpaceNormal.xyz, directionToLight), 0);
 
 	// Forward the uv coordinate of the vertex to the fragment stage.
-	texCoord = inUv;
+	outUVCoord = inUv;
+	outVertexColor = diffuseLight;
 }

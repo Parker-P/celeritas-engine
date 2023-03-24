@@ -23,6 +23,7 @@
     <ClCompile Include="src\engine\scenes\GameObject.cpp" />
     <ClCompile Include="src\engine\input\Input.cpp" />
     <ClCompile Include="src\engine\scenes\Material.cpp" />
+    <ClCompile Include="src\engine\scenes\PointLight.cpp" />
     <ClCompile Include="src\engine\scenes\Vertex.cpp" />
     <ClCompile Include="src\engine\structural\Drawable.cpp" />
     <ClCompile Include="src\engine\vulkan\VulkanApplication.cpp" />
@@ -90,6 +91,7 @@
     <ClInclude Include="include\stb\stb_image_write.h" />
     <ClInclude Include="include\tinygltf\tiny_gltf.h" />
     <ClInclude Include="src\engine\scenes\Material.hpp" />
+    <ClInclude Include="src\engine\scenes\PointLight.hpp" />
     <ClInclude Include="src\engine\scenes\Vertex.hpp" />
     <ClInclude Include="src\engine\structural\Drawable.hpp" />
     <ClInclude Include="src\engine\structural\IPipelineable.hpp" />
