@@ -46,6 +46,7 @@
 #include "engine/scenes/Vertex.hpp"
 #include "engine/structural/IPipelineable.hpp"
 #include "engine/structural/Drawable.hpp"
+#include "engine/scenes/PointLight.hpp"
 #include "engine/scenes/Scene.hpp"
 #include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Mesh.hpp"
@@ -417,6 +418,8 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::LoadScene()
 	{
+		_scene._pointLights.push_back(Scenes::PointLight("DefaultLight"));
+
 		tinygltf::Model gltfScene;
 		tinygltf::TinyGLTF loader;
 		std::string err;
@@ -484,7 +487,7 @@ namespace Engine::Vulkan
 				auto faceIndicesBufferStride = faceIndicesAccessor.ByteStride(gltfScene.bufferViews[faceIndicesAccessor.bufferView]);
 				auto faceIndicesBufferSizeBytes = faceIndicesCount * faceIndicesBufferStride;
 				std::vector<unsigned int> faceIndices(faceIndicesCount);
-				
+
 				if (faceIndicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
 					for (int i = 0; i < faceIndicesCount; ++i) {
 						unsigned short index = 0;
@@ -523,7 +526,7 @@ namespace Engine::Vulkan
 				std::vector<glm::vec2> uvCoords0(uvCoords0Count);
 				memcpy(uvCoords0.data(), gltfScene.buffers[uvCoords0BufferIndex].data.data() + uvCoords0BufferOffset, uvCoords0BufferSize);*/
 
-				gameObject._pMesh = new Scenes::Mesh{&_scene};
+				gameObject._pMesh = new Scenes::Mesh{ &_scene };
 				auto& mesh = gameObject._pMesh;
 
 				// Load material.
@@ -1033,20 +1036,34 @@ namespace Engine::Vulkan
 	{
 		_mainCamera.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
 
-		for (auto& gameObject : _scene._gameObjects) {
-			gameObject.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
-			gameObject._pMesh->CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
-		}
-
 		VkDescriptorSetLayout* gameObjectLayout = nullptr;
 		VkDescriptorSetLayout* meshLayout = nullptr;
-		
-		if (_scene._gameObjects.size() > 0) {
-			gameObjectLayout = &_scene._gameObjects[0]._sets[0]._layout;
-			meshLayout = &_scene._gameObjects[0]._pMesh->_sets[0]._layout;
+		VkDescriptorSetLayout* lightLayout = nullptr;
+
+		for (auto& gameObject : _scene._gameObjects) {
+			if (gameObject._pMesh != nullptr) {
+				gameObject.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+				gameObject._pMesh->CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+
+				if (gameObjectLayout == nullptr) {
+					gameObjectLayout = &gameObject._sets[0]._layout;
+				}
+
+				if (meshLayout == nullptr) {
+					meshLayout = &gameObject._pMesh->_sets[0]._layout;
+				}
+			}
 		}
 
-		std::vector<VkDescriptorSetLayout> layouts = { _mainCamera._sets[0]._layout, *gameObjectLayout, *meshLayout };
+		for (auto& light : _scene._pointLights) {
+			light.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+
+			if (lightLayout== nullptr) {
+				lightLayout = &light._sets[0]._layout;
+			}
+		}
+
+		std::vector<VkDescriptorSetLayout> layouts = { _mainCamera._sets[0]._layout, *gameObjectLayout, *meshLayout, *lightLayout };
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutCreateInfo.setLayoutCount = (uint32_t)layouts.size();

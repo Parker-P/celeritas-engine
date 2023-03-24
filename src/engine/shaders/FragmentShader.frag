@@ -12,6 +12,6 @@ layout(set = 3, binding = 0) uniform sampler2D tex1;
 
 void main() {
     vec3 color = texture(tex1, vec2(inUVCoord.x, inUVCoord.y)).xyz;
-	// color = vec3(vertexColor.x * color.x, vertexColor.y * color.y, vertexColor.z * color.z);
+	color = vec3(inVertexColor.x * color.x, inVertexColor.y * color.y, inVertexColor.z * color.z);
 	outColor = vec4(color.xyz, 1.0f);
 }

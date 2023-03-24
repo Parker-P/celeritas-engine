@@ -31,7 +31,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Scene this game object belongs to.
 		 */
-		Scene* _pScene;
+		Scene* _pScene = nullptr;
 
 		/**
 		 * @brief Object-to-world transform.
@@ -41,7 +41,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Mesh of this game object.
 		 */
-		Mesh* _pMesh;
+		Mesh* _pMesh = nullptr;
 
 		/**
 		 * @brief See Pipelinable.

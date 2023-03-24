@@ -13,6 +13,11 @@ namespace Engine::Scenes
 
 	public:
 		/**
+		 * @brief Collection of lights.
+		 */
+		std::vector<PointLight> _pointLights;
+
+		/**
 		 * @brief Collection of game objects.
 		 */
 		std::vector<GameObject> _gameObjects;
