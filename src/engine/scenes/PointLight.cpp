@@ -49,7 +49,8 @@ namespace Engine::Scenes
 
 	void PointLight::UpdateShaderResources()
 	{
-		_lightData.position = _transform.Position();
+		//_lightData.position = _transform.Position();
+		_lightData.position = glm::vec3(0.0f, 4.0f, 1.0f);
 		//_lightData.colorIntensity = somevalue
 		_buffers[0].UpdateData(&_lightData, sizeof(_lightData));
 	}
