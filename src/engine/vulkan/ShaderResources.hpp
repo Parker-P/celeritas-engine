@@ -93,11 +93,11 @@ namespace Engine::Vulkan
 		VkDescriptorSetLayout _layout;
 
 		/**
-		 * @brief *NOT ACTUALLY USED ANYWHERE* Set index number used by the shaders to identify the descriptor set to access. When a descriptor set is 
-		 * bound to a pipeline using vkCmdBindDescriptorSets(), the function requires an array of descriptor set handles; this binding number is the 
-		 * index in that array where this descriptor set's handle is used. It's also important to note that the vkCmdBindDescriptorSets() command is
-		 * bound to a command buffer; this means that the same descriptor set could be used with a different binding number in different calls to 
-		 * vkCmdBindDescriptorSets().
+		 * @brief *NOT ACTUALLY USED ANYWHERE* Set index number used by the shaders to identify the descriptor set to access. When a pipeline is created,
+		 * an object of VkPipelineLayout is required to create it. The VkPipelineLayout object contains an array of VkDescriptorSetLayout handles. This
+		 * _indexNumber represents the index in that array where the _layout of this descriptor set is used. This is how in the shaders Vulkan knows which
+		 * descriptor set you are linking. When you see (set = 2, binding = 3) it means that this descriptor set's layout was placed at index 3 in the array
+		 * of VkDescriptorSetLayout handles when creating the pipeline currently in use.
 		 */
 		short _indexNumber;
 
