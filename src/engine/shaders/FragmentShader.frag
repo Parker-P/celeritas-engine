@@ -7,6 +7,11 @@ layout (location = 1) in vec2 inUVCoord;
 // Output variables.
 layout(location = 0) out vec4 outColor;
 
+layout(set = 2, binding = 0) uniform LightData {
+	vec3 position;
+	vec4 colorIntensity; // X, Y, Z for color, W for intensity.
+} lightData;
+
 // Variables coming from descriptor sets.
 layout(set = 3, binding = 0) uniform sampler2D tex1;
 

@@ -7,6 +7,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <vulkan/vulkan.h>
 
+#include <GLFW/glfw3.h>
 #include "structural/IUpdatable.hpp"
 #include "engine/math/Transform.hpp"
 #include "engine/vulkan/PhysicalDevice.hpp"
@@ -19,6 +20,8 @@
 #include "engine/scenes/PointLight.hpp"
 #include "engine/scenes/Scene.hpp"
 #include "engine/scenes/GameObject.hpp"
+#include "structural/Singleton.hpp"
+#include "engine/input/Input.hpp"
 
 namespace Engine::Scenes
 {
@@ -49,13 +52,35 @@ namespace Engine::Scenes
 
 	void PointLight::UpdateShaderResources()
 	{
-		//_lightData.position = _transform.Position();
-		_lightData.position = glm::vec3(0.0f, 4.0f, 1.0f);
-		//_lightData.colorIntensity = somevalue
+		_lightData.position = _transform.Position();
+		//_lightData.position = glm::vec3(0.0f, 4.0f, 1.0f);
+		_lightData.colorIntensity = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
 		_buffers[0].UpdateData(&_lightData, sizeof(_lightData));
 	}
 
 	void PointLight::Update() {
+		auto& input = Input::KeyboardMouse::Instance();
 
+		if (input.IsKeyHeldDown(GLFW_KEY_UP)) {
+			_transform.Translate(_transform.Forward() * 0.01f);
+		}
+
+		if (input.IsKeyHeldDown(GLFW_KEY_DOWN)) {
+			_transform.Translate(_transform.Forward() * -0.01f);
+		}
+
+		if (input.IsKeyHeldDown(GLFW_KEY_LEFT)) {
+			_transform.Translate(_transform.Right() * -0.01f);
+		}
+
+		if (input.IsKeyHeldDown(GLFW_KEY_RIGHT)) {
+			_transform.Translate(_transform.Right() * 0.01f);
+		}
+
+		auto pos = _transform.Position();
+
+		std::cout << "Position is: " << pos.x << ", " << pos.y << ", " << pos.z << std::endl;
+
+		UpdateShaderResources();
 	}
 }

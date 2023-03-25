@@ -62,6 +62,7 @@ void main()
 	
 	vec3 directionToLight = normalize(lightData.position - worldSpacePosition.xyz);
 	vec3 lightColor = lightData.colorIntensity.xyz * lightData.colorIntensity.w;
+//	vec3 lightColor = vec3(1.0f, 1.0f, 1.0f);
 	vec3 diffuseLight = lightColor * max(dot(worldSpaceNormal.xyz, directionToLight), 0);
 
 	// Forward the uv coordinate of the vertex to the fragment stage.

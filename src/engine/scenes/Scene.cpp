@@ -29,7 +29,11 @@ namespace Engine::Scenes
 {
 	void Scene::Update()
 	{
-		for (auto gameObject : _gameObjects) {
+		for (auto& light : _pointLights) {
+			light.Update();
+		}
+
+		for (auto& gameObject : _gameObjects) {
 			gameObject.Update();
 		}
 	}

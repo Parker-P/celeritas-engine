@@ -3,13 +3,6 @@
 #include <array>
 #include <iostream>
 
-namespace Engine::Vulkan
-{
-	/*class Descriptor;
-	class DescriptorSet;
-	class DescriptorPool;*/
-}
-
 namespace Engine::Structural
 {
 	/**
