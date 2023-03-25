@@ -19,8 +19,9 @@ layout(set = 3, binding = 0) uniform sampler2D tex1;
 
 void main() 
 {
-	vec3 lightColor = lightData.colorIntensity.xyz * lightData.colorIntensity.w;
-	vec3 diffuseLight = lightColor * max(dot(inWorldSpaceNormal.xyz, inDirectionToLight), 0);
+	float attenuation = 1.0 / dot(inDirectionToLight, inDirectionToLight);
+	vec3 lightColor = lightData.colorIntensity.xyz * lightData.colorIntensity.w * attenuation;
+	vec3 diffuseLight = lightColor * max(dot(inWorldSpaceNormal.xyz, normalize(inDirectionToLight)), 0);
     vec3 textureColor = texture(tex1, vec2(inUVCoord.x, inUVCoord.y)).xyz;
 	textureColor = vec3(diffuseLight.x * textureColor.x, diffuseLight.y * textureColor.y, diffuseLight.z * textureColor.z);
 	outColor = vec4(textureColor.xyz, 1.0f);

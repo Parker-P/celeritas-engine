@@ -425,9 +425,9 @@ namespace Engine::Vulkan
 		std::string err;
 		std::string warn;
 
-		//auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
+		auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
 		//auto scenePath = std::filesystem::current_path().string() + R"(\models\SampleMap.glb)";
-		auto scenePath = std::filesystem::current_path().string() + R"(\models\monster.glb)";
+		//auto scenePath = std::filesystem::current_path().string() + R"(\models\monster.glb)";
 		//auto scenePath = std::filesystem::current_path().string() + R"(\models\free_1972_datsun_4k_textures.glb)";
 		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath);
 		std::cout << warn << std::endl;
@@ -518,13 +518,13 @@ namespace Engine::Vulkan
 				memcpy(vertexNormals.data(), gltfScene.buffers[vertexNormalsBufferIndex].data.data() + vertexNormalsBufferOffset, vertexNormalsBufferSizeBytes);
 
 				// Load UV coordinates for UV slot 0.
-				/*auto uvCoords0Count = uvCoords0Accessor.count;
+				auto uvCoords0Count = uvCoords0Accessor.count;
 				auto uvCoords0BufferIndex = gltfScene.bufferViews[uvCoords0Accessor.bufferView].buffer;
 				auto uvCoords0BufferOffset = gltfScene.bufferViews[uvCoords0Accessor.bufferView].byteOffset;
 				auto uvCoords0BufferStride = uvCoords0Accessor.ByteStride(gltfScene.bufferViews[uvCoords0Accessor.bufferView]);
 				auto uvCoords0BufferSize = uvCoords0Count * uvCoords0BufferStride;
 				std::vector<glm::vec2> uvCoords0(uvCoords0Count);
-				memcpy(uvCoords0.data(), gltfScene.buffers[uvCoords0BufferIndex].data.data() + uvCoords0BufferOffset, uvCoords0BufferSize);*/
+				memcpy(uvCoords0.data(), gltfScene.buffers[uvCoords0BufferIndex].data.data() + uvCoords0BufferOffset, uvCoords0BufferSize);
 
 				gameObject._pMesh = new Scenes::Mesh{ &_scene };
 				auto& mesh = gameObject._pMesh;
@@ -542,7 +542,7 @@ namespace Engine::Vulkan
 					Scenes::Vertex v;
 					v._position = vertexPositions[i];
 					v._normal = vertexNormals[i];
-					//v._uvCoord = uvCoords0[i];
+					v._uvCoord = uvCoords0[i];
 					vertices[i] = v;
 				}
 

@@ -61,5 +61,5 @@ void main()
 	// Forward the uv coordinate of the vertex to the fragment stage.
 	outUVCoord = inUv;
 	outWorldSpaceNormal = worldSpaceNormal;
-	outDirectionToLight = normalize(lightData.position - worldSpacePosition.xyz);
+	outDirectionToLight = lightData.position - worldSpacePosition.xyz;
 }

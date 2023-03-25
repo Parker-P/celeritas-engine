@@ -54,7 +54,7 @@ namespace Engine::Scenes
 	{
 		_lightData.position = _transform.Position();
 		//_lightData.position = glm::vec3(0.0f, 4.0f, 1.0f);
-		_lightData.colorIntensity = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+		_lightData.colorIntensity = glm::vec4(1.0f, 1.0f, 1.0f, 50000.0f);
 		_buffers[0].UpdateData(&_lightData, sizeof(_lightData));
 	}
 
@@ -62,19 +62,19 @@ namespace Engine::Scenes
 		auto& input = Input::KeyboardMouse::Instance();
 
 		if (input.IsKeyHeldDown(GLFW_KEY_UP)) {
-			_transform.Translate(_transform.Forward() * 0.1f);
+			_transform.Translate(_transform.Forward() * 0.4f);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_DOWN)) {
-			_transform.Translate(_transform.Forward() * -0.1f);
+			_transform.Translate(_transform.Forward() * -0.4f);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_LEFT)) {
-			_transform.Translate(_transform.Right() * -0.1f);
+			_transform.Translate(_transform.Right() * -0.4f);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_RIGHT)) {
-			_transform.Translate(_transform.Right() * 0.1f);
+			_transform.Translate(_transform.Right() * 0.4f);
 		}
 
 		auto pos = _transform.Position();
