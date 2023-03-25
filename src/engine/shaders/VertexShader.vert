@@ -8,8 +8,9 @@ layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inUv;
 
 // Output variables to send to the next shader stages.
-layout(location = 0) out vec3 outVertexColor;
-layout (location = 1) out vec2 outUVCoord;
+layout (location = 0) out vec2 outUVCoord;
+layout (location = 1) out vec4 outWorldSpaceNormal;
+layout (location = 2) out vec3 outDirectionToLight;
 
 // Data used to project the world space coordinates of the vertex into Vulkan's viewable volume.
 layout(set = 0, binding = 0) uniform CameraData {
@@ -32,11 +33,8 @@ layout(set = 2, binding = 0) uniform LightData {
 
 void main() 
 {
-    // Coordinates of the vertex relative to the camera.
 	vec4 worldSpacePosition = objectData.objectToWorld * vec4(inPosition.xyz, 1.0f);
 	vec4 worldSpaceNormal = objectData.objectToWorld * vec4(inNormal.xyz, 1.0f);
-
-    // Coordinates of the vertex relative to the camera.
 	vec4 cameraSpacePosition = cameraData.worldToCamera * worldSpacePosition;
 	
 	// The idea behind the projection transformation is using the camera as if you were standing behind a glass window: whatever you see out the window gets projected onto
@@ -60,12 +58,8 @@ void main()
 	// gl_position = vec4(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w, gl_position.w / gl_position.w)
 	gl_Position = vec4(xCoord, yCoord, zCoord * cameraSpacePosition.z, cameraSpacePosition.z);
 	
-	vec3 directionToLight = normalize(lightData.position - worldSpacePosition.xyz);
-	vec3 lightColor = lightData.colorIntensity.xyz * lightData.colorIntensity.w;
-//	vec3 lightColor = vec3(1.0f, 1.0f, 1.0f);
-	vec3 diffuseLight = lightColor * max(dot(worldSpaceNormal.xyz, directionToLight), 0);
-
 	// Forward the uv coordinate of the vertex to the fragment stage.
 	outUVCoord = inUv;
-	outVertexColor = diffuseLight;
+	outWorldSpaceNormal = worldSpaceNormal;
+	outDirectionToLight = normalize(lightData.position - worldSpacePosition.xyz);
 }

@@ -45,7 +45,7 @@ namespace Engine::Scenes
 			sizeof(_lightData));
 
 		_descriptors[0] = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &_buffers[0]);
-		_sets[0] = Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &_descriptors[0] });
+		_sets[0] = Vulkan::DescriptorSet(logicalDevice, (VkShaderStageFlagBits)(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT), { &_descriptors[0] });
 		_pool = Vulkan::DescriptorPool(logicalDevice, { &_sets[0] });
 		_sets[0].SendToGPU();
 	}
@@ -62,25 +62,22 @@ namespace Engine::Scenes
 		auto& input = Input::KeyboardMouse::Instance();
 
 		if (input.IsKeyHeldDown(GLFW_KEY_UP)) {
-			_transform.Translate(_transform.Forward() * 0.01f);
+			_transform.Translate(_transform.Forward() * 0.1f);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_DOWN)) {
-			_transform.Translate(_transform.Forward() * -0.01f);
+			_transform.Translate(_transform.Forward() * -0.1f);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_LEFT)) {
-			_transform.Translate(_transform.Right() * -0.01f);
+			_transform.Translate(_transform.Right() * -0.1f);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_RIGHT)) {
-			_transform.Translate(_transform.Right() * 0.01f);
+			_transform.Translate(_transform.Right() * 0.1f);
 		}
 
 		auto pos = _transform.Position();
-
-		std::cout << "Position is: " << pos.x << ", " << pos.y << ", " << pos.z << std::endl;
-
 		UpdateShaderResources();
 	}
 }

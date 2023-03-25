@@ -426,8 +426,8 @@ namespace Engine::Vulkan
 		std::string warn;
 
 		//auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
-		auto scenePath = std::filesystem::current_path().string() + R"(\models\SampleMap.glb)";
-		//auto scenePath = std::filesystem::current_path().string() + R"(\models\monster.glb)";
+		//auto scenePath = std::filesystem::current_path().string() + R"(\models\SampleMap.glb)";
+		auto scenePath = std::filesystem::current_path().string() + R"(\models\monster.glb)";
 		//auto scenePath = std::filesystem::current_path().string() + R"(\models\free_1972_datsun_4k_textures.glb)";
 		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath);
 		std::cout << warn << std::endl;
