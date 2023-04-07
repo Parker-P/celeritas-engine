@@ -213,9 +213,9 @@ namespace Engine::Vulkan
 		info.pNext = nullptr;
 		info.magFilter = VK_FILTER_NEAREST;
 		info.minFilter = VK_FILTER_NEAREST;
-		info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 
 		vkCreateSampler(_logicalDevice, &info, nullptr, &_sampler);
 
