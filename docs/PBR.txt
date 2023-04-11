@@ -1,0 +1,87 @@
+/**
+ * @brief If the video is still up, this explains it extremely well so you don't have to read:
+ * https://www.youtube.com/watch?v=gya7x9H3mV0 
+ * PBR (Physically Based Rendering) as used in the rendering community, is a way to render models'
+ * surfaces in such a way that they closely mimic the way that light and materials interact.
+ * The way this is done is by using fairly complex math, although very simple in theory.
+ * The main problem we are trying to solve in a fragment shader is that we are trying to caluclate the
+ * color of a pixel taking into account all factors that can influence it; although at first it appears
+ * a simple problem to solve, there are a lot of factors that influence the color the pixel a surface
+ * will have.
+ *
+ * Lets define the following variables and functions:
+ * - x: a pixel of a patch of a mesh (triangle). This is what we are trying to find the color of and is the instance
+ *   on which we are running this shader
+ * - n: the normal vector of pixel x. Remember that the graphics pipeline on a GPU automatically
+ *   interpolates the output variables from the vertex shader to the input variables of the fragment shader.
+ *   The GPU does this by running the vertex shader once per vertex. After that, for each triangle (the GPU knows
+ *   how to identify triangles because of of the index buffer provided in the vertex shader) 
+ *   the number of pixels to render is calculated between the vertices, and for each pixel, a set of weights
+ *   is also calculated; these weights specify how close the pixel is to each of the vertices. If the pixel's 
+ *   weights are (0.5, 0.5, 0.5), it means that the pixel is exactly half way in between the vertices, therefore
+ *   every output variable from each run of the vertex shader on the vertices is exactly the average value of all
+ *   3 values for that specific pixel, including the normal vector (if specified as output value in the vertex shader of course).
+ *   After that, the fragment shader is run once for each calculated pixel, and the interpolated values are used
+ *   as input variables (if specified) in the shader run.
+ * - s: the hemisphere above pixel x, whose pole is pointed to exactly by n and whose surface is at exactly 1 unit
+ *   distance from x
+ * - v: the unit vector pointing from the pixel to the virtual camera
+ * - l: the unit vector pointing from the pixel to the light source
+ * - BRDF: a function that returns the color and intensity of light reflected by pixel x in direction v, given the
+ * - color and intensity of the light source, x and v.
+ * - Lo: outgoing light color and intensity, represented as a vector of 4 elements with the first 3 elements
+ *   being the color defined as RGB values and the 4th element specifying intensity. For example vec4(1.0, 0.0, 0.0, 15.0)
+ *   defines a red light with an intensity of 15.0.
+ * - Le: emitted light color and intensity
+ * - Li: incoming light color and intensity
+ * 
+ * With the variables defined above, we can define the PBR equation:
+ * Lo = Le + integral over s with differential -l(BRDF * incoming light * DotProduct(n, -l))
+ * 
+ * We'll go over the BRDF shortly, but first let's dissect and explain this a bit.
+ * First of all, we need an integral because we need to sum the light contribution from every single possible direction to pixel x;
+ * this is why we are integrating over s with differential -l. The differential is key to understanding this:
+ * in the real world, a point in space or on a surface receives light from all possible directions; to calculate this (the light color
+ * and intensity), we need the amount of light contributions coming to the point from all possible directions (from the light source to
+ * point x). 
+ * We defined l as the unit vector that points from pixel x to light source l, so -l is the unit vector that points from the light
+ * source to pixel x, but in our case, the entire surface of hemisphere s is also a light source, so we need a way to consider every
+ * single point on the hemisphere as a light source; think of an enviroment map that you would use for image-based lighting in Blender
+ * for instance.
+ * The integral is the perfect way to do this and is literally saying: for each vector -l (pointing from a point on hemishpere s
+ * to pixel x) calculate the following (BRDF * Li * DotProduct(n, -l)) and sum it up.
+ * The reason why we are using a hemisphere and not an entire sphere (that would consider all possible directions instead of half) 
+ * for this calculation is because, in practice, the vast majority of pixels of a surface we are trying to render is surrounded by 
+ * other pixels facing the same direction (with the same normal), which would block the light coming from any direction other than
+ * the hemisphere above it. 
+ * Having now understood the overall structure of how the equation was derived, lets dive into the details:
+ * 
+ * First of all, we multiply the incoming light Li by DotProduct(n, -l) because we need to scale the light's intensity. The angle of 
+ * incidence between -l and normal n is the defining factor; this is because a surface lit from behind receives no direct light rays
+ * from the light source, therefore is 100% dark (although in the real world there is always some indirect light reaching it by 
+ * bouncing off something else) whereas if the light rays are striking the surface head on, the transmitted energy is at its maximum, 
+ * therefore the surface will be as lit as it can be. The dot product between these 2 vectors gives a scalar value that models this
+ * perfectly.
+ * 
+ * Next, lets dissect the BRDF.
+ * BRDF stands for Bidirectional Reflection Distribution Function. The value this function calculates represents the amount of light 
+ * that is reflected in a specific direction from a light source.
+ * This function was derived by Robert Cook and Kenneth Torrance in 1982.
+ * To come up with this function, these 2 clever gentlemen started by posing the question: how do we mathematically model the amount
+ * of light that reaches our eyes when it bounces off a surface? You can think of a sphere of polished, shiny metal in a bright, sunny summer
+ * day; that bright spot on the surface that reflects sunlight towards our eyes: how do we mathematically model the color and intensity
+ * of the light that reaches our eyes on that specific point (or area of the surface) with that specific light source (the sun)?
+ * They started by 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ */
