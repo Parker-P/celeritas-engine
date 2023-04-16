@@ -11,12 +11,12 @@
  *
  * Lets define the following variables and functions:
  * - x: a pixel of a patch of a mesh (triangle). This is what we are trying to find the color of and is the instance
- *   on which we are running this shader
+ *   on which we are running the fragment shader
  * - n: the normal vector of pixel x. Remember that the graphics pipeline on a GPU automatically
  *   interpolates the output variables from the vertex shader to the input variables of the fragment shader.
  *   The GPU does this by running the vertex shader once per vertex. After that, for each triangle (the GPU knows
  *   how to identify triangles because of of the index buffer provided in the vertex shader) 
- *   the number of pixels to render is calculated between the vertices, and for each pixel, a set of weights
+ *   the number of pixels to render is calculated between the vertices by the rasterizer, and for each pixel, a set of weights
  *   is also calculated; these weights specify how close the pixel is to each of the vertices. If the pixel's 
  *   weights are (0.5, 0.5, 0.5), it means that the pixel is exactly half way in between the vertices, therefore
  *   every output variable from each run of the vertex shader on the vertices is exactly the average value of all
@@ -59,8 +59,9 @@
  * First of all, we multiply the incoming light Li by DotProduct(n, -l) because we need to scale the light's intensity. The angle of 
  * incidence between -l and normal n is the defining factor; this is because a surface lit from behind receives no direct light rays
  * from the light source, therefore is 100% dark (although in the real world there is always some indirect light reaching it by 
- * bouncing off something else) whereas if the light rays are striking the surface head on, the transmitted energy is at its maximum, 
- * therefore the surface will be as lit as it can be. The dot product between these 2 vectors gives a scalar value that models this
+ * bouncing off something else) whereas if the light rays are striking the surface head on, the transmitted energy is at its maximum,
+ * because the photons reaching the surface have a much harder time bouncing off of it, so most of their kinetic energy is converted
+ * to heat, therefore the surface will be as lit as it can be. The dot product between these 2 vectors gives a scalar value that models this
  * perfectly.
  * 
  * Next, lets dissect the BRDF.
@@ -71,16 +72,33 @@
  * of light that reaches our eyes when it bounces off a surface? You can think of a sphere of polished, shiny metal in a bright, sunny summer
  * day; that bright spot on the surface that reflects sunlight towards our eyes: how do we mathematically model the color and intensity
  * of the light that reaches our eyes on that specific point (or area of the surface) with that specific light source (the sun)?
- * They started by 
  * 
+ * To explain this, we need to introduce some important terminology:
+ * 1) Radiant flux: this is simply the total amount of photon energy per second radiated by a light source. Most of the energy a light source emits 
+ *    is usually emitted as heat, but we are interested in the energy carried by the photons leaving the light source, and this is what the
+ *    radiant flux measures. The energy a photon carries is mostly kinetic energy and is given by (Pc * C) / Wl, where
+ *    Pc is Planck's constant, C is light speed in m/s and Wl is the photon's wave length (a.k.a color for us humans) in meters. In this case,
+ *    Planck's constant is a way to quantify the mass the photon has (even though photons are mass-less) so we can use it with our existing kinetic 
+ *    energy equations for objects that have a mass, although it is much more complicated than that; see https://en.wikipedia.org/wiki/Planck_constant 
+ *    for more information.
  * 
- * 
- * 
- * 
- * 
- * 
- * 
- * 
+ *    The radiant flux is measured in Watts, which corresponds to Joules per second (J/s). Lets break this down: 
+ *    One Joule is the work done (or energy expended) by a force of one newton (N) moving an object a distance of one meter (m) in a vacuum where there is no friction. 
+ *    One Newton equals a force that produces an acceleration of one meter per second (s) squared on a one kilogram (kg) mass. This means that
+ *    applying a constant force of 1 Newton to a 1 Kg object (in a vacuum where there is no friction) will result in the object going 1 meter per 
+ *    second faster each second, or it can also mean that applying a force of 1 Newton for 1 second to a 1 Kg object in a vacuum, causes the object to move 1 meter. 
+ *    Therefore, one Joule equals one Newton * meter.
+ *
+ *    To quantify this in a way that you can actually imagine it, imagine being on very smooth, perfectly flat ice (to "simulate" a vacuum), with a 60 Kg, mirror-smooth, cube of 
+ *    metal sat on the surface. Now imagine that you have magic shoes that give you perfect grip on the ice; you lean forward, grab the cube from an edge and you push it 
+ *    explosively, so that it slides a distance of 1 meter in 1 second. Can you imagine the amount of force you would need to exert with your muscles to do that?
+ *    That pushing force you just exerted is roughly the equivalent of 60 Joules, therefore a light emitting 60 Watts of energy is roughly equivalent to the energy
+ *    you would expend pushing the 60 Kg cube of metal on ice for one meter each second (from stationary). So you can picture yourself pushing the 60 Kg cube 1 meter 
+ *    in one second, then have the cube magically stop, as if it hit an invisible brick wall. You would then approach the stationary cube again and push it 1 meter 
+ *    in 1 second again and then have it stop again. This is roughly the equivalent energy required to keep a 60 Watt light on continuously (keep in mind that most energy
+ *    emitted will be heat, as photons in general carry very little energy). 
+ *    This also gives you an idea of how energetically expensive it is to keep a 1000 watt heater on, for example. It would be like you pushing a 1 ton metal cube on ice from 
+ *    stationary for a distance of 1 meter each second, over, and over and over again. Pretty insane...
  * 
  * 
  * 
