@@ -15,7 +15,7 @@
  * - n: the normal vector of pixel x. Remember that the graphics pipeline on a GPU automatically
  *   interpolates the output variables from the vertex shader to the input variables of the fragment shader.
  *   The GPU does this by running the vertex shader once per vertex. After that, for each triangle (the GPU knows
- *   how to identify triangles because of of the index buffer provided in the vertex shader) 
+ *   how to identify triangles because of the index buffer provided in the vertex shader) 
  *   the number of pixels to render is calculated between the vertices by the rasterizer, and for each pixel, a set of weights
  *   is also calculated; these weights specify how close the pixel is to each of the vertices. If the pixel's 
  *   weights are (0.5, 0.5, 0.5), it means that the pixel is exactly half way in between the vertices, therefore
@@ -28,10 +28,10 @@
  * - v: the unit vector pointing from the pixel to the virtual camera
  * - l: the unit vector pointing from the pixel to the light source
  * - BRDF: a function that returns the color and intensity of light reflected by pixel x in direction v, given the
- * - color and intensity of the light source, x and v.
+ * - color and intensity of the light source, x and v
  * - Lo: outgoing light color and intensity, represented as a vector of 4 elements with the first 3 elements
  *   being the color defined as RGB values and the 4th element specifying intensity. For example vec4(1.0, 0.0, 0.0, 15.0)
- *   defines a red light with an intensity of 15.0.
+ *   defines a red light with an intensity of 15.0
  * - Le: emitted light color and intensity
  * - Li: incoming light color and intensity
  * 
@@ -100,6 +100,23 @@
  *    This also gives you an idea of how energetically expensive it is to keep a 1000 watt heater on, for example. It would be like you pushing a 1 ton metal cube on ice from 
  *    stationary for a distance of 1 meter each second, over, and over and over again. Pretty insane...
  * 
- * 
- * 
+ * 2) Radiant intensity: this is the amount of photon energy emitted by a light source in a particular cone. You may have seen spot lights in games, 
+ *    where a light illuminates only an exact cone; because this cone is particularly useful, someone gave it a name and also a unit of measurement. 
+ *    It is called a solid angle, and it is measured in steradians.
+ *    From wikipedia: The steradian (symbol: sr) or square radian is the unit of solid angle in the International System of Units (SI). It is used in 
+ *    three-dimensional geometry, and is analogous to the radian, which quantifies planar angles. Whereas an angle in radians, projected onto a circle, 
+ *    gives a length on the circumference, a solid angle in steradians, projected onto a sphere, gives an area on the surface.
+ *    So a solid angle is defined by the area on the surface of a sphere projected by a particular cone radiating from the center of the sphere. 
+ *    See https://en.wikipedia.org/wiki/Steradian for more detailed maths and info.
+ *
+ *    The unit of measurement for radiant intensity is Watt per steradian, so that would be the amount of energy per second (Watt) emitted in a
+ *    particular cone (steradian) around the light source.
+ *
+ *    A good example that ties radiant flux and radiant intensity together is the point light: what is the radiant intensity of a point light?
+ *    How much energy per steradian is emitted by a point light? To calculate it, we simply take the radiant flux of the point light and divide
+ *    it by the solid angle in which the photons emitted by the point light travel, which is in all directions. This means that the solid angle
+ *    of a point light is not really a cone, it's the entire volume around it, so it's a sphere. The area of a sphere is 4*Pi, so to find the radiant
+ *    intensity of a point light, we use (radiant flux / 4*Pi).
+ *
+ * 3) Irradiance: this is the photon energy received by a surface per area, and is measured in Watts per square meter.
  */
