@@ -118,5 +118,22 @@
  *    of a point light is not really a cone, it's the entire volume around it, so it's a sphere. The area of a sphere is 4*Pi, so to find the radiant
  *    intensity of a point light, we use (radiant flux / 4*Pi).
  *
- * 3) Irradiance: this is the photon energy received by a surface per area, and is measured in Watts per square meter.
+ * 3) Irradiance: this is the photon energy received by a surface per area, and is measured in Watts per square meter. If you think about it, photons
+ *    will strike a surface with the most energy when that surface is at a perfectly perpendicular angle to their direction, because most of their kinetic
+ *    energy is lost as it's really hard for them to bounce back in the same direction they came from, whereas bouncing off a surface at an angle is much
+ *    easier, so most of the kinetic energy is retained, thus the surface is less lit. Photons also lose energy as they travel, so something that is 
+ *    really far away will appear dimmer, infact photon energy decreases quadratically over distance. This means that we can come up with a formula to
+ *    calculate irradiance: given an infinitesimally small point on a surface, the irradiance experienced by that point is the radiant intensity of the
+ *    light source (how much power per solid angle) * the angle of indicidence (or the cosine of the angle between the surface normal and the photons
+ *    impacting the point) / distance from the point to the light source.
+ *
+ * 4) Radiance: radiance is the total amount of photon energy contained in a solid angle, emitted from a surface. This is essentially quantifying how much
+ *    energy is emitted/reflected off a surface in a particular solid angle.
+ *
+ *
+ *
+ *
+ *
+ *
+ *
  */
