@@ -73,7 +73,7 @@
  * day; that bright spot on the surface that reflects sunlight towards our eyes: how do we mathematically model the color and intensity
  * of the light that reaches our eyes on that specific point (or area of the surface) with that specific light source (the sun)?
  * 
- * To explain this, we need to introduce some important terminology:
+ * To explain this, we need to introduce some important terminology, discovered and defined by many smart people over the years:
  * 1) Radiant flux: this is simply the total amount of photon energy per second radiated by a light source. Most of the energy a light source emits 
  *    is usually emitted as heat, but we are interested in the energy carried by the photons leaving the light source, and this is what the
  *    radiant flux measures. The energy a photon carries is mostly kinetic energy and is given by (Pc * C) / Wl, where
@@ -102,7 +102,7 @@
  * 
  * 2) Radiant intensity: this is the amount of photon energy emitted by a light source in a particular cone. You may have seen spot lights in games, 
  *    where a light illuminates only an exact cone; because this cone is particularly useful, someone gave it a name and also a unit of measurement. 
- *    It is called a solid angle, and it is measured in steradians.
+ *    It is called a solid angle, and it is measured in steradians; it basically quantifies the volume of a field of view.
  *    From wikipedia: The steradian (symbol: sr) or square radian is the unit of solid angle in the International System of Units (SI). It is used in 
  *    three-dimensional geometry, and is analogous to the radian, which quantifies planar angles. Whereas an angle in radians, projected onto a circle, 
  *    gives a length on the circumference, a solid angle in steradians, projected onto a sphere, gives an area on the surface.
@@ -118,22 +118,41 @@
  *    of a point light is not really a cone, it's the entire volume around it, so it's a sphere. The area of a sphere is 4*Pi, so to find the radiant
  *    intensity of a point light, we use (radiant flux / 4*Pi).
  *
- * 3) Irradiance: this is the photon energy received by a surface per area, and is measured in Watts per square meter. If you think about it, photons
+ * 3) Irradiance: this is the photon energy received by a surface per area, and is measured in Watts per square meter (W / m^2). If you think about it, photons
  *    will strike a surface with the most energy when that surface is at a perfectly perpendicular angle to their direction, because most of their kinetic
- *    energy is lost as it's really hard for them to bounce back in the same direction they came from, whereas bouncing off a surface at an angle is much
- *    easier, so most of the kinetic energy is retained, thus the surface is less lit. Photons also lose energy as they travel, so something that is 
- *    really far away will appear dimmer, infact photon energy decreases quadratically over distance. This means that we can come up with a formula to
- *    calculate irradiance: given an infinitesimally small point on a surface, the irradiance experienced by that point is the radiant intensity of the
+ *    energy is lost as it's really hard for them to bounce back in the same direction, so they tend to be absorbed by the material much more easily, whereas 
+ *    bouncing off a surface at an angle is much easier, so most of the kinetic energy is retained, thus the surface is less lit. Photons also lose energy as 
+ *    they travel, so something that is really far away will appear dimmer, infact photon energy decreases quadratically over distance. This means that we can 
+ *    come up with a formula to calculate irradiance: given an infinitesimally small point on a surface, the irradiance experienced by that point is the radiant intensity of the
  *    light source (how much power per solid angle) * the angle of indicidence (or the cosine of the angle between the surface normal and the photons
- *    impacting the point) / distance from the point to the light source.
+ *    impacting the point) / distance from the point to the light source squared.
  *
- * 4) Radiance: radiance is the total amount of photon energy contained in a solid angle, emitted from a surface. This is essentially quantifying how much
- *    energy is emitted/reflected off a surface in a particular solid angle.
+ * 4) Radiance: radiance is the total amount of photon energy contained in a solid angle, emitted and/or reflected from a surface. This is essentially quantifying how much
+ *    energy is emitted/reflected off a surface in a particular solid angle. This unit is measured in Watts per steradian per square meter (W / sr * m^2). This is because the
+ *    photon energy emitted / reflected by a surface in a certain solid angle is directly proportional to the energy it receives / emits (mesaured by the
+ *    Watts) but is inversely proportional to the solid angle considered and the size of the surface. 
+ *    
+ *    If the surface we consider receives and/or emits a constant amount of photon energy (radiant flux), the bigger the solid angle we consider, the more spread out the 
+ *    emitted / reflected photon energy will be, so the energy per unit solid angle decreases; likewise, if the incoming/emitted radiant flux is constant on the entirety 
+ *    of the considered surface, the bigger the surface considered is, the less photons per square meter impacting the surface, therefore the photon energy per square meter is reduced.
+ *    Another factor reducing radiance is the angle of the photons striking the surface. As explained for irradiance, the smaller the angle between the photon and the impacted surface's normal, 
+ *    the more energy is absorbed by the material, because the photon has a really hard time bouncing off, so cos(angle between normal and photon direction) will represent an accurate
+ *    multiplier.
  *
+ *    If you look at the definition of radiant intensity and irradiance, this unit of measurement ties the two together.
+ *    You can imagine that this quantity would be very useful to know how much energy would be emitted towards a viewer, or a camera's lens. If we can calculate how much photon energy will be
+ *    striking a camera's lens looking at a surface, we know how bright it'll appear to the camera, therefore, using this principle, we have a way to render really bright spots that appear
+ *    on a surface. 
+ *    
+ *    Now we have an answer to our original question: "how do we quantify the amount of light that reaches our eyes when it bounces off a surface? You can think of 
+ *    a sphere of polished, shiny metal in a bright, sunny summer day; that bright spot on the surface that reflects sunlight towards our eyes: how do we mathematically model the color and intensity
+ *    of the light that reaches our eyes on that specific point (or area of the surface) with that specific light source (the sun)?" 
+ *    The answer is: we use the definition of radiance.
  *
- *
- *
- *
- *
- *
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
  */
