@@ -60,13 +60,13 @@
  * incidence between -l and normal n is the defining factor; this is because a surface lit from behind receives no direct light rays
  * from the light source, therefore is 100% dark (although in the real world there is always some indirect light reaching it by 
  * bouncing off something else) whereas if the light rays are striking the surface head on, the transmitted energy is at its maximum,
- * because the photons reaching the surface have a much harder time bouncing off of it, so most of their kinetic energy is converted
- * to heat, therefore the surface will be as lit as it can be. The dot product between these 2 vectors gives a scalar value that models this
+ * because the photons reaching the surface have a much harder time bouncing off of it, so most of their kinetic energy is absorbed by the
+ * material or converted to heat, therefore the surface will be as lit as it can be. The dot product between these 2 vectors gives a scalar value that models this
  * perfectly.
  * 
  * Next, lets dissect the BRDF.
  * BRDF stands for Bidirectional Reflection Distribution Function. The value this function calculates represents the amount of light 
- * that is reflected in a specific direction from a light source.
+ * that is reflected in a specific direction from a light source, also called radiance.
  * This function was derived by Robert Cook and Kenneth Torrance in 1982.
  * To come up with this function, these 2 clever gentlemen started by posing the question: how do we mathematically model the amount
  * of light that reaches our eyes when it bounces off a surface? You can think of a sphere of polished, shiny metal in a bright, sunny summer
@@ -127,32 +127,41 @@
  *    light source (how much power per solid angle) * the angle of indicidence (or the cosine of the angle between the surface normal and the photons
  *    impacting the point) / distance from the point to the light source squared.
  *
- * 4) Radiance: radiance is the total amount of photon energy contained in a solid angle, emitted and/or reflected from a surface. This is essentially quantifying how much
- *    energy is emitted/reflected off a surface in a particular solid angle. This unit is measured in Watts per steradian per square meter (W / sr * m^2). This is because the
- *    photon energy emitted / reflected by a surface in a certain solid angle is directly proportional to the energy it receives / emits (mesaured by the
- *    Watts) but is inversely proportional to the solid angle considered and the size of the surface. 
- *    
- *    If the surface we consider receives and/or emits a constant amount of photon energy (radiant flux), the bigger the solid angle we consider, the more spread out the 
- *    emitted / reflected photon energy will be, so the energy per unit solid angle decreases; likewise, if the incoming/emitted radiant flux is constant on the entirety 
- *    of the considered surface, the bigger the surface considered is, the less photons per square meter impacting the surface, therefore the photon energy per square meter is reduced.
- *    Another factor reducing radiance is the angle of the photons striking the surface. As explained for irradiance, the smaller the angle between the photon and the impacted surface's normal, 
- *    the more energy is absorbed by the material, because the photon has a really hard time bouncing off, so cos(angle between normal and photon direction) will represent an accurate
- *    multiplier.
- *
- *    If you look at the definition of radiant intensity and irradiance, this unit of measurement ties the two together.
+ * 4) Radiance: radiance is the total amount of photon energy contained in a specific solid angle, emitted and/or reflected from a surface. This is essentially quantifying how much
+ *    energy is emitted/reflected off a surface in a particular solid angle. 
  *    You can imagine that this quantity would be very useful to know how much energy would be emitted towards a viewer, or a camera's lens. If we can calculate how much photon energy will be
  *    striking a camera's lens looking at a surface, we know how bright it'll appear to the camera, therefore, using this principle, we have a way to render really bright spots that appear
  *    on a surface. 
- *    
- *    Now we have an answer to our original question: "how do we quantify the amount of light that reaches our eyes when it bounces off a surface? You can think of 
- *    a sphere of polished, shiny metal in a bright, sunny summer day; that bright spot on the surface that reflects sunlight towards our eyes: how do we mathematically model the color and intensity
- *    of the light that reaches our eyes on that specific point (or area of the surface) with that specific light source (the sun)?" 
- *    The answer is: we use the definition of radiance.
+ *    This unit is measured in Watts per steradian per square meter (W / sr * m^2). This is because the
+ *    photon energy emitted / reflected by a surface in a certain solid angle is directly proportional to the energy it receives / emits (mesaured by the
+ *    Watts) but is inversely proportional to the solid angle considered and the size of the surface. Why?
+
+ *    Because if the surface we consider receives and/or emits a constant amount of photon energy (radiant flux), the bigger the solid angle radianting outwards from the surface we consider, 
+ *    the more spread out the emitted / reflected photon energy will be, so the energy per unit solid angle decreases; likewise, if the incoming/emitted radiant flux is constant on the entirety 
+ *    of the considered surface, the bigger the surface considered is, the less photons per square meter bouncing off/emitted by the surface per unit area, therefore the photon 
+ *    energy per square meter is reduced.
+ *    Just think about your monitor; let's say that a 40x20cm monitor emits 15W of radiant flux from all of its pixels combined. A monitor twice the size (80x40cm) will have 4 times
+ *    the amount of pixels, therefore if it emits the same total amount of radiant flux as the 40x20cm, it means that each pixel is 4 times dimmer.
  *
+ *    Another factor reducing radiance is the angle between the center-line of the solid angle (cone) considered, and the normal of the considered surface. The bigger the angle between the solid
+ *    angle's center line and the surface normal, the smaller the area contributing to the outgoing radiant flux, in that specific direction, will be. It's just as if you were looking at the
+ *    monitor you are looking at right now from an angle; you won't see as much surface of the monitor if you view it almost from the side, so the emitted light from the pixels reaching your
+ *    eyes is less. You will see the most surface area of the monitor if your line of view is perpendicular with the surface normal of the monitor (assuming it's a flat non-curved monitor).
+ *    If you look at the definition of radiant intensity and irradiance, this unit of measurement ties the two together.
+ *    
+ * Now we have an answer to our original question: "how do we quantify the amount of light that reaches our eyes when it bounces off a surface?" The answer is: we use the definition of radiance.
+ * The radiance of a specific point on a surface is what the BRDF tries to model, and this is determined by many factors.
+ * For example, the wavelength of light bouncing off a surface towards a specific direction can be influenced by the speed at which the impacted object is moving, relative to the direction the light
+ * that bounces off of it is going. This is why certain objects in the night sky can appear red shifted or blue shifted. See https://en.wikipedia.org/wiki/Relativistic_Doppler_effect.
  * 
- * 
- * 
- * 
- * 
+ * Robert Cook and Kenneth Torrance modeled a BRDF around the idea that every surface is made up of lots of tiny microfacets, all potentially oriented in a different direction, depending on 
+ * the roughness of the surface. The rougher the material, the bigger the variety in surface normals for the microfacets. The smaller the roughness (say a perfect mirror), the smaller the 
+ * varienty in the surface normals. This causes incoming light rays / emitted light rays that bounce off or are emitted from each microfacet to scatter in different directions 
+ * (depending on how rough the surface is).
+
+ * The Cook and Torrance BRDF is made up of the following factors:
+ * 1) Fresnel reflectance:  
+ * 2) Distribution function: 
+ * 3) Geometric factor: 
  * 
  */
