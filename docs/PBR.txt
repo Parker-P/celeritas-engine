@@ -39,7 +39,7 @@
  * Lo = Le + integral over s with differential -l(BRDF * Li * DotProduct(n, -l))
  * 
  * We'll go over the BRDF shortly, but first let's dissect and explain this a bit.
- * First of all, we need an integral because to calculate the brightness (or amount of light received) by the pixel, we need to sum the 
+ * First of all, we need an integral because to calculate the brightness, or amount of light received by the pixel, we need to sum the 
  * light contribution from every single possible direction to pixel x; this is why we are integrating over s with differential -l. 
  * The differential is key to understanding this:
  * in the real world, a point in space or on a surface receives light from all possible directions; to calculate this (the light color
