@@ -3,7 +3,7 @@
  * https://www.youtube.com/watch?v=gya7x9H3mV0 
  * PBR (Physically Based Rendering) as used in the rendering community, is a way to render models'
  * surfaces in such a way that they closely mimic the way that light and materials interact.
- * The way this is done is by using fairly complex math, although very simple in theory.
+ * The way this is done is by using fairly complex maths.
  * The main problem we are trying to solve in a fragment shader is that we are trying to caluclate the
  * color of a pixel taking into account all factors that can influence it; although at first it appears
  * a simple problem to solve, there are a lot of factors that influence the color the pixel a surface
@@ -27,20 +27,21 @@
  *   distance from x
  * - v: the unit vector pointing from the pixel to the virtual camera
  * - l: the unit vector pointing from the pixel to the light source
- * - BRDF: a function that returns the color and intensity of light reflected by pixel x in direction v, given the
+ * - BRDF: a function that returns the radiance of light reflected by pixel x in direction v, given the
  * - color and intensity of the light source, x and v
- * - Lo: outgoing light color and intensity, represented as a vector of 4 elements with the first 3 elements
+ * - Lo: outgoing radiance, represented as a vector of 4 elements with the first 3 elements
  *   being the color defined as RGB values and the 4th element specifying intensity. For example vec4(1.0, 0.0, 0.0, 15.0)
  *   defines a red light with an intensity of 15.0
- * - Le: emitted light color and intensity
- * - Li: incoming light color and intensity
+ * - Le: emitted radiance
+ * - Li: incoming radiance
  * 
  * With the variables defined above, we can define the PBR equation:
- * Lo = Le + integral over s with differential -l(BRDF * incoming light * DotProduct(n, -l))
+ * Lo = Le + integral over s with differential -l(BRDF * Li * DotProduct(n, -l))
  * 
  * We'll go over the BRDF shortly, but first let's dissect and explain this a bit.
- * First of all, we need an integral because we need to sum the light contribution from every single possible direction to pixel x;
- * this is why we are integrating over s with differential -l. The differential is key to understanding this:
+ * First of all, we need an integral because to calculate the brightness (or amount of light received) by the pixel, we need to sum the 
+ * light contribution from every single possible direction to pixel x; this is why we are integrating over s with differential -l. 
+ * The differential is key to understanding this:
  * in the real world, a point in space or on a surface receives light from all possible directions; to calculate this (the light color
  * and intensity), we need the amount of light contributions coming to the point from all possible directions (from the light source to
  * point x). 
@@ -48,8 +49,8 @@
  * source to pixel x, but in our case, the entire surface of hemisphere s is also a light source, so we need a way to consider every
  * single point on the hemisphere as a light source; think of an enviroment map that you would use for image-based lighting in Blender
  * for instance.
- * The integral is the perfect way to do this and is literally saying: for each vector -l (pointing from a point on hemishpere s
- * to pixel x) calculate the following (BRDF * Li * DotProduct(n, -l)) and sum it up.
+ * The integral is the perfect way to do this and is literally saying: for each vector -l pointing from a point on hemishpere s
+ * to pixel x, calculate the following: (BRDF * Li * DotProduct(n, -l)) and sum it up.
  * The reason why we are using a hemisphere and not an entire sphere (that would consider all possible directions instead of half) 
  * for this calculation is because, in practice, the vast majority of pixels of a surface we are trying to render is surrounded by 
  * other pixels facing the same direction (with the same normal), which would block the light coming from any direction other than
@@ -82,7 +83,7 @@
  *    energy equations for objects that have a mass, although it is much more complicated than that; see https://en.wikipedia.org/wiki/Planck_constant 
  *    for more information.
  * 
- *    The radiant flux is measured in Watts, which corresponds to Joules per second (J/s). Lets break this down: 
+ *    Radiant flux is measured in Watts, which corresponds to Joules per second (J/s). Lets break this down: 
  *    One Joule is the work done (or energy expended) by a force of one newton (N) moving an object a distance of one meter (m) in a vacuum where there is no friction. 
  *    One Newton equals a force that produces an acceleration of one meter per second (s) squared on a one kilogram (kg) mass. This means that
  *    applying a constant force of 1 Newton to a 1 Kg object (in a vacuum where there is no friction) will result in the object going 1 meter per 
@@ -124,11 +125,11 @@
  *    bouncing off a surface at an angle is much easier, so most of the kinetic energy is retained, thus the surface is less lit. Photons also lose energy as 
  *    they travel, so something that is really far away will appear dimmer, infact photon energy decreases quadratically over distance. This means that we can 
  *    come up with a formula to calculate irradiance: given an infinitesimally small point on a surface, the irradiance experienced by that point is the radiant intensity of the
- *    light source (how much power per solid angle) * the angle of indicidence (or the cosine of the angle between the surface normal and the photons
+ *    light source (how much power per solid angle) * the angle of indicidence reductor (or the cosine of the angle between the surface normal and the photons
  *    impacting the point) / distance from the point to the light source squared.
  *
- * 4) Radiance: radiance is the total amount of photon energy contained in a specific solid angle, emitted and/or reflected from a surface. This is essentially quantifying how much
- *    energy is emitted/reflected off a surface in a particular solid angle. 
+ * 4) Radiance: radiance is the total amount of photon energy contained in a specific solid angle, emitted and/or reflected from a specific area on a surface. This is essentially quantifying how much
+ *    energy is emitted/reflected off an area on a surface in a particular solid angle.
  *    You can imagine that this quantity would be very useful to know how much energy would be emitted towards a viewer, or a camera's lens. If we can calculate how much photon energy will be
  *    striking a camera's lens looking at a surface, we know how bright it'll appear to the camera, therefore, using this principle, we have a way to render really bright spots that appear
  *    on a surface. 
@@ -158,10 +159,45 @@
  * the roughness of the surface. The rougher the material, the bigger the variety in surface normals for the microfacets. The smaller the roughness (say a perfect mirror), the smaller the 
  * varienty in the surface normals. This causes incoming light rays / emitted light rays that bounce off or are emitted from each microfacet to scatter in different directions 
  * (depending on how rough the surface is).
-
- * The Cook and Torrance BRDF is made up of the following factors:
- * 1) Fresnel reflectance:  
- * 2) Distribution function: 
- * 3) Geometric factor: 
+ *
+ * The Cook and Torrance BRDF takes into account 4 factors:
+ * 1) Diffuse color: this is basically just the integral (sum) of all incoming light intensities from a hemisphere around the point, which we already discussed.
  * 
+ * 2) Fresnel reflectance: this is amount of light reflected from a surface after taking into account the Fresnel effect.
+ *    The Fresnel effect was discovered by Augustin-Jean Fresnel. He came up with equations to quantify the ratio between reflected and refracted photon energy when a photon hits a material. 
+ *    You can experience this as you are walking down the main street of a city: the glass windows of shops will be very difficult to see through when you are approaching them at an angle, 
+ *    but if you are looking at them perpendicular to their surface's normal, you will find that it's much easier to see what's inside the shop. This is because at very big large impact angles,
+ *    the percentage of photon energy reflected is higher than the percentage of photon energy refracted inside the material.
+ *    
+ *    For the BRDF, we are interested in the reflected part, because we are trying to calculate the light that reaches our eyes to know how bright a pixel should be, therfore know its color. 
+ *    To calculate this, we would need to take into account the density of the materials the photons are travelling through and the angle of incidence of the incoming light relative to the surface's 
+ *    normal. The denser the material, the bigger the impact on the photon's direction deviation (refraction). 
+ *    As photons hit a material, they will bend towards the hit surface's normal, and the amount of bending is determined by the difference in optical densities 
+ *    between the 2 materials once the photon hits the surface. This is modelled by Snell's law. You can find the math implementation here: https://en.wikipedia.org/wiki/Snell%27s_law.
+ *    For the reflected part, we use Fresnel's equations. The math is quite complex, but can be found here: https://en.wikipedia.org/wiki/Fresnel_equations.
+ *
+ * 3) Distribution function: the distribution function is a way to map a photon's reflected direction once it hits a surface. This is basically the probability that a photon will 
+ *    bounce towards the predicted direction. On a perfectly flat surface, light rays will always bounce off with the same angle relative to their incoming direction and the surface's normal; 
+ *    this is the predicted direction. The distribution function gives us a way to apply a weight factor when a photon bounces off a surface. Because the microfacets of a surface are just too
+ *    many, it's basically impossible to pick an exact direction of where the photons will bounce off, so we just pick a random weight within the boundaries of the distribution function; the 
+ *    bigger the weight, the closer the direction of the reflected photon will be to the predicted direction.
+ *
+ *    You can imagine that the rougher a surface is, the bigger the probability that a photon will bounce off in a completely random direction, because just by chance it hit a microfacet that is
+ *    totally misaligned with the normal of the face it's part of. The distribution function gives us a neat way to specify, over N amount of times a photon bounces off a specific microfacet,
+ *    with what distribution the photons will travel with a similar direction to the predicted bounce direction. Over a certain amount of bounces, this will kinda give you a solid angle whose 
+ *    center line is the predicted bounce direction, and the area surrounding it represents a volume in which the photons will have travelled.
+ *    The higher the weight, the smaller the solid angle, which means a smaller roughness, which means the more mirror-like the material will appear, because for each microfacet, the light bounces
+ *    in the same direction as the face normal each time.
+ *
+ * 3) Geometric factor: this factor takes into account the fact that the light hitting a microfacet and bouncing towards your eyes might be partly masked by another microfacet. Imagine driving
+ *    on a straight hilly road. As you drive, you start approaching a large dip, where the road slopes downwards before going back uphill again. Of course, you can only see the bit further away from you,
+ *    the one that goes uphill, at first, because the bit that slopes down is blocked by the horizon.
+ *    This is the effect modeled by the geometric factor. The amount of light that bounces off a microfacet (the upwards slope in our example of the road) and reaches your eyes might be influenced 
+ *    by how much of that microfacet is actually visible to you, because it could be blocked by the face's horizon. You could imagine that this effect would only be noticeable at very large viewing angles.
+ *    The result of this effect is just less light reaching your eyes from the affected microfacets, so technically speaking it's a reduced radiant flux emitted from the microfacet.
+ *
+ *    The 2 main factors that influence this are the viewing angle compared to the face's normal the microfacet is a part of, and the roughness of the material. The higher the viewing angle,
+ *    the more likely the microfacet is masked by the face's horizon. The higher the roughness, the steeper the dip between the microfacets is likely to be, so you will be able to see less of
+ *    the microfacet's surface, therefore the total radiant flux reaching your eyes is reduced. This could easily be modelled by a function that takes these 2 parameters and spits out 1 when
+ *    the viewing angle is 0 and the roughness is 0, but spits out a very small number as the angle approaches 90 degrees and the roughness approaches 1.
  */
