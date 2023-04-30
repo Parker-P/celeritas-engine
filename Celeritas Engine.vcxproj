@@ -228,7 +228,7 @@
       <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <OmitFramePointers>false</OmitFramePointers>
       <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
     </ClCompile>

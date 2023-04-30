@@ -425,8 +425,8 @@ namespace Engine::Vulkan
 		std::string err;
 		std::string warn;
 
-		auto scenePath = std::filesystem::current_path().string() + R"(\models\MaterialSphere.glb)";
-		//auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
+		//auto scenePath = std::filesystem::current_path().string() + R"(\models\MaterialSphere.glb)";
+		auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
 		//auto scenePath = std::filesystem::current_path().string() + R"(\models\stanford_dragon_pbr.glb)";
 		//auto scenePath = std::filesystem::current_path().string() + R"(\models\SampleMap.glb)";
 		//auto scenePath = std::filesystem::current_path().string() + R"(\models\monster.glb)";

@@ -60,9 +60,6 @@
     <ClInclude Include="src\engine\Time.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\VulkanApplication.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\structural\Singleton.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
