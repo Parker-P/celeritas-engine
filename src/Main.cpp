@@ -49,7 +49,7 @@
 
 int main()
 {
-	Settings::GlobalSettings::Instance().Load(Settings::Paths::_settings());
+	Settings::GlobalSettings::Instance().Load(Settings::Paths::Settings());
 	Engine::Vulkan::VulkanApplication app;
 	app.Run();
 

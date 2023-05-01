@@ -200,4 +200,9 @@
  *    the more likely the microfacet is masked by the face's horizon. The higher the roughness, the steeper the dip between the microfacets is likely to be, so you will be able to see less of
  *    the microfacet's surface, therefore the total radiant flux reaching your eyes is reduced. This could easily be modelled by a function that takes these 2 parameters and spits out 1 when
  *    the viewing angle is 0 and the roughness is 0, but spits out a very small number as the angle approaches 90 degrees and the roughness approaches 1.
+ *
+ * Another thing that Cook and Torrance realised, is that the more metallic a surface is, the more color is reflected off the surface, so the in the Cook and Torrance BRDF there is a metallic
+ * parameter that is used, in practice, in the fragment shader to know how much weight to give to the color of an incoming photon.
+ *
+ *
  */

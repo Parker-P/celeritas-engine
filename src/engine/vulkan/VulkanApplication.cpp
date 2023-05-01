@@ -98,6 +98,7 @@ namespace Engine::Vulkan
 		CreateSemaphores();
 		CreateCommandPool();
 		LoadScene();
+		LoadEnvironmentMap();
 		CreateSwapchain();
 		CreateRenderPass();
 		CreateFramebuffers();
@@ -425,13 +426,13 @@ namespace Engine::Vulkan
 		std::string err;
 		std::string warn;
 
-		//auto scenePath = std::filesystem::current_path().string() + R"(\models\MaterialSphere.glb)";
-		auto scenePath = std::filesystem::current_path().string() + R"(\models\mp5k.glb)";
-		//auto scenePath = std::filesystem::current_path().string() + R"(\models\stanford_dragon_pbr.glb)";
-		//auto scenePath = std::filesystem::current_path().string() + R"(\models\SampleMap.glb)";
-		//auto scenePath = std::filesystem::current_path().string() + R"(\models\monster.glb)";
-		//auto scenePath = std::filesystem::current_path().string() + R"(\models\free_1972_datsun_4k_textures.glb)";
-		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath);
+		//auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb)";
+		auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb)";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb)";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "monster.glb)";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb)";
+		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath.string());
 		std::cout << warn << std::endl;
 		std::cout << err << std::endl;
 
@@ -558,6 +559,57 @@ namespace Engine::Vulkan
 				mesh->_gameObjectIndex = (unsigned int)(_scene._gameObjects.size() - 1);
 			}
 		}
+	}
+
+	void VulkanApplication::LoadEnvironmentMap()
+	{
+		// On the CPU side, take the environment map and sample it in an array, where for each cell, 
+		// have the world space position of the sampled pixel mapped onto a sphere, and the colour
+		// of the pixel.You will be passing this into the shader.
+		// 
+		// In the fragment shader, use the cross product of the normal vector and a random vector.This
+		// will give you a vector that represents a random direction at the base of the hemisphere above
+		// the pixel to render, in world space.
+		// 
+		// You then rotate this vector around the zenith and azimuth angles of the entire hemisphere, calculate
+		// the spherical coordinates on the hemisphere(in world space) and get the corresponding colour from
+		// the matrix of precomputed samples we passed in.
+		// 
+		// As you loop through all directions, you add up the light contributions to a variable.
+		// You will need a function that gets the closest sample from the array of precomputed samples.
+
+		//auto mapPath = Settings::Paths::TexturesPath() /= "Workshop.hdr";
+		auto mapPath = Settings::Paths::TexturesPath() /= "Test.hdr";
+		int width = 2048;
+		int height = 1024;
+		int actualComponents;
+		int wantedComponents = 4;
+
+		// In the stbi_load() function, comp stands for components. If a PNG image, for example, there are 4 components 
+		// for each pixel, red, green, blue and alpha.
+		auto image = stbi_load(mapPath.string().c_str(), &width, &height, &actualComponents, wantedComponents);
+
+		unsigned char r0 = image[0];
+		unsigned char g0 = image[1];
+		unsigned char b0 = image[2];
+		unsigned char a0 = image[3];
+
+		unsigned char r1 = image[4];
+		unsigned char g1 = image[5];
+		unsigned char b1 = image[6];
+		unsigned char a1 = image[7];
+
+		unsigned char r2 = image[8];
+		unsigned char g2 = image[9];
+		unsigned char b2 = image[10];
+		unsigned char a2 = image[11];
+
+		unsigned char r3 = image[12];
+		unsigned char g3 = image[13];
+		unsigned char b3 = image[14];
+		unsigned char a3 = image[15];
+
+		std::cout << "Environment map loaded" << std::endl;
 	}
 
 	VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)
@@ -859,8 +911,8 @@ namespace Engine::Vulkan
 	{
 		using Vertex = Scenes::Vertex;
 
-		VkShaderModule vertexShaderModule = CreateShaderModule(Settings::Paths::_vertexShaderPath());
-		VkShaderModule fragmentShaderModule = CreateShaderModule(Settings::Paths::_fragmentShaderPath());
+		VkShaderModule vertexShaderModule = CreateShaderModule(Settings::Paths::VertexShaderPath());
+		VkShaderModule fragmentShaderModule = CreateShaderModule(Settings::Paths::FragmentShaderPath());
 
 		// Set up shader stage info.
 		VkPipelineShaderStageCreateInfo vertexShaderCreateInfo = {};
@@ -1060,7 +1112,7 @@ namespace Engine::Vulkan
 		for (auto& light : _scene._pointLights) {
 			light.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
 
-			if (lightLayout== nullptr) {
+			if (lightLayout == nullptr) {
 				lightLayout = &light._sets[0]._layout;
 			}
 		}

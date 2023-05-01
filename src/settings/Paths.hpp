@@ -9,9 +9,11 @@ namespace Settings
 	class Paths
 	{
 		/**
-		 * @brief The root path of the project. May vary depending on C++ compiler and platform, but works for Visual Studio..
+		 * @brief Every executable is passed a "working directory" parameter when starting it. This function returns the
+		 * current working directory supplied to the executable that is running the code in this function, if provided,
+		 * otherwise returns the folder, on disk, where the executable resides.
 		 */
-		static inline auto _rootPath = []() -> std::filesystem::path { return std::filesystem::current_path(); };
+		static inline auto CurrentWorkingDirectory = []() -> std::filesystem::path { return std::filesystem::current_path(); };
 
 	public:
 
@@ -21,17 +23,27 @@ namespace Settings
 		/**
 		 * @brief Function returning the path to the global settings json file.
 		 */
-		static inline auto _settings = []() -> std::filesystem::path { return _rootPath() /= L"src\\settings\\GlobalSettings.json"; };
+		static inline auto Settings = []() -> std::filesystem::path { return CurrentWorkingDirectory() /= L"src\\settings\\GlobalSettings.json"; };
 		
 		/**
 		 * @brief Function returning the path to the compiled vertex shader file.
 		 */
-		static inline auto _vertexShaderPath = []() -> std::filesystem::path { return _rootPath() /= L"src\\engine\\shaders\\VertexShader.spv"; };
+		static inline auto VertexShaderPath = []() -> std::filesystem::path { return CurrentWorkingDirectory() /= L"src\\engine\\shaders\\VertexShader.spv"; };
 		
 		/**
 		 * @brief Function returning the path to the compiled fragment shader file.
 		 */
-		static inline auto _fragmentShaderPath = []() -> std::filesystem::path { return _rootPath() /= L"src\\engine\\shaders\\FragmentShader.spv"; };
+		static inline auto FragmentShaderPath = []() -> std::filesystem::path { return CurrentWorkingDirectory() /= L"src\\engine\\shaders\\FragmentShader.spv"; };
+
+		/**
+		 * @brief Function returning the path to the textures folder.
+		 */
+		static inline auto TexturesPath = []() -> std::filesystem::path { return CurrentWorkingDirectory() /= L"textures"; };
+
+		/**
+		 * @brief Function returning the path to the models folder.
+		 */
+		static inline auto ModelsPath = []() -> std::filesystem::path { return CurrentWorkingDirectory() /= L"models"; };
 	};
 }
 
