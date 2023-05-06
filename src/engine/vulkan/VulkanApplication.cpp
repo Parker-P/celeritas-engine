@@ -592,21 +592,26 @@ namespace Engine::Vulkan
 		auto image = stbi_load(mapPath.string().c_str(), &width, &height, &actualComponents, wantedComponents);
 		auto imageLength = width * height * actualComponents;
 
-		for (int componentIndex = 0; componentIndex < imageLength; componentIndex+=4)
+		for (int componentIndex = 0; componentIndex < imageLength; componentIndex += 4)
 		{
 			int pixelIndex = componentIndex / 4;
 			int imageCoordinateX = pixelIndex % width;
 			int imageCoordinateY = pixelIndex / width;
 
 			// Mapping image coordinates onto a unit sphere and calculating spherical coordinates.
-			float azimuthDegrees = 360.0f * ((float)imageCoordinateX / (float)width);
+			float azimuthDegrees = 360.0f - (360.0f * ((float)imageCoordinateX / (float)width));
 			float zenithDegrees = (180.0f * (1.0f - (float)imageCoordinateY / (float)height)) - 90.0f;
 
 			// Calculating cartesian (x, y, z) coordinates in world space. Assuming that the origin is the center of the sphere,
 			// we are using a left-handed coordinate system and that the Z vector (forward vector) in world space points
 			// to the spherical coordinate with azimuth = 0 and zenith = 0.
-			float sphereCoordinateX = cos(glm::radians(azimuthDegrees));
+			float sphereCoordinateX = sin(glm::radians(azimuthDegrees)) * cos(glm::radians(zenithDegrees));
 			float sphereCoordinateY = sin(glm::radians(zenithDegrees));
+			float sphereCoordinateZ = cos(glm::radians(azimuthDegrees)) * cos(glm::radians(zenithDegrees));
+
+			if (azimuthDegrees == 270.0f && zenithDegrees == 0.0f) {
+				auto x = 1;
+			}
 
 			auto x = 1;
 		}
