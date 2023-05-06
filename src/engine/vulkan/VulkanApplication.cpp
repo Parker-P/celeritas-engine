@@ -596,21 +596,23 @@ namespace Engine::Vulkan
 		{
 		public:
 
-			std::vector<glm::vec4> _pixelColor;
-			std::vector<glm::vec4> _pixelCoordinatesWorldSpace;
+			std::vector<glm::vec4> _pixelColors;
+			std::vector<glm::vec3> _pixelCoordinatesWorldSpace;
 
 			SphericalEnvironmentMap(int width, int height)
 			{
 				auto pixelCount = width * height;
-				_pixelColor.resize(pixelCount);
+				_pixelColors.resize(pixelCount);
 				_pixelCoordinatesWorldSpace.resize(pixelCount);
 			}
-
-			/*void CreatePng(std::filesystem::path filePath)
-			{
-				stbi_write_png(filePath.string().c_str(), );
-			}*/
 		};
+
+		struct
+		{
+			glm::vec4* pixelColors;
+			glm::vec3* pixelCoordinatesWorldSpace;
+			int sizePixels;
+		} environmentMap;
 
 		SphericalEnvironmentMap sphericalEnvironmentMap(width, height);
 
@@ -638,11 +640,25 @@ namespace Engine::Vulkan
 
 			// Clumping the color and the coordinate of that pixel as if the image was laid out on a sphere.
 			glm::vec4 color(image[componentIndex], image[componentIndex + 1], image[componentIndex + 2], image[componentIndex + 3]);
-			glm::vec4 coordinatesOnSphere = glm::vec4(sphereCoordinateX, sphereCoordinateY, sphereCoordinateZ, 0.0f);
+			glm::vec3 coordinatesOnSphere = glm::vec3(sphereCoordinateX, sphereCoordinateY, sphereCoordinateZ);
 
-			sphericalEnvironmentMap._pixelColor[pixelIndex] = color;
+			sphericalEnvironmentMap._pixelColors[pixelIndex] = color;
 			sphericalEnvironmentMap._pixelCoordinatesWorldSpace[pixelIndex] = coordinatesOnSphere;
 		}
+
+		environmentMap.pixelColors = sphericalEnvironmentMap._pixelColors.data();
+		environmentMap.pixelCoordinatesWorldSpace = sphericalEnvironmentMap._pixelCoordinatesWorldSpace.data();
+		environmentMap.sizePixels = sphericalEnvironmentMap._pixelColors.size();
+
+		auto b = Buffer(_logicalDevice, 
+			_physicalDevice, 
+			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT), 
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			&environmentMap,
+			sizeof(environmentMap));
+
+		b.SendToGPU(_commandPool, _queue);
+
 
 		std::cout << "Environment map loaded" << std::endl;
 	}
