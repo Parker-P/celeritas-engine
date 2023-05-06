@@ -606,10 +606,10 @@ namespace Engine::Vulkan
 				_pixelCoordinatesWorldSpace.resize(pixelCount);
 			}
 
-			void CreatePng(std::filesystem::path filePath)
+			/*void CreatePng(std::filesystem::path filePath)
 			{
 				stbi_write_png(filePath.string().c_str(), );
-			}
+			}*/
 		};
 
 		SphericalEnvironmentMap sphericalEnvironmentMap(width, height);
