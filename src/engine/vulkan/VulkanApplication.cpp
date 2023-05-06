@@ -565,7 +565,7 @@ namespace Engine::Vulkan
 	{
 		// On the CPU side, take the environment map and sample it in an array, where for each cell, 
 		// have the world space position of the sampled pixel mapped onto a sphere, and the colour
-		// of the pixel.You will be passing this into the shader.
+		// of the pixel. You will be passing this into the shader.
 		// 
 		// In the fragment shader, use the cross product of the normal vector and a random vector.This
 		// will give you a vector that represents a random direction at the base of the hemisphere above
@@ -578,36 +578,38 @@ namespace Engine::Vulkan
 		// As you loop through all directions, you add up the light contributions to a variable.
 		// You will need a function that gets the closest sample from the array of precomputed samples.
 
-		//auto mapPath = Settings::Paths::TexturesPath() /= "Workshop.hdr";
-		auto mapPath = Settings::Paths::TexturesPath() /= "Test.hdr";
-		int width = 2048;
-		int height = 1024;
+		auto mapPath = Settings::Paths::TexturesPath() /= "Workshop.hdr";
+		//auto mapPath = Settings::Paths::TexturesPath() /= "Test.hdr";
+		int width;
+		int height;
 		int actualComponents;
 		int wantedComponents = 4;
 
-		// In the stbi_load() function, comp stands for components. If a PNG image, for example, there are 4 components 
+		// In the stbi_load() function, comp stands for components. In a PNG image, for example, there are 4 components 
 		// for each pixel, red, green, blue and alpha.
+		// The image's pixels are read and stored left to right, top to bottom, relative to the image.
+		// Each pixel's component is an unsigned char.
 		auto image = stbi_load(mapPath.string().c_str(), &width, &height, &actualComponents, wantedComponents);
+		auto imageLength = width * height * actualComponents;
 
-		unsigned char r0 = image[0];
-		unsigned char g0 = image[1];
-		unsigned char b0 = image[2];
-		unsigned char a0 = image[3];
+		for (int componentIndex = 0; componentIndex < imageLength; componentIndex+=4)
+		{
+			int pixelIndex = componentIndex / 4;
+			int imageCoordinateX = pixelIndex % width;
+			int imageCoordinateY = pixelIndex / width;
 
-		unsigned char r1 = image[4];
-		unsigned char g1 = image[5];
-		unsigned char b1 = image[6];
-		unsigned char a1 = image[7];
+			// Mapping image coordinates onto a unit sphere and calculating spherical coordinates.
+			float azimuthDegrees = 360.0f * ((float)imageCoordinateX / (float)width);
+			float zenithDegrees = (180.0f * (1.0f - (float)imageCoordinateY / (float)height)) - 90.0f;
 
-		unsigned char r2 = image[8];
-		unsigned char g2 = image[9];
-		unsigned char b2 = image[10];
-		unsigned char a2 = image[11];
+			// Calculating cartesian (x, y, z) coordinates in world space. Assuming that the origin is the center of the sphere,
+			// we are using a left-handed coordinate system and that the Z vector (forward vector) in world space points
+			// to the spherical coordinate with azimuth = 0 and zenith = 0.
+			float sphereCoordinateX = cos(glm::radians(azimuthDegrees));
+			float sphereCoordinateY = sin(glm::radians(zenithDegrees));
 
-		unsigned char r3 = image[12];
-		unsigned char g3 = image[13];
-		unsigned char b3 = image[14];
-		unsigned char a3 = image[15];
+			auto x = 1;
+		}
 
 		std::cout << "Environment map loaded" << std::endl;
 	}
