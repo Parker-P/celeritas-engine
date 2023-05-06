@@ -592,28 +592,56 @@ namespace Engine::Vulkan
 		auto image = stbi_load(mapPath.string().c_str(), &width, &height, &actualComponents, wantedComponents);
 		auto imageLength = width * height * actualComponents;
 
+		class SphericalEnvironmentMap
+		{
+		public:
+
+			std::vector<glm::vec4> _pixelColor;
+			std::vector<glm::vec4> _pixelCoordinatesWorldSpace;
+
+			SphericalEnvironmentMap(int width, int height)
+			{
+				auto pixelCount = width * height;
+				_pixelColor.resize(pixelCount);
+				_pixelCoordinatesWorldSpace.resize(pixelCount);
+			}
+
+			void CreatePng(std::filesystem::path filePath)
+			{
+				stbi_write_png(filePath.string().c_str(), );
+			}
+		};
+
+		SphericalEnvironmentMap sphericalEnvironmentMap(width, height);
+
 		for (int componentIndex = 0; componentIndex < imageLength; componentIndex += 4)
 		{
 			int pixelIndex = componentIndex / 4;
 			int imageCoordinateX = pixelIndex % width;
 			int imageCoordinateY = pixelIndex / width;
 
-			// Mapping image coordinates onto a unit sphere and calculating spherical coordinates.
-			float azimuthDegrees = 360.0f - (360.0f * ((float)imageCoordinateX / (float)width));
-			float zenithDegrees = (180.0f * (1.0f - (float)imageCoordinateY / (float)height)) - 90.0f;
+			// Mapping the image's coordinates into [0-1] UV coordinate space.
+			float uvCoordinateX = (float)imageCoordinateX / (float)width;
+			float uvCoordinateY = 1.0f - ((float)imageCoordinateY / (float)height);
 
-			// Calculating cartesian (x, y, z) coordinates in world space. Assuming that the origin is the center of the sphere,
-			// we are using a left-handed coordinate system and that the Z vector (forward vector) in world space points
-			// to the spherical coordinate with azimuth = 0 and zenith = 0.
+			// Mapping image coordinates onto a unit sphere and calculating spherical coordinates.
+			float azimuthDegrees = 360.0f - (360.0f * uvCoordinateX);
+			float zenithDegrees = (180.0f * uvCoordinateY) - 90.0f;
+
+			// Calculating cartesian (x, y, z) coordinates in world space from spherical coordinates. 
+			// Assuming that the origin is the center of the sphere, we are using a left-handed coordinate 
+			// system and that the Z vector (forward vector) in world space points to the spherical coordinate 
+			// with azimuth = 0 and zenith = 0.
 			float sphereCoordinateX = sin(glm::radians(azimuthDegrees)) * cos(glm::radians(zenithDegrees));
 			float sphereCoordinateY = sin(glm::radians(zenithDegrees));
 			float sphereCoordinateZ = cos(glm::radians(azimuthDegrees)) * cos(glm::radians(zenithDegrees));
 
-			if (azimuthDegrees == 270.0f && zenithDegrees == 0.0f) {
-				auto x = 1;
-			}
+			// Clumping the color and the coordinate of that pixel as if the image was laid out on a sphere.
+			glm::vec4 color(image[componentIndex], image[componentIndex + 1], image[componentIndex + 2], image[componentIndex + 3]);
+			glm::vec4 coordinatesOnSphere = glm::vec4(sphereCoordinateX, sphereCoordinateY, sphereCoordinateZ, 0.0f);
 
-			auto x = 1;
+			sphericalEnvironmentMap._pixelColor[pixelIndex] = color;
+			sphericalEnvironmentMap._pixelCoordinatesWorldSpace[pixelIndex] = coordinatesOnSphere;
 		}
 
 		std::cout << "Environment map loaded" << std::endl;
