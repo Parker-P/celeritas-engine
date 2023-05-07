@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\engine\scenes\SphericalEnvironmentMap.cpp" />
     <ClCompile Include="src\engine\scenes\Camera.cpp" />
     <ClCompile Include="src\engine\scenes\GameObject.cpp" />
     <ClCompile Include="src\engine\input\Input.cpp" />
@@ -90,6 +91,7 @@
     <ClInclude Include="include\nlohmann\thirdparty\hedley\hedley_undef.hpp" />
     <ClInclude Include="include\stb\stb_image_write.h" />
     <ClInclude Include="include\tinygltf\tiny_gltf.h" />
+    <ClInclude Include="src\engine\scenes\SphericalEnvironmentMap.hpp" />
     <ClInclude Include="src\engine\scenes\Material.hpp" />
     <ClInclude Include="src\engine\scenes\PointLight.hpp" />
     <ClInclude Include="src\engine\scenes\Vertex.hpp" />

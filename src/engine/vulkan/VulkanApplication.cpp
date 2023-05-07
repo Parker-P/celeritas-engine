@@ -47,6 +47,7 @@
 #include "engine/structural/IPipelineable.hpp"
 #include "engine/structural/Drawable.hpp"
 #include "engine/scenes/PointLight.hpp"
+#include "engine/scenes/SphericalEnvironmentMap.hpp"
 #include "engine/scenes/Scene.hpp"
 #include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Mesh.hpp"
@@ -563,6 +564,7 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::LoadEnvironmentMap()
 	{
+		// The idea behind an environment map is the following:
 		// On the CPU side, take the environment map and sample it in an array, where for each cell, 
 		// have the world space position of the sampled pixel mapped onto a sphere, and the colour
 		// of the pixel. You will be passing this into the shader.
@@ -578,87 +580,7 @@ namespace Engine::Vulkan
 		// As you loop through all directions, you add up the light contributions to a variable.
 		// You will need a function that gets the closest sample from the array of precomputed samples.
 
-		auto mapPath = Settings::Paths::TexturesPath() /= "Workshop.hdr";
-		//auto mapPath = Settings::Paths::TexturesPath() /= "Test.hdr";
-		int width;
-		int height;
-		int actualComponents;
-		int wantedComponents = 4;
-
-		// In the stbi_load() function, comp stands for components. In a PNG image, for example, there are 4 components 
-		// for each pixel, red, green, blue and alpha.
-		// The image's pixels are read and stored left to right, top to bottom, relative to the image.
-		// Each pixel's component is an unsigned char.
-		auto image = stbi_load(mapPath.string().c_str(), &width, &height, &actualComponents, wantedComponents);
-		auto imageLength = width * height * actualComponents;
-
-		class SphericalEnvironmentMap
-		{
-		public:
-
-			std::vector<glm::vec4> _pixelColors;
-			std::vector<glm::vec3> _pixelCoordinatesWorldSpace;
-
-			SphericalEnvironmentMap(int width, int height)
-			{
-				auto pixelCount = width * height;
-				_pixelColors.resize(pixelCount);
-				_pixelCoordinatesWorldSpace.resize(pixelCount);
-			}
-		};
-
-		struct
-		{
-			glm::vec4* pixelColors;
-			glm::vec3* pixelCoordinatesWorldSpace;
-			int sizePixels;
-		} environmentMap;
-
-		SphericalEnvironmentMap sphericalEnvironmentMap(width, height);
-
-		for (int componentIndex = 0; componentIndex < imageLength; componentIndex += 4)
-		{
-			int pixelIndex = componentIndex / 4;
-			int imageCoordinateX = pixelIndex % width;
-			int imageCoordinateY = pixelIndex / width;
-
-			// Mapping the image's coordinates into [0-1] UV coordinate space.
-			float uvCoordinateX = (float)imageCoordinateX / (float)width;
-			float uvCoordinateY = 1.0f - ((float)imageCoordinateY / (float)height);
-
-			// Mapping image coordinates onto a unit sphere and calculating spherical coordinates.
-			float azimuthDegrees = 360.0f - (360.0f * uvCoordinateX);
-			float zenithDegrees = (180.0f * uvCoordinateY) - 90.0f;
-
-			// Calculating cartesian (x, y, z) coordinates in world space from spherical coordinates. 
-			// Assuming that the origin is the center of the sphere, we are using a left-handed coordinate 
-			// system and that the Z vector (forward vector) in world space points to the spherical coordinate 
-			// with azimuth = 0 and zenith = 0.
-			float sphereCoordinateX = sin(glm::radians(azimuthDegrees)) * cos(glm::radians(zenithDegrees));
-			float sphereCoordinateY = sin(glm::radians(zenithDegrees));
-			float sphereCoordinateZ = cos(glm::radians(azimuthDegrees)) * cos(glm::radians(zenithDegrees));
-
-			// Clumping the color and the coordinate of that pixel as if the image was laid out on a sphere.
-			glm::vec4 color(image[componentIndex], image[componentIndex + 1], image[componentIndex + 2], image[componentIndex + 3]);
-			glm::vec3 coordinatesOnSphere = glm::vec3(sphereCoordinateX, sphereCoordinateY, sphereCoordinateZ);
-
-			sphericalEnvironmentMap._pixelColors[pixelIndex] = color;
-			sphericalEnvironmentMap._pixelCoordinatesWorldSpace[pixelIndex] = coordinatesOnSphere;
-		}
-
-		environmentMap.pixelColors = sphericalEnvironmentMap._pixelColors.data();
-		environmentMap.pixelCoordinatesWorldSpace = sphericalEnvironmentMap._pixelCoordinatesWorldSpace.data();
-		environmentMap.sizePixels = sphericalEnvironmentMap._pixelColors.size();
-
-		auto b = Buffer(_logicalDevice, 
-			_physicalDevice, 
-			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT), 
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			&environmentMap,
-			sizeof(environmentMap));
-
-		b.SendToGPU(_commandPool, _queue);
-
+		_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Workshop.hdr");
 
 		std::cout << "Environment map loaded" << std::endl;
 	}
@@ -1144,6 +1066,7 @@ namespace Engine::Vulkan
 		VkDescriptorSetLayout* gameObjectLayout = nullptr;
 		VkDescriptorSetLayout* meshLayout = nullptr;
 		VkDescriptorSetLayout* lightLayout = nullptr;
+		VkDescriptorSetLayout* sceneLayout = nullptr;
 
 		for (auto& gameObject : _scene._gameObjects) {
 			if (gameObject._pMesh != nullptr) {
@@ -1168,7 +1091,11 @@ namespace Engine::Vulkan
 			}
 		}
 
-		std::vector<VkDescriptorSetLayout> layouts = { _mainCamera._sets[0]._layout, *gameObjectLayout, *lightLayout, *meshLayout };
+		_scene.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+		_scene.UpdateShaderResources();
+		sceneLayout = &_scene._sets[0]._layout;
+
+		std::vector<VkDescriptorSetLayout> layouts = { _mainCamera._sets[0]._layout, *gameObjectLayout, *lightLayout, *meshLayout, *sceneLayout };
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutCreateInfo.setLayoutCount = (uint32_t)layouts.size();

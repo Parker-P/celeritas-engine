@@ -66,9 +66,6 @@
     <ClInclude Include="src\utils\Utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\VulkanApplication.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\settings\GlobalSettings.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -369,6 +366,9 @@
     <ClInclude Include="src\engine\scenes\PointLight.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\engine\scenes\SphericalEnvironmentMap.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\engine\scenes\Camera.cpp">
@@ -432,6 +432,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\engine\scenes\PointLight.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\engine\scenes\SphericalEnvironmentMap.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

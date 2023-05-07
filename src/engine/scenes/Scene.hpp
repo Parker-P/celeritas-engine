@@ -8,7 +8,7 @@ namespace Engine::Scenes
 	/**
 	 * @brief Represents a celeritas-engine scene.
 	 */
-	class Scene : public ::Structural::IUpdatable
+	class Scene : public ::Structural::IUpdatable, public Structural::IPipelineable
 	{
 
 	public:
@@ -28,8 +28,23 @@ namespace Engine::Scenes
 		std::vector<Material> _materials;
 
 		/**
-		 * @brief Updates all game objects.
+		 * @brief Environment map used for image-based lighting.
+		 */
+		SphericalEnvironmentMap _environmentMap;
+
+		/**
+		 * @brief Updates all scene-related data.
 		 */
 		virtual void Update() override;
+		
+		/**
+		 * @brief See IPipelinable.
+		 */
+		virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue) = 0;
+
+		/**
+		 * @brief See IPipelinable.
+		 */
+		virtual void UpdateShaderResources() = 0;
 	};
 }
