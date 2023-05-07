@@ -1,16 +1,21 @@
 #define STB_IMAGE_IMPLEMENTATION
 
+#include <iostream>
 #include <vector>
 #include <GLFW/glfw3.h>
 #include <filesystem>
 #include <glm/gtc/matrix_transform.hpp>
 #include <stb/stb_image.h>
+#include <vulkan/vulkan.h>
 
+#include "engine/vulkan/Queue.hpp"
+#include "engine/vulkan/PhysicalDevice.hpp"
+#include "engine/vulkan/Image.hpp"
 #include "engine/scenes/SphericalEnvironmentMap.hpp"
 
 namespace Engine::Scenes
 {
-	bool SphericalEnvironmentMap::LoadFromFile(std::filesystem::path imagePath)
+	void SphericalEnvironmentMap::LoadFromFile(std::filesystem::path imagePath)
 	{
 		int width;
 		int height;
@@ -57,8 +62,6 @@ namespace Engine::Scenes
 			_pixelCoordinatesWorldSpace[pixelIndex] = coordinatesOnSphere;
 		}
 
-		_environmentMap.pixelColors = _pixelColors.data();
-		_environmentMap.pixelCoordinatesWorldSpace = _pixelCoordinatesWorldSpace.data();
-		_environmentMap.sizePixels = (int)_pixelColors.size();
+		std::cout << ""
 	}
 }

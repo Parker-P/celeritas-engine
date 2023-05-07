@@ -23,18 +23,19 @@ namespace Engine::Scenes
 		std::vector<glm::vec3> _pixelCoordinatesWorldSpace;
 
 		/**
-		 * @brief Structure used for sending data to the shaders.
+		 * @brief The RGBA image that encodes color data.
 		 */
-		struct
-		{
-			glm::vec4* pixelColors;
-			glm::vec3* pixelCoordinatesWorldSpace;
-			int sizePixels;
-		} _environmentMap;
+		Vulkan::Image _colors;
+
+		/**
+		 * @brief The image that encodes world space spherical positions of the pixels of the environment map's image
+		 * as if it was wrapped into a sphere.
+		 */
+		Vulkan::Image _positions;
 
 		/**
 		 * @brief Loads.
 		 */
-		bool LoadFromFile(std::filesystem::path imagePath);
+		void LoadFromFile(std::filesystem::path imagePath);
 	};
 }
