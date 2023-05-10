@@ -1,6 +1,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <map>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -85,6 +86,7 @@ namespace Engine::Vulkan
 	{
 		// The amount of sets and descriptor types is defined when creating the descriptor pool.
 		std::vector<VkDescriptorSetLayout> layouts;
+
 		for (auto& descriptorSet : _pDescriptorSets) {
 			layouts.push_back(descriptorSet->_layout);
 		}
@@ -96,6 +98,7 @@ namespace Engine::Vulkan
 		allocInfo.pSetLayouts = layouts.data();
 
 		std::vector<VkDescriptorSet> allocatedDescriptorSetHandles(_pDescriptorSets.size());
+
 		if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, allocatedDescriptorSetHandles.data()) != VK_SUCCESS) {
 			std::cerr << "failed to allocate descriptor sets" << std::endl;
 			exit(1);
@@ -115,16 +118,34 @@ namespace Engine::Vulkan
 		_pDescriptorSets = descriptorSets;
 		_logicalDevice = logicalDevice;
 
-		std::vector<VkDescriptorPoolSize> poolSizes;
+		// Find the total amount of each descriptor type present in each descriptor of each descriptor set.
+		// Vulkan needs this probably because when it needs to allocate memory, it needs to know the type (which 
+		// implies its size in bytes) and how many of them there are.
+		std::map<VkDescriptorType, int> typeCounts;
+
 		for (auto& descriptorSet : descriptorSets) {
-			if (descriptorSet->_descriptors.size() != 0) {
-				if (descriptorSet->_descriptors[0]->_type != VK_DESCRIPTOR_TYPE_MAX_ENUM) {
-					VkDescriptorPoolSize poolSize{};
-					poolSize.type = descriptorSet->_descriptors[0]->_type;
-					poolSize.descriptorCount = (uint32_t)descriptorSet->_descriptors.size();
-					poolSizes.push_back(poolSize);
+			for (auto& descriptor : descriptorSet->_descriptors) {
+				if (descriptor->_type != VK_DESCRIPTOR_TYPE_MAX_ENUM) {
+					auto existingEntry = typeCounts.find(descriptor->_type);
+
+					if (existingEntry != typeCounts.end()) {
+						typeCounts[existingEntry->first] += 1;
+					}
+					else {
+						typeCounts.emplace(descriptor->_type, 1);
+					}
 				}
 			}
+		}
+		
+
+		std::vector<VkDescriptorPoolSize> poolSizes;
+
+		for (auto i = typeCounts.begin(); i != typeCounts.end(); ++i) {
+			VkDescriptorPoolSize poolSize{};
+			poolSize.type = i->first;
+			poolSize.descriptorCount = (uint32_t)i->second;
+			poolSizes.push_back(poolSize);
 		}
 
 		// maxSets is the maximum number of descriptor sets that can be allocated from the pool.

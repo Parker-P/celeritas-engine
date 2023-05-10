@@ -1078,6 +1078,8 @@ namespace Engine::Vulkan
 			if (gameObject._pMesh != nullptr) {
 				gameObject.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
 				gameObject._pMesh->CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+				gameObject.UpdateShaderResources();
+				gameObject._pMesh->UpdateShaderResources();
 
 				if (gameObjectLayout == nullptr) {
 					gameObjectLayout = &gameObject._sets[0]._layout;
@@ -1091,6 +1093,7 @@ namespace Engine::Vulkan
 
 		for (auto& light : _scene._pointLights) {
 			light.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+			light.UpdateShaderResources();
 
 			if (lightLayout == nullptr) {
 				lightLayout = &light._sets[0]._layout;
