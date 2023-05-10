@@ -40,11 +40,11 @@ namespace Engine::Scenes
 		/**
 		 * @brief See IPipelinable.
 		 */
-		virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue) = 0;
+		void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue);
 
 		/**
 		 * @brief See IPipelinable.
 		 */
-		virtual void UpdateShaderResources() = 0;
+		void UpdateShaderResources();
 	};
 }

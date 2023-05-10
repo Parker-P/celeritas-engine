@@ -2,7 +2,8 @@
 
 namespace Engine::Scenes
 {
-	class Scene;
+	// Forward declarations for the compiler.
+	//class Scene;
 
 	/**
 	 * @brief Represents a collection of vertices and face indices as triangles.

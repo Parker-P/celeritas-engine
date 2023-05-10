@@ -78,9 +78,6 @@
     <ClInclude Include="src\utils\Utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\VulkanApplication.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\settings\GlobalSettings.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>

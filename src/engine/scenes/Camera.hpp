@@ -3,7 +3,7 @@
 namespace Engine::Scenes
 {
 	// Forward declarations for the compiler.
-	class Scene;
+	//class Scene;
 
 	/**
 	 * @brief Represents a general-purpose camera.

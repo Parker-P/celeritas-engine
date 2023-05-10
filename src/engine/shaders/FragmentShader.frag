@@ -17,6 +17,10 @@ layout(set = 2, binding = 0) uniform LightData {
 
 layout(set = 3, binding = 0) uniform sampler2D baseColorTexture;
 
+layout(set = 4, binding = 0) uniform sampler2D environmentTexture;
+
+layout(set = 4, binding = 1) uniform textureBuffer environmentPositions;
+
 void main() 
 {
 	// We need to figure out, for each pixel, how much light and of what color is incoming from the

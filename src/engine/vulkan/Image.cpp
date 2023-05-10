@@ -17,8 +17,14 @@ namespace Engine::Vulkan
 			format == VK_FORMAT_D32_SFLOAT) {
 			return 4;
 		}
-		else if (format == VK_FORMAT_R8G8B8_SRGB || format == VK_FORMAT_R8G8B8_UINT) {
+		
+		if (format == VK_FORMAT_R8G8B8_SRGB || 
+			format == VK_FORMAT_R8G8B8_UINT) {
 			return 3;
+		}
+
+		if (format == VK_FORMAT_R32G32B32_SFLOAT) {
+			return 12;
 		}
 
 		return 0;
@@ -52,6 +58,8 @@ namespace Engine::Vulkan
 		imageCreateInfo.arrayLayers = 1;
 		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 
+		// imageCreateMaxMipLevels, imageCreateMaxArrayLayers, imageCreateMaxExtent, and imageCreateSample
+
 		// Tiling is very important. Tiling describes how the data for the texture is arranged in the GPU. 
 		// For improved performance, GPUs do not store images as 2d arrays of pixels, but instead use complex
 		// custom formats, unique to the GPU brand and even models. VK_IMAGE_TILING_OPTIMAL tells Vulkan 
@@ -63,6 +71,9 @@ namespace Engine::Vulkan
 		// and read from that memory.
 		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCreateInfo.usage = usageFlags;
+
+		VkImageFormatProperties fp{};
+		auto result = vkGetPhysicalDeviceImageFormatProperties(physicalDevice._handle, _format, imageCreateInfo.imageType, VK_IMAGE_TILING_LINEAR, usageFlags, VK_SAMPLE_COUNT_1_BIT, &fp);
 
 		if (vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, &_imageHandle) != VK_SUCCESS) {
 			std::cout << "failed creating image" << std::endl;

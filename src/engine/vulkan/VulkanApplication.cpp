@@ -50,8 +50,8 @@
 #include "engine/scenes/SphericalEnvironmentMap.hpp"
 #include "engine/scenes/Scene.hpp"
 #include "engine/scenes/GameObject.hpp"
-#include "engine/scenes/Mesh.hpp"
 #include "engine/scenes/Camera.hpp"
+#include "engine/scenes/Mesh.hpp"
 #include "engine/vulkan/VulkanApplication.hpp"
 
 namespace Engine::Vulkan
@@ -448,7 +448,16 @@ namespace Engine::Vulkan
 				auto& baseColorImageIndex = gltfScene.textures[baseColorTextureIndex].source;
 				auto& baseColorImageData = gltfScene.images[baseColorImageIndex].image;
 				auto size = VkExtent2D{ (uint32_t)gltfScene.images[baseColorImageIndex].width, (uint32_t)gltfScene.images[baseColorImageIndex].height };
-				m._baseColor = Image(_logicalDevice, _physicalDevice, VK_FORMAT_R8G8B8A8_SRGB, size, baseColorImageData.data(), (VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT), VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+				m._baseColor = Image(_logicalDevice, 
+					_physicalDevice, 
+					VK_FORMAT_R8G8B8A8_SRGB, 
+					size, 
+					baseColorImageData.data(), 
+					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT), 
+					VK_IMAGE_ASPECT_COLOR_BIT, 
+					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
 				m._baseColor.SendToGPU(_commandPool, _queue);
 				_scene._materials.push_back(m);
 				loadedMaterialCache.emplace(i, (unsigned int)_scene._materials.size() - 1);
@@ -564,7 +573,7 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::LoadEnvironmentMap()
 	{
-		// The idea behind an environment map is the following:
+		// The idea behind using an environment map is the following:
 		// On the CPU side, take the environment map and sample it in an array, where for each cell, 
 		// have the world space position of the sampled pixel mapped onto a sphere, and the colour
 		// of the pixel. You will be passing this into the shader.
@@ -579,10 +588,7 @@ namespace Engine::Vulkan
 		// 
 		// As you loop through all directions, you add up the light contributions to a variable.
 		// You will need a function that gets the closest sample from the array of precomputed samples.
-
 		_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Workshop.hdr");
-
-		std::cout << "Environment map loaded" << std::endl;
 	}
 
 	VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)
