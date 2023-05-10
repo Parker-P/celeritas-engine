@@ -37,7 +37,8 @@ namespace Engine::Vulkan
 		VkSurfaceKHR _windowSurface;
 
 		/**
-		 * @brief Represents the physical GPU. This is mostly used for querying the GPU about its hardware properties.
+		 * @brief Represents the physical GPU. This is mostly used for querying the GPU about its hardware properties so that we know
+		 * how to handle memory.
 		 */
 		PhysicalDevice _physicalDevice;
 
@@ -99,7 +100,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Encapsulates info for a swapchain.
 		 * The swapchain is an image manager; it manages everything that involves presenting images to the screen,
-		 * or more precisely passing the contents of the framebuffers down to the window.
+		 * or more precisely passing the contents of the framebuffers on the GPU down to the window.
 		 */
 		struct {
 

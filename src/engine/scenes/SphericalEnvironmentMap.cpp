@@ -14,7 +14,7 @@
 
 namespace Engine::Scenes
 {
-	void SphericalEnvironmentMap::LoadFromFile(std::filesystem::path imagePath)
+	void SphericalEnvironmentMap::LoadFromFile(std::filesystem::path imageFilePath)
 	{
 		int actualComponents;
 
@@ -22,7 +22,7 @@ namespace Engine::Scenes
 		// for each pixel, red, green, blue and alpha.
 		// The image's pixels are read and stored left to right, top to bottom, relative to the image.
 		// Each pixel's component is an unsigned char.
-		auto image = stbi_load(imagePath.string().c_str(), &_width, &_height, &actualComponents, 4);
+		auto image = stbi_load(imageFilePath.string().c_str(), &_width, &_height, &actualComponents, 4);
 		auto imageLength = _width * _height * actualComponents;
 		auto pixelCount = _width * _height;
 
@@ -57,9 +57,9 @@ namespace Engine::Scenes
 			auto x = image[componentIndex];
 
 			_pixelColors[pixelIndex] = color;
-			_pixelCoordinatesWorldSpace[pixelIndex] = glm::vec3(sphereCoordinateX, sphereCoordinateY, sphereCoordinateZ);
+			_pixelCoordinatesWorldSpace[pixelIndex] = glm::vec4(sphereCoordinateX, sphereCoordinateY, sphereCoordinateZ, 0.0f);
 		}
 
-		std::cout << "Environment map " << imagePath.string() << " loaded." << std::endl;
+		std::cout << "Environment map " << imageFilePath.string() << " loaded." << std::endl;
 	}
 }
