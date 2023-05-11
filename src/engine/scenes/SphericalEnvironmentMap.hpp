@@ -31,7 +31,7 @@ namespace Engine::Scenes
 		 * is coming from and what color it is.
 		 */
 		//std::vector<float> _pixelCoordinatesWorldSpace;
-		std::vector<glm::vec4> _pixelCoordinatesWorldSpace;
+		std::vector<glm::vec3> _pixelCoordinatesWorldSpace;
 
 		/**
 		 * @brief The RGBA image that encodes color data.

@@ -17,6 +17,14 @@ namespace Engine::Vulkan
         VkBuffer _handle;
 
         /**
+         * @brief Like an image view, a buffer view tells Vulkan how to interpret the data inside of the buffer.
+         * This is particularly useful for things like a texture buffer, which could contain data about an image 
+         * in any format. For example the image might use 3 or 4 color channels (RGB or RGBA), or it could use
+         * use floating point numbers, doubles or regular integers as its pixel data.
+         */
+        VkBufferView _viewHandle;
+
+        /**
          * @brief Default constructor.
          */
         Buffer() = default;
@@ -41,7 +49,7 @@ namespace Engine::Vulkan
          * @param data Pointer to the start address of the data you want to copy to the buffer.
          * @param sizeInBytes Size in bytes of the data you want to copy to the buffer.
          */
-        Buffer(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* pData = nullptr, size_t sizeInBytes = 0);
+        Buffer(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* pData = nullptr, size_t sizeInBytes = 0, const VkFormat& dataFormat = VK_FORMAT_MAX_ENUM);
 
         /**
          * @brief Generates a data structure that Vulkan calls descriptor, which it uses to bind the buffer to a descriptor set.
@@ -114,6 +122,11 @@ namespace Engine::Vulkan
          * This is the size, in bytes, of the data inteded to be copied to the buffer.
          */
         size_t _pDataSize;
+
+        /**
+         * @brief The format of the data contained in the buffer. This describes the data's layout.
+         */
+        VkFormat _dataFormat = VK_FORMAT_MAX_ENUM;
 
         /**
          * @brief See constructor description.

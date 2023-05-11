@@ -57,7 +57,7 @@ namespace Engine::Scenes
 			auto x = image[componentIndex];
 
 			_pixelColors[pixelIndex] = color;
-			_pixelCoordinatesWorldSpace[pixelIndex] = glm::vec4(sphereCoordinateX, sphereCoordinateY, sphereCoordinateZ, 0.0f);
+			_pixelCoordinatesWorldSpace[pixelIndex] = glm::vec3(sphereCoordinateX, sphereCoordinateY, sphereCoordinateZ);
 		}
 
 		std::cout << "Environment map " << imageFilePath.string() << " loaded." << std::endl;
