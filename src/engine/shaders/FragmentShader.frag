@@ -48,7 +48,8 @@ void main()
 
 	textureColor = vec3(diffuseLight.x * textureColor.x, diffuseLight.y * textureColor.y, diffuseLight.z * textureColor.z);
 
-	vec3 finalColor = normalize(textureColor + environmentMapColor);
+	vec3 finalColor = vec3((textureColor.x + environmentMapColor.x) / 2.0f, (textureColor.y + environmentMapColor.y) / 2.0f, (textureColor.z + environmentMapColor.z) / 2.0f);
+	// vec3 finalColor = textureColor;
 
 	outColor = vec4(finalColor.xyz, 1.0f);
 }

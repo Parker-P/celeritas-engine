@@ -148,12 +148,17 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Descriptor sets the pool contains.
 		 */
-		std::vector<DescriptorSet*> _pDescriptorSets;
+		std::vector<DescriptorSet*> _descriptorSets;
 
 		/**
-		 * @brief .
+		 * @brief Allocates memory for the descriptor sets it points to.
 		 */
 		void AllocateDescriptorSets();
+
+		/**
+		 * @brief Sends each descriptor of each descriptor set to GPU-visible memory.
+		 */
+		void SendDescriptorSetDataToGPU();
 
 	public:
 

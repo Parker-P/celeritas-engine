@@ -90,17 +90,17 @@ namespace Engine::Vulkan
 		// The amount of sets and descriptor types is defined when creating the descriptor pool.
 		std::vector<VkDescriptorSetLayout> layouts;
 
-		for (auto& descriptorSet : _pDescriptorSets) {
+		for (auto& descriptorSet : _descriptorSets) {
 			layouts.push_back(descriptorSet->_layout);
 		}
 
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		allocInfo.descriptorPool = _handle;
-		allocInfo.descriptorSetCount = (uint32_t)_pDescriptorSets.size();
+		allocInfo.descriptorSetCount = (uint32_t)_descriptorSets.size();
 		allocInfo.pSetLayouts = layouts.data();
 
-		std::vector<VkDescriptorSet> allocatedDescriptorSetHandles(_pDescriptorSets.size());
+		std::vector<VkDescriptorSet> allocatedDescriptorSetHandles(_descriptorSets.size());
 
 		if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, allocatedDescriptorSetHandles.data()) != VK_SUCCESS) {
 			std::cerr << "failed to allocate descriptor sets" << std::endl;
@@ -110,15 +110,20 @@ namespace Engine::Vulkan
 			std::cout << "allocated descriptor sets" << std::endl;
 
 			for (int i = 0; i < allocatedDescriptorSetHandles.size(); ++i) {
-				_pDescriptorSets[i]->_handle = allocatedDescriptorSetHandles[i];
-				_pDescriptorSets[i]->SendToGPU();
+				_descriptorSets[i]->_handle = allocatedDescriptorSetHandles[i];
 			}
+		}
+	}
+
+	void DescriptorPool::SendDescriptorSetDataToGPU() {
+		for (auto& descriptorSet : _descriptorSets) {
+			descriptorSet->SendToGPU();
 		}
 	}
 
 	DescriptorPool::DescriptorPool(VkDevice& logicalDevice, std::vector<DescriptorSet*> descriptorSets)
 	{
-		_pDescriptorSets = descriptorSets;
+		_descriptorSets = descriptorSets;
 		_logicalDevice = logicalDevice;
 
 		// Find the total amount of each descriptor type present in each descriptor of each descriptor set.
@@ -167,6 +172,7 @@ namespace Engine::Vulkan
 		}
 
 		AllocateDescriptorSets();
+		SendDescriptorSetDataToGPU();
 	}
 
 	/*void DescriptorPool::UpdateDescriptor(Descriptor& d, Buffer& data)
