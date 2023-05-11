@@ -49,7 +49,6 @@ namespace Engine::Scenes
 		_descriptors[0] = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &_buffers[0]);
 		_sets[0] = Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, { &_descriptors[0] });
 		_pool = Vulkan::DescriptorPool(logicalDevice, { &_sets[0] });
-		_sets[0].SendToGPU();
 	}
 
 	void GameObject::UpdateShaderResources()

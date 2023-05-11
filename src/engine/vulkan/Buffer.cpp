@@ -61,13 +61,13 @@ namespace Engine::Vulkan
 
         if (pData != nullptr && _pBufferData != nullptr) {
             memcpy(_pBufferData, pData, sizeInBytes);
-            _pBufferDataSize = sizeInBytes;
+            _bufferDataSize = sizeInBytes;
         }
     }
 
     VkDescriptorBufferInfo Buffer::GenerateDescriptor()
     {
-        return VkDescriptorBufferInfo{ _handle, 0, _pBufferDataSize };
+        return VkDescriptorBufferInfo{ _handle, 0, _bufferDataSize };
     }
 
     void Buffer::UpdateData(void* data, size_t sizeInBytes)
@@ -75,7 +75,7 @@ namespace Engine::Vulkan
         if (_pBufferData != nullptr) {
             if (data != nullptr) {
                 memcpy(_pBufferData, data, sizeInBytes);
-                _pBufferDataSize = sizeInBytes;
+                _bufferDataSize = sizeInBytes;
             }
         }
     }

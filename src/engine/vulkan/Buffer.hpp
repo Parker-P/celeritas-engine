@@ -98,7 +98,7 @@ namespace Engine::Vulkan
          * @brief Vulkan buffers have a portion of memory allocated all for themselves, detached from the data you want to copy to them.
          * This is the size, in bytes, of the portion of memory allocated specifically for the buffer.
          */
-        size_t _pBufferDataSize;
+        size_t _bufferDataSize;
 
         /**
          * @brief Vulkan buffers have a portion of memory allocated all for themselves, detached from the data you want to copy to them.

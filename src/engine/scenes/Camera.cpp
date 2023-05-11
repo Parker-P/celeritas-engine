@@ -67,7 +67,6 @@ namespace Engine::Scenes
 		_descriptors[0] = Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, { &_buffers[0]});
 		_sets[0] = DescriptorSet(logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, {&_descriptors[0]});
 		_pool = DescriptorPool(logicalDevice, { &_sets[0]});
-		_sets[0].SendToGPU();
 	}
 
 	void Camera::UpdateShaderResources()

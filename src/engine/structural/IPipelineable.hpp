@@ -8,6 +8,9 @@ namespace Engine::Structural
 	/**
 	 * @brief Represents a fixed-size array. Meant to be used as a class member as it has a default constructor and can be
 	 * defined without knowing the size beforehand and can therefore be allocated in constructors or functions.
+	 * Another obvious benefit to this class is that, being fixed size, the address of each value in it will be constant
+	 * for the entire lifetime of the array, which is useful if many classes need to operate on the same resource in the
+	 * array. See Scene::CreateShaderResources() in Scene.cpp for a usage example.
 	 */
 	template <typename T>
 	class Array

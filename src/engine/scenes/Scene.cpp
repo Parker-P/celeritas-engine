@@ -59,7 +59,7 @@ namespace Engine::Scenes
 		_environmentMap._positions = Vulkan::Buffer(logicalDevice, 
 			physicalDevice, 
 			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 
 			_environmentMap._pixelCoordinatesWorldSpace.data(), 
 			Utils::GetVectorSizeInBytes(_environmentMap._pixelCoordinatesWorldSpace));
 
@@ -70,7 +70,6 @@ namespace Engine::Scenes
 		_descriptors[1] = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1, &_environmentMap._positions, nullptr);
 		_sets[0] = Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &_descriptors[0], &_descriptors[1]});
 		_pool = Vulkan::DescriptorPool(logicalDevice, { &_sets[0] });
-		_sets[0].SendToGPU();
 	}
 
 	void Scene::UpdateShaderResources()

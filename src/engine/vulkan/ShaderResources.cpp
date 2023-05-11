@@ -29,6 +29,10 @@ namespace Engine::Vulkan
 		std::vector<VkWriteDescriptorSet> writeInfos;
 		bool canUpdate = true;
 
+		VkBufferViewCreateInfo ci{};
+		ci.
+		vkCreateBufferView
+
 		for (auto& descriptor : _descriptors) {
 			if (descriptor->_bufferInfo.range != 0 || descriptor->_imageInfo.sampler != VK_NULL_HANDLE) {
 				VkWriteDescriptorSet writeInfo = {};
@@ -39,6 +43,7 @@ namespace Engine::Vulkan
 				writeInfo.pBufferInfo = &descriptor->_bufferInfo.range == 0 ? writeInfo.pBufferInfo : &descriptor->_bufferInfo; // Needs stronger check on type.
 				writeInfo.pImageInfo = &descriptor->_imageInfo.sampler == VK_NULL_HANDLE ? writeInfo.pImageInfo : &descriptor->_imageInfo; // This one too.
 				writeInfo.dstBinding = descriptor->_bindingNumber;
+				writeInfo.pTexelBufferView 
 				writeInfos.push_back(writeInfo);
 			}
 			else {
@@ -137,7 +142,6 @@ namespace Engine::Vulkan
 				}
 			}
 		}
-		
 
 		std::vector<VkDescriptorPoolSize> poolSizes;
 

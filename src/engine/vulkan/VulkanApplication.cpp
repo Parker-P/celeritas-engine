@@ -569,6 +569,8 @@ namespace Engine::Vulkan
 				mesh->_gameObjectIndex = (unsigned int)(_scene._gameObjects.size() - 1);
 			}
 		}
+
+		std::cout << "scene " << scenePath.string() << " loaded" << std::endl;
 	}
 
 	void VulkanApplication::LoadEnvironmentMap()
