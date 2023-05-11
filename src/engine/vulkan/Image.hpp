@@ -35,9 +35,9 @@ namespace Engine::Vulkan
 
 		/**
 		 * @brief Handle that identifies a structure that contains image metadata, as well as a pointer to the
-		 * VkImage. See @see VkImage.
+		 * VkImage. See VkImage.
 		 */
-		VkImageView _imageViewHandle;
+		VkImageView _viewHandle;
 
 		/**
 		 * @brief The way the data for each pixel of the image is stored in memory.

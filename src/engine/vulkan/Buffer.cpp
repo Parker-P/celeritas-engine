@@ -69,7 +69,6 @@ namespace Engine::Vulkan
 			VkBufferViewCreateInfo bufferViewCreateInfo{};
 			bufferViewCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO;
 			bufferViewCreateInfo.buffer = _handle;
-			bufferViewCreateInfo.flags = usageFlags;
 			bufferViewCreateInfo.format = dataFormat;
 			bufferViewCreateInfo.range = VK_WHOLE_SIZE;
 

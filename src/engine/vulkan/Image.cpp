@@ -103,7 +103,7 @@ namespace Engine::Vulkan
 		imageViewCreateInfo.subresourceRange.layerCount = 1;
 		imageViewCreateInfo.subresourceRange.aspectMask = typeFlags;
 
-		if (vkCreateImageView(logicalDevice, &imageViewCreateInfo, nullptr, &_imageViewHandle) != VK_SUCCESS) {
+		if (vkCreateImageView(logicalDevice, &imageViewCreateInfo, nullptr, &_viewHandle) != VK_SUCCESS) {
 			std::cout << "failed creating image view" << std::endl;
 		}
 	}
@@ -130,7 +130,7 @@ namespace Engine::Vulkan
 		createInfo.subresourceRange.baseArrayLayer = 0;
 		createInfo.subresourceRange.layerCount = 1;
 
-		if (vkCreateImageView(logicalDevice, &createInfo, nullptr, &_imageViewHandle) != VK_SUCCESS) {
+		if (vkCreateImageView(logicalDevice, &createInfo, nullptr, &_viewHandle) != VK_SUCCESS) {
 			std::cerr << "failed to create image view." << std::endl;
 			exit(1);
 		}
@@ -230,12 +230,12 @@ namespace Engine::Vulkan
 
 		vkCreateSampler(_logicalDevice, &info, nullptr, &_sampler);
 
-		return VkDescriptorImageInfo{ _sampler, _imageViewHandle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+		return VkDescriptorImageInfo{ _sampler, _viewHandle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
 	}
 
 	void Image::Destroy()
 	{
-		vkDestroyImageView(_logicalDevice, _imageViewHandle, nullptr);
+		vkDestroyImageView(_logicalDevice, _viewHandle, nullptr);
 		vkDestroyImage(_logicalDevice, _imageHandle, nullptr);
 	}
 }

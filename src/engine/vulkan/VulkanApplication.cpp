@@ -648,7 +648,7 @@ namespace Engine::Vulkan
 
 			// We will render to the same depth image for each frame. 
 			// We can just keep clearing and reusing the same depth image for every frame.
-			VkImageView colorAndDepthImages[2] = { _renderPass._colorImages[i]._imageViewHandle, _renderPass._depthImage._imageViewHandle };
+			VkImageView colorAndDepthImages[2] = { _renderPass._colorImages[i]._viewHandle, _renderPass._depthImage._viewHandle };
 			VkFramebufferCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 			createInfo.renderPass = _renderPass._handle;

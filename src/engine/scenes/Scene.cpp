@@ -61,7 +61,8 @@ namespace Engine::Scenes
 			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 
 			_environmentMap._pixelCoordinatesWorldSpace.data(), 
-			Utils::GetVectorSizeInBytes(_environmentMap._pixelCoordinatesWorldSpace));
+			Utils::GetVectorSizeInBytes(_environmentMap._pixelCoordinatesWorldSpace),
+			VK_FORMAT_R32G32B32_SFLOAT);
 
 		_environmentMap._color.SendToGPU(commandPool, graphicsQueue);
 		_environmentMap._positions.SendToGPU(commandPool, graphicsQueue);

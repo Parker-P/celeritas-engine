@@ -18,8 +18,10 @@ namespace Engine::Vulkan
 {
 	Descriptor::Descriptor(const VkDescriptorType& type, const uint32_t& bindingNumber, Buffer* pBuffer, Image* pImage)
 	{
-		_bufferInfo = pBuffer == nullptr ? VkDescriptorBufferInfo{} : pBuffer->GenerateDescriptor();
-		_imageInfo = pImage == nullptr ? VkDescriptorImageInfo{} : pImage->GenerateDescriptor();
+		_pBuffer = pBuffer;
+		_pImage = pImage;
+		_bufferInfo = _pBuffer == nullptr ? VkDescriptorBufferInfo{} : _pBuffer->GenerateDescriptor();
+		_imageInfo = _pImage == nullptr ? VkDescriptorImageInfo{} : _pImage->GenerateDescriptor();
 		_type = type;
 		_bindingNumber = bindingNumber;
 	}
@@ -30,15 +32,16 @@ namespace Engine::Vulkan
 		bool canUpdate = true;
 
 		for (auto& descriptor : _descriptors) {
-			if (descriptor->_bufferInfo.range != 0 || descriptor->_imageInfo.sampler != VK_NULL_HANDLE) {
+			if (descriptor->_bufferInfo.range != 0 || descriptor->_imageInfo.sampler != nullptr) {
 				VkWriteDescriptorSet writeInfo = {};
 				writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeInfo.dstSet = _handle;
 				writeInfo.descriptorCount = 1;
 				writeInfo.descriptorType = descriptor->_type;
-				writeInfo.pBufferInfo = &descriptor->_bufferInfo.range == 0 ? writeInfo.pBufferInfo : &descriptor->_bufferInfo; // Needs stronger check on type.
-				writeInfo.pImageInfo = &descriptor->_imageInfo.sampler == VK_NULL_HANDLE ? writeInfo.pImageInfo : &descriptor->_imageInfo; // This one too.
+				writeInfo.pBufferInfo = descriptor->_bufferInfo.range == 0 ? writeInfo.pBufferInfo : &descriptor->_bufferInfo; // Needs stronger check on type.
+				writeInfo.pImageInfo = descriptor->_imageInfo.sampler == nullptr ? writeInfo.pImageInfo : &descriptor->_imageInfo; // This one too.
 				writeInfo.dstBinding = descriptor->_bindingNumber;
+				writeInfo.pTexelBufferView = descriptor->_pBuffer != nullptr ? descriptor->_pBuffer->_viewHandle != nullptr ? &descriptor->_pBuffer->_viewHandle : nullptr : nullptr;
 				writeInfos.push_back(writeInfo);
 			}
 			else {
@@ -166,7 +169,7 @@ namespace Engine::Vulkan
 		AllocateDescriptorSets();
 	}
 
-	void DescriptorPool::UpdateDescriptor(Descriptor& d, Buffer& data)
+	/*void DescriptorPool::UpdateDescriptor(Descriptor& d, Buffer& data)
 	{
 		for (auto& descriptorSet : _pDescriptorSets) {
 			for (auto& descriptor : descriptorSet->_descriptors) {
@@ -175,9 +178,9 @@ namespace Engine::Vulkan
 				}
 			}
 		}
-	}
+	}*/
 
-	void DescriptorPool::UpdateDescriptor(Descriptor& d, Image& data)
+	/*void DescriptorPool::UpdateDescriptor(Descriptor& d, Image& data)
 	{
 		for (auto& descriptorSet : _pDescriptorSets) {
 			for (auto& descriptor : descriptorSet->_descriptors) {
@@ -187,5 +190,5 @@ namespace Engine::Vulkan
 				}
 			}
 		}
-	}
+	}*/
 }

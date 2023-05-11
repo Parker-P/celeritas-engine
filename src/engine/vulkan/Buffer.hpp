@@ -48,6 +48,9 @@ namespace Engine::Vulkan
          * Further read: https://asawicki.info/news_1740_vulkan_memory_types_on_pc_and_how_to_use_them
          * @param data Pointer to the start address of the data you want to copy to the buffer.
          * @param sizeInBytes Size in bytes of the data you want to copy to the buffer.
+         * @param dataFormat Format/layout of the data. For example, if the buffer is meant to contain image data, it might use 3 or 4 color channels (RGB or RGBA), or it 
+         * could use floating point numbers, or regular integers as its pixel data. For instance, VK_FORMAT_R32G32B32_SFLOAT describes a buffer that contains 3 consecutive 
+         * blocks (R32G32B32) of 32 bits each, and that each 32 bit block represents a Single precision FLOATing point number.
          */
         Buffer(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, VkBufferUsageFlagBits usageFlags, VkMemoryPropertyFlagBits properties, void* pData = nullptr, size_t sizeInBytes = 0, const VkFormat& dataFormat = VK_FORMAT_MAX_ENUM);
 

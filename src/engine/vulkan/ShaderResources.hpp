@@ -9,7 +9,7 @@ namespace Engine::Vulkan
 	 * A descriptor is accessed by a shader by using an index and a binding number, similar to vertex attributes, which are accessed
 	 * by the vertex shader using a binding and a location number.
 	 * For example, in a shader, a descriptor is declared as follows:
-	 * 
+	 *
 	 * #version 450
 	 *
 	 * // Descriptor declaration. The shader will access the descriptor with binding number 1 at descriptor set with index 2.
@@ -22,7 +22,7 @@ namespace Engine::Vulkan
 	 * {
 	 *		... shader code ...
 	 * }
-	 * 
+	 *
 	 * See the _bindingNumber member, and the _indexNumber member in the DescriptorSet class.
 	 */
 	class Descriptor
@@ -31,14 +31,14 @@ namespace Engine::Vulkan
 	public:
 
 		/**
-		 * @brief Wrapper that describes a buffer.
+		 * @brief The buffer the descriptor represents.
 		 */
-		VkDescriptorBufferInfo _bufferInfo;
+		Buffer* _pBuffer = nullptr;
 
 		/**
-		 * @brief Wrapper that describes an image.
+		 * @brief The image the descriptor represents.
 		 */
-		VkDescriptorImageInfo _imageInfo;
+		Image* _pImage = nullptr;
 
 		/**
 		 * @brief Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a
@@ -50,6 +50,16 @@ namespace Engine::Vulkan
 		 * @brief Binding number used by the shaders to know which descriptor to access within the descriptor set this descriptor belongs to.
 		 */
 		uint32_t _bindingNumber;
+
+		/**
+		 * @brief Wrapper that adds some metadata for the buffer that the shaders need.
+		 */
+		VkDescriptorBufferInfo _bufferInfo;
+
+		/**
+		 * @brief Wrapper that adds some metadata for the image that the shaders need, such as how to sample the image.
+		 */
+		VkDescriptorImageInfo _imageInfo;
 
 		/**
 		 * @brief Default constructor.
@@ -96,8 +106,8 @@ namespace Engine::Vulkan
 		 * @brief *NOT ACTUALLY USED ANYWHERE* Set index number used by the shaders to identify the descriptor set to access. When a pipeline is created,
 		 * an object of VkPipelineLayout is required to create it. The VkPipelineLayout object contains an array of VkDescriptorSetLayout handles. This
 		 * _indexNumber represents the index in that array where the _layout of this descriptor set is used. This is how in the shaders Vulkan knows which
-		 * descriptor set you are linking. When you see (set = 2, binding = 3) it means that this descriptor set's layout was placed at index 3 in the array
-		 * of VkDescriptorSetLayout handles when creating the pipeline currently in use.
+		 * descriptor set you are linking. When you see (set = 2, binding = 3) it means that this descriptor set's layout was placed at index 2 (starting from 0,
+		 * so in the third position) in the array of VkDescriptorSetLayout handles when creating the pipeline currently in use.
 		 */
 		short _indexNumber;
 
@@ -168,12 +178,12 @@ namespace Engine::Vulkan
 		 * @brief Updates a descriptor identified by its memory address with the data contained in the given buffer.
 		 * @param data The buffer whose data will be sent to the allocated descriptor set.
 		 */
-		void UpdateDescriptor(Descriptor& d, Buffer& data);
+		 //void UpdateDescriptor(Descriptor& d, Buffer& data);
 
-		/**
-		 * @brief Updates a descriptor identified by its memory address with the data contained in the given image.
-		 * @param data The buffer whose data will be sent to the allocated descriptor set.
-		 */
-		void UpdateDescriptor(Descriptor& d, Image& data);
+		 /**
+		  * @brief Updates a descriptor identified by its memory address with the data contained in the given image.
+		  * @param data The buffer whose data will be sent to the allocated descriptor set.
+		  */
+		  //void UpdateDescriptor(Descriptor& d, Image& data);
 	};
 }
