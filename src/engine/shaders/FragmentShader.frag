@@ -19,7 +19,7 @@ layout(set = 3, binding = 0) uniform sampler2D baseColorTexture;
 
 layout(set = 4, binding = 0) uniform sampler2D environmentTexture;
 
-layout(set = 4, binding = 1) uniform samplerBuffer environmentPositions;
+layout(set = 4, binding = 1) uniform textureBuffer environmentPositions;
 
 void main() 
 {
@@ -31,10 +31,9 @@ void main()
 	// For that, we can use the fragment's normal (inWorldSpaceNormal) and use some math to figure out
 	// which pixels on the environment map we will need to consider for light contribution.
 
-	vec3 environmentPixelPosition = texelFetch(environmentPositions, 0).xyz;
-	float x = environmentPixelPosition.x;
-	float y = environmentPixelPosition.y;
-	float z = environmentPixelPosition.z;
+	vec3 x = texelFetch(environmentPositions, 0).xyz;
+	vec3 y = texelFetch(environmentPositions, 1).xyz;
+	vec3 z = texelFetch(environmentPositions, 2).xyz;
 
 	vec3 environmentMapColor = texture(environmentTexture, vec2(0.5f,0.5f)).xyz;
 

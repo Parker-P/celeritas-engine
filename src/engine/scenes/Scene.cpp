@@ -56,12 +56,25 @@ namespace Engine::Scenes
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-		_environmentMap._positions = Vulkan::Buffer(logicalDevice, 
+		/*_environmentMap._positions = Vulkan::Buffer(logicalDevice, 
 			physicalDevice, 
 			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 
 			_environmentMap._pixelCoordinatesWorldSpace.data(), 
 			Utils::GetVectorSizeInBytes(_environmentMap._pixelCoordinatesWorldSpace),
+			VK_FORMAT_R32G32B32_SFLOAT);*/
+		
+		_test.resize(3);
+		_test[0] = glm::vec3(1.0f, 0.0f, 0.0f);
+		_test[1] = glm::vec3(0.0f, 1.0f, 0.0f);
+		_test[2] = glm::vec3(1.0f, 0.0f, 1.0f);
+
+		_environmentMap._positions = Vulkan::Buffer(logicalDevice, 
+			physicalDevice, 
+			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 
+			_test.data(),
+			Utils::GetVectorSizeInBytes(_test),
 			VK_FORMAT_R32G32B32_SFLOAT);
 
 		_environmentMap._color.SendToGPU(commandPool, graphicsQueue);
