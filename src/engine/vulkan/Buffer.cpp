@@ -14,7 +14,7 @@ namespace Engine::Vulkan
 		_logicalDevice = logicalDevice;
 		_physicalDevice = physicalDevice;
 		_pData = pData;
-		_pDataSize = sizeInBytes;
+		_bufferDataSize = sizeInBytes;
 		_usageFlags = usageFlags;
 		_propertiesFlags = propertiesFlags;
 		_pBufferData = nullptr;
@@ -24,6 +24,7 @@ namespace Engine::Vulkan
 		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		vertexBufferInfo.size = sizeInBytes;
 		vertexBufferInfo.usage = usageFlags;
+
 		if (vkCreateBuffer(_logicalDevice, &vertexBufferInfo, nullptr, &_handle) != VK_SUCCESS) {
 			std::cout << ("Failed creating buffer.") << std::endl;
 			exit(1);
@@ -52,7 +53,10 @@ namespace Engine::Vulkan
 		}
 
 		// Creates a reference/connection to the buffer on the GPU side.
-		vkBindBufferMemory(_logicalDevice, _handle, _memory, 0);
+		if (vkBindBufferMemory(_logicalDevice, _handle, _memory, 0) != VK_SUCCESS) {
+			std::cout << "failed binding buffer memory to the GPU" << std::endl;
+			exit(1);
+		}
 
 		// Creates a reference/connection to the buffer on the CPU side.
 		if (propertiesFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
@@ -72,7 +76,7 @@ namespace Engine::Vulkan
 			bufferViewCreateInfo.format = dataFormat;
 			bufferViewCreateInfo.range = VK_WHOLE_SIZE;
 
-			if (!vkCreateBufferView(logicalDevice, &bufferViewCreateInfo, nullptr, &_viewHandle)) {
+			if (auto res = vkCreateBufferView(logicalDevice, &bufferViewCreateInfo, nullptr, &_viewHandle); res != VK_SUCCESS) {
 				std::cout << "failed creating buffer view" << std::endl;
 			}
 		}
@@ -107,7 +111,7 @@ namespace Engine::Vulkan
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
 			_pData,
-			_pDataSize);
+			_bufferDataSize);
 
 		VkCommandBufferBeginInfo bufferBeginInfo = {};
 		bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -124,7 +128,7 @@ namespace Engine::Vulkan
 
 		vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
 		VkBufferCopy copyRegion = {};
-		copyRegion.size = _pDataSize;
+		copyRegion.size = _bufferDataSize;
 		vkCmdCopyBuffer(copyCommandBuffer, transferBuffer._handle, _handle, 1, &copyRegion);
 		vkEndCommandBuffer(copyCommandBuffer);
 

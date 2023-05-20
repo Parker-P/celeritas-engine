@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <chrono>
 #include <functional>
+#include <optional>
 #include <filesystem>
 #include <map>
 #include <bitset>
@@ -68,7 +69,14 @@ namespace Engine::Vulkan
 		Cleanup(true);
 	}
 
-	VkBool32 VulkanApplication::DebugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType, uint64_t srcObject, size_t location, int32_t msgCode, const char* pLayerPrefix, const char* pMsg, void* pUserData)
+	VkBool32 VulkanApplication::DebugCallback(VkDebugReportFlagsEXT flags, 
+		VkDebugReportObjectTypeEXT objType, 
+		uint64_t srcObject, 
+		size_t location, 
+		int32_t msgCode, 
+		const char* pLayerPrefix, 
+		const char* pMsg, 
+		void* pUserData)
 	{
 		if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
 			std::cerr << "ERROR: [" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg << std::endl;

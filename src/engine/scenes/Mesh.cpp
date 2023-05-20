@@ -1,6 +1,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <optional>
 #include <filesystem>
 
 #include <glm/glm.hpp>
@@ -36,22 +37,20 @@ namespace Engine::Scenes
 
 	void Mesh::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
-		_images = Structural::Array<Vulkan::Image>(1);
-		_descriptors = Structural::Array<Vulkan::Descriptor>(1);
-		_sets = Structural::Array<Vulkan::DescriptorSet>(1);
-		Vulkan::Image* texture = nullptr;
+		Vulkan::Image texture;
 
 		if (_pScene->_materials.size() > 0) {
-			texture = &_pScene->_materials[_materialIndex]._baseColor;
+			texture = _pScene->_materials[_materialIndex]._baseColor;
 		}
 		else {
 			texture = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
 		}
 
 		//texture->SendToGPU(commandPool, graphicsQueue);
-		_descriptors[0] = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, nullptr, texture);
-		_sets[0] = Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &_descriptors[0] });
-		_pool = Vulkan::DescriptorPool(logicalDevice, { &_sets[0] });
+		_images.push_back(texture);
+		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, std::nullopt, texture));
+		_sets.push_back(Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, _descriptors));
+		_pool = Vulkan::DescriptorPool(logicalDevice, _sets);
 	}
 
 	void Mesh::UpdateShaderResources()

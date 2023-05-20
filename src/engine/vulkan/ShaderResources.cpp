@@ -1,7 +1,9 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <optional>
 #include <map>
+#include <optional>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -16,12 +18,12 @@
 
 namespace Engine::Vulkan
 {
-	Descriptor::Descriptor(const VkDescriptorType& type, const uint32_t& bindingNumber, Buffer* pBuffer, Image* pImage)
+	Descriptor::Descriptor(const VkDescriptorType& type, const uint32_t& bindingNumber, const std::optional<Buffer>& buffer, const std::optional<Image>& image)
 	{
-		_pBuffer = pBuffer;
-		_pImage = pImage;
-		_bufferInfo = _pBuffer == nullptr ? VkDescriptorBufferInfo{} : _pBuffer->GenerateDescriptor();
-		_imageInfo = _pImage == nullptr ? VkDescriptorImageInfo{} : _pImage->GenerateDescriptor();
+		_buffer = buffer;
+		_image = image;
+		_bufferInfo = _buffer == std::nullopt ? VkDescriptorBufferInfo{} : _buffer.value().GenerateDescriptor();
+		_imageInfo = _image == std::nullopt ? VkDescriptorImageInfo{} : _image.value().GenerateDescriptor();
 		_type = type;
 		_bindingNumber = bindingNumber;
 	}
@@ -32,16 +34,16 @@ namespace Engine::Vulkan
 		bool canUpdate = true;
 
 		for (auto& descriptor : _descriptors) {
-			if (descriptor->_bufferInfo.range != 0 || descriptor->_imageInfo.sampler != nullptr) {
+			if (descriptor._bufferInfo.has_value() || descriptor._imageInfo.has_value()) {
 				VkWriteDescriptorSet writeInfo = {};
 				writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeInfo.dstSet = _handle;
 				writeInfo.descriptorCount = 1;
-				writeInfo.descriptorType = descriptor->_type;
-				writeInfo.pBufferInfo = descriptor->_bufferInfo.range == 0 ? writeInfo.pBufferInfo : &descriptor->_bufferInfo; // Needs stronger check on type.
-				writeInfo.pImageInfo = descriptor->_imageInfo.sampler == nullptr ? writeInfo.pImageInfo : &descriptor->_imageInfo; // This one too.
-				writeInfo.dstBinding = descriptor->_bindingNumber;
-				writeInfo.pTexelBufferView = descriptor->_pBuffer != nullptr ? descriptor->_pBuffer->_viewHandle != nullptr ? &descriptor->_pBuffer->_viewHandle : nullptr : nullptr;
+				writeInfo.descriptorType = descriptor._type;
+				writeInfo.pBufferInfo = descriptor._bufferInfo.has_value() ? &descriptor._bufferInfo.value() : writeInfo.pBufferInfo;
+				writeInfo.pImageInfo = descriptor._imageInfo.has_value() ? &descriptor._imageInfo.value() : writeInfo.pImageInfo;
+				writeInfo.dstBinding = descriptor._bindingNumber;
+				writeInfo.pTexelBufferView = descriptor._buffer.has_value() ? descriptor._buffer.value()._viewHandle != nullptr ? &descriptor._buffer.value()._viewHandle : nullptr : nullptr;
 				writeInfos.push_back(writeInfo);
 			}
 			else {
@@ -54,7 +56,7 @@ namespace Engine::Vulkan
 		}
 	}
 
-	DescriptorSet::DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, std::vector<Descriptor*> descriptors)
+	DescriptorSet::DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, std::vector<Descriptor> descriptors)
 	{
 		_logicalDevice = logicalDevice;
 		_indexNumber = -1;
@@ -64,8 +66,8 @@ namespace Engine::Vulkan
 		// Prep work for the descriptor set layout.
 		for (auto& descriptor : descriptors) {
 			VkDescriptorSetLayoutBinding binding{};
-			binding.binding = descriptor->_bindingNumber;
-			binding.descriptorType = descriptor->_type;
+			binding.binding = descriptor._bindingNumber;
+			binding.descriptorType = descriptor._type;
 			binding.descriptorCount = 1;
 			binding.stageFlags = shaderStageFlags;
 			bindings.push_back(binding);
@@ -90,17 +92,17 @@ namespace Engine::Vulkan
 		// The amount of sets and descriptor types is defined when creating the descriptor pool.
 		std::vector<VkDescriptorSetLayout> layouts;
 
-		for (auto& descriptorSet : _descriptorSets) {
-			layouts.push_back(descriptorSet->_layout);
+		for (auto& descriptorSet : *_descriptorSets) {
+			layouts.push_back(descriptorSet._layout);
 		}
 
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		allocInfo.descriptorPool = _handle;
-		allocInfo.descriptorSetCount = (uint32_t)_descriptorSets.size();
+		allocInfo.descriptorSetCount = (uint32_t)_descriptorSets->size();
 		allocInfo.pSetLayouts = layouts.data();
 
-		std::vector<VkDescriptorSet> allocatedDescriptorSetHandles(_descriptorSets.size());
+		std::vector<VkDescriptorSet> allocatedDescriptorSetHandles(_descriptorSets->size());
 
 		if (vkAllocateDescriptorSets(_logicalDevice, &allocInfo, allocatedDescriptorSetHandles.data()) != VK_SUCCESS) {
 			std::cerr << "failed to allocate descriptor sets" << std::endl;
@@ -110,20 +112,20 @@ namespace Engine::Vulkan
 			std::cout << "allocated descriptor sets" << std::endl;
 
 			for (int i = 0; i < allocatedDescriptorSetHandles.size(); ++i) {
-				_descriptorSets[i]->_handle = allocatedDescriptorSetHandles[i];
+				(*_descriptorSets)[i]._handle = allocatedDescriptorSetHandles[i];
 			}
 		}
 	}
 
 	void DescriptorPool::SendDescriptorSetDataToGPU() {
-		for (auto& descriptorSet : _descriptorSets) {
-			descriptorSet->SendToGPU();
+		for (auto& descriptorSet : *_descriptorSets) {
+			descriptorSet.SendToGPU();
 		}
 	}
 
-	DescriptorPool::DescriptorPool(VkDevice& logicalDevice, std::vector<DescriptorSet*> descriptorSets)
+	DescriptorPool::DescriptorPool(VkDevice& logicalDevice, std::vector<DescriptorSet>& descriptorSets)
 	{
-		_descriptorSets = descriptorSets;
+		_descriptorSets = &descriptorSets;
 		_logicalDevice = logicalDevice;
 
 		// Find the total amount of each descriptor type present in each descriptor of each descriptor set.
@@ -132,15 +134,15 @@ namespace Engine::Vulkan
 		std::map<VkDescriptorType, int> typeCounts;
 
 		for (auto& descriptorSet : descriptorSets) {
-			for (auto& descriptor : descriptorSet->_descriptors) {
-				if (descriptor->_type != VK_DESCRIPTOR_TYPE_MAX_ENUM) {
-					auto existingEntry = typeCounts.find(descriptor->_type);
+			for (auto& descriptor : descriptorSet._descriptors) {
+				if (descriptor._type != VK_DESCRIPTOR_TYPE_MAX_ENUM) {
+					auto existingEntry = typeCounts.find(descriptor._type);
 
 					if (existingEntry != typeCounts.end()) {
 						typeCounts[existingEntry->first] += 1;
 					}
 					else {
-						typeCounts.emplace(descriptor->_type, 1);
+						typeCounts.emplace(descriptor._type, 1);
 					}
 				}
 			}
@@ -163,6 +165,7 @@ namespace Engine::Vulkan
 		createInfo.maxSets = (uint32_t)descriptorSets.size();
 		createInfo.poolSizeCount = (uint32_t)poolSizes.size();
 		createInfo.pPoolSizes = poolSizes.data();
+
 		if (vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &_handle) != VK_SUCCESS) {
 			std::cerr << "failed to create descriptor pool" << std::endl;
 			exit(1);
@@ -174,27 +177,4 @@ namespace Engine::Vulkan
 		AllocateDescriptorSets();
 		SendDescriptorSetDataToGPU();
 	}
-
-	/*void DescriptorPool::UpdateDescriptor(Descriptor& d, Buffer& data)
-	{
-		for (auto& descriptorSet : _pDescriptorSets) {
-			for (auto& descriptor : descriptorSet->_descriptors) {
-				if (descriptor == &d) {
-					descriptor->_bufferInfo = data.GenerateDescriptor();
-				}
-			}
-		}
-	}*/
-
-	/*void DescriptorPool::UpdateDescriptor(Descriptor& d, Image& data)
-	{
-		for (auto& descriptorSet : _pDescriptorSets) {
-			for (auto& descriptor : descriptorSet->_descriptors) {
-				if (descriptor == &d) {
-					descriptor->_imageInfo = data.GenerateDescriptor();
-					descriptorSet->SendToGPU();
-				}
-			}
-		}
-	}*/
 }

@@ -125,7 +125,7 @@ namespace Engine::Vulkan
 		 * @param alpha Alpha channel value, domain is 0-255.
 		 * @return 
 		 */
-		static Image* SolidColor(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const unsigned char& red, const unsigned char& green, const unsigned char& blue, const unsigned char& alpha);
+		static Image SolidColor(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const unsigned char& red, const unsigned char& green, const unsigned char& blue, const unsigned char& alpha);
 
 		/**
 		 * @brief Uses Vulkan calls to deallocate and remove the contents of the image from memory.

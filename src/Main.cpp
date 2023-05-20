@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <chrono>
 #include <functional>
+#include <optional>
 #include <filesystem>
 #include <map>
 #include <bitset>

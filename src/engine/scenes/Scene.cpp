@@ -1,6 +1,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <optional>
 #include <filesystem>
 
 #include <glm/glm.hpp>
@@ -43,10 +44,6 @@ namespace Engine::Scenes
 
 	void Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
-		_buffers = Structural::Array<Vulkan::Buffer>(1);
-		_descriptors = Structural::Array<Vulkan::Descriptor>(1);
-		_sets = Structural::Array<Vulkan::DescriptorSet>(1);
-
 		_environmentMap._color = Vulkan::Image(logicalDevice,
 			physicalDevice,
 			VK_FORMAT_R8G8B8A8_SRGB,
@@ -72,18 +69,20 @@ namespace Engine::Scenes
 		_environmentMap._positions = Vulkan::Buffer(logicalDevice, 
 			physicalDevice, 
 			(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			_test.data(),
 			Utils::GetVectorSizeInBytes(_test),
 			VK_FORMAT_R32G32B32_SFLOAT);
 
 		_environmentMap._color.SendToGPU(commandPool, graphicsQueue);
 		_environmentMap._positions.SendToGPU(commandPool, graphicsQueue);
+		_images.push_back(_environmentMap._color);
+		_buffers.push_back(_environmentMap._positions);
 
-		_descriptors[0] = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, nullptr, &_environmentMap._color);
-		_descriptors[1] = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1, &_environmentMap._positions, nullptr);
-		_sets[0] = Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, { &_descriptors[0], &_descriptors[1]});
-		_pool = Vulkan::DescriptorPool(logicalDevice, { &_sets[0] });
+		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, std::nullopt, _environmentMap._color));
+		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1, _environmentMap._positions, std::nullopt));
+		_sets.push_back(Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, _descriptors));
+		_pool = Vulkan::DescriptorPool(logicalDevice, _sets);
 	}
 
 	void Scene::UpdateShaderResources()

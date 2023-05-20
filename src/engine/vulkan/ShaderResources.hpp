@@ -33,12 +33,12 @@ namespace Engine::Vulkan
 		/**
 		 * @brief The buffer the descriptor represents.
 		 */
-		Buffer* _pBuffer = nullptr;
+		std::optional<Buffer> _buffer = std::nullopt;
 
 		/**
 		 * @brief The image the descriptor represents.
 		 */
-		Image* _pImage = nullptr;
+		std::optional<Image> _image = std::nullopt;
 
 		/**
 		 * @brief Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a
@@ -54,12 +54,12 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Wrapper that adds some metadata for the buffer that the shaders need.
 		 */
-		VkDescriptorBufferInfo _bufferInfo;
+		std::optional<VkDescriptorBufferInfo> _bufferInfo;
 
 		/**
 		 * @brief Wrapper that adds some metadata for the image that the shaders need, such as how to sample the image.
 		 */
-		VkDescriptorImageInfo _imageInfo;
+		std::optional<VkDescriptorImageInfo> _imageInfo;
 
 		/**
 		 * @brief Default constructor.
@@ -71,10 +71,10 @@ namespace Engine::Vulkan
 		 * @param type Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a
 		 * structure that contains an image and some metadata that tells the GPU how to read it.
 		 * @param bindingNumber Binding number used by a shader to know which descriptor to access within a descriptor set.
-		 * @param pBuffer Optional pointer to a buffer.
-		 * @param pBuffer Optional pointer to an image.
+		 * @param buffer Optional buffer.
+		 * @param image Optional image.
 		 */
-		Descriptor(const VkDescriptorType& type, const uint32_t& bindingNumber, Buffer* pBuffer = nullptr, Image* pImage = nullptr);
+		Descriptor(const VkDescriptorType& type, const uint32_t& bindingNumber, const std::optional<Buffer>& buffer = std::nullopt, const std::optional<Image>& image = std::nullopt);
 
 	};
 
@@ -114,7 +114,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Descriptors this set contains.
 		 */
-		std::vector<Descriptor*> _descriptors;
+		std::vector<Descriptor> _descriptors;
 
 		/**
 		 * @brief Writes the data contained in its descriptors to the correct GPU-visible allocated portion of memory.
@@ -132,7 +132,7 @@ namespace Engine::Vulkan
 		 * @param shaderFlags Flags to define which shader/s can access this descriptor set.
 		 * @param descriptors Descriptors. Must all be of the same type and compatible with the type of data they contain (image or buffer).
 		 */
-		DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, std::vector<Descriptor*> pDescriptors);
+		DescriptorSet(VkDevice& logicalDevice, const VkShaderStageFlagBits& shaderStageFlags, std::vector<Descriptor> descriptors);
 	};
 
 	/**
@@ -148,7 +148,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Descriptor sets the pool contains.
 		 */
-		std::vector<DescriptorSet*> _descriptorSets;
+		std::vector<DescriptorSet>* _descriptorSets;
 
 		/**
 		 * @brief Allocates memory for the descriptor sets it points to.
@@ -177,7 +177,7 @@ namespace Engine::Vulkan
 		 * @param logicalDevice Used for the Vulkan call to create the descriptor pool and to allocate memory for the given descriptor sets.
 		 * @param descriptorSets Descriptor sets to allocate memory for.
 		 */
-		DescriptorPool(VkDevice& logicalDevice, std::vector<DescriptorSet*> pDescriptorSets);
+		DescriptorPool(VkDevice& logicalDevice, std::vector<DescriptorSet>& descriptorSets);
 
 		/**
 		 * @brief Updates a descriptor identified by its memory address with the data contained in the given buffer.

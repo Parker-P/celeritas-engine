@@ -121,12 +121,6 @@ namespace Engine::Vulkan
         void* _pData;
 
         /**
-         * @brief Vulkan buffers have a portion of memory allocated all for themselves, detached from the data you want to copy to them.
-         * This is the size, in bytes, of the data inteded to be copied to the buffer.
-         */
-        size_t _pDataSize;
-
-        /**
          * @brief The format of the data contained in the buffer. This describes the data's layout.
          */
         VkFormat _dataFormat = VK_FORMAT_MAX_ENUM;

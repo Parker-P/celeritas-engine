@@ -72,22 +72,22 @@ namespace Engine::Structural
 		/**
 		 * @brief Buffers to be used in descriptors that go in _descriptors.
 		 */
-		Array<Vulkan::Buffer> _buffers;
+		std::vector<Vulkan::Buffer> _buffers;
 
 		/**
 		 * @brief Images to be used in descriptors that go in _descriptors.
 		 */
-		Array<Vulkan::Image> _images;
+		std::vector<Vulkan::Image> _images;
 
 		/**
 		 * @brief Descriptors to be used in _sets.
 		 */
-		Array<Vulkan::Descriptor> _descriptors;
+		std::vector<Vulkan::Descriptor> _descriptors;
 
 		/**
 		 * @brief Descriptor sets to be allocated by _pool.
 		 */
-		Array<Vulkan::DescriptorSet> _sets;
+		std::vector<Vulkan::DescriptorSet> _sets;
 
 		/**
 		 * @brief GPU-memory allocator for _sets.
