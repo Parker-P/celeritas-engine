@@ -32,8 +32,6 @@ namespace Engine::Scenes
 		 */
 		SphericalEnvironmentMap _environmentMap;
 
-		std::vector<glm::vec3> _test;
-
 		/**
 		 * @brief Updates all scene-related data.
 		 */

@@ -30,19 +30,27 @@ namespace Engine::Scenes
 		 * the fragment shader is able to know which direction the light emitted from the image
 		 * is coming from and what color it is.
 		 */
-		//std::vector<float> _pixelCoordinatesWorldSpace;
+		 //std::vector<float> _pixelCoordinatesWorldSpace;
 		std::vector<glm::vec3> _pixelCoordinatesWorldSpace;
 
 		/**
-		 * @brief The RGBA image that encodes color data.
+		 * @brief The buffer that encodes RGBA colors from the environment map.
 		 */
-		Vulkan::Image _color;
+		Vulkan::Buffer _environmentColors;
 
 		/**
-		 * @brief The image that encodes world space spherical positions of the pixels of the environment map's image
+		 * @brief The buffer that encodes world space spherical positions of the pixels of the environment map's image
 		 * as if it was wrapped into a sphere.
 		 */
-		Vulkan::Buffer _positions;
+		Vulkan::Buffer _environmentPositions;
+
+		struct {
+
+			/**
+			 * @brief Count of the entries in the vectors put in the two buffers defined above.
+			 */
+			int _environmentDataEntryCount;
+		} _envSize;
 
 		/**
 		 * @brief Loads an environment map from file, calculates.

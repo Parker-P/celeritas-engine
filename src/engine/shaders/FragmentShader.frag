@@ -17,11 +17,12 @@ layout(set = 2, binding = 0) uniform LightData {
 
 layout(set = 3, binding = 0) uniform sampler2D baseColorTexture;
 
-layout(set = 4, binding = 0) uniform SceneData {
-	textureBuffer environmentColors;
-	textureBuffer environmentPositions;
-	int environmentDataSize;
-} sceneData;
+// Environment map data.
+layout(set = 4, binding = 0) uniform textureBuffer environmentColors;
+layout(set = 4, binding = 1) uniform textureBuffer environmentPositions;
+layout(set = 4, binding = 2) uniform Size {
+	int environmentDataEntryCount;
+} envSize;
 
 vec3 RotateVector(vec3 vectorToRotate, vec3 axis, float angleDegrees) {
     float angleRadians = radians(angleDegrees);
@@ -60,41 +61,38 @@ void main()
 		    vec3 desiredEnvironmentMapPixelPosition = RotateVector(samplePosition, inWorldSpaceNormal.xyz, sampleStep);
 			
 			// Find the color based on the closest available position vector (to desiredEnvironmentMapPixelPosition) in the environment map's pixel positions.
-			{
 			float minimumDelta = 1.0f;
-			vec3 environmentMapPixelPosition = texelFetch(sceneData.environmentPositions, i).xyz;
+			vec3 environmentMapPixelPosition = texelFetch(environmentPositions, 0).xyz;
 			vec3 closestEnvironmentMapPixelPosition = environmentMapPixelPosition;
 
 			int indexOfClosestPosition = 0; // Index in the array of environment map's pixel positions of the closest available position vector to the position vector we want to sample from.
 
-			for (int i=0; i<sceneData.environmentDataSize; ++i) {
+			for (int i = 0; i < envSize.environmentDataEntryCount; ++i) {
 				float delta = 1.0f - dot(desiredEnvironmentMapPixelPosition, environmentMapPixelPosition);
 
 				if (delta < minimumDelta) {
-					minIndex = i;
+					indexOfClosestPosition = i;
 				}
 
-				environmentMapPixelPosition = texelFetch(sceneData.environmentPositions, i).xyz;
-			}
+				environmentMapPixelPosition = texelFetch(environmentPositions, i).xyz;
 			}
 
-			vec3 sampledColor = texelFetch(sceneData.environmentColors, indexOfClosestPosition).xyz;
-			vec3 sampledPosition = texelFetch(sceneData.environmentPositions, indexOfClosestPosition).xyz;
+			vec3 sampledColor = texelFetch(environmentColors, indexOfClosestPosition).xyz;
+			vec3 sampledPosition = texelFetch(environmentPositions, indexOfClosestPosition).xyz;
 
 			// Now we calculate the average between the 2 colors (the color from the texture and the color from the sampled environment map's texture).
-			// The light contribution from the sampled color from the environment map needs to be weighted based on the angle of incidence with the current surface pixel's normal;
+			// The light contribution from the sampled color from the environment map needs to be weighted based on the angle of incidence with the current surface pixel's normal.
 			// F.E.: if the color of the current surface pixel is red, and the color from the enviroment map's pixel is white and is coming from the side 
-			// (perpendicular to the current surface pixel), then the contribution from the environment map will be zero, therefore the pixel remains red, without it being
-			// affected by the light coming from the environment map at all. On the other hand, assume that the angle is 0, so the light 
+			// (perpendicular to the current surface pixel), then the contribution from the environment map's pixel color will be zero, therefore the surface pixel remains red, 
+			// without it being affected by the light coming from the environment map at all. On the other hand, assume that the angle is 0, so the light from the environment pixel
+			// is parallel to the surface pixel's normal (therefore the light is striking the surface head on), then the contribution from the environment map's light will be at 
+			// its maximum, so the resulting color is a lighter red (because of the averaged value between red (the surface's color) and white (the light).
 			float weightOfSampledColorFromEnvMap = dot(inWorldSpaceNormal.xyz, sampledPosition);
-			
-			// Why do we calculate this value?
 			vec3 weightedTextureColor = vec3(colorAfterEnvironmentMapLighting.r * (1.0f - weightOfSampledColorFromEnvMap) + sampledColor.r * weightOfSampledColorFromEnvMap, 
 				colorAfterEnvironmentMapLighting.g * (1.0f - weightOfSampledColorFromEnvMap) + sampledColor.g * weightOfSampledColorFromEnvMap,
 				colorAfterEnvironmentMapLighting.b * (1.0f - weightOfSampledColorFromEnvMap) + sampledColor.b * weightOfSampledColorFromEnvMap);
-
+			
 			colorAfterEnvironmentMapLighting = vec3((colorAfterEnvironmentMapLighting.r + weightedTextureColor.r) / 2.0f, (colorAfterEnvironmentMapLighting.g + weightedTextureColor.g) / 2.0f, (colorAfterEnvironmentMapLighting.b + weightedTextureColor.b) / 2.0f);
-
 			samplePosition = desiredEnvironmentMapPixelPosition;
 		}
 	}
@@ -103,7 +101,7 @@ void main()
 //	vec3 y = texelFetch(environmentPositions, 1).xyz;
 //	vec3 z = texelFetch(environmentPositions, 2).xyz;
 
-	vec3 environmentMapColor = texture(environmentTexture, vec2(0.5f,0.5f)).xyz;
+//	vec3 environmentMapColor = texture(environmentTexture, vec2(0.5f,0.5f)).xyz;
 
 //	float attenuation = 1.0 / dot(inDirectionToLight, inDirectionToLight);
 //	vec3 lightColor = lightData.colorIntensity.xyz * lightData.colorIntensity.w * attenuation;
@@ -115,5 +113,5 @@ void main()
 //	vec3 finalColor = vec3((textureColor.x + environmentMapColor.x) / 2.0f, (textureColor.y + environmentMapColor.y) / 2.0f, (textureColor.z + environmentMapColor.z) / 2.0f);
 	// vec3 finalColor = textureColor;
 
-	outColor = vec4(environmentMapColor.xyz, 1.0f);
+	outColor = vec4(colorAfterEnvironmentMapLighting.xyz, 1.0f);
 }
