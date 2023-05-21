@@ -588,17 +588,18 @@ namespace Engine::Vulkan
 		// have the world space position of the sampled pixel mapped onto a sphere, and the colour
 		// of the pixel. You will be passing this into the shader.
 		// 
-		// In the fragment shader, use the cross product of the normal vector and a random vector.This
+		// In the fragment shader, use the cross product of the normal vector and a random vector. This
 		// will give you a vector that represents a random direction at the base of the hemisphere above
 		// the pixel to render, in world space.
 		// 
 		// You then rotate this vector around the zenith and azimuth angles of the entire hemisphere, calculate
-		// the spherical coordinates on the hemisphere(in world space) and get the corresponding colour from
+		// the spherical coordinates on the hemisphere (in world space) and get the corresponding colour from
 		// the matrix of precomputed samples we passed in.
 		// 
 		// As you loop through all directions, you add up the light contributions to a variable.
 		// You will need a function that gets the closest sample from the array of precomputed samples.
-		_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Workshop.hdr");
+		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Workshop.hdr");
+		_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "ItalianFlag.jpg");
 	}
 
 	VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)

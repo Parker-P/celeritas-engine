@@ -142,10 +142,6 @@ namespace Engine::Scenes
 		auto sine = sin(angleRadians / 2.0f);
 		_up = glm::quat(cosine, axis.x * sine, axis.y * sine, axis.z * sine) * _up;
 
-		/*std::cout << "Up is: " << _up.x << ", " << _up.y << ", " << _up.z << std::endl;
-		std::cout << "Axis is: " << axis.x << ", " << axis.y << ", " << axis.z << std::endl;
-		std::cout << "Roll is: " << _roll << std::endl;*/
-
 		// Then apply yaw rotation.
 		_transform.Rotate(_up, _deltaYaw);
 
