@@ -32,6 +32,8 @@ namespace Engine::Scenes
 		 */
 		SphericalEnvironmentMap _environmentMap;
 
+		
+
 		/**
 		 * @brief Updates all scene-related data.
 		 */

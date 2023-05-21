@@ -36,20 +36,26 @@ namespace Engine::Scenes
 		/**
 		 * @brief The buffer that encodes RGBA colors from the environment map.
 		 */
-		Vulkan::Buffer _environmentColors;
+		Vulkan::Buffer _environmentColorsBuffer;
 
 		/**
 		 * @brief The buffer that encodes world space spherical positions of the pixels of the environment map's image
 		 * as if it was wrapped into a sphere.
 		 */
-		Vulkan::Buffer _environmentPositions;
+		Vulkan::Buffer _environmentPositionsBuffer;
+
+		/**
+		 * @brief Buffer that contains the variable defined below.
+		 */
+		Vulkan::Buffer _entryCountBuffer;
 
 		struct {
-
+			
 			/**
 			 * @brief Count of the entries in the vectors put in the two buffers defined above.
 			 */
 			int _environmentDataEntryCount;
+
 		} _envSize;
 
 		/**

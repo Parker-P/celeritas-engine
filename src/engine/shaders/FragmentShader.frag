@@ -28,7 +28,7 @@ vec3 RotateVector(vec3 vectorToRotate, vec3 axis, float angleDegrees) {
     float angleRadians = radians(angleDegrees);
 	float cosine = cos(angleRadians / 2.0f);
 	float sine = sin(angleRadians / 2.0f);
-	return (vec4(cosine, inWorldSpaceNormal.x * sine, inWorldSpaceNormal.y * sine, inWorldSpaceNormal.z * sine) * vec4(vectorToRotate, 1.0f)).xyz;
+	return (vec4(cosine, axis.x * sine, axis.y * sine, axis.z * sine) * vec4(vectorToRotate, 1.0f)).xyz;
 }
 
 void main() 

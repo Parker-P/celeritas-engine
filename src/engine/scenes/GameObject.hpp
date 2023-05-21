@@ -19,7 +19,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Constructor.
 		 * @param name Name of the game object.
-		 * @param scene Scene the game object belongs to.
+		 * @param pScene Scene the game object belongs to.
 		 */
 		GameObject(const std::string& name, Scene* pScene);
 
@@ -44,12 +44,12 @@ namespace Engine::Scenes
 		Mesh* _pMesh = nullptr;
 
 		/**
-		 * @brief See Pipelinable.
+		 * @brief See IPipelinable.
 		 */
 		virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue);
 
 		/**
-		 * @brief See Pipelinable.
+		 * @brief See IPipelinable.
 		 */
 		virtual void UpdateShaderResources() override;
 
