@@ -82,10 +82,18 @@ void main()
 			vec3 sampledPosition = texelFetch(sceneData.environmentPositions, indexOfClosestPosition).xyz;
 
 			// Now we calculate the average between the 2 colors (the color from the texture and the color from the sampled environment map's texture).
-			// The light contribution from the sampled color from the environment map needs to be weighted based on the angle of incidence with the current pixel's normal.
+			// The light contribution from the sampled color from the environment map needs to be weighted based on the angle of incidence with the current surface pixel's normal;
+			// F.E.: if the color of the current surface pixel is red, and the color from the enviroment map's pixel is white and is coming from the side 
+			// (perpendicular to the current surface pixel), then the contribution from the environment map will be zero, therefore the pixel remains red, without it being
+			// affected by the light coming from the environment map at all. On the other hand, assume that the angle is 0, so the light 
 			float weightOfSampledColorFromEnvMap = dot(inWorldSpaceNormal.xyz, sampledPosition);
+			
+			// Why do we calculate this value?
+			vec3 weightedTextureColor = vec3(colorAfterEnvironmentMapLighting.r * (1.0f - weightOfSampledColorFromEnvMap) + sampledColor.r * weightOfSampledColorFromEnvMap, 
+				colorAfterEnvironmentMapLighting.g * (1.0f - weightOfSampledColorFromEnvMap) + sampledColor.g * weightOfSampledColorFromEnvMap,
+				colorAfterEnvironmentMapLighting.b * (1.0f - weightOfSampledColorFromEnvMap) + sampledColor.b * weightOfSampledColorFromEnvMap);
 
-			colorAfterEnvironmentMapLighting = vec3((colorAfterEnvironmentMapLighting.r + sampledColor.r) / 2.0f, (colorAfterEnvironmentMapLighting.g + sampledColor.g) / 2.0f, (colorAfterEnvironmentMapLighting.b + sampledColor.b) / 2.0f);
+			colorAfterEnvironmentMapLighting = vec3((colorAfterEnvironmentMapLighting.r + weightedTextureColor.r) / 2.0f, (colorAfterEnvironmentMapLighting.g + weightedTextureColor.g) / 2.0f, (colorAfterEnvironmentMapLighting.b + weightedTextureColor.b) / 2.0f);
 
 			samplePosition = desiredEnvironmentMapPixelPosition;
 		}
