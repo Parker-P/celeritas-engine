@@ -72,7 +72,14 @@ namespace Engine::Scenes
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			_environmentMap._pixelColors.data(),
 			Utils::GetVectorSizeInBytes(_environmentMap._pixelColors),
-			VK_FORMAT_R32_UINT);
+			VK_FORMAT_R32G32B32_SFLOAT);
+
+		VkFormatProperties fp{};
+		vkGetPhysicalDeviceFormatProperties(physicalDevice._handle, VK_FORMAT_R32_UINT, &fp);
+
+		if (!(fp.bufferFeatures & VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT)) {
+			std::cout << "Provided format is not supported for a uniform texel buffer." << std::endl;
+		}
 
 		_environmentMap._environmentPositionsBuffer = Vulkan::Buffer(logicalDevice,
 			physicalDevice,

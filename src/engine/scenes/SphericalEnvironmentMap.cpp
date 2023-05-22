@@ -17,12 +17,17 @@ namespace Engine::Scenes
 	void SphericalEnvironmentMap::LoadFromFile(std::filesystem::path imageFilePath)
 	{
 		int actualComponents;
+		int desiredComponents = 4;
+		
+		if (auto extension = imageFilePath.extension(); extension.string() == ".jpg") {
+			desiredComponents = 3;
+		}
 
 		// In the stbi_load() function, comp stands for components. In a PNG image, for example, there are 4 components 
 		// for each pixel, red, green, blue and alpha.
 		// The image's pixels are read and stored left to right, top to bottom, relative to the image.
 		// Each pixel's component is an unsigned char.
-		auto image = stbi_load(imageFilePath.string().c_str(), &_width, &_height, &actualComponents, 4);
+		auto image = stbi_load(imageFilePath.string().c_str(), &_width, &_height, &actualComponents, desiredComponents);
 		auto imageLength = _width * _height * actualComponents;
 		auto pixelCount = _width * _height;
 
@@ -51,14 +56,18 @@ namespace Engine::Scenes
 			float sphereCoordinateY = sin(glm::radians(zenithDegrees));
 			float sphereCoordinateZ = cos(glm::radians(azimuthDegrees)) * cos(glm::radians(zenithDegrees));
 
-			// Clumping the color and the coordinate of that pixel as if the image was folden on itself into a sphere.
+			// Clumping the color and the coordinate of that pixel as if the image was folded on itself into a sphere.
 			unsigned int color = 0;
 
 			for (int c = actualComponents; c > 0; --c) {
-				color |= image[componentIndex+c] << (8 * (c - 1));
+				color |= image[componentIndex + c] << (8 * (c - 1));
 			}
 
-			_pixelColors[pixelIndex] = color;
+			unsigned int r = image[componentIndex];
+			unsigned int g = image[componentIndex+1];
+			unsigned int b = image[componentIndex+2];
+
+			_pixelColors[pixelIndex] = glm::vec3((float)image[componentIndex] / 255.0f, (float)image[componentIndex + 1] / 255.0f, (float)image[componentIndex + 2] / 255.0f);
 			_pixelCoordinatesWorldSpace[pixelIndex] = glm::vec3(sphereCoordinateX, sphereCoordinateY, sphereCoordinateZ);
 		}
 
