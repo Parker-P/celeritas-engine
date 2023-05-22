@@ -23,7 +23,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Colors of the pixels.
 		 */
-		std::vector<int> _pixelColors;
+		std::vector<unsigned int> _pixelColors;
 
 		/**
 		 * @brief World space coordinates of the pixels. By using this in unison with _pixelColors,

@@ -72,7 +72,7 @@ namespace Engine::Scenes
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			_environmentMap._pixelColors.data(),
 			Utils::GetVectorSizeInBytes(_environmentMap._pixelColors),
-			VK_FORMAT_R32G32B32_SFLOAT);
+			VK_FORMAT_R32_UINT);
 
 		_environmentMap._environmentPositionsBuffer = Vulkan::Buffer(logicalDevice,
 			physicalDevice,

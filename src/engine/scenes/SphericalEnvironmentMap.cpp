@@ -29,9 +29,9 @@ namespace Engine::Scenes
 		_pixelColors.resize(pixelCount);
 		_pixelCoordinatesWorldSpace.resize(pixelCount);
 
-		for (int componentIndex = 0; componentIndex < imageLength; componentIndex += 4)
+		for (int componentIndex = 0; componentIndex < imageLength; componentIndex += actualComponents)
 		{
-			int pixelIndex = componentIndex / 4;
+			int pixelIndex = componentIndex / actualComponents;
 			int imageCoordinateX = pixelIndex % _width;
 			int imageCoordinateY = pixelIndex / _width;
 
@@ -52,9 +52,11 @@ namespace Engine::Scenes
 			float sphereCoordinateZ = cos(glm::radians(azimuthDegrees)) * cos(glm::radians(zenithDegrees));
 
 			// Clumping the color and the coordinate of that pixel as if the image was folden on itself into a sphere.
-			int color = image[componentIndex] << 24 | image[componentIndex + 1] << 16 | image[componentIndex + 2] << 8 | image[componentIndex + 3];
+			unsigned int color = 0;
 
-			auto x = image[componentIndex];
+			for (int c = actualComponents; c > 0; --c) {
+				color |= image[componentIndex+c] << (8 * (c - 1));
+			}
 
 			_pixelColors[pixelIndex] = color;
 			_pixelCoordinatesWorldSpace[pixelIndex] = glm::vec3(sphereCoordinateX, sphereCoordinateY, sphereCoordinateZ);
