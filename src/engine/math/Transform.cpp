@@ -38,7 +38,6 @@ namespace Engine::Math
 	void Transform::Rotate(const glm::vec3& axis, const float& angleDegrees)
 	{
 		// Construct a quaternion to rotate any point or vector around the chosen axis by the angle provided.
-		auto normalizedAxis = glm::normalize(axis);
 		auto angleRadians = glm::radians(angleDegrees);
 		auto cosine = cos(angleRadians / 2.0f);
 		auto sine = sin(angleRadians / 2.0f);

@@ -75,6 +75,7 @@ namespace Engine::Scenes
 		_cameraData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(globalSettings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(globalSettings._windowHeight);
 		_cameraData.nearClipDistance = _nearClippingDistance;
 		_cameraData.farClipDistance = _farClippingDistance;
+		_cameraData.transform = _transform.Position();
 
 		_buffers[0].UpdateData(&_cameraData, (size_t)sizeof(_cameraData));
 	}
@@ -84,8 +85,8 @@ namespace Engine::Scenes
 		auto& input = Input::KeyboardMouse::Instance();
 		auto& time = Time::Instance();
 		auto mouseSens = Settings::GlobalSettings::Instance()._mouseSensitivity;
-
 		_yaw += (float)input._deltaMouseX * mouseSens;
+
 		if ((_pitch + (input._deltaMouseY * mouseSens)) > -90 && (_pitch + (input._deltaMouseY * mouseSens)) < 90) {
 			_pitch += (float)input._deltaMouseY * mouseSens;
 		}

@@ -61,6 +61,7 @@ namespace Engine::Scenes
 			float nearClipDistance;
 			float farClipDistance;
 			glm::mat4 worldToCamera;
+			glm::vec3 transform;
 		} _cameraData;
 
 		/**

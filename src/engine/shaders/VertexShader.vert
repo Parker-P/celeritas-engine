@@ -11,6 +11,7 @@ layout(location = 2) in vec2 inUv;
 layout (location = 0) out vec2 outUVCoord;
 layout (location = 1) out vec4 outWorldSpaceNormal;
 layout (location = 2) out vec3 outDirectionToLight;
+layout (location = 3) out vec3 outDirectionToCamera;
 
 // Data used to project the world space coordinates of the vertex into Vulkan's viewable volume.
 layout(set = 0, binding = 0) uniform CameraData {
@@ -19,6 +20,7 @@ layout(set = 0, binding = 0) uniform CameraData {
 	float nearClipDistance;
 	float farClipDistance;
 	mat4 worldToCamera;
+	vec3 worldSpacePosition;
 } cameraData;
 
 // Variables coming from descriptor with binding number 0 at descriptor set 1.
@@ -33,10 +35,10 @@ layout(set = 2, binding = 0) uniform LightData {
 
 void main() 
 {
-	vec4 worldSpacePosition = objectData.objectToWorld * vec4(inPosition.xyz, 1.0f);
-	vec4 worldSpaceNormal = objectData.objectToWorld * vec4(inNormal.xyz, 1.0f);
-	vec4 cameraSpacePosition = cameraData.worldToCamera * worldSpacePosition;
-	
+	vec4 vertexWorldSpacePosition = objectData.objectToWorld * vec4(inPosition.xyz, 1.0f);
+	vec4 worldSpaceNormal = objectData.objectToWorld * vec4(inNormal.xyz, 0.0f);
+	vec4 cameraSpacePosition = cameraData.worldToCamera * vertexWorldSpacePosition;
+
 	// The idea behind the projection transformation is using the camera as if you were standing behind a glass window: whatever you see out the window gets projected onto
 	// the glass.
 	// Lets say that YOU are the camera. Now do the following:
@@ -61,5 +63,7 @@ void main()
 	// Forward the uv coordinate of the vertex to the fragment stage.
 	outUVCoord = inUv;
 	outWorldSpaceNormal = worldSpaceNormal;
-	outDirectionToLight = lightData.position - worldSpacePosition.xyz;
+//	outWorldSpaceNormal = vec4(inNormal.xyz, 1.0f);
+	outDirectionToLight = lightData.position - vertexWorldSpacePosition.xyz;
+	outDirectionToCamera = normalize(cameraData.worldSpacePosition - vertexWorldSpacePosition.xyz);
 }
