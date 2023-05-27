@@ -504,12 +504,12 @@ namespace Engine::Vulkan
 		std::string err;
 		std::string warn;
 
-		//auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb)";
-		auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb)";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb)";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "monster.glb)";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb)";
+		auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "monster.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb";
 		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath.string());
 		std::cout << warn << std::endl;
 		std::cout << err << std::endl;

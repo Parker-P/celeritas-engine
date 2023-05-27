@@ -101,31 +101,47 @@ vec3 RotateVector(vec3 vectorToRotate, vec3 axis, float angleDegrees) {
 void main() 
 {
     vec4 reflected = reflect(vec4(-inDirectionToCamera.xyz, 0.0f), vec4(inWorldSpaceNormal.xyz, 0.0f));
-
-	if (dot(vec4(inDirectionToCamera, 0.0f), inWorldSpaceNormal) > 0) {
-		
-		// Find the color based on the closest available position vector (to desiredEnvironmentMapPixelPosition) in the environment map's pixel positions.
-		float minimumDelta = 1.0f;
-		vec3 environmentMapPixelPosition = texelFetch(environmentPositions, 0).xyz;
-		int indexOfClosestPosition = 0; // Index in the array of environment map's pixel positions of the closest available position vector to the position vector we want to sample from.
-
-		for (int i = 0; i < envSize.environmentDataEntryCount; ++i) {
-			float delta = 1.0f - dot(reflected, vec4(environmentMapPixelPosition, 0.0f));
-
-			if (delta < minimumDelta) {
-				indexOfClosestPosition = i;
-				minimumDelta = delta;
-			}
-
-			environmentMapPixelPosition = texelFetch(environmentPositions, i).xyz;
-		}
-
-		vec3 sampledColor = texelFetch(environmentColors, indexOfClosestPosition).rgb;
-		outColor = vec4(sampledColor, 1.0f);
+	vec2 zenithVector = normalize(vec2(reflected.x, reflected.y));
+	float zenith = degrees(asin(zenithVector.y));
+	vec2 azimuthVector = normalize(vec2(reflected.x, reflected.z));
+	float azimuth = 0.0f;
+	
+	if (azimuthVector.x < 0) {
+		azimuth = 360.0f - degrees(acos(azimuthVector.z));
 	}
 	else {
-		outColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+		azimuth = degrees(acos(azimuthVector.z));
 	}
+
+	azimuth = degrees(acos(azimuhVector.z)
+
+
+	outColor = reflected;
+
+//	if (dot(vec4(inDirectionToCamera, 0.0f), inWorldSpaceNormal) > 0) {
+//		
+//		// Find the color based on the closest available position vector (to desiredEnvironmentMapPixelPosition) in the environment map's pixel positions.
+//		float minimumDelta = 1.0f;
+//		vec3 environmentMapPixelPosition = texelFetch(environmentPositions, 0).xyz;
+//		int indexOfClosestPosition = 0; // Index in the array of environment map's pixel positions of the closest available position vector to the position vector we want to sample from.
+//
+//		for (int i = 0; i < envSize.environmentDataEntryCount; ++i) {
+//			float delta = 1.0f - dot(reflected, vec4(environmentMapPixelPosition, 0.0f));
+//
+//			if (delta < minimumDelta) {
+//				indexOfClosestPosition = i;
+//				minimumDelta = delta;
+//			}
+//
+//			environmentMapPixelPosition = texelFetch(environmentPositions, i).xyz;
+//		}
+//
+//		vec3 sampledColor = texelFetch(environmentColors, indexOfClosestPosition).rgb;
+//		outColor = vec4(sampledColor, 1.0f);
+//	}
+//	else {
+//		outColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);
+//	}
 
 //	vec3 x = texelFetch(environmentPositions, 0).xyz;
 //	vec3 y = texelFetch(environmentPositions, 1).xyz;
@@ -146,5 +162,5 @@ void main()
 //	outColor = vec4(inDirectionToCamera, 1.0f);
 //	outColor = vec4(reflected.xyz, 1.0f);
 //	outColor = vec4(inWorldSpaceNormal.xyz, 1.0f);
-//	outColor = reflected;
+	
 }
