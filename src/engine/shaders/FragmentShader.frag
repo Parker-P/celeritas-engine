@@ -100,6 +100,7 @@ vec3 RotateVector(vec3 vectorToRotate, vec3 axis, float angleDegrees) {
 
 void main() 
 {
+	// Calculate spherical coordinates from reflection vector.
     vec4 reflected = reflect(vec4(-inDirectionToCamera.xyz, 0.0f), vec4(inWorldSpaceNormal.xyz, 0.0f));
 	vec2 zenithVector = normalize(vec2(reflected.x, reflected.y));
 	float zenith = degrees(asin(zenithVector.y));
@@ -113,7 +114,8 @@ void main()
 		azimuth = degrees(acos(azimuthVector.z));
 	}
 
-	azimuth = degrees(acos(azimuhVector.z)
+	// Calculate UV coordinates from spherical coordinates to sample from the environment map as if it was
+	// folded on itself into a sphere.
 
 
 	outColor = reflected;
