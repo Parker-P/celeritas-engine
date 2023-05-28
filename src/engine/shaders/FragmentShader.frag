@@ -17,13 +17,7 @@ layout(set = 2, binding = 0) uniform LightData {
 } lightData;
 
 layout(set = 3, binding = 0) uniform sampler2D baseColorTexture;
-
-// Environment map data.
-layout(set = 4, binding = 0) uniform textureBuffer environmentColors;
-layout(set = 4, binding = 1) uniform textureBuffer environmentPositions;
-layout(set = 4, binding = 2) uniform Size {
-	int environmentDataEntryCount;
-} envSize;
+layout(set = 4, binding = 0) uniform sampler2D environmentMapTexture;
 
 void SampleEnvironmentMap(){
 // The idea behind using an environment map is the following:
@@ -100,25 +94,29 @@ vec3 RotateVector(vec3 vectorToRotate, vec3 axis, float angleDegrees) {
 
 void main() 
 {
-	// Calculate spherical coordinates from reflection vector.
+	// Calculate spherical coordinates from the reflection vector.
     vec4 reflected = reflect(vec4(-inDirectionToCamera.xyz, 0.0f), vec4(inWorldSpaceNormal.xyz, 0.0f));
 	vec2 zenithVector = normalize(vec2(reflected.x, reflected.y));
-	float zenith = degrees(asin(zenithVector.y));
+	float zenithDegrees = degrees(asin(zenithVector.y));
 	vec2 azimuthVector = normalize(vec2(reflected.x, reflected.z));
-	float azimuth = 0.0f;
+	float azimuthDegrees = 0.0f;
 	
 	if (azimuthVector.x < 0) {
-		azimuth = 360.0f - degrees(acos(azimuthVector.z));
+		azimuthDegrees = 360.0f - degrees(acos(azimuthVector.y));
 	}
 	else {
-		azimuth = degrees(acos(azimuthVector.z));
+		azimuthDegrees = degrees(acos(azimuthVector.y));
 	}
 
 	// Calculate UV coordinates from spherical coordinates to sample from the environment map as if it was
 	// folded on itself into a sphere.
+	float uvCoordinateX = mod((0.5f + (azimuthDegrees) / 360.0f), 1.0f);
+	float uvCoordinateY = (zenithDegrees + 90.0f) / 180.0f;
 
+	// Sample the environment map using the calculated uv coordinates.
+	vec4 sampledColor = texture(environmentMapTexture, vec2(uvCoordinateX, uvCoordinateY));
 
-	outColor = reflected;
+	outColor = sampledColor;
 
 //	if (dot(vec4(inDirectionToCamera, 0.0f), inWorldSpaceNormal) > 0) {
 //		

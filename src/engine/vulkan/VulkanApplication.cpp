@@ -70,13 +70,13 @@ namespace Engine::Vulkan
 		Cleanup(true);
 	}
 
-	VkBool32 VulkanApplication::DebugCallback(VkDebugReportFlagsEXT flags, 
-		VkDebugReportObjectTypeEXT objType, 
-		uint64_t srcObject, 
-		size_t location, 
-		int32_t msgCode, 
-		const char* pLayerPrefix, 
-		const char* pMsg, 
+	VkBool32 VulkanApplication::DebugCallback(VkDebugReportFlagsEXT flags,
+		VkDebugReportObjectTypeEXT objType,
+		uint64_t srcObject,
+		size_t location,
+		int32_t msgCode,
+		const char* pLayerPrefix,
+		const char* pMsg,
 		void* pUserData)
 	{
 		if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
@@ -526,13 +526,13 @@ namespace Engine::Vulkan
 				auto& baseColorImageData = gltfScene.images[baseColorImageIndex].image;
 				auto size = VkExtent2D{ (uint32_t)gltfScene.images[baseColorImageIndex].width, (uint32_t)gltfScene.images[baseColorImageIndex].height };
 
-				m._baseColor = Image(_logicalDevice, 
-					_physicalDevice, 
-					VK_FORMAT_R8G8B8A8_SRGB, 
-					size, 
-					baseColorImageData.data(), 
-					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT), 
-					VK_IMAGE_ASPECT_COLOR_BIT, 
+				m._baseColor = Image(_logicalDevice,
+					_physicalDevice,
+					VK_FORMAT_R8G8B8A8_SRGB,
+					size,
+					baseColorImageData.data(),
+					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
+					VK_IMAGE_ASPECT_COLOR_BIT,
 					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 				m._baseColor.SendToGPU(_commandPool, _queue);
@@ -668,9 +668,12 @@ namespace Engine::Vulkan
 		// As you loop through all directions, you add up the light contributions to a variable.
 		// You will need a function that gets the closest sample from the array of precomputed samples.
 		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Workshop.hdr");
+		_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Workshop.png");
 		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "ItalianFlag.jpg");
 		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "TestPng.png");
-		_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "EnvMap.png");
+		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "EnvMap.png");
+		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "texture.jpg");
+		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "TestJpg.jpg");
 	}
 
 	VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)
@@ -1278,7 +1281,7 @@ namespace Engine::Vulkan
 			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
 			for (auto& gameObject : _scene._gameObjects) {
-				VkDescriptorSet sets[5] = { _mainCamera._sets[0]._handle, gameObject._sets[0]._handle, _scene._pointLights[0]._sets[0]._handle, gameObject._pMesh->_sets[0]._handle, _scene._sets[0]._handle};
+				VkDescriptorSet sets[5] = { _mainCamera._sets[0]._handle, gameObject._sets[0]._handle, _scene._pointLights[0]._sets[0]._handle, gameObject._pMesh->_sets[0]._handle, _scene._sets[0]._handle };
 				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 5, sets, 0, nullptr);
 				VkDeviceSize offset = 0;
 				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._pMesh->_vertices._vertexBuffer._handle, &offset);

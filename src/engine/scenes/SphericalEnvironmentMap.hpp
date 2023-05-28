@@ -21,10 +21,9 @@ namespace Engine::Scenes
 		int _height;
 
 		/**
-		 * @brief Colors of the pixels as RGB floats with range from 0.0f to 1.0f. The colors of the pixels are stored this way
-		 * because this is the way GLSL handles pixel colors.
+		 * @brief Colors of the pixels as RGB floats.
 		 */
-		std::vector<glm::vec3> _pixelColors;
+		std::vector<unsigned char> _pixelColors;
 
 		/**
 		 * @brief World space coordinates of the pixels. By using this in unison with _pixelColors,
