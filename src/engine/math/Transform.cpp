@@ -71,6 +71,19 @@ namespace Engine::Math
 		_matrix[3][2] = position.z;
 	}
 
+	glm::vec3 Transform::Scale()
+	{
+		return _scale;
+	}
+
+	void Transform::SetScale(const glm::vec3& scale)
+	{
+		_scale = scale;
+		_matrix[0][0] *= scale.x;
+		_matrix[1][1] *= scale.y;
+		_matrix[2][2] *= scale.z;
+	}
+
 	glm::vec3 Transform::Position()
 	{
 		return glm::vec3(_matrix[3][0], _matrix[3][1], _matrix[3][2]);

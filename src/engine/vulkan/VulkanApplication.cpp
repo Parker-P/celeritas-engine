@@ -504,8 +504,9 @@ namespace Engine::Vulkan
 		std::string err;
 		std::string warn;
 
-		auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
+		auto scenePath = Settings::Paths::ModelsPath() /= "Cube.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "monster.glb";
@@ -551,9 +552,14 @@ namespace Engine::Vulkan
 			for (auto& gltfPrimitive : gltfMesh.primitives) {
 				auto gameObject = Scenes::GameObject(gltfScene.nodes[i].name, &_scene);
 				auto& position = gltfScene.nodes[i].translation;
+				auto& scale = gltfScene.nodes[i].scale;
 
 				if (position.size() == 3) {
 					gameObject._transform.SetPosition(glm::vec3{ position[0], position[1], position[2] });
+				}
+
+				if (scale.size() == 3) {
+					gameObject._transform.SetScale(glm::vec3{ scale[0], scale[1], scale[2] });
 				}
 
 				auto faceIndicesAccessorIndex = gltfPrimitive.indices;
@@ -652,27 +658,13 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::LoadEnvironmentMap()
 	{
-		// The idea behind using an environment map is the following:
-		// On the CPU side, take the environment map and sample it in an array, where for each cell, 
-		// have the world space position of the sampled pixel mapped onto a sphere, and the colour
-		// of the pixel. You will be passing this into the shader.
-		// 
-		// In the fragment shader, use the cross product of the normal vector and a random vector. This
-		// will give you a vector that represents a random direction at the base of the hemisphere above
-		// the pixel to render, in world space.
-		// 
-		// You then rotate this vector around the zenith and azimuth angles of the entire hemisphere, calculate
-		// the spherical coordinates on the hemisphere (in world space) and get the corresponding colour from
-		// the matrix of precomputed samples we passed in.
-		// 
-		// As you loop through all directions, you add up the light contributions to a variable.
-		// You will need a function that gets the closest sample from the array of precomputed samples.
 		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Workshop.hdr");
-		_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Workshop.png");
+		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Waterfall.hdr");
+		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Workshop.png");
 		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "ItalianFlag.jpg");
 		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "TestPng.png");
 		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "EnvMap.png");
-		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "texture.jpg");
+		_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "texture.jpg");
 		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "TestJpg.jpg");
 	}
 

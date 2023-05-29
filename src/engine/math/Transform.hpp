@@ -40,12 +40,12 @@ namespace Engine::Math
 		glm::mat4x4 _matrix;
 
 		/**
-		 * @brief The scale is stored separately as it would be impossible to tell from _transformation alone as it mixes with rotation values.
+		 * @brief The scale is stored separately as it would be impossible to tell from _matrix alone as it mixes with rotation values.
 		 */
-		glm::mat4x4 _scale;
+		glm::vec3 _scale;
 
 		/**
-		 * @brief Returns a vector in world space that is the world's X axis rotated by the _transformation transformation matrix.
+		 * @brief Returns a vector in world space that is the world's X axis rotated by the _matrix transformation matrix.
 		 * The function is called "Right" because a camera is always pointing towards the Z axis (in world space)
 		 * so the X axis is to the "right" of the camera.
 		 * @return
@@ -84,5 +84,13 @@ namespace Engine::Math
 		 * @param position Three-dimentional position.
 		 */
 		void SetPosition(const glm::vec3& position);
+
+		glm::vec3 Scale();
+
+		/**
+		 * @brief Sets the homogeneous column of the transform matrix, used for position.
+		 * @param position Three-dimentional position.
+		 */
+		void SetScale(const glm::vec3& scale);
 	};
 }

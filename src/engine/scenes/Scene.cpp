@@ -44,64 +44,7 @@ namespace Engine::Scenes
 
 	void Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
-		/*_environmentMap._colors = Vulkan::Image(logicalDevice,
-			physicalDevice,
-			VK_FORMAT_R8G8B8A8_SRGB,
-			VkExtent2D{ (uint32_t)_environmentMap._width, (uint32_t)_environmentMap._height },
-			_environmentMap._pixelColors.data(),
-			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
-			VK_IMAGE_ASPECT_COLOR_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);*/
-
-			/*_environmentMap._positions = Vulkan::Buffer(logicalDevice,
-				physicalDevice,
-				(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-				_environmentMap._pixelCoordinatesWorldSpace.data(),
-				Utils::GetVectorSizeInBytes(_environmentMap._pixelCoordinatesWorldSpace),
-				VK_FORMAT_R32G32B32_SFLOAT);*/
-
-				/*_test.resize(3);
-				_test[0] = glm::vec3(1.0f, 0.0f, 0.0f);
-				_test[1] = glm::vec3(0.0f, 1.0f, 0.0f);
-				_test[2] = glm::vec3(1.0f, 0.0f, 1.0f);*/
-
-				/*_environmentMap._environmentColorsBuffer = Vulkan::Buffer(logicalDevice,
-					physicalDevice,
-					(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-					_environmentMap._pixelColors.data(),
-					Utils::GetVectorSizeInBytes(_environmentMap._pixelColors),
-					VK_FORMAT_R32G32B32_SFLOAT);
-
-				VkFormatProperties fp{};
-				vkGetPhysicalDeviceFormatProperties(physicalDevice._handle, VK_FORMAT_R32_UINT, &fp);
-
-				if (!(fp.bufferFeatures & VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT)) {
-					std::cout << "Provided format is not supported for a uniform texel buffer." << std::endl;
-				}
-
-				_environmentMap._environmentPositionsBuffer = Vulkan::Buffer(logicalDevice,
-					physicalDevice,
-					(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-					_environmentMap._pixelCoordinatesWorldSpace.data(),
-					Utils::GetVectorSizeInBytes(_environmentMap._pixelCoordinatesWorldSpace),
-					VK_FORMAT_R32G32B32_SFLOAT);
-
-				_environmentMap._envSize._environmentDataEntryCount = (int)_environmentMap._pixelColors.size();
-				_environmentMap._entryCountBuffer = Vulkan::Buffer(logicalDevice,
-					physicalDevice,
-					(VkBufferUsageFlagBits)(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT),
-					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-					&_environmentMap._envSize,
-					sizeof(_environmentMap._envSize));
-
-				_environmentMap._environmentColorsBuffer.SendToGPU(commandPool, graphicsQueue);
-				_environmentMap._environmentPositionsBuffer.SendToGPU(commandPool, graphicsQueue);
-				_environmentMap._entryCountBuffer.SendToGPU(commandPool, graphicsQueue);*/
-
-		auto image = Vulkan::Image(logicalDevice,
+		auto environmentMap = Vulkan::Image(logicalDevice,
 			physicalDevice,
 			VK_FORMAT_R8G8B8A8_SRGB,
 			VkExtent2D{ (uint32_t)_environmentMap._width, (uint32_t)_environmentMap._height },
@@ -110,18 +53,9 @@ namespace Engine::Scenes
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-		image.SendToGPU(commandPool, graphicsQueue);
-
-		/*_buffers.push_back(_environmentMap._environmentColorsBuffer);
-		_buffers.push_back(_environmentMap._environmentPositionsBuffer);
-		_buffers.push_back(_environmentMap._entryCountBuffer);*/
-		_images.push_back(image);
-
-		/*_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 0, _environmentMap._environmentColorsBuffer));
-		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1, _environmentMap._environmentPositionsBuffer));
-		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2, _environmentMap._entryCountBuffer));*/
-		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, std::nullopt, image));
-
+		environmentMap.SendToGPU(commandPool, graphicsQueue);
+		_images.push_back(environmentMap);
+		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, std::nullopt, environmentMap));
 		_sets.push_back(Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, _descriptors));
 		_pool = Vulkan::DescriptorPool(logicalDevice, _sets);
 	}
