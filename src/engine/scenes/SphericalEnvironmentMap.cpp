@@ -122,120 +122,15 @@ namespace Engine::Scenes
         glm::vec3 negativeYAxis(0.0f, -1.0f, 0.0f);
         glm::vec3 negativeZAxis(0.0f, 0.0f, -1.0f);
 
-        int frontPixelCount = 0;
-        int rightPixelCount = 0;
-        int backPixelCount = 0;
-        int leftPixelCount = 0;
-        int upperPixelCount = 0;
-        int lowerPixelCount = 0;
-
-        // Calculate the pixel count of cube map's each image.
-        for (int componentIndex = 0; componentIndex < imageLength; componentIndex += wantedComponents) {
-            int pixelIndex = componentIndex / wantedComponents;
-            int imageCoordinateX = pixelIndex % _width;
-            int imageCoordinateY = pixelIndex / _width;
-
-            // Mapping the pixel's image coordinates into [0-1] UV coordinates space.
-            float uvCoordinateX = (float)imageCoordinateX / (float)_width;
-            float uvCoordinateY = 1.0f - ((float)imageCoordinateY / (float)_height);
-
-            // Mapping UV coordinates onto a unit sphere and calculating spherical coordinates.
-            float azimuthDegrees = fmodf((360.0f * uvCoordinateX) + 180.0f, 360.0f);
-            float zenithDegrees = -((180.0f * uvCoordinateY) - 90.0f);
-
-            // Calculating cartesian (x, y, z) coordinates in world space from spherical coordinates. 
-            // Assuming that the origin is the center of the sphere, we are using a left-handed coordinate 
-            // system and that the Z vector (forward vector) in world space points to the spherical coordinate 
-            // with azimuth = 0 and zenith = 0, or UV coordinates (0.5, 0.5).
-            float sphereCoordinateX = sin(glm::radians(azimuthDegrees)) * cos(glm::radians(zenithDegrees));
-            float sphereCoordinateY = -sin(glm::radians(zenithDegrees));
-            float sphereCoordinateZ = cos(glm::radians(azimuthDegrees)) * cos(glm::radians(zenithDegrees));
-            glm::vec3 cartesianCoordinatesOnSphere(sphereCoordinateX, sphereCoordinateY, sphereCoordinateZ);
-            cartesianCoordinatesOnSphere = glm::normalize(cartesianCoordinatesOnSphere);
-
-            // Now we calculate the dot product with all axes and get the maximum (which will be the closest to 1 because
-            // both vectors are normalized). By doing this, we find which axis our vector representing cartesian coordinates on the sphere
-            // is most aligned with.
-            std::vector<std::pair<glm::vec3, float>> dotProducts;
-            dotProducts.push_back(std::make_pair(positiveXAxis, glm::dot(cartesianCoordinatesOnSphere, positiveXAxis)));
-            dotProducts.push_back(std::make_pair(positiveYAxis, glm::dot(cartesianCoordinatesOnSphere, positiveYAxis)));
-            dotProducts.push_back(std::make_pair(positiveZAxis, glm::dot(cartesianCoordinatesOnSphere, positiveZAxis)));
-            dotProducts.push_back(std::make_pair(negativeXAxis, glm::dot(cartesianCoordinatesOnSphere, negativeXAxis)));
-            dotProducts.push_back(std::make_pair(negativeYAxis, glm::dot(cartesianCoordinatesOnSphere, negativeYAxis)));
-            dotProducts.push_back(std::make_pair(negativeZAxis, glm::dot(cartesianCoordinatesOnSphere, negativeZAxis)));
-            glm::vec3 closestAxis = positiveXAxis;
-            float maxDotProduct = -1.0f;
-
-            // Loop through the map of dot products to find the closest axis to our cartesian coordinates vector.
-            for (auto i = dotProducts.begin(); i != dotProducts.end(); ++i) {
-                if (i->second > maxDotProduct) {
-                    maxDotProduct = i->second;
-                    closestAxis = i->first;
-                }
-            }
-
-            // Find the angle between the vector representing the cartesian coordinates on the sphere
-            // and the closest axis. This will give us the angle we need to feed into the tan()
-            // function to get the X and Y coordinates of the cube map's face we are trying to 
-            // calculate XY coordinates for, relative to its center.
-            float localXAngle = 0.0f;
-            float localYAngle = 0.0f;
-            float UVCoordinateX = 0.0f;
-            float UVCoordinateY = 0.0f;
-
-            // The pixel belongs to the cube map's face on the right.
-            if (closestAxis == positiveXAxis) {
-                rightPixelCount++;
-            }
-
-            // The pixel belongs to the cube map's face above.
-            if (closestAxis == positiveYAxis) {
-                upperPixelCount++;
-            }
-
-            // The pixel belongs to the cube map's face in front.
-            if (closestAxis == positiveZAxis) {
-                frontPixelCount++;
-            }
-
-            // The pixel belongs to the cube map's face on the left.
-            if (closestAxis == negativeXAxis) {
-                leftPixelCount++;
-            }
-
-            // The pixel belongs to the cube map's face below.
-            if (closestAxis == negativeYAxis) {
-                lowerPixelCount++;
-            }
-
-            // The pixel belongs to the cube map's face behind.
-            if (closestAxis == negativeZAxis) {
-                backPixelCount++;
-            }
-        }
-
-        int frontWidthAndHeight = sqrt(frontPixelCount);
-        int rightWidthAndHeight = sqrt(rightPixelCount);
-        int backWidthAndHeight= sqrt(backPixelCount);
-        int leftWidthAndHeight= sqrt(leftPixelCount);
-        int upperWidthAndHeight= sqrt(upperPixelCount);
-        int lowerWidthAndHeight= sqrt(lowerPixelCount);
-
         // This map will keep track of each of the cubemap's images we generate from the spherical HDRi.
         // The width of the image must be the width of the HDRi divided by 4 (because we have 4 side faces).
         // The height will be the same as the width.
         auto cubeMapImageWidthAndHeight = _width / 4;
-        CubicalEnvironmentMap cubeMap;
-        cubeMap._front = std::vector<unsigned int>(frontPixelCount);
-        cubeMap._right = std::vector<unsigned int>(rightPixelCount);
-        cubeMap._back = std::vector<unsigned int>(backPixelCount);
-        cubeMap._left = std::vector<unsigned int>(leftPixelCount);
-        cubeMap._upper = std::vector<unsigned int>(upperPixelCount);
-        cubeMap._lower = std::vector<unsigned int>(lowerPixelCount);
-
+        CubicalEnvironmentMap cubeMap(cubeMapImageWidthAndHeight * cubeMapImageWidthAndHeight);
         auto debugImage = std::vector<unsigned char>(imageLength);
 
-        for (int componentIndex = 0; componentIndex < imageLength; componentIndex += wantedComponents) {
+        for (int componentIndex = 0; componentIndex < imageLength; componentIndex += wantedComponents)
+        {
             int pixelIndex = componentIndex / wantedComponents;
             int imageCoordinateX = pixelIndex % _width;
             int imageCoordinateY = pixelIndex / _width;
@@ -247,6 +142,10 @@ namespace Engine::Scenes
             // Mapping UV coordinates onto a unit sphere and calculating spherical coordinates.
             float azimuthDegrees = fmodf((360.0f * uvCoordinateX) + 180.0f, 360.0f);
             float zenithDegrees = -((180.0f * uvCoordinateY) - 90.0f);
+
+            if (azimuthDegrees == 0.0f && zenithDegrees == 0.0f) {
+                auto m = 4;
+            }
 
             // Calculating cartesian (x, y, z) coordinates in world space from spherical coordinates. 
             // Assuming that the origin is the center of the sphere, we are using a left-handed coordinate 
@@ -346,6 +245,8 @@ namespace Engine::Scenes
 
 #pragma region Debug image
 
+
+
             if (detectedFace == CubeMapFace::FRONT) {
                 debugImage[componentIndex] = 255;
                 debugImage[componentIndex + 1] = 0;
@@ -387,6 +288,7 @@ namespace Engine::Scenes
                 debugImage[componentIndex + 2] = 255;
                 debugImage[componentIndex + 3] = 255;
             }
+            
 
 #pragma endregion
 
@@ -416,8 +318,7 @@ namespace Engine::Scenes
             // 2 pixels of the spherical HDRi map to one pixel of a specific cube map's image, we take the average of the
             // 2 colors.
             auto& cubeMapImage = cubeMap[detectedFace];
-            auto imageWidthAndHeight = sqrt(cubeMapImage.size());
-            int index = (UVCoordinateX * imageWidthAndHeight) + (((imageWidthAndHeight * (imageWidthAndHeight - 1)) * (1.0f - UVCoordinateY)));
+            int index = (UVCoordinateX * cubeMapImageWidthAndHeight) + (((cubeMapImageWidthAndHeight * (cubeMapImageWidthAndHeight - 1)) * (1.0f - UVCoordinateY)));
             auto red = image[componentIndex];
             auto green = image[componentIndex + 1];
             auto blue = image[componentIndex + 2];
@@ -430,7 +331,7 @@ namespace Engine::Scenes
             auto averageBlue = ((existingColor >> 8 & 255) + blue) / 2;
             auto averageAlpha = ((existingColor & 255) + alpha) / 2;
             unsigned int averageColor = averageRed << 24 | averageGreen << 16 | averageBlue << 8 | averageAlpha;
-
+            
             cubeMapImage[index] = (cubeMapImage[index] == 0u) ? hdriColor : averageColor;
             cubeMap.SetFaceData(detectedFace, cubeMapImage);
         }
@@ -455,8 +356,8 @@ namespace Engine::Scenes
         for (int i = 0; i < cubeMap[CubeMapFace::FRONT].size(); ++i) {
             auto color = cubeMap[CubeMapFace::FRONT][i];
             auto red = color >> 24 & 255;
-            auto green = color >> 16 & 255;
-            auto blue = color >> 8 & 255;
+            auto green= color >> 16 & 255;
+            auto blue= color >> 8 & 255;
             auto alpha = color & 255;
             imageData[index++] = red;
             imageData[index++] = green;
@@ -466,7 +367,7 @@ namespace Engine::Scenes
 
         auto path = Settings::Paths::TexturesPath() /= std::filesystem::path("Front.png");
         stbi_write_png(path.string().c_str(),
-            cubeMapImageWidthAndHeight,
+            cubeMapImageWidthAndHeight, 
             cubeMapImageWidthAndHeight,
             4,
             imageData,
