@@ -11,12 +11,12 @@ namespace Engine::Scenes
 	public:
 
 		/**
-		 * @brief Width of the image used for the environment map.
+		 * @brief Width in pixels of the image used for the environment map.
 		 */
 		int _width;
 
 		/**
-		 * @brief Height of the image used for the environment map.
+		 * @brief Height in pixels of the image used for the environment map.
 		 */
 		int _height;
 
