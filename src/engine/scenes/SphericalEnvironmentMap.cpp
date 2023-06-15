@@ -476,50 +476,59 @@ namespace Engine::Scenes
                     // the coordinates of the intersection point.
                     auto cartesianCoordinatesOnSphere = glm::normalize(cartesianCoordinatesOnFace);
 
-                    auto temp = glm::normalize(glm::vec3(cartesianCoordinatesOnSphere.x, 0.0f, cartesianCoordinatesOnSphere.z));
+                    if (cartesianCoordinatesOnSphere.y < 1.0f) {
 
-                    // Then we calculate the spherical coordinates by using some trig.
-                    auto localXAngleDegrees = glm::degrees(acosf(temp.z));
+                        auto temp = glm::normalize(glm::vec3(cartesianCoordinatesOnSphere.x, 0.0f, cartesianCoordinatesOnSphere.z));
+
+                        // Then we calculate the spherical coordinates by using some trig.
+                        auto localXAngleDegrees = glm::degrees(acosf(temp.z));
 
 
-                    auto localYAngleDegrees = glm::degrees(acosf(cartesianCoordinatesOnSphere.y));
+                        auto localYAngleDegrees = glm::degrees(acosf(cartesianCoordinatesOnSphere.y));
 
-                    // Depending on the coordinate, the angles could either be negative or positive, depending on the left hand rule.
-                    // This engine uses a left-handed coordinate system.
-                    localXAngleDegrees = cartesianCoordinatesOnFace.x < 0.0f ? abs(localXAngleDegrees) * -1.0f : abs(localXAngleDegrees);
-                    localYAngleDegrees = cartesianCoordinatesOnFace.z > 0.0f ? abs(localYAngleDegrees) : abs(localYAngleDegrees) * -1.0f;
+                        // Depending on the coordinate, the angles could either be negative or positive, depending on the left hand rule.
+                        // This engine uses a left-handed coordinate system.
+                        localXAngleDegrees = cartesianCoordinatesOnFace.x < 0.0f ? abs(localXAngleDegrees) * -1.0f : abs(localXAngleDegrees);
+                        localYAngleDegrees = cartesianCoordinatesOnFace.y < 0.0f ? abs(localYAngleDegrees) : abs(localYAngleDegrees) * -1.0f;
 
-                    // Now we make the azimuth respect the [0-360] degree domain.
-                    auto azimuthDegrees = fmodf((360.0f + localXAngleDegrees), 360.0f);
-                    auto zenithDegrees = (90.0f + localYAngleDegrees) * -1.0f;
 
-                    // UV coordinates into the spherical HDRi image.
-                    auto uCoordinate = fmodf(0.5f + (azimuthDegrees / 360.0f), 1.0f);
-                    auto vCoordinate = 0.5f + (zenithDegrees / -180.0f);
 
-                    // This calculates at which pixel from the left (for U) and from the top (for V)
-                    // we need to fetch from the spherical HDRi.
-                    int pixelNumberU = ceil(uCoordinate * _width);
-                    int pixelNumberV = ceil((1.0f - vCoordinate) * _height);
+                        // Now we make the azimuth respect the [0-360] degree domain.
+                        auto azimuthDegrees = fmodf((360.0f + localXAngleDegrees), 360.0f);
+                        auto zenithDegrees = (90.0f + localYAngleDegrees) * -1.0f;
 
-                    // This calculates the index into the spherical HDRi image accounting for 2 things:
-                    // 1) the pixel numbers calculated above
-                    // 2) the fact that each pixel is actually stored in 4 separate cells that represent
-                    //    each channel of each individual pixel. The channels used are always 4 (RGBA).
-                    int componentIndex = (pixelNumberU * 4) + ((_width * 4) * (pixelNumberV - 1));
+                        if (zenithDegrees < -89.0f && azimuthDegrees == 270.0f) {
+                            auto m = 0;
+                        }
 
-                    // Fetch the channels from the spherical HDRi based on the calculations made above.
-                    auto red = image[componentIndex];
-                    auto green = image[componentIndex + 1];
-                    auto blue = image[componentIndex + 2];
-                    auto alpha = image[componentIndex + 3];
+                        // UV coordinates into the spherical HDRi image.
+                        auto uCoordinate = fmodf(0.5f + (azimuthDegrees / 360.0f), 1.0f);
+                        auto vCoordinate = 0.5f + (zenithDegrees / -180.0f);
 
-                    // Assign the color fetched from the HDRi to the cube map face's image we want to generate.
-                    int faceComponentIndex = (x + (cubeMapFaceSizePixels * y)) * 4;
-                    upperFace[faceComponentIndex] = red;
-                    upperFace[faceComponentIndex + 1] = green;
-                    upperFace[faceComponentIndex + 2] = blue;
-                    upperFace[faceComponentIndex + 3] = alpha;
+                        // This calculates at which pixel from the left (for U) and from the top (for V)
+                        // we need to fetch from the spherical HDRi.
+                        int pixelNumberU = ceil(uCoordinate * _width);
+                        int pixelNumberV = ceil((1.0f - vCoordinate) * _height);
+
+                        // This calculates the index into the spherical HDRi image accounting for 2 things:
+                        // 1) the pixel numbers calculated above
+                        // 2) the fact that each pixel is actually stored in 4 separate cells that represent
+                        //    each channel of each individual pixel. The channels used are always 4 (RGBA).
+                        int componentIndex = (pixelNumberU * 4) + ((_width * 4) * (pixelNumberV - 1));
+
+                        // Fetch the channels from the spherical HDRi based on the calculations made above.
+                        auto red = image[componentIndex];
+                        auto green = image[componentIndex + 1];
+                        auto blue = image[componentIndex + 2];
+                        auto alpha = image[componentIndex + 3];
+
+                        // Assign the color fetched from the HDRi to the cube map face's image we want to generate.
+                        int faceComponentIndex = (x + (cubeMapFaceSizePixels * y)) * 4;
+                        upperFace[faceComponentIndex] = red;
+                        upperFace[faceComponentIndex + 1] = green;
+                        upperFace[faceComponentIndex + 2] = blue;
+                        upperFace[faceComponentIndex + 3] = alpha;
+                    }
                 }
             }
 
