@@ -44,20 +44,67 @@ namespace Engine::Scenes
 
 	void Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
-		auto environmentMap = Vulkan::Image(logicalDevice,
+		/*auto frontFace = Vulkan::Image(logicalDevice,
 			physicalDevice,
 			VK_FORMAT_R8G8B8A8_SRGB,
-			VkExtent2D{ (uint32_t)_environmentMap._width, (uint32_t)_environmentMap._height },
-			_environmentMap._pixelColors.data(),
+			VkExtent2D{ (uint32_t)_environmentMap._faceSizePixels, (uint32_t)_environmentMap._faceSizePixels },
+			_environmentMap[CubeMapFace::FRONT].data(),
 			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-		environmentMap.SendToGPU(commandPool, graphicsQueue);
-		_images.push_back(environmentMap);
-		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, std::nullopt, environmentMap));
+		auto rightFace = Vulkan::Image(logicalDevice,
+			physicalDevice,
+			VK_FORMAT_R8G8B8A8_SRGB,
+			VkExtent2D{ (uint32_t)_environmentMap._faceSizePixels, (uint32_t)_environmentMap._faceSizePixels },
+			_environmentMap[CubeMapFace::RIGHT].data(),
+			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
+			VK_IMAGE_ASPECT_COLOR_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		auto backFace = Vulkan::Image(logicalDevice,
+			physicalDevice,
+			VK_FORMAT_R8G8B8A8_SRGB,
+			VkExtent2D{ (uint32_t)_environmentMap._faceSizePixels, (uint32_t)_environmentMap._faceSizePixels },
+			_environmentMap[CubeMapFace::BACK].data(),
+			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
+			VK_IMAGE_ASPECT_COLOR_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		auto leftFace = Vulkan::Image(logicalDevice,
+			physicalDevice,
+			VK_FORMAT_R8G8B8A8_SRGB,
+			VkExtent2D{ (uint32_t)_environmentMap._faceSizePixels, (uint32_t)_environmentMap._faceSizePixels },
+			_environmentMap[CubeMapFace::LEFT].data(),
+			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
+			VK_IMAGE_ASPECT_COLOR_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		auto upperFace = Vulkan::Image(logicalDevice,
+			physicalDevice,
+			VK_FORMAT_R8G8B8A8_SRGB,
+			VkExtent2D{ (uint32_t)_environmentMap._faceSizePixels, (uint32_t)_environmentMap._faceSizePixels },
+			_environmentMap[CubeMapFace::UPPER].data(),
+			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
+			VK_IMAGE_ASPECT_COLOR_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		auto lowerFace = Vulkan::Image(logicalDevice,
+			physicalDevice,
+			VK_FORMAT_R8G8B8A8_SRGB,
+			VkExtent2D{ (uint32_t)_environmentMap._faceSizePixels, (uint32_t)_environmentMap._faceSizePixels },
+			_environmentMap[CubeMapFace::LOWER].data(),
+			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
+			VK_IMAGE_ASPECT_COLOR_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);*/
+
+		_environmentMap.CreateShaderResources(logicalDevice);
+
+		/*frontFace.SendToGPU(commandPool, graphicsQueue);
+		_images.push_back(frontFace);
+		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, std::nullopt, frontFace));
 		_sets.push_back(Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, _descriptors));
-		_pool = Vulkan::DescriptorPool(logicalDevice, _sets);
+		_pool = Vulkan::DescriptorPool(logicalDevice, _sets);*/
 	}
 
 	void Scene::UpdateShaderResources()
