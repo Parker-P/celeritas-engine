@@ -30,9 +30,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Environment map used for image-based lighting.
 		 */
-		SphericalEnvironmentMap _environmentMap;
-
-		
+		CubicalEnvironmentMap _environmentMap;
 
 		/**
 		 * @brief Updates all scene-related data.

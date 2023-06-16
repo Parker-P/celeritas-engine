@@ -20,7 +20,7 @@
 #include "engine/scenes/Material.hpp"
 #include "engine/scenes/Vertex.hpp"
 #include "engine/scenes/PointLight.hpp"
-#include "engine/scenes/SphericalEnvironmentMap.hpp"
+#include "engine/scenes/CubicalEnvironmentMap.hpp"
 #include "engine/scenes/Scene.hpp"
 #include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Mesh.hpp"

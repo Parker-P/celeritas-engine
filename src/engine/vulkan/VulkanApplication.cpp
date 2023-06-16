@@ -49,7 +49,7 @@
 #include "engine/structural/IPipelineable.hpp"
 #include "engine/structural/Drawable.hpp"
 #include "engine/scenes/PointLight.hpp"
-#include "engine/scenes/SphericalEnvironmentMap.hpp"
+#include "engine/scenes/CubicalEnvironmentMap.hpp"
 #include "engine/scenes/Scene.hpp"
 #include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Camera.hpp"
@@ -660,7 +660,8 @@ namespace Engine::Vulkan
 	{
 		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Waterfall.hdr");
 		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Debug.png");
-		_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Workshop.png");
+		_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ModernBuilding.hdr");
+		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Workshop.png");
 		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "ItalianFlag.png");
 		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "TestPng.png");
 		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "EnvMap.png");
