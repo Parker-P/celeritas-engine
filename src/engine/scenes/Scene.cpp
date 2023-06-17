@@ -98,6 +98,19 @@ namespace Engine::Scenes
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);*/
 
+		/*auto serializedFaceImages = _environmentMap.Serialize();
+
+		Vulkan::Image globalCubeMapImage(logicalDevice,
+			physicalDevice,
+			VK_FORMAT_R8G8B8A8_SRGB,
+			VkExtent2D{ _environmentMap._faceSizePixels, _environmentMap._faceSizePixels },
+			serializedFaceImages.data(),
+			VK_IMAGE_USAGE_SAMPLED_BIT,
+			VK_IMAGE_ASPECT_COLOR_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		globalCubeMapImage.SendToGPU(commandPool, graphicsQueue);*/
+
 		_environmentMap.CreateShaderResources(logicalDevice, physicalDevice, commandPool, graphicsQueue);
 
 		/*frontFace.SendToGPU(commandPool, graphicsQueue);

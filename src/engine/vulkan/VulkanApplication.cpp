@@ -658,15 +658,15 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::LoadEnvironmentMap()
 	{
-		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Waterfall.hdr");
-		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Debug.png");
-		_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ModernBuilding.hdr");
-		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Workshop.png");
-		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "ItalianFlag.png");
-		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "TestPng.png");
-		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "EnvMap.png");
-		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "texture.jpg");
-		//_scene._environmentMap.LoadFromFile(Settings::Paths::TexturesPath() /= "Test1.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Waterfall.hdr");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Debug.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ModernBuilding.hdr");
+		_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ItalianFlag.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "TestPng.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "EnvMap.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "texture.jpg");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Test1.png");
 	}
 
 	VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)

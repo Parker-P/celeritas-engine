@@ -33,7 +33,7 @@ namespace Engine::Vulkan
 		// Allocate memory for the buffer.
 		VkMemoryRequirements requirements;
 		vkGetBufferMemoryRequirements(_logicalDevice, _handle, &requirements);
-		_memory = physicalDevice.AllocateMemory(logicalDevice, requirements);
+		_memory = physicalDevice.AllocateMemory(logicalDevice, requirements, propertiesFlags);
 
 		// Creates a reference/connection to the buffer on the GPU side.
 		if (vkBindBufferMemory(_logicalDevice, _handle, _memory, 0) != VK_SUCCESS) {
