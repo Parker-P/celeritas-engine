@@ -112,7 +112,13 @@ namespace Engine::Scenes
          */
         void LoadFromSphericalHDRI(std::filesystem::path imageFilePath);
 
-        void CreateShaderResources(VkDevice& logicalDevice, Vulkan::PhysicalDevice& physicalDevice);
+        void CreateShaderResources(VkDevice& logicalDevice, Vulkan::PhysicalDevice& physicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue);
+
+        /**
+         * @brief Serializes the data of all the faces' images and returns a vector that contains all images, in this specific order:
+         * front, right, back, left, upper, lower.
+         */
+        std::vector<unsigned char> Serialize();
     };
 }
 

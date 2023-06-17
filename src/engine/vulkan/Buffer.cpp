@@ -96,10 +96,6 @@ namespace Engine::Vulkan
 			_pData,
 			_bufferDataSize);
 
-		VkCommandBufferBeginInfo bufferBeginInfo = {};
-		bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		bufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
 		VkCommandBufferAllocateInfo cmdBufInfo = {};
 		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		cmdBufInfo.commandPool = commandPool;
@@ -108,6 +104,10 @@ namespace Engine::Vulkan
 
 		VkCommandBuffer copyCommandBuffer;
 		vkAllocateCommandBuffers(_logicalDevice, &cmdBufInfo, &copyCommandBuffer);
+
+		VkCommandBufferBeginInfo bufferBeginInfo = {};
+		bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		bufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
 		vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
 		VkBufferCopy copyRegion = {};

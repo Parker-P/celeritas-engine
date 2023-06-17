@@ -98,7 +98,7 @@ namespace Engine::Scenes
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);*/
 
-		_environmentMap.CreateShaderResources(logicalDevice);
+		_environmentMap.CreateShaderResources(logicalDevice, physicalDevice, commandPool, graphicsQueue);
 
 		/*frontFace.SendToGPU(commandPool, graphicsQueue);
 		_images.push_back(frontFace);

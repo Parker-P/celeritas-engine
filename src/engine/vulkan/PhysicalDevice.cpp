@@ -48,7 +48,7 @@ namespace Engine::Vulkan
 		std::cout << "physical device supports version " << supportedVersion[0] << "." << supportedVersion[1] << "." << supportedVersion[2] << std::endl;*/
 	}
 
-	VkDeviceMemory PhysicalDevice::AllocateMemory(VkDevice& logicalDevice, const VkMemoryRequirements& memoryRequirements)
+	VkDeviceMemory PhysicalDevice::AllocateMemory(VkDevice& logicalDevice, const VkMemoryRequirements& memoryRequirements, const VkMemoryPropertyFlagBits& memoryType)
 	{
 		VkMemoryAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
