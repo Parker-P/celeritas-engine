@@ -48,6 +48,23 @@ namespace Engine::Vulkan
 		std::cout << "physical device supports version " << supportedVersion[0] << "." << supportedVersion[1] << "." << supportedVersion[2] << std::endl;*/
 	}
 
+	VkDeviceMemory PhysicalDevice::AllocateMemory(VkDevice& logicalDevice, const VkMemoryRequirements& memoryRequirements)
+	{
+		VkMemoryAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.allocationSize = memoryRequirements.size;
+		allocInfo.memoryTypeIndex = GetMemoryTypeIndex(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		VkDeviceMemory handleToAllocatedMemory;
+
+		if (vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &handleToAllocatedMemory) != VK_SUCCESS) {
+			std::cout << "failed allocating memory of size " << allocInfo.allocationSize << std::endl;
+			std::exit(-1);
+		}
+
+		return handleToAllocatedMemory;
+	}
+
 	bool PhysicalDevice::SupportsSwapchains()
 	{
 		uint32_t extensionCount = 0;

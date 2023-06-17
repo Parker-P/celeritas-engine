@@ -29,6 +29,12 @@ namespace Engine::Vulkan
 		PhysicalDevice(VkInstance& instance);
 
 		/**
+		 * @brief Allocates memory according to the requirements, and returns a handle to be used strictly via the Vulkan
+		 * API to access the allocated memory.
+		 */
+		VkDeviceMemory AllocateMemory(VkDevice& logicalDevice, const VkMemoryRequirements& memoryRequirements);
+
+		/**
 		 * @brief Queries the device for swapchain support, returns true if swapchains are supported.
 		 * @return
 		 */

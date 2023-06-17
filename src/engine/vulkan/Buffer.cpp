@@ -33,24 +33,7 @@ namespace Engine::Vulkan
 		// Allocate memory for the buffer.
 		VkMemoryRequirements requirements;
 		vkGetBufferMemoryRequirements(_logicalDevice, _handle, &requirements);
-
-		VkMemoryAllocateInfo allocationInfo = {};
-		allocationInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocationInfo.allocationSize = requirements.size;
-
-		if (auto index = _physicalDevice.GetMemoryTypeIndex(requirements.memoryTypeBits, propertiesFlags); index == -1) {
-			std::cout << "Could not get memory type index" << std::endl;
-			exit(1);
-		}
-		else {
-			_propertiesFlags = propertiesFlags;
-			allocationInfo.memoryTypeIndex = index;
-		}
-
-		if (vkAllocateMemory(_logicalDevice, &allocationInfo, nullptr, &_memory) != VK_SUCCESS) {
-			std::cout << "failed to allocate buffer memory" << std::endl;
-			exit(1);
-		}
+		_memory = physicalDevice.AllocateMemory(logicalDevice, requirements);
 
 		// Creates a reference/connection to the buffer on the GPU side.
 		if (vkBindBufferMemory(_logicalDevice, _handle, _memory, 0) != VK_SUCCESS) {
@@ -58,7 +41,7 @@ namespace Engine::Vulkan
 			exit(1);
 		}
 
-		// Creates a reference/connection to the buffer on the CPU side.
+		// Creates a reference/connection to the buffer on the CPU side, if the buffer is set as HOST_VISIBLE.
 		if (propertiesFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
 			vkMapMemory(_logicalDevice, _memory, 0, sizeInBytes, 0, &_pBufferData);
 		}
