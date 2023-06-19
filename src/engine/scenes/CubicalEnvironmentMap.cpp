@@ -564,130 +564,8 @@ namespace Engine::Scenes
 
 	void CubicalEnvironmentMap::CreateShaderResources(VkDevice& logicalDevice, Vulkan::PhysicalDevice& physicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
-#pragma region first try
 
-		// Create the Vulkan image/s for the cubemap.
-		//VkImageCreateInfo imageCreateInfo{};
-		//imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		//imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		//imageCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-		//imageCreateInfo.extent.width = _faceSizePixels;
-		//imageCreateInfo.extent.height = _faceSizePixels;
-		//imageCreateInfo.extent.depth = 1;
-		//imageCreateInfo.arrayLayers = 6;
-		//imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		//imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		//imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-		//imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-		//imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-		//VkImage cubeMapImage;
-
-		//if (vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, &cubeMapImage) != VK_SUCCESS) {
-		//	throw std::runtime_error("failed to create image!");
-		//}
-
-		//// Allocate memory for the cube map on the GPU.
-		//VkMemoryRequirements memRequirements;
-		//vkGetImageMemoryRequirements(logicalDevice, cubeMapImage, &memRequirements);
-		//auto memoryHandle = physicalDevice.AllocateMemory(logicalDevice, memRequirements);
-		//vkBindImageMemory(logicalDevice, cubeMapImage, memoryHandle, 0);
-
-		//// Create an image view for the cube map that adds some metadata so that Vulkan can optimize it for the GPU.
-		//VkImageViewCreateInfo viewCreateInfo{};
-		//viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		//viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
-		//viewCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-		//viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		//viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		//viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		//viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-		//viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		//viewCreateInfo.subresourceRange.baseMipLevel = 0;
-		//viewCreateInfo.subresourceRange.levelCount = 1;
-		//viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-		//viewCreateInfo.subresourceRange.layerCount = 6;
-		//viewCreateInfo.image = cubeMapImage;
-
-		//VkImageView cubeMapImageView;
-
-		//if (vkCreateImageView(logicalDevice, &viewCreateInfo, nullptr, &cubeMapImageView) != VK_SUCCESS) {
-		//	std::cout << "failed to create texture image view!" << std::endl;
-		//}
-
-		//// Create a sampler so that Vulkan can tell the GPU how the shaders should interpret the image
-		//// data in the cube map. This allows functions like texture() to work in GLSL.
-		//VkSamplerCreateInfo samplerCreateInfo{};
-		//samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		//samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-		//samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-		//samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-		//samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		//samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		//samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		//samplerCreateInfo.mipLodBias = 0.0f;
-		//samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
-		//samplerCreateInfo.minLod = 0.0f;
-		//samplerCreateInfo.maxLod = 1.0f;
-		//samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-
-		//VkSampler cubeMapSampler;
-		//if (vkCreateSampler(logicalDevice, &samplerCreateInfo, nullptr, &cubeMapSampler) != VK_SUCCESS) {
-		//	std::cout << "failed to create texture sampler" << std::endl;
-		//}
-
-#pragma endregion
-
-#pragma region Sasha Willems example
-
-		// Create sampler
-		//VkSamplerCreateInfo sampler = vks::initializers::samplerCreateInfo();
-		//sampler.magFilter = VK_FILTER_LINEAR;
-		//sampler.minFilter = VK_FILTER_LINEAR;
-		//sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-		//sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		//sampler.addressModeV = sampler.addressModeU;
-		//sampler.addressModeW = sampler.addressModeU;
-		//sampler.mipLodBias = 0.0f;
-		//sampler.compareOp = VK_COMPARE_OP_NEVER;
-		//sampler.minLod = 0.0f;
-		//sampler.maxLod = cubeMap.mipLevels;
-		//sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		//sampler.maxAnisotropy = 1.0f;
-		//if (vulkanDevice->features.samplerAnisotropy)
-		//{
-		//	sampler.maxAnisotropy = vulkanDevice->properties.limits.maxSamplerAnisotropy;
-		//	sampler.anisotropyEnable = VK_TRUE;
-		//}
-		//VK_CHECK_RESULT(vkCreateSampler(logicalDevice, &sampler, nullptr, &cubeMap.sampler));
-
-		//// Create image view
-		//VkImageViewCreateInfo view = vks::initializers::imageViewCreateInfo();
-		//// Cube map view type
-		//view.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
-		//view.format = format;
-		//view.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-		//// 6 array layers (faces)
-		//view.subresourceRange.layerCount = 6;
-		//// Set number of mip levels
-		//view.subresourceRange.levelCount = cubeMap.mipLevels;
-		//view.image = cubeMap.image;
-		//VK_CHECK_RESULT(vkCreateImageView(logicalDevice, &view, nullptr, &cubeMap.view));
-
-		//// Clean up staging resources
-		//vkFreeMemory(logicalDevice, stagingMemory, nullptr);
-		//vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
-		//ktxTexture_Destroy(ktxTexture);
-
-#pragma endregion
-
-		// 1) Create a temporary buffer that contains the data of each image of the cube map as one serialized data array
-		// 2) Create a vulkan image and imageview
-		// 3) Copy the data from the temporary buffer into the created image
-		// 4) Create a sampler and link it to the image/image view created above
-
-
-		// 1)
+#pragma region 1) Create a temporary buffer that contains the data of each image of the cube map as one serialized data array.
 
 		// Create a host-visible staging buffer that contains the serialized raw data of all faces' images.
 		VkBuffer stagingBuffer;
@@ -703,35 +581,30 @@ namespace Engine::Scenes
 		auto stagingBufferMemoryHandle = physicalDevice.AllocateMemory(logicalDevice, memoryRequirements, (VkMemoryPropertyFlagBits)(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
 		vkBindBufferMemory(logicalDevice, stagingBuffer, stagingBufferMemoryHandle, 0);
 
-		// Copy texture data into the staging buffer.
+		// Copy texture data into the staging buffer as a single data array.
 		uint8_t* data;
 		vkMapMemory(logicalDevice, stagingBufferMemoryHandle, 0, memoryRequirements.size, 0, (void**)&data);
 		auto serializedFaceImages = Serialize();
 		memcpy(data, serializedFaceImages.data(), Utils::GetVectorSizeInBytes(serializedFaceImages));
 		vkUnmapMemory(logicalDevice, stagingBufferMemoryHandle);
 
+#pragma endregion
 
+#pragma region 2) Then create a command buffer that contains a copy instruction to copy the array to VRAM.
 
-		// 2)
-
-		// Setup buffer copy regions for each face including all of its miplevels
-		VkCommandBufferAllocateInfo cmdBufInfo = {};
-		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cmdBufInfo.commandPool = commandPool;
-		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		cmdBufInfo.commandBufferCount = 1;
-
-		VkCommandBuffer copyCommandBuffer;
-		vkAllocateCommandBuffers(logicalDevice, &cmdBufInfo, &copyCommandBuffer);
-
+		// Setup buffer copy regions for each face. A copy region is just a structure to tell Vulkan how to direct the data
+		// to the right place when copying it to VRAM.
+		// For cube and cube array image views, the layers of the image view starting at baseArrayLayer correspond to 
+		// faces in the order +X, -X, +Y, -Y, +Z, -Z.
+		// Right image.
 		uint32_t offset = 0;
 		std::vector<VkBufferImageCopy> bufferCopyRegions;
 
-		for (uint32_t face = 0; face < 6; face++) {
+		for (int faceIndex = 0; faceIndex < 6; ++faceIndex) {
 			VkBufferImageCopy bufferCopyRegion{};
 			bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			bufferCopyRegion.imageSubresource.mipLevel = 1;
-			bufferCopyRegion.imageSubresource.baseArrayLayer = face;
+			bufferCopyRegion.imageSubresource.baseArrayLayer = 0;
 			bufferCopyRegion.imageSubresource.layerCount = 1;
 			bufferCopyRegion.imageExtent.width = _faceSizePixels;
 			bufferCopyRegion.imageExtent.height = _faceSizePixels;
@@ -740,10 +613,10 @@ namespace Engine::Scenes
 			bufferCopyRegions.push_back(bufferCopyRegion);
 		}
 
+#pragma endregion
 
-
-		// 3)
-
+#pragma region 3) Copy the data from the temporary buffer into the created image.
+		
 		// Create optimal tiled target image
 		VkImageCreateInfo imageCreateInfo{};
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -758,8 +631,7 @@ namespace Engine::Scenes
 		imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 		imageCreateInfo.arrayLayers = 6; // Cube faces count as array layers in Vulkan.
 		imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT; // This flag is required for cube map images.
-
-		VkImage cubeMapImageGlobal; // Cube map image that contains all cube map images.
+		VkImage cubeMapImageGlobal; // Cube map image that contains all cube map images. This is the image that will be sampled by the shaders.
 		vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, &cubeMapImageGlobal);
 
 		// Allocate memory for the image.
@@ -767,23 +639,23 @@ namespace Engine::Scenes
 		auto globalImageMemoryHandle = physicalDevice.AllocateMemory(logicalDevice, memoryRequirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 		vkBindImageMemory(logicalDevice, cubeMapImageGlobal, globalImageMemoryHandle, 0);
 
-		// Image barrier for optimal image (target)
-		// Set initial layout for all array layers (faces) of the optimal (target) tiled texture
-		VkImageSubresourceRange subresourceRange = {};
-		subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		subresourceRange.baseMipLevel = 0;
-		subresourceRange.levelCount = 1;
-		subresourceRange.layerCount = 6;
-
+		// Create a command buffer to tell Vulkan to copy the images to VRAM.
 		VkCommandBufferAllocateInfo allocateInfo{};
 		allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocateInfo.commandBufferCount = 1;
 		allocateInfo.commandPool = commandPool;
 		allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		VkCommandBuffer copyCommandBuffer;
+		vkAllocateCommandBuffers(logicalDevice, &allocateInfo, &copyCommandBuffer);
 
-		VkCommandBuffer copyCmd;
-		vkAllocateCommandBuffers(logicalDevice, &allocateInfo, &copyCmd);
-
+		// Now we need to use a barrier to tell Vulkan that we want to change the memory layout of the image into the transfer-receive layout.
+		// GPUs use specific memory layouts (the way data is arranged and stored on disk, for example an image could be stored one row of pixels
+		// after another row of pixels and so on, or column after column). By using specific layouts, certain operations are significantly faster.
+		VkImageSubresourceRange subresourceRange = {};
+		subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		subresourceRange.baseMipLevel = 0;
+		subresourceRange.levelCount = 1;
+		subresourceRange.layerCount = 6;
 		VkImageMemoryBarrier imageBarrierUndefinedToTransfer = {};
 		imageBarrierUndefinedToTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		imageBarrierUndefinedToTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -792,13 +664,12 @@ namespace Engine::Scenes
 		imageBarrierUndefinedToTransfer.subresourceRange = subresourceRange;
 		imageBarrierUndefinedToTransfer.srcAccessMask = 0;
 		imageBarrierUndefinedToTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-		// Barrier the image into the transfer-receive layout.
 		vkCmdPipelineBarrier(copyCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrierUndefinedToTransfer);
 
-		// Copy the cube map faces from the staging buffer to the optimal tiled image.
+		// Copy the cube map faces from the staging buffer to the optimal tiled image. Remember that our staging buffer contains the cube map's images serialized as one
+		// array, the way that the Serialize function in this class serialized it, in the following order: _right, _left, _upper, _lower, _front, _back.
 		vkCmdCopyBufferToImage(
-			copyCmd,
+			copyCommandBuffer,
 			stagingBuffer,
 			cubeMapImageGlobal,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -815,13 +686,11 @@ namespace Engine::Scenes
 		imageBarrierTransferToShaderRead.subresourceRange = subresourceRange;
 		imageBarrierTransferToShaderRead.srcAccessMask = 0;
 		imageBarrierTransferToShaderRead.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-		// Barrier the image into the transfer-receive layout.
 		vkCmdPipelineBarrier(copyCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrierTransferToShaderRead);
 
+#pragma endregion
 
-
-		// 4)
+#pragma region 4) Create a sampler and link it to the image/image view created above; this tells the shaders how to read the data in the cube map image we created above.
 
 		// Create sampler
 		VkSamplerCreateInfo samplerCreateInfo{};
@@ -856,21 +725,27 @@ namespace Engine::Scenes
 		// Clean up staging resources
 		vkFreeMemory(logicalDevice, stagingBufferMemoryHandle, nullptr);
 		vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
+
+#pragma endregion
+
 	}
 
 	std::vector<unsigned char> CubicalEnvironmentMap::Serialize()
 	{
+		// According to the Vulkan documentation, the faces should be serialized in the following order: +X, -X, +Y, -Y, +Z, -Z.
+		// This corresponds to _right, _left, _upper, _lower, _front, _back for our cube map structure that we have in place.
+
 		std::vector<unsigned char> serialized;
 
 		if (_front.size() == _right.size() == _back.size() == _left.size() == _upper.size() == _lower.size()) {
 			size_t imageSizeBytes = _front.size();
 			serialized.reserve(imageSizeBytes); // Type is unsigned char so the slot count in the vector is the same as the byte count.
-			memcpy(serialized.data(), _front.data(), imageSizeBytes);
-			memcpy(serialized.data() + imageSizeBytes + 1, _right.data(), imageSizeBytes);
-			memcpy(serialized.data() + (imageSizeBytes + 1) * 2, _back.data(), imageSizeBytes);
-			memcpy(serialized.data() + (imageSizeBytes + 1) * 3, _left.data(), imageSizeBytes);
-			memcpy(serialized.data() + (imageSizeBytes + 1) * 4, _upper.data(), imageSizeBytes);
-			memcpy(serialized.data() + (imageSizeBytes + 1) * 5, _lower.data(), imageSizeBytes);
+			memcpy(serialized.data(), _right.data(), imageSizeBytes);							
+			memcpy(serialized.data() + imageSizeBytes + 1, _left.data(), imageSizeBytes);		
+			memcpy(serialized.data() + (imageSizeBytes * 2) + 1 , _upper.data(), imageSizeBytes);
+			memcpy(serialized.data() + (imageSizeBytes * 3) + 1, _lower.data(), imageSizeBytes);
+			memcpy(serialized.data() + (imageSizeBytes * 4) + 1, _front.data(), imageSizeBytes);
+			memcpy(serialized.data() + (imageSizeBytes * 5) + 1, _back.data(), imageSizeBytes);	
 		}
 
 		return serialized;
