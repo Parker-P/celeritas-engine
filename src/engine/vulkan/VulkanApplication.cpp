@@ -80,10 +80,10 @@ namespace Engine::Vulkan
 		void* pUserData)
 	{
 		if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
-			std::cerr << "ERROR: [" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg << std::endl;
+			std::cerr << "\nERROR: [" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg << std::endl;
 		}
 		else if (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT) {
-			std::cerr << "WARNING: [" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg << std::endl;
+			std::cerr << "\nWARNING: [" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg << std::endl;
 		}
 
 		return VK_FALSE;
@@ -124,66 +124,6 @@ namespace Engine::Vulkan
 		auto sine = sin(angleRadians / 2.0f);
 		glm::quat rotation(cosine, axis.x * sine, axis.y * sine, axis.z * sine);
 		return rotation * vectorToRotate;
-	}
-
-	void SampleEnvironmentMap() {
-		//float sampleStep = 1.0f;
-		//glm::vec3 inWorldSpaceNormal(0.0f, 1.0f, 0.0f);
-		//glm::vec3 samplePosition = glm::cross(inWorldSpaceNormal, glm::vec3(0.0f, 0.0f, 1.0f));
-		//glm::vec3 colorFromTexture(1.0f, 0.0f, 0.0f);
-		//glm::vec3 colorAfterEnvironmentMapLighting = colorFromTexture;
-
-
-
-		//for (float sampleZenith = 0.0f; sampleZenith < 90.0f; ) {
-		//	for (float sampleAzimuth = 0.0f; sampleAzimuth < 360.0f; ) {
-		//		sampleAzimuth += sampleStep;
-
-		//		// Build a quaternion to rotate the samplePosition vector around inWorldSpaceNormal.
-		//		glm::vec3 desiredEnvironmentMapPixelPosition = RotateVector(samplePosition, inWorldSpaceNormal, sampleStep);
-
-		//		// Find the color based on the closest available position vector (to desiredEnvironmentMapPixelPosition) in the environment map's pixel positions.
-		//		float minimumDelta = 1.0f;
-		//		glm::vec3 environmentMapPixelPosition = _scene._environmentMap._pixelCoordinatesWorldSpace[0];
-		//		glm::vec3 closestEnvironmentMapPixelPosition = environmentMapPixelPosition;
-
-		//		int indexOfClosestPosition = 0; // Index in the array of environment map's pixel positions of the closest available position vector to the position vector we want to sample from.
-
-		//		for (int i = 0; i < _scene._environmentMap._pixelCoordinatesWorldSpace.size(); ++i) {
-		//			float delta = 1.0f - dot(desiredEnvironmentMapPixelPosition, environmentMapPixelPosition);
-
-		//			if (delta < minimumDelta) {
-		//				indexOfClosestPosition = i;
-		//				minimumDelta = delta;
-		//			}
-
-		//			environmentMapPixelPosition = _scene._environmentMap._pixelCoordinatesWorldSpace[i];
-		//		}
-
-		//		glm::vec3 sampledColor = _scene._environmentMap._pixelColors[indexOfClosestPosition];
-		//		glm::vec3 sampledPosition = _scene._environmentMap._pixelCoordinatesWorldSpace[indexOfClosestPosition];
-
-		//		// Now we calculate the average between the 2 colors (the color from the texture and the color from the sampled environment map's texture).
-		//		// The light contribution from the sampled color from the environment map needs to be weighted based on the angle of incidence with the current surface pixel's normal.
-		//		// F.E.: if the color of the current surface pixel is red, and the color from the enviroment map's pixel is white and is coming from the side 
-		//		// (perpendicular to the current surface pixel), then the contribution from the environment map's pixel color will be zero, therefore the surface pixel remains red, 
-		//		// without it being affected by the light coming from the environment map at all. On the other hand, assume that the angle is 0, so the light from the environment pixel
-		//		// is parallel to the surface pixel's normal (therefore the light is striking the surface head on), then the contribution from the environment map's light will be at 
-		//		// its maximum, so the resulting color is a lighter red (because of the averaged value between red (the surface's color) and white (the light).
-		//		float weightOfSampledColorFromEnvMap = glm::dot(inWorldSpaceNormal, sampledPosition);
-		//		int red = (int)sampledColor.r;
-		//		int green = (int)sampledColor.g;
-		//		int blue = (int)sampledColor.b;
-		//		glm::vec3 weightedTextureColor = glm::vec3(colorAfterEnvironmentMapLighting.r * (1.0f - weightOfSampledColorFromEnvMap) + (float)red * weightOfSampledColorFromEnvMap,
-		//			colorAfterEnvironmentMapLighting.g * (1.0f - weightOfSampledColorFromEnvMap) + (float)green * weightOfSampledColorFromEnvMap,
-		//			colorAfterEnvironmentMapLighting.b * (1.0f - weightOfSampledColorFromEnvMap) + (float)blue * weightOfSampledColorFromEnvMap);
-
-		//		colorAfterEnvironmentMapLighting = glm::vec3((colorAfterEnvironmentMapLighting.r + weightedTextureColor.r) / 2.0f, (colorAfterEnvironmentMapLighting.g + weightedTextureColor.g) / 2.0f, (colorAfterEnvironmentMapLighting.b + weightedTextureColor.b) / 2.0f);
-		//		samplePosition = desiredEnvironmentMapPixelPosition;
-		//	}
-
-		//	sampleZenith += sampleStep;
-		//}
 	}
 
 	void VulkanApplication::MainLoop()
