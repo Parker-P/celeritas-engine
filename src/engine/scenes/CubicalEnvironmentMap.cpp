@@ -14,13 +14,17 @@
 #include "engine/vulkan/PhysicalDevice.hpp"
 #include "engine/vulkan/Image.hpp"
 #include "engine/vulkan/Buffer.hpp"
-#include "engine/scenes/CubicalEnvironmentMap.hpp"
 #include "structural/IUpdatable.hpp"
 #include "structural/Singleton.hpp"
 #include "engine/Time.hpp"
 #include "settings/GlobalSettings.hpp"
 #include "engine/math/Transform.hpp"
 #include "engine/vulkan/PhysicalDevice.hpp"
+#include "engine/scenes/Material.hpp"
+#include "engine/vulkan/ShaderResources.hpp"
+#include "engine/scenes/Vertex.hpp"
+#include "engine/structural/IPipelineable.hpp"
+#include "engine/scenes/CubicalEnvironmentMap.hpp"
 
 namespace Engine::Scenes
 {
@@ -76,8 +80,8 @@ namespace Engine::Scenes
             // The origin of the image (must be the bottom left corner) in world space, as if the image was placed in the 3D world on square plane.
             auto imageOriginWorldSpace = glm::vec3(-0.5f, 0.5f, 0.5f);
 
-            for (int y = 0; y < _faceSizePixels; ++y) {
-                for (int x = 0; x < _faceSizePixels; ++x) {
+            for (unsigned int y = 0; y < _faceSizePixels; ++y) {
+                for (unsigned int x = 0; x < _faceSizePixels; ++x) {
 
                     // First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering.
                     glm::vec3 cartesianCoordinatesOnFace;
@@ -155,8 +159,8 @@ namespace Engine::Scenes
             // The origin of the image (must be the bottom left corner) in world space, as if the image was placed in the 3D world on square plane.
             auto imageOriginWorldSpace = glm::vec3(0.5f, 0.5f, 0.5f);
 
-            for (int y = 0; y < _faceSizePixels; ++y) {
-                for (int x = 0; x < _faceSizePixels; ++x) {
+            for (unsigned int y = 0; y < _faceSizePixels; ++y) {
+                for (unsigned int x = 0; x < _faceSizePixels; ++x) {
 
                     // First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
                     glm::vec3 cartesianCoordinatesOnFace;
@@ -238,8 +242,8 @@ namespace Engine::Scenes
             // The origin of the image (must be the bottom left corner) in world space, as if the image was placed in the 3D world on square plane.
             auto imageOriginWorldSpace = glm::vec3(0.5f, 0.5f, -0.5f);
 
-            for (int y = 0; y < _faceSizePixels; ++y) {
-                for (int x = 0; x < _faceSizePixels; ++x) {
+            for (unsigned int y = 0; y < _faceSizePixels; ++y) {
+                for (unsigned int x = 0; x < _faceSizePixels; ++x) {
 
                     // First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
                     glm::vec3 cartesianCoordinatesOnFace;
@@ -319,8 +323,8 @@ namespace Engine::Scenes
             // The origin of the image (must be the top left corner) in world space, as if the image was placed in the 3D world on square plane.
             auto imageOriginWorldSpace = glm::vec3(-0.5f, 0.5f, -0.5f);
 
-            for (int y = 0; y < _faceSizePixels; ++y) {
-                for (int x = 0; x < _faceSizePixels; ++x) {
+            for (unsigned int y = 0; y < _faceSizePixels; ++y) {
+                for (unsigned int x = 0; x < _faceSizePixels; ++x) {
 
                     // First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
                     glm::vec3 cartesianCoordinatesOnFace;
@@ -400,8 +404,8 @@ namespace Engine::Scenes
             // The origin of the image (must be the top left corner) in world space, as if the image was placed in the 3D world on square plane.
             auto imageOriginWorldSpace = glm::vec3(-0.5f, 0.5f, -0.5f);
 
-            for (int y = 0; y < _faceSizePixels; ++y) {
-                for (int x = 0; x < _faceSizePixels; ++x) {
+            for (unsigned int y = 0; y < _faceSizePixels; ++y) {
+                for (unsigned int x = 0; x < _faceSizePixels; ++x) {
 
                     // First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
                     glm::vec3 cartesianCoordinatesOnFace;
@@ -486,8 +490,8 @@ namespace Engine::Scenes
             // The origin of the image (must be the top left corner) in world space, as if the image was placed in the 3D world on square plane.
             auto imageOriginWorldSpace = glm::vec3(-0.5f, -0.5f, 0.5f);
 
-            for (int y = 0; y < _faceSizePixels; ++y) {
-                for (int x = 0; x < _faceSizePixels; ++x) {
+            for (unsigned int y = 0; y < _faceSizePixels; ++y) {
+                for (unsigned int x = 0; x < _faceSizePixels; ++x) {
 
                     // First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
                     glm::vec3 cartesianCoordinatesOnFace;
@@ -562,8 +566,10 @@ namespace Engine::Scenes
         std::cout << "Environment map " << imageFilePath.string() << " loaded." << std::endl;
     }
 
-    void CubicalEnvironmentMap::CreateShaderResources(VkDevice& logicalDevice, Vulkan::PhysicalDevice& physicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
+    void CubicalEnvironmentMap::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
     {
+
+        Vulkan::Image()
 
 #pragma region 1) Create a temporary buffer that will contain the data of each image of the cube map as one serialized data array.
 
@@ -616,7 +622,7 @@ namespace Engine::Scenes
             bufferCopyRegion.imageExtent.height = _faceSizePixels;
             bufferCopyRegion.imageExtent.depth = 1;
             bufferCopyRegion.bufferOffset = offset;
-            offset += bufferCreateInfo.size / faceCount;
+            offset += (int)(bufferCreateInfo.size / faceCount);
             bufferCopyRegions.push_back(bufferCopyRegion);
         }
 
@@ -647,13 +653,12 @@ namespace Engine::Scenes
         imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
         imageCreateInfo.arrayLayers = 6; // Cube faces are represented by array layers in Vulkan.
         imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT; // This flag is required for cube map images.
-        VkImage cubeMapImageGlobal; // Cube map image that contains all cube map images. This is the image that will be sampled by the shaders.
-        vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, &cubeMapImageGlobal);
+        vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, &_cubeMapImage);
 
         // Allocate GPU memory for the image (device-local memory).
-        vkGetImageMemoryRequirements(logicalDevice, cubeMapImageGlobal, &memoryRequirements);
+        vkGetImageMemoryRequirements(logicalDevice, _cubeMapImage, &memoryRequirements);
         auto globalImageMemoryHandle = physicalDevice.AllocateMemory(logicalDevice, memoryRequirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        vkBindImageMemory(logicalDevice, cubeMapImageGlobal, globalImageMemoryHandle, 0);
+        vkBindImageMemory(logicalDevice, _cubeMapImage, globalImageMemoryHandle, 0);
 
         // Create image view. This comment from a reddit user gives an idea of what an image view is used for:
         // Say you have an image which is actually a fairly large atlas of many individual images.
@@ -673,7 +678,7 @@ namespace Engine::Scenes
         imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE; // Cube map view type.
         imageViewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
         imageViewCreateInfo.subresourceRange = subresourceRange;
-        imageViewCreateInfo.image = cubeMapImageGlobal;
+        imageViewCreateInfo.image = _cubeMapImage;
         VkImageView imageView;
         vkCreateImageView(logicalDevice, &imageViewCreateInfo, nullptr, &imageView);
 
@@ -695,7 +700,7 @@ namespace Engine::Scenes
         imageBarrierUndefinedToTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         imageBarrierUndefinedToTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         imageBarrierUndefinedToTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        imageBarrierUndefinedToTransfer.image = cubeMapImageGlobal;
+        imageBarrierUndefinedToTransfer.image = _cubeMapImage;
         imageBarrierUndefinedToTransfer.subresourceRange = subresourceRange;
         imageBarrierUndefinedToTransfer.srcAccessMask = 0;
         imageBarrierUndefinedToTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -707,7 +712,7 @@ namespace Engine::Scenes
         vkCmdCopyBufferToImage(
             copyCommandBuffer,
             stagingBuffer,
-            cubeMapImageGlobal,
+            _cubeMapImage,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             static_cast<uint32_t>(bufferCopyRegions.size()),
             bufferCopyRegions.data()
@@ -718,7 +723,7 @@ namespace Engine::Scenes
         imageBarrierTransferToShaderRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         imageBarrierTransferToShaderRead.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         imageBarrierTransferToShaderRead.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        imageBarrierTransferToShaderRead.image = cubeMapImageGlobal;
+        imageBarrierTransferToShaderRead.image = _cubeMapImage;
         imageBarrierTransferToShaderRead.subresourceRange = subresourceRange;
         imageBarrierTransferToShaderRead.srcAccessMask = 0;
         imageBarrierTransferToShaderRead.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -729,7 +734,7 @@ namespace Engine::Scenes
 
 #pragma endregion
 
-#pragma region 5) Create a sampler and link it to the image/image view created above; this tells the shaders how to read the data in the cube map image we created above.
+#pragma region 5) Create a sampler and link it to the image/image view created above; this tells the shaders how to read the data in the cube map image we created.
 
         // Create sampler. The sampler gives the shaders information on how they should behave when reading image data (sampling).
         VkSamplerCreateInfo samplerCreateInfo{};
@@ -771,5 +776,9 @@ namespace Engine::Scenes
         memcpy(serialized.data() + (imageSizeBytes * 4), _front.data(), imageSizeBytes);
         memcpy(serialized.data() + (imageSizeBytes * 5), _back.data(), imageSizeBytes);
         return serialized;
+    }
+
+    void CubicalEnvironmentMap::UpdateShaderResources()
+    {
     }
 }

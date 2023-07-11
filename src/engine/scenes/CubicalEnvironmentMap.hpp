@@ -19,7 +19,7 @@ namespace Engine::Scenes
      * @brief Represents a cubical environment map, used as an image-based light source
      * in the shaders.
      */
-    class CubicalEnvironmentMap
+    class CubicalEnvironmentMap : public Structural::IPipelineable
     {
     public:
 
@@ -57,6 +57,12 @@ namespace Engine::Scenes
          * @brief Width and height of each face's image.
          */
         unsigned int _faceSizePixels;
+
+        /**
+         * @brief Vulkan handle to the cube map image used in the shaders. This image is meant to contain all the cube map's images as a serialized array of pixels.
+         * In order to know where, in the array of pixels, each image starts/ends and what format it's in, a sampler and image view are used.
+         */
+        VkImage _cubeMapImage;
 
         /**
          * @brief Default constructor.
@@ -112,13 +118,21 @@ namespace Engine::Scenes
          */
         void LoadFromSphericalHDRI(std::filesystem::path imageFilePath);
 
-        void CreateShaderResources(VkDevice& logicalDevice, Vulkan::PhysicalDevice& physicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue);
-
         /**
          * @brief Serializes the data of all the faces' images and returns a vector that contains all images, in this specific order:
          * front, right, back, left, upper, lower.
          */
         std::vector<unsigned char> Serialize();
-    };
+
+        /**
+         * @brief See IPipelineable.
+         */
+        virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue) override;
+
+        /**
+         * @brief See IPipelineable.
+         */
+        virtual void UpdateShaderResources() override;
+};
 }
 

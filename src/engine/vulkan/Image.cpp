@@ -58,8 +58,6 @@ namespace Engine::Vulkan
 		imageCreateInfo.arrayLayers = 1;
 		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 
-		// imageCreateMaxMipLevels, imageCreateMaxArrayLayers, imageCreateMaxExtent, and imageCreateSample
-
 		// Tiling is very important. Tiling describes how the data for the texture is arranged in the GPU. 
 		// For improved performance, GPUs do not store images as 2d arrays of pixels, but instead use complex
 		// custom formats, unique to the GPU brand and even models. VK_IMAGE_TILING_OPTIMAL tells Vulkan 

@@ -20,7 +20,7 @@ namespace Engine::Vulkan
 	 *
 	 * void main()
 	 * {
-	 *		... shader code ...
+	 *		... shader code that uses uniformBuffer...
 	 * }
 	 *
 	 * See the _bindingNumber member, and the _indexNumber member in the DescriptorSet class.
@@ -178,17 +178,5 @@ namespace Engine::Vulkan
 		 * @param descriptorSets Descriptor sets to allocate memory for.
 		 */
 		DescriptorPool(VkDevice& logicalDevice, std::vector<DescriptorSet>& descriptorSets);
-
-		/**
-		 * @brief Updates a descriptor identified by its memory address with the data contained in the given buffer.
-		 * @param data The buffer whose data will be sent to the allocated descriptor set.
-		 */
-		 //void UpdateDescriptor(Descriptor& d, Buffer& data);
-
-		 /**
-		  * @brief Updates a descriptor identified by its memory address with the data contained in the given image.
-		  * @param data The buffer whose data will be sent to the allocated descriptor set.
-		  */
-		  //void UpdateDescriptor(Descriptor& d, Image& data);
 	};
 }
