@@ -62,7 +62,7 @@ namespace Engine::Scenes
          * @brief Vulkan handle to the cube map image used in the shaders. This image is meant to contain all the cube map's images as a serialized array of pixels.
          * In order to know where, in the array of pixels, each image starts/ends and what format it's in, a sampler and image view are used.
          */
-        VkImage _cubeMapImage;
+        Vulkan::Image _cubeMapImage;
 
         /**
          * @brief Default constructor.
