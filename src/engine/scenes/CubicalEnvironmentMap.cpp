@@ -737,6 +737,39 @@ namespace Engine::Scenes
 #pragma region 5) Create a sampler and link it to the image/image view created above; this tells the shaders how to read the data in the cube map image we created.
 
         // Create sampler. The sampler gives the shaders information on how they should behave when reading image data (sampling).
+        // Of particular importance (because not obvious) are texture filtering and anisotropy. 
+        // 
+        // Texture filtering is a parameter used by the shader when given the instruction to read the color of a texture at a specific UV coordinate. 
+        // Positions on a texture are identified by integer values (pixel coordinates) whereas the texture() function in a shader takes float values. 
+        // Say we have a 2x2 pixel image: if we sample from UV (0.35, 0.35) with origin at the bottom left corner, the texture() function will have to 
+        // give back the color of the bottom left pixel, because UV coordinates (0.35, 0.35) fall in the bottom left pixel of our 2x2 image. However, 
+        // the exact center of that pixel is represented by UV coordinates (0.25, 0.25). UV coordinates (0.35, 0.35) are skewed towards the upper right 
+        // of our bottom left pixel in our 2x2 image, so the texture() function uses the filtering parameter to determine how to calculate the color it gives back. 
+        // In the case of linear filtering, the color the texture() function gives back will be a blend of the 4 closest pixels, weighted by how close
+        // the input coordinate (0.35, 0.35) is to each pixel.
+        // 
+        // Anisotropy is another, more advanced filtering technique that is most effective when the surface onto which the texture being sampled is at
+        // a steep angle. It's aimed at preserving sharp features of textures, and maintaining visual fidelity when sampling textures at steep angles.
+        // The word anisotropy comes from Greek and literally means "not the same angle".
+        // The algorithm for anisotropic filtering looks like the following:
+        // 
+        // 1) We first need a way to know the angle of the texture. This could be easily achieved by passing the normal vector on from the vertex shader to
+        // the fragment shader, but in most cases the derivatives of the texture are used. Texture derivatives represent the rate of change of texture
+        // coordinates relative to the position of the pixel being rendered on-screen. To understand this, imagine you are rendering a plane that is
+        // very steeply angled from your view, so steeply angled that you can only see 2 pixels, so it looks more like a line (but is infact the plane
+        // being rendered almost from the side). If we take the texture coordinate of the 2 neighbouring pixels (on the shorter side) we will get the 2
+        // extremes of the UV space. By comparing the rate of change of the on-screen pixel coordinates and the resulting texture coordinates, the shaders
+        // can calculate the derivative that will be needed to sample around the main sampling position. In our extreme case, a 1 pixel change in position on screen
+        // results in the 2 extremes of the UV space in the corresponding texture coordinates. This means that the magnitude of the derivative is at the
+        // maximum it can be for one of the axes.
+        // 
+        // 2) Now that we have the magnitude of the derivative (the rate of change of the texture coordinates relative to the on-screen pixel coordinates)
+        // we can start sampling around the color at the UV coordinate. In anisotropic filtering, the sampling is typically done with an ellyptical pattern
+        // or with a cylindrical pattern. In the ellyptical pattern, the samples are taken around the UV coordinate following the circumference of an
+        // imaginary ellyptical circumference around the sample point. The number of samples will increase if the texture is on a very steeply-angled
+        // surface. That's why we needed the angle of the texture, to guide the amount of samples being taken around the main sampling position.
+        // 
+        // 3) At this point we can calculate a weighted average of all colors that have been sampled around the main sampling position.
         VkSamplerCreateInfo samplerCreateInfo{};
         samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
         samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
@@ -748,7 +781,7 @@ namespace Engine::Scenes
         samplerCreateInfo.mipLodBias = 0.0f;
         samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
         samplerCreateInfo.minLod = 0.0f;
-        samplerCreateInfo.maxLod = 1;
+        samplerCreateInfo.maxLod = 1.0f;
         samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
         samplerCreateInfo.maxAnisotropy = 1.0f;
         VkSampler sampler;

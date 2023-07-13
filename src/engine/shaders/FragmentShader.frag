@@ -10,7 +10,7 @@ layout (location = 3) in vec3 inDirectionToCamera;
 // Output variables.
 layout(location = 0) out vec4 outColor;
 
-// Variables coming from descriptor sets.
+// Variables coming from descriptor sets. See ShaderResources.cpp for more info on descriptor sets.
 layout(set = 2, binding = 0) uniform LightData {
 	vec3 position;
 	vec4 colorIntensity; // X, Y, Z for color, W for intensity.
@@ -97,23 +97,6 @@ vec3 RotateVector(vec3 vectorToRotate, vec3 axis, float angleDegrees) {
 void main() 
 {
 	if (dot(vec4(inDirectionToCamera, 0.0f), inWorldSpaceNormal) > 0.0f) {
-//		vec2 zenithVector = normalize(vec2(reflected.x, reflected.y));
-//		float zenithDegrees = degrees(asin(zenithVector.y));
-//		vec2 azimuthVector = normalize(vec2(reflected.x, reflected.z));
-//		float azimuthDegrees = 0.0f;
-//	
-//		if (azimuthVector.x < 0) {
-//			azimuthDegrees = 360.0f - degrees(acos(azimuthVector.y));
-//		}
-//		else {
-//			azimuthDegrees = degrees(acos(azimuthVector.y));
-//		}
-//
-//		// Calculate UV coordinates from spherical coordinates to sample from the environment map as if it was
-//		// folded on itself into a sphere.
-//		float uvCoordinateX = mod((0.5f + (azimuthDegrees) / 360.0f), 1.0f);
-//		float uvCoordinateY = (zenithDegrees + 90.0f) / 180.0f;
-
 		vec4 reflected = reflect(vec4(-inDirectionToCamera.xyz, 0.0f), vec4(inWorldSpaceNormal.xyz, 0.0f));
 
 		// Sample the environment map using the calculated uv coordinates.

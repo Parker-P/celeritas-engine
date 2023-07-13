@@ -36,7 +36,7 @@ namespace Engine::Vulkan
 		return Image(logicalDevice, physicalDevice, VK_FORMAT_R8G8B8A8_SRGB, VkExtent2D{ 1,1 }, &pixelColor, (VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT), VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	}
 
-	Image::Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& sizePixels, void* data, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& typeFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags)
+	Image::Image(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const VkFormat& imageFormat, const VkExtent2D& sizePixels, void* data, const VkImageUsageFlagBits& usageFlags, const VkImageAspectFlagBits& typeFlags, const VkMemoryPropertyFlagBits& memoryPropertiesFlags, const uint32_t& arrayLayers, )
 	{
 		_physicalDevice = physicalDevice;
 		_logicalDevice = logicalDevice;
@@ -48,7 +48,6 @@ namespace Engine::Vulkan
 
 		VkImageCreateInfo imageCreateInfo = { };
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		imageCreateInfo.pNext = nullptr;
 		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 		imageCreateInfo.format = imageFormat;
 
@@ -65,7 +64,7 @@ namespace Engine::Vulkan
 		// it won’t be possible to read the data from CPU or to write it without changing its tiling first 
 		// (it’s possible to change the tiling of a texture at any point, but this can be a costly operation). 
 		// The other tiling we can care about is VK_IMAGE_TILING_LINEAR, which will store the image as a 2d 
-		// array of pixels. While LINEAR tiling will be a lot slower, it will allow the cpu to safely write 
+		// array of pixels. While LINEAR tiling will be a lot slower, it will allow the CPU to safely write 
 		// and read from that memory.
 		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCreateInfo.usage = usageFlags;
@@ -76,6 +75,29 @@ namespace Engine::Vulkan
 		if (vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, &_imageHandle) != VK_SUCCESS) {
 			std::cout << "failed creating image" << std::endl;
 		}
+
+
+
+		// TODO: Compare with vkCreateImage above and modify the paramters of this function to take values needed for the cube map.
+
+		VkImageCreateInfo imageCreateInfo{};
+		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+		imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+		imageCreateInfo.mipLevels = 1;
+		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		imageCreateInfo.extent = { _faceSizePixels, _faceSizePixels, 1 };
+		imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		imageCreateInfo.arrayLayers = 6; // Cube faces are represented by array layers in Vulkan.
+		imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT; // This flag is required for cube map images.
+		vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, &_cubeMapImage);
+
+
+
+
 
 		VkMemoryRequirements reqs;
 		vkGetImageMemoryRequirements(logicalDevice, _imageHandle, &reqs);
