@@ -152,7 +152,7 @@ namespace Engine::Vulkan
             const VkImageUsageFlagBits& usageFlags,
             const VkImageAspectFlagBits& typeFlags,
             const VkMemoryPropertyFlagBits& memoryPropertiesFlags,
-            const uint32_t& arrayLayerCount = 0,
+            const uint32_t& arrayLayerCount = 1,
             const VkImageCreateFlags& creationFlags = 0,
             const VkImageViewType& imageViewType = VK_IMAGE_VIEW_TYPE_2D);
 

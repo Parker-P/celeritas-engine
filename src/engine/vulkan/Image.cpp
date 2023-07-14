@@ -54,6 +54,7 @@ namespace Engine::Vulkan
         _format = imageFormat;
         _sizePixels = sizePixels;
         _typeFlags = typeFlags;
+        _memoryPropertiesFlags = memoryPropertiesFlags;
         _sizeBytes = GetPixelSizeBytes(imageFormat) * sizePixels.width * sizePixels.height;
         _pData = data;
 
@@ -147,7 +148,7 @@ namespace Engine::Vulkan
     {
         // Check if the image can be sent to the GPU first.
         if ((_memoryPropertiesFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == false) {
-            std::cout << "this image cannot be sent to the GPU as it doesn't have the VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT in its memory properties" << std::endl;
+            std::cout << "this image cannot be sent to the GPU as it doesn't have the VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT set in its memory properties" << std::endl;
             return;
         }
 
@@ -251,7 +252,7 @@ namespace Engine::Vulkan
         info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 
-        vkCreateSampler(_logicalDevice, &info, nullptr, &_sampler);
+        auto res = vkCreateSampler(_logicalDevice, &info, nullptr, &_sampler);
 
         return VkDescriptorImageInfo{ _sampler, _viewHandle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
     }
