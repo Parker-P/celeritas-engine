@@ -227,7 +227,8 @@ namespace Engine::Scenes
         }
     }
 
-    void CubicalEnvironmentMap::WriteImagesToFiles(std::filesystem::path absoluteFolderPath) {
+    void CubicalEnvironmentMap::WriteImagesToFiles(std::filesystem::path absoluteFolderPath) 
+    {
         if (!std::filesystem::exists(absoluteFolderPath)) {
             if (std::filesystem::is_directory(absoluteFolderPath)) {
                 std::filesystem::create_directories(absoluteFolderPath);
