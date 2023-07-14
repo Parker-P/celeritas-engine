@@ -54,9 +54,19 @@ namespace Engine::Scenes
         std::vector<unsigned char> _lower;
 
         /**
+         * @brief Data loaded from the HDRi image file.
+         */
+        unsigned char* _hdriImageData;
+
+        /**
+         * @brief Width and height of the loaded HDRi image.
+         */
+        VkExtent2D _hdriSizePixels;
+
+        /**
          * @brief Width and height of each face's image.
          */
-        unsigned int _faceSizePixels;
+        int _faceSizePixels;
 
         /**
          * @brief Vulkan handle to the cube map image used in the shaders. This image is meant to contain all the cube map's images as a serialized array of pixels.
@@ -119,6 +129,13 @@ namespace Engine::Scenes
         void LoadFromSphericalHDRI(std::filesystem::path imageFilePath);
 
         /**
+         * @brief Writes each cube map face's image to 6 separate files.
+         * @param absoluteFolderPath Folder in which each of the 6 images of the cube map will be written. Defaults to the current working directory
+         * of the executable running the code.
+         */
+        void WriteImagesToFiles(std::filesystem::path absoluteFolderPath);
+
+        /**
          * @brief Serializes the data of all the faces' images and returns a vector that contains all images, in this specific order:
          * front, right, back, left, upper, lower.
          */
@@ -133,6 +150,13 @@ namespace Engine::Scenes
          * @brief See IPipelineable.
          */
         virtual void UpdateShaderResources() override;
-};
+
+    private:
+
+        /**
+         * @brief Internal method for code-shortening.
+         */
+        void GenerateFaceImage(CubeMapFace face);
+    };
 }
 

@@ -28,10 +28,267 @@
 
 namespace Engine::Scenes
 {
+    void CubicalEnvironmentMap::GenerateFaceImage(CubeMapFace face)
+    {
+        // The world space unit vector that points in the positive X direction of the image (must be left to right), as if the image was placed in the 3D world on a square plane.
+        glm::vec3 imageXWorldSpace;
+
+        // The world space unit vector that points in the positive Y direction of the image (must be bottom to top), as if the image was placed in the 3D world on a square plane.
+        glm::vec3 imageYWorldSpace;
+
+        // The origin of the image (must be the bottom left corner) in world space, as if the image was placed in the 3D world on a square plane.
+        glm::vec3 imageOriginWorldSpace;
+
+        switch (face) {
+        case CubeMapFace::FRONT:
+            imageXWorldSpace = glm::vec3(1.0f, 0.0f, 0.0f);
+            imageYWorldSpace = glm::vec3(0.0f, 1.0f, 0.0f);
+            imageOriginWorldSpace = glm::vec3(-0.5f, 0.5f, 0.5f);
+            break;
+        case CubeMapFace::RIGHT:
+            imageXWorldSpace = glm::vec3(0.0f, 0.0f, -1.0f);
+            imageYWorldSpace = glm::vec3(0.0f, 1.0f, 0.0f);
+            imageOriginWorldSpace = glm::vec3(0.5f, 0.5f, 0.5f);
+            break;
+        case CubeMapFace::BACK:
+            imageXWorldSpace = glm::vec3(-1.0f, 0.0f, 0.0f);
+            imageYWorldSpace = glm::vec3(0.0f, 1.0f, 0.0f);
+            imageOriginWorldSpace = glm::vec3(0.5f, 0.5f, -0.5f);
+            break;
+        case CubeMapFace::LEFT:
+            imageXWorldSpace = glm::vec3(0.0f, 0.0f, 1.0f);
+            imageYWorldSpace = glm::vec3(0.0f, 1.0f, 0.0f);
+            imageOriginWorldSpace = glm::vec3(-0.5f, 0.5f, -0.5f);
+            break;
+        case CubeMapFace::UPPER:
+            imageXWorldSpace = glm::vec3(1.0f, 0.0f, 0.0f);
+            imageYWorldSpace = glm::vec3(0.0f, 0.0f, -1.0f);
+            imageOriginWorldSpace = glm::vec3(-0.5f, 0.5f, -0.5f);
+            break;
+        case CubeMapFace::LOWER:
+            imageXWorldSpace = glm::vec3(1.0f, 0.0f, 0.0f);
+            imageYWorldSpace = glm::vec3(0.0f, 0.0f, 1.0f);
+            imageOriginWorldSpace = glm::vec3(-0.5f, -0.5f, 0.5f);
+            break;
+        }
+
+        for (unsigned int y = 0; y < _faceSizePixels; ++y) {
+            for (unsigned int x = 0; x < _faceSizePixels; ++x) {
+
+                // First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
+                glm::vec3 cartesianCoordinatesOnFace;
+                cartesianCoordinatesOnFace = imageOriginWorldSpace + (imageXWorldSpace * ((1.0f / _faceSizePixels) * x));
+                cartesianCoordinatesOnFace += -imageYWorldSpace * ((1.0f / _faceSizePixels) * y);
+
+                // Then we get the cartesian coordinates on the sphere from the cartesian coordinates on the face. You can
+                // imagine a cube that contains a sphere of exactly the same radius. Only the sphere's poles and sides will
+                // touch each cube's face exactly at the center. We take advantage of the fact that the radius of the sphere
+                // is constant (always equal to 1 for simplicity in our case) so all we need to do is normalize the coordinates
+                // on the face and we get the cartesian coordinates on the sphere. This kind of simulates shooting a ray from
+                // the current pixel on the cube towards the center of the sphere, intersecting it with the sphere, and taking 
+                // the coordinates of the intersection point.
+                auto cartesianCoordinatesOnSphere = glm::normalize(cartesianCoordinatesOnFace);
+
+                float localXAngleDegrees = 0.0f;
+                float localYAngleDegrees = 0.0f;
+                float azimuthDegrees = 0.0f;
+                float zenithDegrees = 0.0f;
+
+                // Then we calculate the spherical coordinates by using some trig.
+                // Depending on the coordinate, the angles could either be negative or positive, according to the left hand rule.
+                // This engine uses a left-handed coordinate system.
+                switch (face) {
+                case CubeMapFace::FRONT:
+                    localXAngleDegrees = glm::degrees(atanf(cartesianCoordinatesOnFace.x * 2.0f));
+                    localYAngleDegrees = (90.0f - glm::degrees(acosf(cartesianCoordinatesOnSphere.y))) * -1.0f;
+                    azimuthDegrees = cartesianCoordinatesOnFace.x < 0.0f ? abs(localXAngleDegrees) * -1.0f : abs(localXAngleDegrees);
+                    zenithDegrees = cartesianCoordinatesOnFace.y < 0.0f ? abs(localYAngleDegrees) : abs(localYAngleDegrees) * -1.0f;
+                    azimuthDegrees = fmodf((360.0f + azimuthDegrees), 360.0f); // This transforms any angle into the [0-360] degree domain.
+                    break;
+                case CubeMapFace::RIGHT:
+                    localXAngleDegrees = glm::degrees(atanf(cartesianCoordinatesOnFace.z * 2.0f));
+                    localYAngleDegrees = (90.0f - glm::degrees(acosf(cartesianCoordinatesOnSphere.y))) * -1.0f;
+                    localXAngleDegrees = cartesianCoordinatesOnFace.z > 0.0f ? abs(localXAngleDegrees) * -1.0f : abs(localXAngleDegrees);
+                    localYAngleDegrees = cartesianCoordinatesOnFace.y < 0.0f ? abs(localYAngleDegrees) : abs(localYAngleDegrees) * -1.0f;
+                    localXAngleDegrees += 90;
+                    azimuthDegrees = fmodf((360.0f + localXAngleDegrees), 360.0f);
+                    zenithDegrees = localYAngleDegrees;
+                    break;
+                case CubeMapFace::BACK:
+                    localXAngleDegrees = glm::degrees(atanf(cartesianCoordinatesOnFace.x * 2.0f));
+                    localYAngleDegrees = (90.0f - glm::degrees(acosf(cartesianCoordinatesOnSphere.y))) * -1.0f;
+                    localXAngleDegrees = cartesianCoordinatesOnFace.x > 0.0f ? abs(localXAngleDegrees) * -1.0f : abs(localXAngleDegrees);
+                    localYAngleDegrees = cartesianCoordinatesOnFace.y < 0.0f ? abs(localYAngleDegrees) : abs(localYAngleDegrees) * -1.0f;
+                    localXAngleDegrees += 180;
+                    azimuthDegrees = fmodf((360.0f + localXAngleDegrees), 360.0f);
+                    zenithDegrees = localYAngleDegrees;
+                    break;
+                case CubeMapFace::LEFT:
+                    localXAngleDegrees = glm::degrees(atanf(cartesianCoordinatesOnFace.z * 2.0f));
+                    localYAngleDegrees = (90.0f - glm::degrees(acosf(cartesianCoordinatesOnSphere.y))) * -1.0f;
+                    localXAngleDegrees = cartesianCoordinatesOnFace.z < 0.0f ? abs(localXAngleDegrees) * -1.0f : abs(localXAngleDegrees);
+                    localYAngleDegrees = cartesianCoordinatesOnFace.y < 0.0f ? abs(localYAngleDegrees) : abs(localYAngleDegrees) * -1.0f;
+                    localXAngleDegrees += 270;
+                    azimuthDegrees = fmodf((360.0f + localXAngleDegrees), 360.0f);
+                    zenithDegrees = localYAngleDegrees;
+                    break;
+                case CubeMapFace::UPPER:
+                    if (cartesianCoordinatesOnSphere.y < 1.0f) {
+                        auto temp = glm::normalize(glm::vec3(cartesianCoordinatesOnSphere.x, 0.0f, cartesianCoordinatesOnSphere.z));
+                        localXAngleDegrees = glm::degrees(acosf(temp.z));
+                        localYAngleDegrees = glm::degrees(acosf(cartesianCoordinatesOnSphere.y));
+                        localXAngleDegrees = cartesianCoordinatesOnFace.x < 0.0f ? abs(localXAngleDegrees) * -1.0f : abs(localXAngleDegrees);
+                        localYAngleDegrees = cartesianCoordinatesOnFace.y < 0.0f ? abs(localYAngleDegrees) : abs(localYAngleDegrees) * -1.0f;
+                        azimuthDegrees = fmodf((360.0f + localXAngleDegrees), 360.0f);
+                        zenithDegrees = (90.0f + localYAngleDegrees) * -1.0f;
+                    }
+                    else {
+                        continue;
+                    }
+                    break;
+                case CubeMapFace::LOWER:
+                    if (cartesianCoordinatesOnSphere.y < 1.0f) {
+                        auto temp = glm::normalize(glm::vec3(cartesianCoordinatesOnSphere.x, 0.0f, cartesianCoordinatesOnSphere.z));
+                        localXAngleDegrees = glm::degrees(acosf(temp.z));
+                        localYAngleDegrees = glm::degrees(acosf(cartesianCoordinatesOnSphere.y));
+                        localXAngleDegrees = cartesianCoordinatesOnFace.x < 0.0f ? abs(localXAngleDegrees) * -1.0f : abs(localXAngleDegrees);
+                        localYAngleDegrees = cartesianCoordinatesOnFace.y < 0.0f ? abs(localYAngleDegrees) : abs(localYAngleDegrees) * -1.0f;
+                        azimuthDegrees = fmodf((360.0f + localXAngleDegrees), 360.0f);
+                        zenithDegrees = (90.0f - localYAngleDegrees) * -1.0f;
+                    }
+                    else {
+                        continue;
+                    }
+                    break;
+                }
+
+                // UV coordinates into the spherical HDRi image.
+                auto uCoordinate = fmodf(0.5f + (azimuthDegrees / 360.0f), 1.0f);
+                auto vCoordinate = 0.5f + (zenithDegrees / -180.0f);
+
+                // This calculates at which pixel from the left (for U) and from the top (for V)
+                // we need to fetch from the spherical HDRi.
+                int pixelNumberU = (int)ceil(uCoordinate * _hdriSizePixels.width);
+                int pixelNumberV = (int)ceil((1.0f - vCoordinate) * _hdriSizePixels.height);
+
+                // This calculates the index into the spherical HDRi image accounting for 2 things:
+                // 1) the pixel numbers calculated above
+                // 2) the fact that each pixel is actually stored in 4 separate cells that represent
+                //    each channel of each individual pixel. The channels used are always 4 (RGBA).
+                int componentIndex = (pixelNumberU * 4) + ((_hdriSizePixels.width * 4) * (pixelNumberV - 1));
+
+                // Fetch the channels from the spherical HDRi based on the calculations made above.
+                auto red = _hdriImageData[componentIndex];
+                auto green = _hdriImageData[componentIndex + 1];
+                auto blue = _hdriImageData[componentIndex + 2];
+                auto alpha = _hdriImageData[componentIndex + 3];
+
+                // Assign the color fetched from the HDRi to the cube map face's image we want to generate.
+                int faceComponentIndex = (x + (_faceSizePixels * y)) * 4;
+                switch (face) {
+                case CubeMapFace::FRONT:
+                    _front[faceComponentIndex] = red;
+                    _front[faceComponentIndex + 1] = green;
+                    _front[faceComponentIndex + 2] = blue;
+                    _front[faceComponentIndex + 3] = alpha;
+                    break;
+                case CubeMapFace::RIGHT:
+                    _right[faceComponentIndex] = red;
+                    _right[faceComponentIndex + 1] = green;
+                    _right[faceComponentIndex + 2] = blue;
+                    _right[faceComponentIndex + 3] = alpha;
+                    break;
+                case CubeMapFace::BACK:
+                    _back[faceComponentIndex] = red;
+                    _back[faceComponentIndex + 1] = green;
+                    _back[faceComponentIndex + 2] = blue;
+                    _back[faceComponentIndex + 3] = alpha;
+                    break;
+                case CubeMapFace::LEFT:
+                    _left[faceComponentIndex] = red;
+                    _left[faceComponentIndex + 1] = green;
+                    _left[faceComponentIndex + 2] = blue;
+                    _left[faceComponentIndex + 3] = alpha;
+                    break;
+                case CubeMapFace::UPPER:
+                    _upper[faceComponentIndex] = red;
+                    _upper[faceComponentIndex + 1] = green;
+                    _upper[faceComponentIndex + 2] = blue;
+                    _upper[faceComponentIndex + 3] = alpha;
+                    break;
+                case CubeMapFace::LOWER:
+                    _lower[faceComponentIndex] = red;
+                    _lower[faceComponentIndex + 1] = green;
+                    _lower[faceComponentIndex + 2] = blue;
+                    _lower[faceComponentIndex + 3] = alpha;
+                    break;
+                }
+            }
+        }
+    }
+
+    void CubicalEnvironmentMap::WriteImagesToFiles(std::filesystem::path absoluteFolderPath) {
+        if (!std::filesystem::exists(absoluteFolderPath)) {
+            if (std::filesystem::is_directory(absoluteFolderPath)) {
+                std::filesystem::create_directories(absoluteFolderPath);
+            }
+            else {
+                std::cout << "provided path is not a folder" << std::endl;
+                return;
+            }
+        }
+
+        auto frontFaceImagePath = absoluteFolderPath /= std::filesystem::path("FrontFace.png");
+        stbi_write_png(frontFaceImagePath.string().c_str(),
+            _faceSizePixels,
+            _faceSizePixels,
+            4,
+            _front.data(),
+            _faceSizePixels * 4);
+
+        auto rightFaceImagePath = absoluteFolderPath /= std::filesystem::path("RightFace.png");
+        stbi_write_png(rightFaceImagePath.string().c_str(),
+            _faceSizePixels,
+            _faceSizePixels,
+            4,
+            _right.data(),
+            _faceSizePixels * 4);
+
+        auto backFaceImagePath = absoluteFolderPath /= std::filesystem::path("BackFace.png");
+        stbi_write_png(backFaceImagePath.string().c_str(),
+            _faceSizePixels,
+            _faceSizePixels,
+            4,
+            _back.data(),
+            _faceSizePixels * 4);
+
+        auto leftFaceImagePath = absoluteFolderPath /= std::filesystem::path("LeftFace.png");
+        stbi_write_png(leftFaceImagePath.string().c_str(),
+            _faceSizePixels,
+            _faceSizePixels,
+            4,
+            _left.data(),
+            _faceSizePixels * 4);
+
+        auto upperFaceImagePath = absoluteFolderPath /= std::filesystem::path("UpperFace.png");
+        stbi_write_png(upperFaceImagePath.string().c_str(),
+            _faceSizePixels,
+            _faceSizePixels,
+            4,
+            _upper.data(),
+            _faceSizePixels * 4);
+
+        auto lowerFaceImagePath = absoluteFolderPath /= std::filesystem::path("LowerFace.png");
+        stbi_write_png(lowerFaceImagePath.string().c_str(),
+            _faceSizePixels,
+            _faceSizePixels,
+            4,
+            _lower.data(),
+            _faceSizePixels * 4);
+    }
 
     void CubicalEnvironmentMap::LoadFromSphericalHDRI(std::filesystem::path imageFilePath)
     {
-        // The code that follows is an absolute disgrace. Feel free to refactor if it makes you angry.
         int wantedComponents = 4;
         int componentsDetected;
         int width;
@@ -42,9 +299,12 @@ namespace Engine::Scenes
         // for each pixel, red, green, blue and alpha.
         // The image's pixels are read and stored left to right, top to bottom, relative to the image.
         // Each pixel's component is an unsigned char.
-        auto image = stbi_load(imageFilePath.string().c_str(), &width, &height, &componentsDetected, wantedComponents);
+        _hdriImageData = stbi_load(imageFilePath.string().c_str(), &width, &height, &componentsDetected, wantedComponents);
 
-        if (nullptr == image) {
+        _hdriSizePixels.width = width;
+        _hdriSizePixels.height = height;
+
+        if (nullptr == _hdriImageData) {
             std::cout << "failed loading image " << imageFilePath.string() << std::endl;
             std::exit(-1);
         }
@@ -65,503 +325,14 @@ namespace Engine::Scenes
 
         // Now we start sampling the spherical HDRi for each individual pixel of each
         // face of the cube map we want to generate.
-
-        // TODO: make the conversion for each face into one function that handles all cases
-        // given the right parameters.
-
-        // Front face.
-        {
-            // The world space unit vector that points in the positive X direction of the image (must be left to right), as if the image was placed in the 3D world on a square plane.
-            auto imageXWorldSpace = glm::vec3(1.0f, 0.0f, 0.0f);
-
-            // The world space unit vector that points in the positive Y direction of the image (must be bottom to top), as if the image was placed in the 3D world on a square plane.
-            auto imageYWorldSpace = glm::vec3(0.0f, 1.0f, 0.0f);
-
-            // The origin of the image (must be the bottom left corner) in world space, as if the image was placed in the 3D world on square plane.
-            auto imageOriginWorldSpace = glm::vec3(-0.5f, 0.5f, 0.5f);
-
-            for (unsigned int y = 0; y < _faceSizePixels; ++y) {
-                for (unsigned int x = 0; x < _faceSizePixels; ++x) {
-
-                    // First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering.
-                    glm::vec3 cartesianCoordinatesOnFace;
-                    cartesianCoordinatesOnFace = imageOriginWorldSpace + (imageXWorldSpace * ((1.0f / _faceSizePixels) * x));
-                    cartesianCoordinatesOnFace += -imageYWorldSpace * ((1.0f / _faceSizePixels) * y);
-
-                    // Then we get the cartesian coordinates on the sphere from the cartesian coordinates on the face. You can
-                    // imagine a cube that contains a sphere of exactly the same radius. Only the sphere's poles and sides will
-                    // touch each cube's face exactly at the center. We take advantage of the fact that the radius of the sphere
-                    // is constant (always equal to 1 for simplicity in our case) so all we need to do is normalize the coordinates
-                    // on the face and we get the cartesian coordinates on the sphere. This kind of simulates shooting a ray from
-                    // the current pixel on the cube, intersecting it with the sphere, and taking the coordinates of the intersection
-                    // point.
-                    auto cartesianCoordinatesOnSphere = glm::normalize(cartesianCoordinatesOnFace);
-
-                    // Then we calculate the spherical coordinates by using some trig.
-                    auto azimuthDegrees = glm::degrees(atanf(cartesianCoordinatesOnFace.x * 2.0f));
-                    auto zenithDegrees = (90.0f - glm::degrees(acosf(cartesianCoordinatesOnSphere.y))) * -1.0f;
-
-                    // Depending on the coordinate, the angles could either be negative or positive, depending on the left hand rule.
-                    // This engine uses a left-handed coordinate system.
-                    azimuthDegrees = cartesianCoordinatesOnFace.x < 0.0f ? abs(azimuthDegrees) * -1.0f : abs(azimuthDegrees);
-                    zenithDegrees = cartesianCoordinatesOnFace.y < 0.0f ? abs(zenithDegrees) : abs(zenithDegrees) * -1.0f;
-
-                    // Now we make the azimuth respect the [0-360] degree domain.
-                    azimuthDegrees = fmodf((360.0f + azimuthDegrees), 360.0f);
-
-                    // UV coordinates into the spherical HDRi image.
-                    auto uCoordinate = fmodf(0.5f + (azimuthDegrees / 360.0f), 1.0f);
-                    auto vCoordinate = 0.5f + (zenithDegrees / -180.0f);
-
-                    // This calculates at which pixel from the left (for U) and from the top (for V)
-                    // we need to fetch from the spherical HDRi.
-                    int pixelNumberU = (int)ceil(uCoordinate * width);
-                    int pixelNumberV = (int)ceil((1.0f - vCoordinate) * height);
-
-                    // This calculates the index into the spherical HDRi image accounting for 2 things:
-                    // 1) the pixel numbers calculated above
-                    // 2) the fact that each pixel is actually stored in 4 separate cells that represent
-                    //    each channel of each individual pixel. The channels used are always 4 (RGBA).
-                    int componentIndex = (pixelNumberU * 4) + ((width * 4) * (pixelNumberV - 1));
-
-                    // Fetch the channels from the spherical HDRi based on the calculations made above.
-                    auto red = image[componentIndex];
-                    auto green = image[componentIndex + 1];
-                    auto blue = image[componentIndex + 2];
-                    auto alpha = image[componentIndex + 3];
-
-                    // Assign the color fetched from the HDRi to the cube map face's image we want to generate.
-                    int faceComponentIndex = (x + (_faceSizePixels * y)) * 4;
-                    _front[faceComponentIndex] = red;
-                    _front[faceComponentIndex + 1] = green;
-                    _front[faceComponentIndex + 2] = blue;
-                    _front[faceComponentIndex + 3] = alpha;
-                }
-            }
-
-            /*auto frontFaceImagePath = Settings::Paths::TexturesPath() /= std::filesystem::path("FrontFace.png");
-            stbi_write_png(frontFaceImagePath.string().c_str(),
-                _faceSizePixels,
-                _faceSizePixels,
-                4,
-                frontFace.data(),
-                _faceSizePixels * 4);*/
-        }
-
-        // Right face.
-        {
-            // The world space unit vector that points in the positive X direction of the image (must be left to right), as if the image was placed in the 3D world on a square plane.
-            auto imageXWorldSpace = glm::vec3(0.0f, 0.0f, -1.0f);
-
-            // The world space unit vector that points in the positive Y direction of the image (must be bottom to top), as if the image was placed in the 3D world on a square plane.
-            auto imageYWorldSpace = glm::vec3(0.0f, 1.0f, 0.0f);
-
-            // The origin of the image (must be the bottom left corner) in world space, as if the image was placed in the 3D world on square plane.
-            auto imageOriginWorldSpace = glm::vec3(0.5f, 0.5f, 0.5f);
-
-            for (unsigned int y = 0; y < _faceSizePixels; ++y) {
-                for (unsigned int x = 0; x < _faceSizePixels; ++x) {
-
-                    // First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
-                    glm::vec3 cartesianCoordinatesOnFace;
-                    cartesianCoordinatesOnFace = imageOriginWorldSpace + (imageXWorldSpace * ((1.0f / _faceSizePixels) * x));
-                    cartesianCoordinatesOnFace += -imageYWorldSpace * ((1.0f / _faceSizePixels) * y);
-
-                    // Then we get the cartesian coordinates on the sphere from the cartesian coordinates on the face. You can
-                    // imagine a cube that contains a sphere of exactly the same radius. Only the sphere's poles and sides will
-                    // touch each cube's face exactly at the center. We take advantage of the fact that the radius of the sphere
-                    // is constant (always equal to 1 for simplicity in our case) so all we need to do is normalize the coordinates
-                    // on the face and we get the cartesian coordinates on the sphere. This kind of simulates shooting a ray from
-                    // the current pixel on the cube towards the center of the sphere, intersecting it with the sphere, and taking 
-                    // the coordinates of the intersection point.
-                    auto cartesianCoordinatesOnSphere = glm::normalize(cartesianCoordinatesOnFace);
-
-                    // Then we calculate the spherical coordinates by using some trig.
-                    auto localXAngleDegrees = glm::degrees(atanf(cartesianCoordinatesOnFace.z * 2.0f));
-                    auto localYAngleDegrees = (90.0f - glm::degrees(acosf(cartesianCoordinatesOnSphere.y))) * -1.0f;
-
-                    // Depending on the coordinate, the angles could either be negative or positive, depending on the left hand rule.
-                    // This engine uses a left-handed coordinate system.
-                    localXAngleDegrees = cartesianCoordinatesOnFace.z > 0.0f ? abs(localXAngleDegrees) * -1.0f : abs(localXAngleDegrees);
-                    localYAngleDegrees = cartesianCoordinatesOnFace.y < 0.0f ? abs(localYAngleDegrees) : abs(localYAngleDegrees) * -1.0f;
-                    localXAngleDegrees += 90;
-
-                    // Now we make the azimuth respect the [0-360] degree domain.
-                    auto azimuthDegrees = fmodf((360.0f + localXAngleDegrees), 360.0f);
-                    auto zenithDegrees = localYAngleDegrees;
-
-                    // UV coordinates into the spherical HDRi image.
-                    auto uCoordinate = fmodf(0.5f + (azimuthDegrees / 360.0f), 1.0f);
-                    auto vCoordinate = 0.5f + (zenithDegrees / -180.0f);
-
-                    // This calculates at which pixel from the left (for U) and from the top (for V)
-                    // we need to fetch from the spherical HDRi.
-                    int pixelNumberU = (int)ceil(uCoordinate * width);
-                    int pixelNumberV = (int)ceil((1.0f - vCoordinate) * height);
-
-                    // This calculates the index into the spherical HDRi image accounting for 2 things:
-                    // 1) the pixel numbers calculated above
-                    // 2) the fact that each pixel is actually stored in 4 separate cells that represent
-                    //    each channel of each individual pixel. The channels used are always 4 (RGBA).
-                    int componentIndex = (pixelNumberU * 4) + ((width * 4) * (pixelNumberV - 1));
-
-                    // Fetch the channels from the spherical HDRi based on the calculations made above.
-                    auto red = image[componentIndex];
-                    auto green = image[componentIndex + 1];
-                    auto blue = image[componentIndex + 2];
-                    auto alpha = image[componentIndex + 3];
-
-                    // Assign the color fetched from the HDRi to the cube map face's image we want to generate.
-                    int faceComponentIndex = (x + (_faceSizePixels * y)) * 4;
-                    _right[faceComponentIndex] = red;
-                    _right[faceComponentIndex + 1] = green;
-                    _right[faceComponentIndex + 2] = blue;
-                    _right[faceComponentIndex + 3] = alpha;
-                }
-            }
-
-            /*auto rightFaceImagePath = Settings::Paths::TexturesPath() /= std::filesystem::path("RightFace.png");
-            stbi_write_png(rightFaceImagePath.string().c_str(),
-                _faceSizePixels,
-                _faceSizePixels,
-                4,
-                rightFace.data(),
-                _faceSizePixels * 4);*/
-        }
-
-        // Back face.
-        {
-            auto backFace = std::vector<unsigned char>(_faceSizePixels * _faceSizePixels * 4);
-
-            // The world space unit vector that points in the positive X direction of the image (must be left to right), as if the image was placed in the 3D world on a square plane.
-            auto imageXWorldSpace = glm::vec3(-1.0f, 0.0f, 0.0f);
-
-            // The world space unit vector that points in the positive Y direction of the image (must be bottom to top), as if the image was placed in the 3D world on a square plane.
-            auto imageYWorldSpace = glm::vec3(0.0f, 1.0f, 0.0f);
-
-            // The origin of the image (must be the bottom left corner) in world space, as if the image was placed in the 3D world on square plane.
-            auto imageOriginWorldSpace = glm::vec3(0.5f, 0.5f, -0.5f);
-
-            for (unsigned int y = 0; y < _faceSizePixels; ++y) {
-                for (unsigned int x = 0; x < _faceSizePixels; ++x) {
-
-                    // First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
-                    glm::vec3 cartesianCoordinatesOnFace;
-                    cartesianCoordinatesOnFace = imageOriginWorldSpace + (imageXWorldSpace * ((1.0f / _faceSizePixels) * x));
-                    cartesianCoordinatesOnFace += -imageYWorldSpace * ((1.0f / _faceSizePixels) * y);
-
-                    // Then we get the cartesian coordinates on the sphere from the cartesian coordinates on the face. You can
-                    // imagine a cube that contains a sphere of exactly the same radius. Only the sphere's poles and sides will
-                    // touch each cube's face exactly at the center. We take advantage of the fact that the radius of the sphere
-                    // is constant (always equal to 1 for simplicity in our case) so all we need to do is normalize the coordinates
-                    // on the face and we get the cartesian coordinates on the sphere. This kind of simulates shooting a ray from
-                    // the current pixel on the cube towards the center of the sphere, intersecting it with the sphere, and taking 
-                    // the coordinates of the intersection point.
-                    auto cartesianCoordinatesOnSphere = glm::normalize(cartesianCoordinatesOnFace);
-
-                    // Then we calculate the spherical coordinates by using some trig.
-                    auto localXAngleDegrees = glm::degrees(atanf(cartesianCoordinatesOnFace.x * 2.0f));
-                    auto localYAngleDegrees = (90.0f - glm::degrees(acosf(cartesianCoordinatesOnSphere.y))) * -1.0f;
-
-                    // Depending on the coordinate, the angles could either be negative or positive, depending on the left hand rule.
-                    // This engine uses a left-handed coordinate system.
-                    localXAngleDegrees = cartesianCoordinatesOnFace.x > 0.0f ? abs(localXAngleDegrees) * -1.0f : abs(localXAngleDegrees);
-                    localYAngleDegrees = cartesianCoordinatesOnFace.y < 0.0f ? abs(localYAngleDegrees) : abs(localYAngleDegrees) * -1.0f;
-                    localXAngleDegrees += 180;
-
-                    // Now we make the azimuth respect the [0-360] degree domain.
-                    auto azimuthDegrees = fmodf((360.0f + localXAngleDegrees), 360.0f);
-                    auto zenithDegrees = localYAngleDegrees;
-
-                    // UV coordinates into the spherical HDRi image.
-                    auto uCoordinate = fmodf(0.5f + (azimuthDegrees / 360.0f), 1.0f);
-                    auto vCoordinate = 0.5f + (zenithDegrees / -180.0f);
-
-                    // This calculates at which pixel from the left (for U) and from the top (for V)
-                    // we need to fetch from the spherical HDRi.
-                    int pixelNumberU = (int)ceil(uCoordinate * width);
-                    int pixelNumberV = (int)ceil((1.0f - vCoordinate) * height);
-
-                    // This calculates the index into the spherical HDRi image accounting for 2 things:
-                    // 1) the pixel numbers calculated above
-                    // 2) the fact that each pixel is actually stored in 4 separate cells that represent
-                    //    each channel of each individual pixel. The channels used are always 4 (RGBA).
-                    int componentIndex = (pixelNumberU * 4) + ((width * 4) * (pixelNumberV - 1));
-
-                    // Fetch the channels from the spherical HDRi based on the calculations made above.
-                    auto red = image[componentIndex];
-                    auto green = image[componentIndex + 1];
-                    auto blue = image[componentIndex + 2];
-                    auto alpha = image[componentIndex + 3];
-
-                    // Assign the color fetched from the HDRi to the cube map face's image we want to generate.
-                    int faceComponentIndex = (x + (_faceSizePixels * y)) * 4;
-                    _back[faceComponentIndex] = red;
-                    _back[faceComponentIndex + 1] = green;
-                    _back[faceComponentIndex + 2] = blue;
-                    _back[faceComponentIndex + 3] = alpha;
-                }
-            }
-
-            /*auto backFaceImagePath = Settings::Paths::TexturesPath() /= std::filesystem::path("BackFace.png");
-            stbi_write_png(backFaceImagePath.string().c_str(),
-                _faceSizePixels,
-                _faceSizePixels,
-                4,
-                backFace.data(),
-                _faceSizePixels * 4);*/
-        }
-
-        // Left face.
-        {
-            // The world space unit vector that points in the positive X direction of the image (must be left to right), as if the image was placed in the 3D world on a square plane.
-            auto imageXWorldSpace = glm::vec3(0.0f, 0.0f, 1.0f);
-
-            // The world space unit vector that points in the positive Y direction of the image (must be bottom to top), as if the image was placed in the 3D world on a square plane.
-            auto imageYWorldSpace = glm::vec3(0.0f, 1.0f, 0.0f);
-
-            // The origin of the image (must be the top left corner) in world space, as if the image was placed in the 3D world on square plane.
-            auto imageOriginWorldSpace = glm::vec3(-0.5f, 0.5f, -0.5f);
-
-            for (unsigned int y = 0; y < _faceSizePixels; ++y) {
-                for (unsigned int x = 0; x < _faceSizePixels; ++x) {
-
-                    // First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
-                    glm::vec3 cartesianCoordinatesOnFace;
-                    cartesianCoordinatesOnFace = imageOriginWorldSpace + (imageXWorldSpace * ((1.0f / _faceSizePixels) * x));
-                    cartesianCoordinatesOnFace += -imageYWorldSpace * ((1.0f / _faceSizePixels) * y);
-
-                    // Then we get the cartesian coordinates on the sphere from the cartesian coordinates on the face. You can
-                    // imagine a cube that contains a sphere of exactly the same radius. Only the sphere's poles and sides will
-                    // touch each cube's face exactly at the center. We take advantage of the fact that the radius of the sphere
-                    // is constant (always equal to 1 for simplicity in our case) so all we need to do is normalize the coordinates
-                    // on the face and we get the cartesian coordinates on the sphere. This kind of simulates shooting a ray from
-                    // the current pixel on the cube towards the center of the sphere, intersecting it with the sphere, and taking 
-                    // the coordinates of the intersection point.
-                    auto cartesianCoordinatesOnSphere = glm::normalize(cartesianCoordinatesOnFace);
-
-                    // Then we calculate the spherical coordinates by using some trig.
-                    auto localXAngleDegrees = glm::degrees(atanf(cartesianCoordinatesOnFace.z * 2.0f));
-                    auto localYAngleDegrees = (90.0f - glm::degrees(acosf(cartesianCoordinatesOnSphere.y))) * -1.0f;
-
-                    // Depending on the coordinate, the angles could either be negative or positive, depending on the left hand rule.
-                    // This engine uses a left-handed coordinate system.
-                    localXAngleDegrees = cartesianCoordinatesOnFace.z < 0.0f ? abs(localXAngleDegrees) * -1.0f : abs(localXAngleDegrees);
-                    localYAngleDegrees = cartesianCoordinatesOnFace.y < 0.0f ? abs(localYAngleDegrees) : abs(localYAngleDegrees) * -1.0f;
-                    localXAngleDegrees += 270;
-
-                    // Now we make the azimuth respect the [0-360] degree domain.
-                    auto azimuthDegrees = fmodf((360.0f + localXAngleDegrees), 360.0f);
-                    auto zenithDegrees = localYAngleDegrees;
-
-                    // UV coordinates into the spherical HDRi image.
-                    auto uCoordinate = fmodf(0.5f + (azimuthDegrees / 360.0f), 1.0f);
-                    auto vCoordinate = 0.5f + (zenithDegrees / -180.0f);
-
-                    // This calculates at which pixel from the left (for U) and from the top (for V)
-                    // we need to fetch from the spherical HDRi.
-                    int pixelNumberU = (int)ceil(uCoordinate * width);
-                    int pixelNumberV = (int)ceil((1.0f - vCoordinate) * height);
-
-                    // This calculates the index into the spherical HDRi image accounting for 2 things:
-                    // 1) the pixel numbers calculated above
-                    // 2) the fact that each pixel is actually stored in 4 separate cells that represent
-                    //    each channel of each individual pixel. The channels used are always 4 (RGBA).
-                    int componentIndex = (pixelNumberU * 4) + ((width * 4) * (pixelNumberV - 1));
-
-                    // Fetch the channels from the spherical HDRi based on the calculations made above.
-                    auto red = image[componentIndex];
-                    auto green = image[componentIndex + 1];
-                    auto blue = image[componentIndex + 2];
-                    auto alpha = image[componentIndex + 3];
-
-                    // Assign the color fetched from the HDRi to the cube map face's image we want to generate.
-                    int faceComponentIndex = (x + (_faceSizePixels * y)) * 4;
-                    _left[faceComponentIndex] = red;
-                    _left[faceComponentIndex + 1] = green;
-                    _left[faceComponentIndex + 2] = blue;
-                    _left[faceComponentIndex + 3] = alpha;
-                }
-            }
-
-            /*auto leftFaceImagePath = Settings::Paths::TexturesPath() /= std::filesystem::path("LeftFace.png");
-            stbi_write_png(leftFaceImagePath.string().c_str(),
-                _faceSizePixels,
-                _faceSizePixels,
-                4,
-                leftFace.data(),
-                _faceSizePixels * 4);*/
-        }
-
-        // Upper face.
-        {
-            // The world space unit vector that points in the positive X direction of the image (must be left to right), as if the image was placed in the 3D world on a square plane.
-            auto imageXWorldSpace = glm::vec3(1.0f, 0.0f, 0.0f);
-
-            // The world space unit vector that points in the positive Y direction of the image (must be bottom to top), as if the image was placed in the 3D world on a square plane.
-            auto imageYWorldSpace = glm::vec3(0.0f, 0.0f, -1.0f);
-
-            // The origin of the image (must be the top left corner) in world space, as if the image was placed in the 3D world on square plane.
-            auto imageOriginWorldSpace = glm::vec3(-0.5f, 0.5f, -0.5f);
-
-            for (unsigned int y = 0; y < _faceSizePixels; ++y) {
-                for (unsigned int x = 0; x < _faceSizePixels; ++x) {
-
-                    // First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
-                    glm::vec3 cartesianCoordinatesOnFace;
-                    cartesianCoordinatesOnFace = imageOriginWorldSpace + (imageXWorldSpace * ((1.0f / _faceSizePixels) * x));
-                    cartesianCoordinatesOnFace += -imageYWorldSpace * ((1.0f / _faceSizePixels) * y);
-
-                    // Then we get the cartesian coordinates on the sphere from the cartesian coordinates on the face. You can
-                    // imagine a cube that contains a sphere of exactly the same radius. Only the sphere's poles and sides will
-                    // touch each cube's face exactly at the center. We take advantage of the fact that the radius of the sphere
-                    // is constant (always equal to 1 for simplicity in our case) so all we need to do is normalize the coordinates
-                    // on the face and we get the cartesian coordinates on the sphere. This kind of simulates shooting a ray from
-                    // the current pixel on the cube towards the center of the sphere, intersecting it with the sphere, and taking 
-                    // the coordinates of the intersection point.
-                    auto cartesianCoordinatesOnSphere = glm::normalize(cartesianCoordinatesOnFace);
-
-                    if (cartesianCoordinatesOnSphere.y < 1.0f) {
-
-                        // Then we calculate the spherical coordinates by using some trig.
-                        auto temp = glm::normalize(glm::vec3(cartesianCoordinatesOnSphere.x, 0.0f, cartesianCoordinatesOnSphere.z));
-                        auto localXAngleDegrees = glm::degrees(acosf(temp.z));
-                        auto localYAngleDegrees = glm::degrees(acosf(cartesianCoordinatesOnSphere.y));
-
-                        // Depending on the coordinate, the angles could either be negative or positive, depending on the left hand rule.
-                        // This engine uses a left-handed coordinate system.
-                        localXAngleDegrees = cartesianCoordinatesOnFace.x < 0.0f ? abs(localXAngleDegrees) * -1.0f : abs(localXAngleDegrees);
-                        localYAngleDegrees = cartesianCoordinatesOnFace.y < 0.0f ? abs(localYAngleDegrees) : abs(localYAngleDegrees) * -1.0f;
-
-                        // Now we make the azimuth respect the [0-360] degree domain.
-                        auto azimuthDegrees = fmodf((360.0f + localXAngleDegrees), 360.0f);
-                        auto zenithDegrees = (90.0f + localYAngleDegrees) * -1.0f;
-
-                        // UV coordinates into the spherical HDRi image.
-                        auto uCoordinate = fmodf(0.5f + (azimuthDegrees / 360.0f), 1.0f);
-                        auto vCoordinate = 0.5f + (zenithDegrees / -180.0f);
-
-                        // This calculates at which pixel from the left (for U) and from the top (for V)
-                        // we need to fetch from the spherical HDRi.
-                        int pixelNumberU = (int)ceil(uCoordinate * width);
-                        int pixelNumberV = (int)ceil((1.0f - vCoordinate) * height);
-
-                        // This calculates the index into the spherical HDRi image accounting for 2 things:
-                        // 1) the pixel numbers calculated above
-                        // 2) the fact that each pixel is actually stored in 4 separate cells that represent
-                        //    each channel of each individual pixel. The channels used are always 4 (RGBA).
-                        int componentIndex = (pixelNumberU * 4) + ((width * 4) * (pixelNumberV - 1));
-
-                        // Fetch the channels from the spherical HDRi based on the calculations made above.
-                        auto red = image[componentIndex];
-                        auto green = image[componentIndex + 1];
-                        auto blue = image[componentIndex + 2];
-                        auto alpha = image[componentIndex + 3];
-
-                        // Assign the color fetched from the HDRi to the cube map face's image we want to generate.
-                        int faceComponentIndex = (x + (_faceSizePixels * y)) * 4;
-                        _upper[faceComponentIndex] = red;
-                        _upper[faceComponentIndex + 1] = green;
-                        _upper[faceComponentIndex + 2] = blue;
-                        _upper[faceComponentIndex + 3] = alpha;
-                    }
-                }
-            }
-
-            /*auto upperFaceImagePath = Settings::Paths::TexturesPath() /= std::filesystem::path("UpperFace.png");
-            stbi_write_png(upperFaceImagePath.string().c_str(),
-                _faceSizePixels,
-                _faceSizePixels,
-                4,
-                upperFace.data(),
-                _faceSizePixels * 4);*/
-        }
-
-        // Lower face.
-        {
-            auto lowerFace = std::vector<unsigned char>(_faceSizePixels * _faceSizePixels * 4);
-
-            // The world space unit vector that points in the positive X direction of the image (must be left to right), as if the image was placed in the 3D world on a square plane.
-            auto imageXWorldSpace = glm::vec3(1.0f, 0.0f, 0.0f);
-
-            // The world space unit vector that points in the positive Y direction of the image (must be bottom to top), as if the image was placed in the 3D world on a square plane.
-            auto imageYWorldSpace = glm::vec3(0.0f, 0.0f, 1.0f);
-
-            // The origin of the image (must be the top left corner) in world space, as if the image was placed in the 3D world on square plane.
-            auto imageOriginWorldSpace = glm::vec3(-0.5f, -0.5f, 0.5f);
-
-            for (unsigned int y = 0; y < _faceSizePixels; ++y) {
-                for (unsigned int x = 0; x < _faceSizePixels; ++x) {
-
-                    // First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
-                    glm::vec3 cartesianCoordinatesOnFace;
-                    cartesianCoordinatesOnFace = imageOriginWorldSpace + (imageXWorldSpace * ((1.0f / _faceSizePixels) * x));
-                    cartesianCoordinatesOnFace += -imageYWorldSpace * ((1.0f / _faceSizePixels) * y);
-
-                    // Then we get the cartesian coordinates on the sphere from the cartesian coordinates on the face. You can
-                    // imagine a cube that contains a sphere of exactly the same radius. Only the sphere's poles and sides will
-                    // touch each cube's face exactly at the center. We take advantage of the fact that the radius of the sphere
-                    // is constant (always equal to 1 for simplicity in our case) so all we need to do is normalize the coordinates
-                    // on the face and we get the cartesian coordinates on the sphere. This kind of simulates shooting a ray from
-                    // the current pixel on the cube towards the center of the sphere, intersecting it with the sphere, and taking 
-                    // the coordinates of the intersection point.
-                    auto cartesianCoordinatesOnSphere = glm::normalize(cartesianCoordinatesOnFace);
-
-                    if (cartesianCoordinatesOnSphere.y < 1.0f) {
-
-                        // Then we calculate the spherical coordinates by using some trig.
-                        auto temp = glm::normalize(glm::vec3(cartesianCoordinatesOnSphere.x, 0.0f, cartesianCoordinatesOnSphere.z));
-                        auto localXAngleDegrees = glm::degrees(acosf(temp.z));
-                        auto localYAngleDegrees = glm::degrees(acosf(cartesianCoordinatesOnSphere.y));
-
-                        // Depending on the coordinate, the angles could either be negative or positive, depending on the left hand rule.
-                        // This engine uses a left-handed coordinate system.
-                        localXAngleDegrees = cartesianCoordinatesOnFace.x < 0.0f ? abs(localXAngleDegrees) * -1.0f : abs(localXAngleDegrees);
-                        localYAngleDegrees = cartesianCoordinatesOnFace.y < 0.0f ? abs(localYAngleDegrees) : abs(localYAngleDegrees) * -1.0f;
-
-                        // Now we make the azimuth respect the [0-360] degree domain.
-                        auto azimuthDegrees = fmodf((360.0f + localXAngleDegrees), 360.0f);
-                        auto zenithDegrees = (90.0f - localYAngleDegrees) * -1.0f;
-
-                        // UV coordinates into the spherical HDRi image.
-                        auto uCoordinate = fmodf(0.5f + (azimuthDegrees / 360.0f), 1.0f);
-                        auto vCoordinate = 0.5f + (zenithDegrees / -180.0f);
-
-                        // This calculates at which pixel from the left (for U) and from the top (for V)
-                        // we need to fetch from the spherical HDRi.
-                        int pixelNumberU = (int)ceil(uCoordinate * width);
-                        int pixelNumberV = (int)ceil((1.0f - vCoordinate) * height);
-
-                        // This calculates the index into the spherical HDRi image accounting for 2 things:
-                        // 1) the pixel numbers calculated above
-                        // 2) the fact that each pixel is actually stored in 4 separate cells that represent
-                        //    each channel of each individual pixel. The channels used are always 4 (RGBA).
-                        int componentIndex = (pixelNumberU * 4) + ((width * 4) * (pixelNumberV - 1));
-
-                        // Fetch the channels from the spherical HDRi based on the calculations made above.
-                        auto red = image[componentIndex];
-                        auto green = image[componentIndex + 1];
-                        auto blue = image[componentIndex + 2];
-                        auto alpha = image[componentIndex + 3];
-
-                        // Assign the color fetched from the HDRi to the cube map face's image we want to generate.
-                        int faceComponentIndex = (x + (_faceSizePixels * y)) * 4;
-                        _lower[faceComponentIndex] = red;
-                        _lower[faceComponentIndex + 1] = green;
-                        _lower[faceComponentIndex + 2] = blue;
-                        _lower[faceComponentIndex + 3] = alpha;
-                    }
-                }
-            }
-
-            /*auto lowerFaceImagePath = Settings::Paths::TexturesPath() /= std::filesystem::path("LowerFace.png");
-            stbi_write_png(lowerFaceImagePath.string().c_str(),
-                _faceSizePixels,
-                _faceSizePixels,
-                4,
-                lowerFace.data(),
-                _faceSizePixels * 4);*/
-        }
+        GenerateFaceImage(CubeMapFace::FRONT);
+        GenerateFaceImage(CubeMapFace::RIGHT);
+        GenerateFaceImage(CubeMapFace::BACK);
+        GenerateFaceImage(CubeMapFace::LEFT);
+        GenerateFaceImage(CubeMapFace::UPPER);
+        GenerateFaceImage(CubeMapFace::LOWER);
+
+        //WriteImagesToFiles();
 
         std::cout << "Environment map " << imageFilePath.string() << " loaded." << std::endl;
     }
@@ -608,7 +379,7 @@ namespace Engine::Scenes
         Vulkan::Image cubeMapImage = Vulkan::Image(logicalDevice,
             physicalDevice,
             VK_FORMAT_R8G8B8A8_SRGB,
-            VkExtent3D{ _faceSizePixels, _faceSizePixels, 1 },
+            VkExtent3D{ (uint32_t)_faceSizePixels, (uint32_t)_faceSizePixels, 1 },
             serializedFaceImages.data(),
             (VkImageUsageFlagBits)(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT),
             (VkImageAspectFlagBits)0,

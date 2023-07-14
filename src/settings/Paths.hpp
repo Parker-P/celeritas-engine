@@ -8,14 +8,14 @@ namespace Settings
 	 */
 	class Paths
 	{
+	public:
+		
 		/**
 		 * @brief Every executable is passed a "working directory" parameter when starting it. This function returns the
 		 * current working directory supplied to the executable that is running the code in this function, if provided,
 		 * otherwise returns the folder, on disk, where the executable resides.
 		 */
 		static inline auto CurrentWorkingDirectory = []() -> std::filesystem::path { return std::filesystem::current_path(); };
-
-	public:
 
 		// I.N. Always use backward slashes for Windows, otherwise file reading may fail because of inconsistent path separators.
 		// i.e. don't use C:\path/to\file, always use C:\path\to\file.
