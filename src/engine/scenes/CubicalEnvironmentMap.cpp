@@ -72,8 +72,8 @@ namespace Engine::Scenes
             break;
         }
 
-        for (unsigned int y = 0; y < _faceSizePixels; ++y) {
-            for (unsigned int x = 0; x < _faceSizePixels; ++x) {
+        for (auto y = 0; y < _faceSizePixels; ++y) {
+            for (auto x = 0; x < _faceSizePixels; ++x) {
 
                 // First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
                 glm::vec3 cartesianCoordinatesOnFace;
@@ -377,7 +377,7 @@ namespace Engine::Scenes
 
 #pragma region 3) Now we need to create the image and image view that will be used in the shaders and stored in VRAM. The image will contain our image data as a single array.
 
-        Vulkan::Image cubeMapImage = Vulkan::Image(logicalDevice,
+        _cubeMapImage = Vulkan::Image(logicalDevice,
             physicalDevice,
             VK_FORMAT_R8G8B8A8_SRGB,
             VkExtent3D{ (uint32_t)_faceSizePixels, (uint32_t)_faceSizePixels, 1 },
@@ -393,7 +393,7 @@ namespace Engine::Scenes
 
 #pragma region 4) Copy the data from the temporary buffer into the created image.
 
-        cubeMapImage.SendToGPU(commandPool, graphicsQueue, bufferCopyRegions);
+        _cubeMapImage.SendToGPU(commandPool, graphicsQueue, bufferCopyRegions);
 
 #pragma endregion
 

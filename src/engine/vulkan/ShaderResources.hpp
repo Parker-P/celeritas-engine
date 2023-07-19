@@ -44,12 +44,12 @@ namespace Engine::Vulkan
 		 * @brief Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a
 		 * structure that contains a pointer to an image and some metadata that tells the GPU how to read it.
 		 */
-		VkDescriptorType _type;
+		VkDescriptorType _type = VK_DESCRIPTOR_TYPE_MAX_ENUM;
 
 		/**
 		 * @brief Binding number used by the shaders to know which descriptor to access within the descriptor set this descriptor belongs to.
 		 */
-		uint32_t _bindingNumber;
+		uint32_t _bindingNumber = 0;
 
 		/**
 		 * @brief Wrapper that adds some metadata for the buffer that the shaders need.
@@ -57,7 +57,7 @@ namespace Engine::Vulkan
 		std::optional<VkDescriptorBufferInfo> _bufferInfo;
 
 		/**
-		 * @brief Wrapper that adds some metadata for the image that the shaders need, such as how to sample the image.
+		 * @brief Wraps all the information that the shaders need in order to fully use the image.
 		 */
 		std::optional<VkDescriptorImageInfo> _imageInfo;
 
@@ -67,14 +67,35 @@ namespace Engine::Vulkan
 		Descriptor() = default;
 
 		/**
-		 * @brief Constructs a descriptor given a descriptor type and a buffer and/or image.
-		 * @param type Descriptor type: could be, for example, a uniform buffer (general data) or a texture sampler. A texture sampler is a
-		 * structure that contains an image and some metadata that tells the GPU how to read it.
+		 * @brief Constructs a descriptor given a descriptor type and a buffer and image.
+		 * @param type Descriptor type could be, for example, a uniform buffer (general data) or a combined image sampler. A combined image
+		 * sampler is a flag that indicates that the descriptor contains both (hence the combine word) an image and some metadata that tells 
+		 * the GPU how to read it.
 		 * @param bindingNumber Binding number used by a shader to know which descriptor to access within a descriptor set.
-		 * @param buffer Optional buffer.
-		 * @param image Optional image.
+		 * @param buffer Buffer.
+		 * @param image Image.
 		 */
-		Descriptor(const VkDescriptorType& type, const uint32_t& bindingNumber, const std::optional<Buffer>& buffer = std::nullopt, const std::optional<Image>& image = std::nullopt);
+		Descriptor(const VkDescriptorType& type, const uint32_t& bindingNumber, const Buffer& buffer, const Image& image);
+
+		/**
+		 * @brief Constructs a descriptor given a descriptor type and a buffer.
+		 * @param type Descriptor type could be, for example, a uniform buffer (general data) or a combined image sampler. A combined image
+		 * sampler is a flag that indicates that the descriptor contains both (hence the combine word) an image and some metadata that tells 
+		 * the GPU how to read it.
+		 * @param bindingNumber Binding number used by a shader to know which descriptor to access within a descriptor set.
+		 * @param buffer Buffer.
+		 */
+		Descriptor(const VkDescriptorType& type, const uint32_t& bindingNumber, const Buffer& buffer);
+
+		/**
+		 * @brief Constructs a descriptor given a descriptor type and an image.
+		 * @param type Descriptor type could be, for example, a uniform buffer (general data) or a combined image sampler. A combined image
+		 * sampler is a flag that indicates that the descriptor contains both (hence the combine word) an image and some metadata that tells
+		 * the GPU how to read it.
+		 * @param bindingNumber Binding number used by a shader to know which descriptor to access within a descriptor set.
+		 * @param image Image.
+		 */
+		Descriptor(const VkDescriptorType& type, const uint32_t& bindingNumber, const Image& image);
 
 	};
 

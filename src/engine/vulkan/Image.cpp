@@ -55,7 +55,7 @@ namespace Engine::Vulkan
         _sizePixels = sizePixels;
         _typeFlags = typeFlags;
         _memoryPropertiesFlags = memoryPropertiesFlags;
-        _sizeBytes = GetPixelSizeBytes(imageFormat) * sizePixels.width * sizePixels.height;
+        _sizeBytes = GetPixelSizeBytes(imageFormat) * sizePixels.width * sizePixels.height * arrayLayerCount;
         _pData = data;
 
         // Tiling is very important. Tiling describes how the data for the texture is arranged in the GPU. 
@@ -80,8 +80,8 @@ namespace Engine::Vulkan
         imageCreateInfo.usage = usageFlags;
         imageCreateInfo.flags = creationFlags;
 
-        VkImageFormatProperties fp{};
-        auto result = vkGetPhysicalDeviceImageFormatProperties(physicalDevice._handle, _format, imageCreateInfo.imageType, VK_IMAGE_TILING_LINEAR, usageFlags, VK_SAMPLE_COUNT_1_BIT, &fp);
+        VkImageFormatProperties formatProperties{};
+        auto result = vkGetPhysicalDeviceImageFormatProperties(physicalDevice._handle, _format, imageCreateInfo.imageType, VK_IMAGE_TILING_LINEAR, usageFlags, VK_SAMPLE_COUNT_1_BIT, &formatProperties);
 
         if (vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, &_imageHandle) != VK_SUCCESS) {
             std::cout << "failed creating image" << std::endl;

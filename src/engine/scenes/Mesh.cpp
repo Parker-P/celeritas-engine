@@ -48,7 +48,7 @@ namespace Engine::Scenes
 
 		//texture->SendToGPU(commandPool, graphicsQueue);
 		_images.push_back(texture);
-		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, std::nullopt, texture));
+		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, texture));
 		_sets.push_back(Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, _descriptors));
 		_pool = Vulkan::DescriptorPool(logicalDevice, _sets);
 	}

@@ -45,13 +45,10 @@ namespace Engine::Scenes
 	void Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
 		_environmentMap.CreateShaderResources(physicalDevice, logicalDevice, commandPool, graphicsQueue);
-
-		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 0, std::nullopt, _environmentMap._cubeMapImage));
-
-		/*_images.push_back(frontFace);
-		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, std::nullopt, frontFace));
+		_images.push_back(_environmentMap._cubeMapImage);
+		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, _images[0]));
 		_sets.push_back(Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, _descriptors));
-		_pool = Vulkan::DescriptorPool(logicalDevice, _sets);*/
+		_pool = Vulkan::DescriptorPool(logicalDevice, _sets);
 	}
 
 	void Scene::UpdateShaderResources()

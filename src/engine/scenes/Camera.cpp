@@ -61,7 +61,7 @@ namespace Engine::Scenes
 			&_cameraData,
 			(size_t)sizeof(_cameraData)));
 
-		_descriptors.push_back(Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, _buffers[0], std::nullopt));
+		_descriptors.push_back(Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, _buffers[0]));
 		_sets.push_back(DescriptorSet(logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, _descriptors));
 		_pool = DescriptorPool(logicalDevice, _sets);
 	}
