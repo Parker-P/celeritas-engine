@@ -523,7 +523,6 @@ namespace Engine::Vulkan
 				auto faceIndicesBufferStride = faceIndicesAccessor.ByteStride(gltfScene.bufferViews[faceIndicesAccessor.bufferView]);
 				auto faceIndicesBufferSizeBytes = faceIndicesCount * faceIndicesBufferStride;
 				std::vector<unsigned int> faceIndices(faceIndicesCount);
-
 				if (faceIndicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
 					for (int i = 0; i < faceIndicesCount; ++i) {
 						unsigned short index = 0;
@@ -573,7 +572,6 @@ namespace Engine::Vulkan
 				// Gather vertices and face indices.
 				std::vector<Scenes::Vertex> vertices;
 				vertices.resize(vertexPositions.size());
-
 				for (int i = 0; i < vertexPositions.size(); ++i) {
 					Scenes::Vertex v;
 					v._position = vertexPositions[i];
