@@ -340,18 +340,11 @@ namespace Engine::Scenes
 
     void CubicalEnvironmentMap::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
     {
-
-#pragma region 1) Create a temporary buffer that will contain the data of each image of the cube map as one serialized data array.
-
         // Get the data of the cube map's images as one serialized data array.
         auto serializedFaceImages = Serialize();
 
-#pragma endregion
-
-#pragma region 2) Then create a command buffer that will contain copy instructions to copy the array stored in the temporary buffer to a Vulkan image that will be stored in VRAM.
-
         // Setup buffer copy regions for each face. A copy region is just a structure to tell Vulkan how to direct the data
-        // to the right place when copying it to the image.
+        // to the right place when copying it from a buffer to the image or vice-versa.
         // For cube and cube array image views, the layers of the image view starting at baseArrayLayer correspond to 
         // faces in the order +X, -X, +Y, -Y, +Z, -Z, which is, in order, _right, _left, _upper, _lower, _front, _back in our case.
         uint32_t offset = 0;
@@ -373,10 +366,7 @@ namespace Engine::Scenes
             bufferCopyRegions.push_back(bufferCopyRegion);
         }
 
-#pragma endregion
-
-#pragma region 3) Now we need to create the image and image view that will be used in the shaders and stored in VRAM. The image will contain our image data as a single array.
-
+        // Now we need to create the image and image view that will be used in the shaders and stored in VRAM. The image will contain our image data as a single array.
         _cubeMapImage = Vulkan::Image(logicalDevice,
             physicalDevice,
             VK_FORMAT_R8G8B8A8_SRGB,
@@ -389,15 +379,7 @@ namespace Engine::Scenes
             VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
             VK_IMAGE_VIEW_TYPE_CUBE);
 
-#pragma endregion
-
-#pragma region 4) Copy the data from the temporary buffer into the created image.
-
         _cubeMapImage.SendToGPU(commandPool, graphicsQueue, bufferCopyRegions);
-
-#pragma endregion
-
-#pragma region 5) Create a sampler and link it to the image/image view created above; this tells the shaders how to read the data in the cube map image we created.
 
         // Create sampler. The sampler gives the shaders information on how they should behave when reading image data (sampling).
         // Of particular importance (because not obvious) are texture filtering and anisotropy. 
@@ -449,9 +431,6 @@ namespace Engine::Scenes
         samplerCreateInfo.maxAnisotropy = 1.0f;
         VkSampler sampler;
         vkCreateSampler(logicalDevice, &samplerCreateInfo, nullptr, &sampler);
-
-#pragma endregion
-
     }
 
     std::vector<unsigned char> CubicalEnvironmentMap::Serialize()

@@ -445,8 +445,8 @@ namespace Engine::Vulkan
 		std::string warn;
 
 		//auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
-		auto scenePath = Settings::Paths::ModelsPath() /= "Cube.glb";
+		auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "Cube.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "monster.glb";
@@ -600,8 +600,8 @@ namespace Engine::Vulkan
 	{
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Waterfall.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Debug.png");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ModernBuilding.hdr");
-		_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.png");
+		_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ModernBuilding.hdr");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.png");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ItalianFlag.png");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "TestPng.png");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "EnvMap.png");
@@ -1160,7 +1160,7 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::RecordDrawCommands()
 	{
-		// Prepare data for recording command buffers
+		// Prepare data for recording command buffers.
 		VkCommandBufferBeginInfo beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
@@ -1172,7 +1172,7 @@ namespace Engine::Vulkan
 		subResourceRange.baseArrayLayer = 0;
 		subResourceRange.layerCount = 1;
 
-		// Record command buffer for each swap image
+		// Record command buffer for each swapchain image.
 		for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
 			vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
 
@@ -1193,7 +1193,7 @@ namespace Engine::Vulkan
 
 #pragma region RenderPassCommandRecording
 			VkClearValue clearColor = {
-			{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A
+			{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
 			};
 
 			VkClearValue depthClear;
@@ -1230,7 +1230,7 @@ namespace Engine::Vulkan
 #pragma endregion
 			}
 
-			std::cout << "recorded draw commands in draw command buffers" << std::endl;
+			std::cout << "recorded draw commands in draw command buffer" << std::endl;
 		}
 	}
 
