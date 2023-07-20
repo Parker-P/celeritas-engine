@@ -137,7 +137,7 @@ namespace Engine::Scenes
 
         /**
          * @brief Serializes the data of all the faces' images and returns a vector that contains all images, in this specific order:
-         * front, right, back, left, upper, lower.
+         * right, left, upper, lower, front, back.
          */
         std::vector<unsigned char> Serialize();
 

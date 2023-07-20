@@ -31,7 +31,12 @@ namespace Engine::Vulkan
         return 0;
     }
 
-    Image Image::SolidColor(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const unsigned char& red, const unsigned char& green, const unsigned char& blue, const unsigned char& alpha)
+    Image Image::SolidColor(VkDevice& logicalDevice, 
+        PhysicalDevice& physicalDevice, 
+        const unsigned char& red, 
+        const unsigned char& green, 
+        const unsigned char& blue, 
+        const unsigned char& alpha)
     {
         unsigned int pixelColor = red << 24 | green << 16 | blue << 8 | alpha;
         return Image(logicalDevice, physicalDevice, VK_FORMAT_R8G8B8A8_SRGB, VkExtent3D{ 1, 1, 1 }, &pixelColor, (VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT), VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -121,7 +126,7 @@ namespace Engine::Vulkan
         _imageHandle = image;
         _logicalDevice = logicalDevice;
         _format = imageFormat;
-        _sizePixels = VkExtent3D{ 0, 0, 0 };
+        _sizePixels = VkExtent3D{ 0, 0, 1 };
 
         VkImageViewCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -191,31 +196,32 @@ namespace Engine::Vulkan
         vkCmdPipelineBarrier(copyCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrierToTransfer);
 
         // Copy the temporary buffer into the image.
-        if (bufferCopyRegions.size() == 1) { // Handles the default case.
-            if (bufferCopyRegions[0].imageExtent.width == 0 || bufferCopyRegions[0].imageExtent.height == 0) {
-                VkBufferImageCopy copyRegion = {};
-                copyRegion.bufferOffset = 0;
-                copyRegion.bufferRowLength = 0;
-                copyRegion.bufferImageHeight = 0;
-                copyRegion.imageSubresource.aspectMask = _typeFlags;
-                copyRegion.imageSubresource.mipLevel = 0;
-                copyRegion.imageSubresource.baseArrayLayer = 0;
-                copyRegion.imageSubresource.layerCount = 1;
-                copyRegion.imageExtent = _sizePixels;
-                vkCmdCopyBufferToImage(copyCommandBuffer,
-                    stagingBuffer._handle,
-                    _imageHandle,
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                    1,
-                    &copyRegion);
-            }
+        if (bufferCopyRegions[0].imageExtent.width == 0 || bufferCopyRegions[0].imageExtent.height == 0) { // Handles the default case.
+            VkBufferImageCopy copyRegion = {};
+            copyRegion.bufferOffset = 0;
+            copyRegion.bufferRowLength = 0;
+            copyRegion.bufferImageHeight = 0;
+            copyRegion.imageSubresource.aspectMask = _typeFlags;
+            copyRegion.imageSubresource.mipLevel = 0;
+            copyRegion.imageSubresource.baseArrayLayer = 0;
+            copyRegion.imageSubresource.layerCount = 1;
+            copyRegion.imageExtent = _sizePixels;
+            vkCmdCopyBufferToImage(copyCommandBuffer,
+                stagingBuffer._handle,
+                _imageHandle,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1,
+                &copyRegion);
         }
-        vkCmdCopyBufferToImage(copyCommandBuffer,
-            stagingBuffer._handle,
-            _imageHandle,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            bufferCopyRegions.size(),
-            bufferCopyRegions.data());
+        else {
+            vkCmdCopyBufferToImage(copyCommandBuffer,
+                stagingBuffer._handle,
+                _imageHandle,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                bufferCopyRegions.size(),
+                bufferCopyRegions.data());
+        }
+        
 
         // Change the layout of the image so that it's fastest for sampling in shaders.
         VkImageMemoryBarrier imageBarrierTransferToShaderRead = imageBarrierToTransfer;
@@ -242,17 +248,29 @@ namespace Engine::Vulkan
         stagingBuffer.Destroy();
     }
 
-    VkDescriptorImageInfo Image::GenerateDescriptor() {
-        VkSamplerCreateInfo info = {};
-        info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        info.pNext = nullptr;
-        info.magFilter = VK_FILTER_NEAREST;
-        info.minFilter = VK_FILTER_NEAREST;
-        info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-
-        auto res = vkCreateSampler(_logicalDevice, &info, nullptr, &_sampler);
+    VkDescriptorImageInfo Image::GenerateDescriptor(const VkFilter& filteringMode,
+        const VkSamplerAddressMode& addressMode,
+        const float& anisotropyLevel,
+        const float& minLod,
+        const float& maxLod,
+        const VkSamplerMipmapMode& mipMapMode) 
+    {
+        VkSamplerCreateInfo samplerCreateInfo{};
+        samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerCreateInfo.magFilter = filteringMode;
+        samplerCreateInfo.minFilter = filteringMode;
+        samplerCreateInfo.mipmapMode = mipMapMode;
+        samplerCreateInfo.addressModeU = addressMode;
+        samplerCreateInfo.addressModeV = addressMode;
+        samplerCreateInfo.addressModeW = addressMode;
+        samplerCreateInfo.mipLodBias = 0.0f;
+        samplerCreateInfo.minLod = minLod;
+        samplerCreateInfo.maxLod = 1.0f;
+        samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+        samplerCreateInfo.anisotropyEnable = anisotropyLevel > 0.0f ? true : false;
+        samplerCreateInfo.maxAnisotropy = anisotropyLevel;
+        VkSampler sampler;
+        vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_sampler);
 
         return VkDescriptorImageInfo{ _sampler, _viewHandle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
     }

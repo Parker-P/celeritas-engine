@@ -17,6 +17,7 @@ namespace Engine::Vulkan
 		_bufferDataSize = sizeInBytes;
 		_usageFlags = usageFlags;
 		_propertiesFlags = propertiesFlags;
+		_viewHandle = VK_NULL_HANDLE;
 		_pBufferData = nullptr;
 
 		// Create the buffer at the logical level.
@@ -24,7 +25,6 @@ namespace Engine::Vulkan
 		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		vertexBufferInfo.size = sizeInBytes;
 		vertexBufferInfo.usage = usageFlags;
-
 		if (vkCreateBuffer(_logicalDevice, &vertexBufferInfo, nullptr, &_handle) != VK_SUCCESS) {
 			std::cout << ("Failed creating buffer.") << std::endl;
 			exit(1);

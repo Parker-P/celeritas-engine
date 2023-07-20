@@ -178,8 +178,64 @@ namespace Engine::Vulkan
         /**
          * @brief Generates an image descriptor. An image descriptor is bound to a sampler, which tells Vulkan how to instruct
          * the actual GPU hardware samplers on how to read and sample the particular texture.
+         * 
+         * @param filteringMode Texture filtering is a parameter used by the shader when given the instruction to read the color of a texture at a specific UV coordinate. 
+         * Positions on a texture are identified by integer values (pixel coordinates) whereas the texture() function in a shader takes float values. 
+         * Say we have a 2x2 pixel image: if we sample from UV (0.35, 0.35) with origin at the bottom left corner, the texture() function will have to 
+         * give back the color of the bottom left pixel, because UV coordinates (0.35, 0.35) fall in the bottom left pixel of our 2x2 image. However, 
+         * provided that the image has only 1 sample per pixel, the exact center of that pixel is represented by UV coordinates (0.25, 0.25). UV coordinates 
+         * (0.35, 0.35) are skewed towards the upper right of our bottom left pixel in our 2x2 image, so the texture() function uses the filtering parameter 
+         * to determine how to calculate the color it gives back. In the case of linear filtering, the color the texture() function gives back will be a blend 
+         * of the 4 closest pixels, weighted by how close the input coordinate (0.35, 0.35) is to each pixel, represented in this case by VK_FILTER_LINEAR.
+         * 
+         * @param addressMode This indicates how the sampler is going to behave when it receives coordinates that are out of the 0-1 UV range. For example,
+         * VK_SAMPLER_ADDRESS_MODE_REPEAT will cause the sampler to give back the color of the texture at UV coordinates (0.25, 0.25) when given coordinates (1.25, 1.25), 
+         * which mimics the textures being placed side by side, hence the REPEAT suffix.
+         * 
+         * @param anisotropyLevel Anisotropy is another, more advanced filtering technique that is most effective when the surface onto which the texture being sampled is at
+         * a steep angle. It's aimed at preserving sharp features of textures, and maintaining visual fidelity when sampling textures at steep angles.
+         * The word anisotropy comes from Greek and literally means "not the same angle".
+         * The algorithm for anisotropic filtering looks like the following:
+         * 
+         * 1) We first need a way to know the angle of the texture. This could be easily achieved by passing the normal vector on from the vertex shader to
+         * the fragment shader, but in most cases the derivatives of the texture are used. Texture derivatives represent the rate of change of texture
+         * coordinates relative to the position of the pixel being rendered on-screen. To understand this, imagine you are rendering a plane that is
+         * very steeply angled from your view, so steeply angled that you can only see 2 pixels, so it looks more like a line (but is infact the plane
+         * being rendered almost from the side). If we take the texture coordinate of the 2 neighbouring pixels (on the shorter side) we will get the 2
+         * extremes of the UV space. By comparing the rate of change of the on-screen pixel coordinates and the resulting texture coordinates, the shaders
+         * can calculate the derivative that will be needed to sample around the main sampling position. In our extreme case, a 1 pixel change in position on screen
+         * results in the 2 extremes of the UV space in the corresponding texture coordinates. This means that the magnitude of the derivative is at the
+         * maximum it can be for one of the axes.
+         * 
+         * 2) Now that we have the magnitude of the derivative (the rate of change of the texture coordinates relative to the on-screen pixel coordinates)
+         * we can start sampling around the color at the UV coordinate. In anisotropic filtering, the sampling is typically done with an ellyptical pattern
+         * or with a cylindrical pattern. In the ellyptical pattern, the samples are taken around the UV coordinate following the line created by an
+         * imaginary ellyptical circumference around the sample point. The number of samples will increase if the texture is on a very steeply-angled
+         * surface. That's why we needed the angle of the texture, to guide the amount of samples being taken around the main sampling position.
+         * 
+         * 3) At this point we can calculate a weighted average of all colors that have been sampled around the main sampling position.
+         * 
+         * @param minLod Represents the minimum LOD (or mipmap). The fractional part of the floating-point values represents interpolation between adjacent 
+         * mipmap levels. For example, if you set minLod to 1.5, the sampler may perform texture sampling by interpolating between LOD 1 and LOD 2, blending 
+         * the textures from these two levels to get an intermediate level of detail.
+         * 
+         * @param maxLod Represents the minimum LOD (or mipmap).
+         * 
+         * @param mipMapMode VK_SAMPLER_MIPMAP_MODE_NEAREST: This mode specifies that the nearest mipmap level should be selected for sampling. 
+         * When using this mode, the sampler will not perform any interpolation between mipmaps. Instead, it will directly use the texel data from the nearest 
+         * mipmap level to the desired LOD (Level of Detail). This mode is useful when you want a sharp, blocky appearance for textures at different viewing 
+         * distances or when using pixel art textures.
+         * 
+         * VK_SAMPLER_MIPMAP_MODE_LINEAR: This mode specifies that linear interpolation should be performed between mipmaps when sampling. The sampler will 
+         * use a weighted average of texel data from two adjacent mipmap levels to obtain the final sampled color. Linear mipmap filtering provides smoother 
+         * transitions between LODs and is commonly used to improve visual quality when textures are viewed at varying distances.
          */
-        VkDescriptorImageInfo GenerateDescriptor();
+        VkDescriptorImageInfo GenerateDescriptor(const VkFilter& filteringMode = VK_FILTER_NEAREST,
+            const VkSamplerAddressMode& addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            const float& anisotropyLevel = 0.0f,
+            const float& minLod = 0.0f,
+            const float& maxLod = 0.0f,
+            const VkSamplerMipmapMode& mipMapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST);
 
         /**
          * @brief Creates a 1x1 pixels image with the one pixel being of the color specified with the red, blue, green and alpha values provided.
@@ -191,7 +247,12 @@ namespace Engine::Vulkan
          * @param alpha Alpha channel value, domain is 0-255.
          * @return
          */
-        static Image SolidColor(VkDevice& logicalDevice, PhysicalDevice& physicalDevice, const unsigned char& red, const unsigned char& green, const unsigned char& blue, const unsigned char& alpha);
+        static Image SolidColor(VkDevice& logicalDevice, 
+            PhysicalDevice& physicalDevice, 
+            const unsigned char& red, 
+            const unsigned char& green, 
+            const unsigned char& blue, 
+            const unsigned char& alpha);
 
         /**
          * @brief Uses Vulkan calls to deallocate and remove the contents of the image from memory.

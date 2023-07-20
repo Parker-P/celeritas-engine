@@ -31,23 +31,34 @@ namespace Engine::Vulkan
 
         /**
          * @brief Constructs a buffer.
+         * 
          * @param logicalDevice Needed by Vulkan to have info about the GPU so it can make function calls to allocate memory for the buffer.
+         * 
          * @param physicalDevice Needed to know which types of memory are available on the GPU, so the buffer can be allocated on the
          * correct heap (a.k.a portion of VRAM or RAM).
+         * 
          * @param usageFlags This tells Vulkan what's the buffer's intended use.
+         * 
          * @param properties This can be any of the following values:
+         * 
          * 1) VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT: this means GPU memory, so VRAM. If this is not set, then regular RAM is assumed.
+         * 
          * 2) VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT: this means that the CPU will be able to read and write from the allocated memory IF YOU CALL vkMapMemory() FIRST.
+         * 
          * 3) VK_MEMORY_PROPERTY_HOST_CACHED_BIT: this means that the memory will be cached so that when the CPU writes to this buffer, if the data is small enough to fit in its
          * cache (which is much faster to access) it will do that instead. Only problem is that this way, if your GPU needs to access that data, it won't be able to unless it's
          * also marked as HOST_COHERENT.
+         * 
          * 4) VK_MEMORY_PROPERTY_HOST_COHERENT_BIT: this means that anything that the CPU writes to the buffer will be able to be read by the GPU as well, effectively
          * granting the GPU access to the CPU's cache (if the buffer is also marked as HOST_CACHED). COHERENT stands for consistency across memories, so it basically means
          * that the CPU, GPU or any other device will see the same memory if trying to access the buffer. If you don't have this flag set, and you try to access the
          * buffer from the GPU while the buffer is marked HOST_CACHED, you may not be able to get the data or even worse, you may end up reading the wrong chunk of memory.
          * Further read: https://asawicki.info/news_1740_vulkan_memory_types_on_pc_and_how_to_use_them
+         * 
          * @param data Pointer to the start address of the data you want to copy to the buffer.
+         * 
          * @param sizeInBytes Size in bytes of the data you want to copy to the buffer.
+         * 
          * @param dataFormat Format/layout of the data. For example, if the buffer is meant to contain image data, it might use 3 or 4 color channels (RGB or RGBA), or it 
          * could use floating point numbers, or regular integers as its pixel data. For instance, VK_FORMAT_R32G32B32_SFLOAT describes a buffer that contains 3 consecutive 
          * blocks (R32G32B32) of 32 bits each, and that each 32 bit block represents a Single precision FLOATing point number.
