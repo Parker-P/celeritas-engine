@@ -195,7 +195,8 @@ namespace Engine::Vulkan
         imageBarrierToTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         vkCmdPipelineBarrier(copyCommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrierToTransfer);
 
-        // Copy the temporary buffer into the image.
+        // Copy the temporary buffer into the image using copy regions. A copy region is just a structure to tell Vulkan 
+        // how to direct the data to the right place when copying it from a buffer to the image or vice-versa.
         if (bufferCopyRegions[0].imageExtent.width == 0 || bufferCopyRegions[0].imageExtent.height == 0) { // Handles the default case.
             VkBufferImageCopy copyRegion = {};
             copyRegion.bufferOffset = 0;

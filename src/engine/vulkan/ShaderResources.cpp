@@ -46,7 +46,15 @@ namespace Engine::Vulkan
         _bindingNumber = bindingNumber;
     }
 
-    Descriptor::Descriptor(const VkDescriptorType& type, const uint32_t& bindingNumber, const Image& image)
+    Descriptor::Descriptor(const VkDescriptorType& type, 
+        const uint32_t& bindingNumber, 
+        const Image& image, 
+        const VkFilter& filteringMode,
+        const VkSamplerAddressMode& addressMode,
+        const float& anisotropyLevel,
+        const float& minLod,
+        const float& maxLod,
+        const VkSamplerMipmapMode& mipMapMode)
     {
         if (image._imageHandle == VK_NULL_HANDLE) {
             std::cout << "the image must have a valid handle and be fully initialized via a call to vkCreateImage" << std::endl;
@@ -54,7 +62,7 @@ namespace Engine::Vulkan
         }
 
         _image = image;
-        _imageInfo = _image.value().GenerateDescriptor();
+        _imageInfo = _image.value().GenerateDescriptor(filteringMode, addressMode, anisotropyLevel, minLod, maxLod, mipMapMode);
         _type = type;
         _bindingNumber = bindingNumber;
     }
