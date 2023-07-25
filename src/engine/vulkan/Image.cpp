@@ -268,7 +268,7 @@ namespace Engine::Vulkan
         samplerCreateInfo.minLod = minLod;
         samplerCreateInfo.maxLod = 1.0f;
         samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-        samplerCreateInfo.anisotropyEnable = anisotropyLevel > 0.0f ? true : false;
+        samplerCreateInfo.anisotropyEnable = anisotropyLevel > 0.0f ? VK_TRUE : VK_FALSE;
         samplerCreateInfo.maxAnisotropy = anisotropyLevel;
         VkSampler sampler;
         vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_sampler);

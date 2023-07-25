@@ -31,28 +31,28 @@
 
 namespace Engine::Scenes
 {
-	void Scene::Update()
-	{
-		for (auto& light : _pointLights) {
-			light.Update();
-		}
+    void Scene::Update()
+    {
+        for (auto& light : _pointLights) {
+            light.Update();
+        }
 
-		for (auto& gameObject : _gameObjects) {
-			gameObject.Update();
-		}
-	}
+        for (auto& gameObject : _gameObjects) {
+            gameObject.Update();
+        }
+    }
 
-	void Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
-	{
-		_environmentMap.CreateShaderResources(physicalDevice, logicalDevice, commandPool, graphicsQueue);
-		_images.push_back(_environmentMap._cubeMapImage);
-		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, _images[0]));
-		_sets.push_back(Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, _descriptors));
-		_pool = Vulkan::DescriptorPool(logicalDevice, _sets);
-	}
+    void Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
+    {
+        _environmentMap.CreateShaderResources(physicalDevice, logicalDevice, commandPool, graphicsQueue);
+        _images.push_back(_environmentMap._cubeMapImage);
+        _descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, _images[0], VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, 1.0f));
+        _sets.push_back(Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, _descriptors));
+        _pool = Vulkan::DescriptorPool(logicalDevice, _sets);
+    }
 
-	void Scene::UpdateShaderResources()
-	{
-		// TODO
-	}
+    void Scene::UpdateShaderResources()
+    {
+        // TODO
+    }
 }

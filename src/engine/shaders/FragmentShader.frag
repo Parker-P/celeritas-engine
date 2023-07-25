@@ -1,7 +1,8 @@
 #version 450
 
 // Input variables. All these values will be interpolated for each pixel this instance
-// of the shader runs on.
+// of the shader runs on, with the base and target interpolation values coming from the
+// attributes of the 2 closest vertices.
 layout (location = 0) in vec2 inUVCoord;
 layout (location = 1) in vec4 inWorldSpaceNormal;
 layout (location = 2) in vec3 inDirectionToLight;
@@ -16,7 +17,8 @@ layout(set = 2, binding = 0) uniform LightData {
 	vec4 colorIntensity; // X, Y, Z for color, W for intensity.
 } lightData;
 
-layout(set = 3, binding = 0) uniform sampler2D baseColorTexture;
+// Base color texture.
+layout(set = 3, binding = 0) uniform sampler2D baseColorMap;
 
 // Environment map.
 layout(set = 4, binding = 0) uniform samplerCube environmentMap;
@@ -30,13 +32,20 @@ vec3 RotateVector(vec3 vectorToRotate, vec3 axis, float angleDegrees) {
 
 void main() 
 {
-	if (dot(vec4(inDirectionToCamera, 0.0f), inWorldSpaceNormal) > 0.0f) {
+		// Only do the calculations if the pixel is actually visible.
+		if (dot(vec4(inDirectionToCamera, 0.0f), inWorldSpaceNormal) > 0.0f) {
+
+		// Calculate the vector resulting from an imaginary ray shooting out of the camera and bouncing off
+		// the pixel on the surface we want to render.
 		vec4 reflected = reflect(vec4(-inDirectionToCamera.xyz, 0.0f), vec4(inWorldSpaceNormal.xyz, 0.0f));
 
-		// Sample the environment map using the calculated uv coordinates. There is an overload of the texture function
+		// Sample the environment map using the calculated reflected vector. Here we are using an overload of the texture function
 		// that takes a samplerCube and a 3D coordinate and spits out the color of the texture at the intersection
 		// of a cube's face with that 3D vector.
-		outColor = texture(environmentMap, reflected.xyz);
+		vec4 environmentMapColor = texture(environmentMap, reflected.xyz);
+		vec4 baseColorMapColor = texture(baseColorMap, inUVCoord);
+
+		outColor = normalize(environmentMapColor + baseColorMapColor);
 	}
 	else {
 		outColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);

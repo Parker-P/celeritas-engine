@@ -340,9 +340,9 @@ namespace Engine::Vulkan
 		void FindQueueFamilyIndex();
 
 		/**
-		 * @brief Creates the logical device and the queue that will be used to contain Vulkan commands.
+		 * @brief Creates the logical device.
 		 */
-		void CreateLogicalDeviceAndQueue();
+		void CreateLogicalDevice();
 
 		void CreateDebugCallback();
 
@@ -390,7 +390,7 @@ namespace Engine::Vulkan
 		void CreateGraphicsPipeline();
 
 		/**
-		 * @brief Creates the pipeline layout. See _pipelineLayout.
+		 * @brief Creates the pipeline layout. See _graphicsPipeline._layout.
 		 */
 		void CreatePipelineLayout();
 

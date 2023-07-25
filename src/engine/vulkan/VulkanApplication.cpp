@@ -104,7 +104,8 @@ namespace Engine::Vulkan
 		CreateWindowSurface();
 		_physicalDevice = PhysicalDevice(_instance);
 		FindQueueFamilyIndex();
-		CreateLogicalDeviceAndQueue();
+		CreateLogicalDevice();
+		vkGetDeviceQueue(_logicalDevice, _queue._familyIndex, 0, &_queue._handle);
 		CreateSemaphores();
 		CreateCommandPool();
 		LoadScene();
@@ -342,7 +343,7 @@ namespace Engine::Vulkan
 		}
 	}
 
-	void VulkanApplication::CreateLogicalDeviceAndQueue()
+	void VulkanApplication::CreateLogicalDevice()
 	{
 		VkDeviceQueueCreateInfo queueCreateInfo{};
 		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -356,8 +357,9 @@ namespace Engine::Vulkan
 		deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
 		deviceCreateInfo.queueCreateInfoCount = 1;
 
-		// Necessary for shader (for some reason)
+		// Devices features to enable.
 		VkPhysicalDeviceFeatures enabledFeatures = {};
+		enabledFeatures.samplerAnisotropy = VK_TRUE;
 		enabledFeatures.shaderClipDistance = VK_TRUE;
 		enabledFeatures.shaderCullDistance = VK_TRUE;
 
@@ -377,8 +379,6 @@ namespace Engine::Vulkan
 		}
 
 		std::cout << "created logical device" << std::endl;
-
-		vkGetDeviceQueue(_logicalDevice, _queue._familyIndex, 0, &_queue._handle);
 	}
 
 	void VulkanApplication::CreateDebugCallback()
@@ -445,9 +445,9 @@ namespace Engine::Vulkan
 		std::string warn;
 
 		//auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb";
-		auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "Cube.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
+		auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "monster.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb";
