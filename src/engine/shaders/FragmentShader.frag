@@ -37,19 +37,26 @@ vec3 RotateVector(vec3 vectorToRotate, vec3 axis, float angleDegrees)
 // Cook-Torrance BRDF calculation function.
 vec4 CookTorrance(vec3 normalDir, vec3 directionToCamera, vec3 directionToLight, vec4 albedoColor, float roughness, float metalness) 
 {
+    // Calculate some basic variables used throughout the function.
     vec3 halfVec = normalize(directionToLight + directionToCamera);
     float NdotH = max(dot(normalDir, halfVec), 0.0);
     float NdotL = max(dot(normalDir, directionToLight), 0.0);
     float NdotV = max(dot(normalDir, directionToCamera), 0.0);
-
     float roughness2 = roughness * roughness;
     float NdotH2 = NdotH * NdotH;
 
-    // Fresnel Schlick approximation for the specular reflection.
+    // Calculate the Fresnel-Schlick approximation for the specular reflection. This calculation is used as a scalar factor to increase
+    // or decrease the shinyness/intensity of the final color based on the angle of incidence of the incoming light, to simulate
+    // the amount of photons bouncing off the surface and reaching the camera directly from the light. This factor is
+    // strongest if the direction from the pixel to the camera, from the pixel to the light, and the normal vector are the same.
     vec4 F0 = mix(vec4(0.04), albedoColor, metalness);
     vec4 F = F0 + (1.0 - F0) * pow(1.0 - NdotV, 5.0);
 
-    // Geometric term (Smith's method).
+    // Geometric term (Smith's method). The geometric factor is another scalar that is used to increase or decrease the intensity of the final
+    // color based on the roughness of the material, in order to simulate the shading that happens on each microfacet due to it being
+    // angled in a direction that deflects photons away from the camera or towards the camera from the light source.
+    // The rougher the material, the steeper (on average) the direction on the microfacet will be, which could increase or decrease
+    // the amount of photons reaching the camera from the light source, thus the intensity of the final color from the perspective of the camera.
     float k = (roughness2 + 1.0) / 8.0;
     float k2 = k * k;
     float G1 = NdotV / (NdotV * (1.0 - k) + k);
@@ -60,13 +67,13 @@ vec4 CookTorrance(vec3 normalDir, vec3 directionToCamera, vec3 directionToLight,
     float distribution = NdotH2 * (roughness2 - 1.0) + 1.0;
     distribution = (roughness2 + 1.0) * NdotH2 * NdotH2 / (M_PI * distribution * distribution);
 
-    // Cook-Torrance BRDF
+    // Cook-Torrance BRDF.
     vec4 specular = (F * geometric * distribution) / (4.0 * NdotL * NdotV + 0.001);
 
-    // Lambertian diffuse reflection
+    // Lambertian diffuse reflection.
     vec4 diffuse = albedoColor / M_PI;
 
-    // Final color = diffuse + specular
+    // Final color = diffuse + specular.
     return diffuse + specular;
 }
 
@@ -89,7 +96,7 @@ void main()
 		vec4 roughnessMapColor = texture(roughnessMap, inUVCoord);
 		vec4 metallicMapColor = texture(metallicMap, inUVCoord);
 
-        // Average between all three color channels to get a single value.
+        // Average between all three color channels to get a single value for roughness and metalness.
         float roughness = (metallicMapColor.x + metallicMapColor.y + metallicMapColor.z) / 3.0f;
         float metalness = (metallicMapColor.x + metallicMapColor.y + metallicMapColor.z) / 3.0f;
 
