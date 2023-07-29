@@ -9,7 +9,7 @@ layout(location = 2) in vec2 inUv;
 
 // Output variables to send to the next shader stages.
 layout (location = 0) out vec2 outUVCoord;
-layout (location = 1) out vec4 outWorldSpaceNormal;
+layout (location = 1) out vec3 outWorldSpaceNormal;
 layout (location = 2) out vec3 outDirectionToLight;
 layout (location = 3) out vec3 outDirectionToCamera;
 
@@ -62,7 +62,7 @@ void main()
 	
 	// Forward the uv coordinate of the vertex to the fragment stage.
 	outUVCoord = inUv;
-	outWorldSpaceNormal = worldSpaceNormal;
+	outWorldSpaceNormal = vec3(worldSpaceNormal.xyz);
 //	outWorldSpaceNormal = vec4(inNormal.xyz, 1.0f);
 	outDirectionToLight = lightData.position - vertexWorldSpacePosition.xyz;
 	outDirectionToCamera = normalize(cameraData.worldSpacePosition - vertexWorldSpacePosition.xyz);

@@ -445,9 +445,9 @@ namespace Engine::Vulkan
 		std::string warn;
 
 		//auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
+		auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "Cube.glb";
-		auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "monster.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb";
@@ -596,9 +596,9 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::LoadEnvironmentMap()
 	{
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Waterfall.hdr");
+		_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Waterfall.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Debug.png");
-		_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ModernBuilding.hdr");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ModernBuilding.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.png");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ItalianFlag.png");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "TestPng.png");
