@@ -467,7 +467,7 @@ namespace Engine::Vulkan
 				auto& baseColorImageData = gltfScene.images[baseColorImageIndex].image;
 				auto size = VkExtent2D{ (uint32_t)gltfScene.images[baseColorImageIndex].width, (uint32_t)gltfScene.images[baseColorImageIndex].height };
 
-				m._baseColor = Image(_logicalDevice,
+				m._albedo = Image(_logicalDevice,
 					_physicalDevice,
 					VK_FORMAT_R8G8B8A8_SRGB,
 					VkExtent3D{ size.width, size.height, 1 },
@@ -476,7 +476,7 @@ namespace Engine::Vulkan
 					VK_IMAGE_ASPECT_COLOR_BIT,
 					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-				m._baseColor.SendToGPU(_commandPool, _queue);
+				m._albedo.SendToGPU(_commandPool, _queue);
 				_scene._materials.push_back(m);
 				loadedMaterialCache.emplace(i, (unsigned int)_scene._materials.size() - 1);
 			}

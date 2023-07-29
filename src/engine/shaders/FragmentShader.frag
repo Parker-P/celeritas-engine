@@ -20,19 +20,11 @@ layout(set = 2, binding = 0) uniform LightData {
 
 // Base color texture.
 layout(set = 3, binding = 0) uniform sampler2D albedoMap;
-layout(set = 3, binding = 1) uniform sampler2D metallicMap;
-layout(set = 3, binding = 2) uniform sampler2D roughnessMap;
+layout(set = 3, binding = 1) uniform sampler2D roughnessMap;
+layout(set = 3, binding = 2) uniform sampler2D metalnessMap;
 
 // Environment map.
 layout(set = 4, binding = 0) uniform samplerCube environmentMap;
-
-vec3 RotateVector(vec3 vectorToRotate, vec3 axis, float angleDegrees) 
-{
-    float angleRadians = radians(angleDegrees);
-	float cosine = cos(angleRadians / 2.0f);
-	float sine = sin(angleRadians / 2.0f);
-	return (vec4(cosine, axis.x * sine, axis.y * sine, axis.z * sine) * vec4(vectorToRotate, 1.0f)).xyz;
-}
 
 // Cook-Torrance BRDF calculation function.
 vec4 CookTorrance(vec3 normalDir, vec3 directionToCamera, vec3 directionToLight, vec4 albedoColor, float roughness, float metalness) 
@@ -79,8 +71,8 @@ vec4 CookTorrance(vec3 normalDir, vec3 directionToCamera, vec3 directionToLight,
 
 void main() 
 {
-		// Only do the calculations if the pixel is actually visible.
-		if (dot(inDirectionToCamera, inWorldSpaceNormal) > 0.0f) {
+	// Only do the calculations if the pixel is actually visible.
+	if (dot(inDirectionToCamera, inWorldSpaceNormal) > 0.0f) {
 
 		// Calculate the vector resulting from an imaginary ray shooting out of the camera and bouncing off
 		// the pixel on the surface we want to render.
@@ -94,15 +86,14 @@ void main()
         // Sample the textures that will be used in our Cook-Torrance material model.
 		vec4 albedoMapColor = texture(albedoMap, inUVCoord);
 		vec4 roughnessMapColor = texture(roughnessMap, inUVCoord);
-		vec4 metallicMapColor = texture(metallicMap, inUVCoord);
+		vec4 metalnessMapColor = texture(metalnessMap, inUVCoord);
 
         // Average between all three color channels to get a single value for roughness and metalness.
-        float roughness = (metallicMapColor.x + metallicMapColor.y + metallicMapColor.z) / 3.0f;
-        float metalness = (metallicMapColor.x + metallicMapColor.y + metallicMapColor.z) / 3.0f;
+        float roughness = (metalnessMapColor.x + metalnessMapColor.y + metalnessMapColor.z) / 3.0f;
+        float metalness = (metalnessMapColor.x + metalnessMapColor.y + metalnessMapColor.z) / 3.0f;
 
         outColor = CookTorrance(inWorldSpaceNormal, inDirectionToCamera, inDirectionToLight, albedoMapColor, roughness, metalness);
-
-//		outColor = normalize(environmentMapColor + albedoMapColor);
+        //outColor = normalize(environmentMapColor + albedoMapColor);
 	}
 	else {
 		outColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);

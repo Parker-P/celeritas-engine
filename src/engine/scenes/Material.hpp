@@ -18,6 +18,16 @@ namespace Engine::Scenes
 		/**
 		 * @brief Base color texture data.
 		 */
-		Vulkan::Image _baseColor;
+		Vulkan::Image _albedo;
+
+		/**
+		 * @brief Roughness texture data.
+		 */
+		Vulkan::Image _roughness;
+
+		/**
+		 * @brief Metalness texture data.
+		 */
+		Vulkan::Image _metalness;
 	};
 }

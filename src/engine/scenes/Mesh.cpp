@@ -37,18 +37,38 @@ namespace Engine::Scenes
 
 	void Mesh::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
-		Vulkan::Image texture;
-
+		// Get the textures to send to the shaders.
+		Vulkan::Image albedoMap;
+		Vulkan::Image roughnessMap;
+		Vulkan::Image metalnessMap;
 		if (_pScene->_materials.size() > 0) {
-			texture = _pScene->_materials[_materialIndex]._baseColor;
+			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._albedo._imageHandle) {
+				albedoMap = _pScene->_materials[_materialIndex]._albedo;
+			}
+			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._roughness._imageHandle) {
+				roughnessMap = _pScene->_materials[_materialIndex]._roughness;
+			}
+			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._metalness._imageHandle) {
+				metalnessMap = _pScene->_materials[_materialIndex]._metalness;
+			}
 		}
 		else {
-			texture = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
+			albedoMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
+			roughnessMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
+			metalnessMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
 		}
 
-		//texture->SendToGPU(commandPool, graphicsQueue);
-		_images.push_back(texture);
-		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, texture));
+		// Send the textures to the GPU.
+		roughnessMap.SendToGPU(commandPool, graphicsQueue);
+		metalnessMap.SendToGPU(commandPool, graphicsQueue);
+
+		// Create shader resources.
+		_images.push_back(albedoMap);
+		_images.push_back(roughnessMap);
+		_images.push_back(metalnessMap);
+		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, albedoMap));
+		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, roughnessMap));
+		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, metalnessMap));
 		_sets.push_back(Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, _descriptors));
 		_pool = Vulkan::DescriptorPool(logicalDevice, _sets);
 	}

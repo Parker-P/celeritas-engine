@@ -20,7 +20,7 @@ namespace Engine::Scenes
 		Mesh(Scene* pScene);
 
 		/**
-		 * @brief Pointer to the scene so you can use _materialIndex and _gameObjectIndex.
+		 * @brief Pointer to the scene so you can use _materialIndex and _gameObjectIndex from this class.
 		 */
 		Scenes::Scene* _pScene;
 
