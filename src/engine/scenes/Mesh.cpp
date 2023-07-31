@@ -42,17 +42,33 @@ namespace Engine::Scenes
 		Vulkan::Image roughnessMap;
 		Vulkan::Image metalnessMap;
 		if (_pScene->_materials.size() > 0) {
-			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._albedo._imageHandle) {
-				albedoMap = _pScene->_materials[_materialIndex]._albedo;
+			if (_materialIndex >= 0) {
+				if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._albedo._imageHandle) {
+					albedoMap = _pScene->_materials[_materialIndex]._albedo;
+				}
+				else {
+					albedoMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
+				}
+				if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._roughness._imageHandle) {
+					roughnessMap = _pScene->_materials[_materialIndex]._roughness;
+				}
+				else {
+					roughnessMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
+				}
+				if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._metalness._imageHandle) {
+					metalnessMap = _pScene->_materials[_materialIndex]._metalness;
+				}
+				else {
+					metalnessMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
+				}
 			}
-			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._roughness._imageHandle) {
-				roughnessMap = _pScene->_materials[_materialIndex]._roughness;
-			}
-			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._metalness._imageHandle) {
-				metalnessMap = _pScene->_materials[_materialIndex]._metalness;
+			else {
+				// Create a default material.
+				std::cout << "this mesh has no material. TODO: add a default..." << std::endl;
 			}
 		}
 		else {
+			// Create a default material.
 			albedoMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
 			roughnessMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
 			metalnessMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
@@ -66,9 +82,9 @@ namespace Engine::Scenes
 		_images.push_back(albedoMap);
 		_images.push_back(roughnessMap);
 		_images.push_back(metalnessMap);
-		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, albedoMap));
-		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, roughnessMap));
-		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, metalnessMap));
+		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, _images[0]));
+		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, _images[1]));
+		_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, _images[2]));
 		_sets.push_back(Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, _descriptors));
 		_pool = Vulkan::DescriptorPool(logicalDevice, _sets);
 	}

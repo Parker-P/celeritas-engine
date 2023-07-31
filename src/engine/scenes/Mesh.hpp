@@ -27,12 +27,12 @@ namespace Engine::Scenes
 		/**
 		 * @brief Index into the materials list in the Scene this mesh belongs to. See the Material and Scene classes.
 		 */
-		unsigned int _materialIndex;
+		int _materialIndex = -1;
 
 		/**
 		 * @brief Index into the game objects list in the Scene this mesh belongs to. See the GameObject and Scene classes.
 		 */
-		unsigned int _gameObjectIndex;
+		int _gameObjectIndex = -1;
 
 		/**
 		 * @brief See Pipelinable.
