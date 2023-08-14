@@ -31,6 +31,21 @@
 
 namespace Engine::Scenes
 {
+
+    Scene::Scene(VkDevice& logicalDevice, Vulkan::PhysicalDevice physicalDevice)
+    {
+        _materials.push_back(Material(logicalDevice, physicalDevice));
+    }
+
+    Material Scene::DefaultMaterial()
+    {
+        if (_materials.size() <= 0) {
+            std::cout << "there is a problem... a scene object should always have at least a default material" << std::endl;
+            std::exit(0);
+        }
+        return _materials[0];
+    }
+
     void Scene::Update()
     {
         for (auto& light : _pointLights) {

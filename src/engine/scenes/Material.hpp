@@ -29,5 +29,15 @@ namespace Engine::Scenes
 		 * @brief Metalness texture data.
 		 */
 		Vulkan::Image _metalness;
+
+		/**
+		 * @brief Default constructor.
+		 */
+		Material() = default;
+
+		/**
+		 * @brief Constructor for a default material. Creates a material named "DefaultMaterial".
+		 */
+		Material(VkDevice& logicalDevice, Vulkan::PhysicalDevice& physicalDevice);
 	};
 }

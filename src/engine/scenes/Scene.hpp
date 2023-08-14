@@ -33,6 +33,23 @@ namespace Engine::Scenes
 		CubicalEnvironmentMap _environmentMap;
 
 		/**
+		 * @brief Default constructor.
+		 */
+		Scene() = default;
+
+		/**
+		 * @brief Creates a scene with a default material.
+		 * @param logicalDevice
+		 * @param physicalDevice
+		 */
+		Scene(VkDevice& logicalDevice, Vulkan::PhysicalDevice physicalDevice);
+
+		/**
+		 * @brief Returns the default material in the scene, which is always stored as the first material in the _materials vector.
+		 */
+		Material DefaultMaterial();
+
+		/**
 		 * @brief Updates all scene-related data.
 		 */
 		virtual void Update() override;

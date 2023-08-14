@@ -1,5 +1,6 @@
 // STL.
 #include <iostream>
+#include <string>
 #include <vector>
 #include <optional>
 
@@ -153,7 +154,13 @@ namespace Engine::Vulkan
     {
         // Check if the image can be sent to the GPU first.
         if ((_memoryPropertiesFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == false) {
-            std::cout << "this image cannot be sent to the GPU as it doesn't have the VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT set in its memory properties" << std::endl;
+            std::cout << "image " << _imageHandle << " cannot be sent to the GPU as it doesn't have the VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT set in its memory properties" << std::endl;
+            return;
+        }
+
+        // Check if the image was sent to the GPU.
+        if (_sentToGPU) {
+            std::cout << "image " << _imageHandle << " has already been sent to the GPU and was not destroyed or updated" << std::endl;
             return;
         }
 
@@ -222,7 +229,6 @@ namespace Engine::Vulkan
                 bufferCopyRegions.size(),
                 bufferCopyRegions.data());
         }
-        
 
         // Change the layout of the image so that it's fastest for sampling in shaders.
         VkImageMemoryBarrier imageBarrierTransferToShaderRead = imageBarrierToTransfer;
@@ -242,7 +248,12 @@ namespace Engine::Vulkan
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &copyCommandBuffer;
         vkQueueSubmit(queue._handle, 1, &submitInfo, nullptr);
-        vkQueueWaitIdle(queue._handle);
+        if (vkQueueWaitIdle(queue._handle) == VK_SUCCESS) {
+            _sentToGPU = true;
+        }
+        else {
+            std::cout << "failed sending image with handle " << _imageHandle << " to GPU" << std::endl;
+        }
 
         // Destroy temporary resources.
         vkFreeCommandBuffers(_logicalDevice, commandPool, 1, &copyCommandBuffer);

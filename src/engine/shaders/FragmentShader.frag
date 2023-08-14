@@ -93,7 +93,7 @@ void main()
         float metalness = (metalnessMapColor.x + metalnessMapColor.y + metalnessMapColor.z) / 3.0f;
 
         outColor = CookTorrance(inWorldSpaceNormal, inDirectionToCamera, inDirectionToLight, albedoMapColor, roughness, metalness);
-        //outColor = normalize(environmentMapColor + albedoMapColor);
+//        outColor = normalize(environmentMapColor + albedoMapColor);
 	}
 	else {
 		outColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);

@@ -25,9 +25,9 @@ namespace Engine::Scenes
 		Scenes::Scene* _pScene;
 
 		/**
-		 * @brief Index into the materials list in the Scene this mesh belongs to. See the Material and Scene classes.
+		 * @brief Index into the materials list in the Scene this mesh belongs to. A scene shoud always have a default material defined at index 0. See the Material and Scene classes.
 		 */
-		int _materialIndex = -1;
+		int _materialIndex = 0;
 
 		/**
 		 * @brief Index into the game objects list in the Scene this mesh belongs to. See the GameObject and Scene classes.

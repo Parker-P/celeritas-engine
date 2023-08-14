@@ -437,6 +437,7 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::LoadScene()
 	{
+		_scene = Scenes::Scene(_logicalDevice, _physicalDevice);
 		_scene._pointLights.push_back(Scenes::PointLight("DefaultLight"));
 
 		tinygltf::Model gltfScene;
@@ -475,8 +476,9 @@ namespace Engine::Vulkan
 					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
 					VK_IMAGE_ASPECT_COLOR_BIT,
 					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+				m._name = gltfScene.textures[baseColorTextureIndex].name;
 
-				m._albedo.SendToGPU(_commandPool, _queue);
+				//m._albedo.SendToGPU(_commandPool, _queue);
 				_scene._materials.push_back(m);
 				loadedMaterialCache.emplace(i, (unsigned int)_scene._materials.size() - 1);
 			}

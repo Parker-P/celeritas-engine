@@ -1,6 +1,7 @@
 #include <iostream>
 #include <unordered_map>
 #include <vector>
+#include <string>
 #include <GLFW/glfw3.h>
 #include <filesystem>
 #include <glm/gtc/matrix_transform.hpp>

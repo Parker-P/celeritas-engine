@@ -29,6 +29,11 @@ namespace Engine::Vulkan
     public:
 
         /**
+         * @brief To easily identify the image.
+         */
+        std::string _name = "";
+
+        /**
          * @brief Handle that identifies a structure that contains the raw image data.
          */
         VkImage _imageHandle;
@@ -109,7 +114,12 @@ namespace Engine::Vulkan
         /**
          * @brief Raw data of the image.
          */
-        void* _pData;
+        void* _pData = nullptr;
+
+        /**
+         * @brief True if the image has successfully been copied to the memory readable by your GPU.
+         */
+        bool _sentToGPU = false;
 
         Image() = default;
 

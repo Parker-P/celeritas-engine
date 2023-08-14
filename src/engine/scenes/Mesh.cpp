@@ -41,42 +41,42 @@ namespace Engine::Scenes
 		Vulkan::Image albedoMap;
 		Vulkan::Image roughnessMap;
 		Vulkan::Image metalnessMap;
-		if (_pScene->_materials.size() > 0) {
-			if (_materialIndex >= 0) {
-				if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._albedo._imageHandle) {
-					albedoMap = _pScene->_materials[_materialIndex]._albedo;
-				}
-				else {
-					albedoMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
-				}
-				if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._roughness._imageHandle) {
-					roughnessMap = _pScene->_materials[_materialIndex]._roughness;
-				}
-				else {
-					roughnessMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
-				}
-				if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._metalness._imageHandle) {
-					metalnessMap = _pScene->_materials[_materialIndex]._metalness;
-				}
-				else {
-					metalnessMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
-				}
+		if (_materialIndex >= 0) {
+			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._albedo._imageHandle) {
+				albedoMap = _pScene->_materials[_materialIndex]._albedo;
 			}
 			else {
-				// Create a default material.
-				std::cout << "this mesh has no material. TODO: add a default..." << std::endl;
+				albedoMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
+			}
+			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._roughness._imageHandle) {
+				roughnessMap = _pScene->_materials[_materialIndex]._roughness;
+			}
+			else {
+				roughnessMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
+			}
+			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._metalness._imageHandle) {
+				metalnessMap = _pScene->_materials[_materialIndex]._metalness;
+			}
+			else {
+				metalnessMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
 			}
 		}
 		else {
-			// Create a default material.
-			albedoMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
-			roughnessMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
-			metalnessMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
+			auto defaultMaterial = _pScene->DefaultMaterial();
+			albedoMap = defaultMaterial._albedo;
+			roughnessMap = defaultMaterial._roughness;
+			metalnessMap = defaultMaterial._metalness;
 		}
 
+		// The mesh MUST have a material by this point, so we assign the images we created for the texture maps it needs.
+		_pScene->_materials[_materialIndex]._albedo = albedoMap;
+		_pScene->_materials[_materialIndex]._roughness = roughnessMap;
+		_pScene->_materials[_materialIndex]._metalness = metalnessMap;
+		
 		// Send the textures to the GPU.
-		roughnessMap.SendToGPU(commandPool, graphicsQueue);
-		metalnessMap.SendToGPU(commandPool, graphicsQueue);
+		_pScene->_materials[_materialIndex]._albedo.SendToGPU(commandPool, graphicsQueue);
+		_pScene->_materials[_materialIndex]._roughness.SendToGPU(commandPool, graphicsQueue);
+		_pScene->_materials[_materialIndex]._metalness.SendToGPU(commandPool, graphicsQueue);
 
 		// Create shader resources.
 		_images.push_back(albedoMap);
