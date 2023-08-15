@@ -27,7 +27,7 @@ layout(set = 3, binding = 2) uniform sampler2D metalnessMap;
 layout(set = 4, binding = 0) uniform samplerCube environmentMap;
 
 // Cook-Torrance BRDF calculation function.
-vec4 CookTorrance(vec3 normalDir, vec3 directionToCamera, vec3 directionToLight, vec4 albedoColor, float roughness, float metalness) 
+vec4 CookTorrance(vec3 normalDir, vec3 directionToCamera, vec3 directionToLight, vec4 albedoColor, vec4 environmentMapColor, float roughness, float metalness) 
 {
     // Calculate some basic variables used throughout the function.
     vec3 halfVec = normalize(directionToLight + directionToCamera);
@@ -63,7 +63,8 @@ vec4 CookTorrance(vec3 normalDir, vec3 directionToCamera, vec3 directionToLight,
     vec4 specular = (F * geometric * distribution) / (4.0 * NdotL * NdotV + 0.001);
 
     // Lambertian diffuse reflection.
-    vec4 diffuse = albedoColor / M_PI;
+    vec4 scaledEnvironmentMapColor = environmentMapColor * roughness;
+    vec4 diffuse = normalize(albedoColor / M_PI + scaledEnvironmentMapColor);
 
     // Final color = diffuse + specular.
     return diffuse + specular;
@@ -92,7 +93,7 @@ void main()
         float roughness = (metalnessMapColor.x + metalnessMapColor.y + metalnessMapColor.z) / 3.0f;
         float metalness = (metalnessMapColor.x + metalnessMapColor.y + metalnessMapColor.z) / 3.0f;
 
-        outColor = CookTorrance(inWorldSpaceNormal, inDirectionToCamera, inDirectionToLight, albedoMapColor, roughness, metalness);
+        outColor = CookTorrance(inWorldSpaceNormal, inDirectionToCamera, inDirectionToLight, albedoMapColor, environmentMapColor, roughness, metalness);
 //        outColor = normalize(environmentMapColor + albedoMapColor);
 	}
 	else {

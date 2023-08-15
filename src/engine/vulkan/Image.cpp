@@ -39,8 +39,9 @@ namespace Engine::Vulkan
         const unsigned char& blue, 
         const unsigned char& alpha)
     {
-        unsigned int pixelColor = red << 24 | green << 16 | blue << 8 | alpha;
-        return Image(logicalDevice, physicalDevice, VK_FORMAT_R8G8B8A8_SRGB, VkExtent3D{ 1, 1, 1 }, &pixelColor, (VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT), VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        unsigned int* pixelColor = new unsigned int;
+        *pixelColor = alpha << 24 | blue << 16 | green << 8 | red;
+        return Image(logicalDevice, physicalDevice, VK_FORMAT_R8G8B8A8_SRGB, VkExtent3D{ 1, 1, 1 }, pixelColor, (VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT), VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     }
 
     Image::Image(VkDevice& logicalDevice,

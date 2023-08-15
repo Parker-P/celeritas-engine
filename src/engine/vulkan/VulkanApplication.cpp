@@ -466,19 +466,20 @@ namespace Engine::Vulkan
 			if (baseColorTextureIndex >= 0) {
 				auto& baseColorImageIndex = gltfScene.textures[baseColorTextureIndex].source;
 				auto& baseColorImageData = gltfScene.images[baseColorImageIndex].image;
+				unsigned char* copiedImageData = new unsigned char[baseColorImageData.size()];
+				memcpy(copiedImageData, baseColorImageData.data(), baseColorImageData.size());
 				auto size = VkExtent2D{ (uint32_t)gltfScene.images[baseColorImageIndex].width, (uint32_t)gltfScene.images[baseColorImageIndex].height };
 
 				m._albedo = Image(_logicalDevice,
 					_physicalDevice,
 					VK_FORMAT_R8G8B8A8_SRGB,
 					VkExtent3D{ size.width, size.height, 1 },
-					baseColorImageData.data(),
+					copiedImageData,
 					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
 					VK_IMAGE_ASPECT_COLOR_BIT,
 					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-				m._name = gltfScene.textures[baseColorTextureIndex].name;
+				m._albedo._name = gltfScene.textures[baseColorTextureIndex].name == "" ? m._name + "_albedo" : gltfScene.textures[baseColorTextureIndex].name;
 
-				//m._albedo.SendToGPU(_commandPool, _queue);
 				_scene._materials.push_back(m);
 				loadedMaterialCache.emplace(i, (unsigned int)_scene._materials.size() - 1);
 			}
