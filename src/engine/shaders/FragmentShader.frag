@@ -89,6 +89,8 @@ void main()
 		vec4 roughnessMapColor = texture(roughnessMap, inUVCoord);
 		vec4 metalnessMapColor = texture(metalnessMap, inUVCoord);
 
+        // Generate 3 random floats.
+
         // Average between all three color channels to get a single value for roughness and metalness.
         float roughness = (metalnessMapColor.x + metalnessMapColor.y + metalnessMapColor.z) / 3.0f;
         float metalness = (metalnessMapColor.x + metalnessMapColor.y + metalnessMapColor.z) / 3.0f;
