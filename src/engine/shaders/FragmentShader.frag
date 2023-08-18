@@ -70,33 +70,90 @@ vec4 CookTorrance(vec3 normalDir, vec3 directionToCamera, vec3 directionToLight,
     return diffuse + specular;
 }
 
+// Generates a pesudo-random float number.
+float RandomFloat(vec2 seed){
+    return fract(sin(dot(seed, vec2(12.9898f, 78.233f))) * 43758.5453f);
+}
+
 void main() 
 {
 	// Only do the calculations if the pixel is actually visible.
 	if (dot(inDirectionToCamera, inWorldSpaceNormal) > 0.0f) {
 
-		// Calculate the vector resulting from an imaginary ray shooting out of the camera and bouncing off
-		// the pixel on the surface we want to render.
-		vec4 reflected = reflect(vec4(-inDirectionToCamera.xyz, 0.0f), vec4(inWorldSpaceNormal.xyz, 0.0f));
-
-		// Sample the environment map using the calculated reflected vector. Here we are using an overload of the texture function
-		// that takes a samplerCube and a 3D coordinate and spits out the color of the texture at the intersection
-		// of a cube's face with that 3D vector.
-		vec4 environmentMapColor = texture(environmentMap, reflected.xyz);
-
-        // Sample the textures that will be used in our Cook-Torrance material model.
+    // Sample the textures that will be used in our Cook-Torrance material model.
 		vec4 albedoMapColor = texture(albedoMap, inUVCoord);
 		vec4 roughnessMapColor = texture(roughnessMap, inUVCoord);
 		vec4 metalnessMapColor = texture(metalnessMap, inUVCoord);
 
-        // Generate 3 random floats.
+    // Calculate the vector resulting from an imaginary ray shooting out of the camera and bouncing off
+		// the pixel on the surface we want to render.
+		vec4 reflected = reflect(vec4(-inDirectionToCamera.xyz, 0.0f), vec4(inWorldSpaceNormal.xyz, 0.0f));
 
-        // Average between all three color channels to get a single value for roughness and metalness.
-        float roughness = (metalnessMapColor.x + metalnessMapColor.y + metalnessMapColor.z) / 3.0f;
-        float metalness = (metalnessMapColor.x + metalnessMapColor.y + metalnessMapColor.z) / 3.0f;
+		// Now we need to get the roughness value as a grayscale value. We calculate the average of all three color channels in case the image is not already grayscale.
+    float roughness = (roughnessMapColor.x + roughnessMapColor.y + roughnessMapColor.z) / 3.0f;
+    float metalness = (metalnessMapColor.x + metalnessMapColor.y + metalnessMapColor.z) / 3.0f;
 
-        outColor = CookTorrance(inWorldSpaceNormal, inDirectionToCamera, inDirectionToLight, albedoMapColor, environmentMapColor, roughness, metalness);
-//        outColor = normalize(environmentMapColor + albedoMapColor);
+    vec4 environmentMapColor;
+    if (roughness > 0){
+
+        // Generate 3 psuedo-random floats and generate a vector with them. This random direction is representative of the
+        // randomness of the microfacet normal vector. In fact we will use it to scatter the vector that reflects off the
+        // surface normal. The scattering amount is determined by how rough the surface is, which we have in the form of
+        // the roughness map.
+        float seed1 = 16232.5123f;
+        float seed2 = 816235.76453f;
+        float seed3 = 2223511.7828165f;
+        float randomX = RandomFloat(vec2(seed1, seed3));
+        float randomY = RandomFloat(vec2(seed3, seed2));
+        float randomZ = RandomFloat(vec2(seed2, seed1));
+        vec3 randomVector = normalize(vec3(randomX, randomY, randomZ));
+
+        // Now we get another random number that will represent the random inclination of the microfacet relative to the camera viewing direction. We use this value so that
+        // our weighted sum in the next steps will not always have the maximum value of the roughness domain. If the roughness is 1 (maximum) the reflected vector could
+        // scatter anywhere in the reflection vector's hemisphere, so our randomness domain is [0,1]. If the roughness is 0, the ray cannot scatter anywhere, so the reflected
+        // vector remains unaffected. This way the random inclination will always be in the [0, roughness] range. The roughness will always be a value between 0 and 1.
+        if (roughness < 0.0005f){ 
+            roughness = 0.0005f; // Adjusts the roughness to avoid risking a divide by zero when calculating the modulus.
+        }
+        float randomNumber = RandomFloat(vec2(randomX, randomY));
+        float randomInclination = mod(randomNumber, roughness);
+
+        // Calculate the scatter direction. By having the scatter direction 90 degrees apart from the reflected vector, we can perform a weighted sum of the scatter direction and
+        // the reflected vector. If the sum is normalized, this effectively gives us a domain that is represented by a hemisphere whose pole is represented by the reflection
+        // vector.
+        vec3 scatterDirection = cross(randomVector, reflected.xyz);
+
+        // By performing a weighted sum of the scatterDirection and reflected vector we simulate ray scattering. The weighted sum is specifically designed to always give
+        // a unit length vector, as vector normalization is computationally intensive. The scattering factor is the roughness. If the inclination of the microfacet is 0, 
+        // the scattering vector will have no influence, whereas if the roughness is 1, the ray will have the most random direction possible.
+        vec3 roughnessAdjustedReflectionVector = ((1.0f - randomInclination) * reflected.xyz) + (randomInclination * randomVector);
+
+        // Now we check if the roughness adjusted reflection vector doesn't point in the opposite direction of the surface normal. If it does, we use the color of the surface
+        // from the albedo texture, because it would be inaccurate (in almost all cases) to sample from the environment map in an opposite direction to the normal vector, because
+        // the light from the environment wouldn't even be able to reach the surface (at least not directly).
+        bool randomMicrofacetPointsTowardsSurface = dot(roughnessAdjustedReflectionVector, inWorldSpaceNormal) < 0.0f;
+        
+        if(randomMicrofacetPointsTowardsSurface) {
+            environmentMapColor = albedoMapColor;
+        }
+        else {
+    
+            // Sample the environment map using the calculated reflected vector. Here we are using an overload of the texture function
+		        // that takes a samplerCube and a 3D coordinate and spits out the color of the texture at the intersection
+		        // of a cube's face with that 3D vector.
+            environmentMapColor = texture(environmentMap, roughnessAdjustedReflectionVector);
+            environmentMapColor *= pow((1.0f - roughness), 2); // Scale the sampled color by the roughness.
+        }
+    }
+    else {
+        environmentMapColor = texture(environmentMap, reflected.xyz);
+    }
+    
+
+//    outColor = vec4(randomVector, 1.0f);
+//    outColor = vec4(roughness, 0.0f, 0.0f, 1.0f);
+//    outColor = CookTorrance(inWorldSpaceNormal, inDirectionToCamera, inDirectionToLight, albedoMapColor, environmentMapColor, roughness, metalness);
+      outColor = normalize(environmentMapColor + albedoMapColor);
 	}
 	else {
 		outColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);
