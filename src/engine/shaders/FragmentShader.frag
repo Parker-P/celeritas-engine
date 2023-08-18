@@ -100,9 +100,9 @@ void main()
         // randomness of the microfacet normal vector. In fact we will use it to scatter the vector that reflects off the
         // surface normal. The scattering amount is determined by how rough the surface is, which we have in the form of
         // the roughness map.
-        float seed1 = 16232.5123f;
-        float seed2 = 816235.76453f;
-        float seed3 = 2223511.7828165f;
+        float seed1 = inUVCoord.x;
+        float seed2 = inUVCoord.y;
+        float seed3 = floatBitsToInt(inUVCoord.x) ^ floatBitsToInt(inUVCoord.y);
         float randomX = RandomFloat(vec2(seed1, seed3));
         float randomY = RandomFloat(vec2(seed3, seed2));
         float randomZ = RandomFloat(vec2(seed2, seed1));
@@ -126,24 +126,23 @@ void main()
         // By performing a weighted sum of the scatterDirection and reflected vector we simulate ray scattering. The weighted sum is specifically designed to always give
         // a unit length vector, as vector normalization is computationally intensive. The scattering factor is the roughness. If the inclination of the microfacet is 0, 
         // the scattering vector will have no influence, whereas if the roughness is 1, the ray will have the most random direction possible.
-        vec3 roughnessAdjustedReflectionVector = ((1.0f - randomInclination) * reflected.xyz) + (randomInclination * randomVector);
+        vec3 randomMicrofacetReflectionVector = ((1.0f - randomInclination) * reflected.xyz) + (randomInclination * randomVector);
 
         // Now we check if the roughness adjusted reflection vector doesn't point in the opposite direction of the surface normal. If it does, we use the color of the surface
         // from the albedo texture, because it would be inaccurate (in almost all cases) to sample from the environment map in an opposite direction to the normal vector, because
         // the light from the environment wouldn't even be able to reach the surface (at least not directly).
-        bool randomMicrofacetPointsTowardsSurface = dot(roughnessAdjustedReflectionVector, inWorldSpaceNormal) < 0.0f;
+        bool randomMicrofacetPointsTowardsSurface = dot(randomMicrofacetReflectionVector, inWorldSpaceNormal) < 0.0f;
         
-        if(randomMicrofacetPointsTowardsSurface) {
-            environmentMapColor = albedoMapColor;
+        // If the microfacet points towards the surface, then we take the color as if the microfacet was angled 90 degrees from the normal.
+        if (randomMicrofacetPointsTowardsSurface) {
+            randomMicrofacetReflectionVector = scatterDirection;
         }
-        else {
-    
-            // Sample the environment map using the calculated reflected vector. Here we are using an overload of the texture function
-		        // that takes a samplerCube and a 3D coordinate and spits out the color of the texture at the intersection
-		        // of a cube's face with that 3D vector.
-            environmentMapColor = texture(environmentMap, roughnessAdjustedReflectionVector);
-            environmentMapColor *= pow((1.0f - roughness), 2); // Scale the sampled color by the roughness.
-        }
+        
+        // Sample the environment map using the calculated reflected vector. Here we are using an overload of the texture function
+		    // that takes a samplerCube and a 3D coordinate and spits out the color of the texture at the intersection
+		    // of a cube's face with that 3D vector.
+        environmentMapColor = texture(environmentMap, randomMicrofacetReflectionVector);
+        environmentMapColor *= pow((1.0f - roughness), 2); // Scale the sampled color by the roughness.
     }
     else {
         environmentMapColor = texture(environmentMap, reflected.xyz);
