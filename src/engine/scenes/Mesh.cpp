@@ -52,7 +52,7 @@ namespace Engine::Scenes
 				roughnessMap = _pScene->_materials[_materialIndex]._roughness;
 			}
 			else {
-				roughnessMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 40, 40, 40, 255);
+				roughnessMap = Vulkan::Image::SolidColor(logicalDevice, physicalDevice, 255, 255, 255, 255);
 			}
 			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._metalness._imageHandle) {
 				metalnessMap = _pScene->_materials[_materialIndex]._metalness;

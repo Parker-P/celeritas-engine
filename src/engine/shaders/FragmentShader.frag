@@ -126,23 +126,35 @@ void main()
         // By performing a weighted sum of the scatterDirection and reflected vector we simulate ray scattering. The weighted sum is specifically designed to always give
         // a unit length vector, as vector normalization is computationally intensive. The scattering factor is the roughness. If the inclination of the microfacet is 0, 
         // the scattering vector will have no influence, whereas if the roughness is 1, the ray will have the most random direction possible.
-        vec3 randomMicrofacetReflectionVector = ((1.0f - randomInclination) * reflected.xyz) + (randomInclination * randomVector);
+        vec3 randomMicrofacetReflectionVector1 = ((1.0f - randomInclination) * reflected.xyz) + (randomInclination * randomVector);
+//        vec3 randomMicrofacetReflectionVector2 = ((1.0f - randomInclination) * reflected.xyz) + (randomInclination * -scatterDirection);
+//        vec3 randomMicrofacetReflectionVector3 = ((1.0f - randomInclination) * reflected.xyz) + (randomInclination * cross(scatterDirection, reflected.xyz));
+//        vec3 randomMicrofacetReflectionVector4 = ((1.0f - randomInclination) * reflected.xyz) + (randomInclination * -cross(scatterDirection, reflected.xyz));
 
-        // Now we check if the roughness adjusted reflection vector doesn't point in the opposite direction of the surface normal. If it does, we use the color of the surface
-        // from the albedo texture, because it would be inaccurate (in almost all cases) to sample from the environment map in an opposite direction to the normal vector, because
+        // Now we check if the roughness adjusted reflection vector doesn't point in the opposite direction of the surface normal. 
+        // If the microfacet points towards the surface, then we take the color as if the microfacet was angled 90 degrees from the normal because 
+        // it would be inaccurate (in almost all cases) to sample from the environment map in an opposite direction to the normal vector, because
         // the light from the environment wouldn't even be able to reach the surface (at least not directly).
-        bool randomMicrofacetPointsTowardsSurface = dot(randomMicrofacetReflectionVector, inWorldSpaceNormal) < 0.0f;
+        bool randomMicrofacetPointsTowardsSurface = dot(randomMicrofacetReflectionVector1, inWorldSpaceNormal) < 0.0f;
         
-        // If the microfacet points towards the surface, then we take the color as if the microfacet was angled 90 degrees from the normal.
         if (randomMicrofacetPointsTowardsSurface) {
-            randomMicrofacetReflectionVector = scatterDirection;
+            randomMicrofacetReflectionVector1 = scatterDirection;
+//            randomMicrofacetReflectionVector2 = -scatterDirection;
+//            randomMicrofacetReflectionVector3 = cross(scatterDirection, reflected.xyz);
+//            randomMicrofacetReflectionVector4 = -cross(scatterDirection, reflected.xyz);
         }
         
         // Sample the environment map using the calculated reflected vector. Here we are using an overload of the texture function
 		    // that takes a samplerCube and a 3D coordinate and spits out the color of the texture at the intersection
 		    // of a cube's face with that 3D vector.
-        environmentMapColor = texture(environmentMap, randomMicrofacetReflectionVector);
-        environmentMapColor *= pow((1.0f - roughness), 2); // Scale the sampled color by the roughness.
+        vec4 environmentMapColor1 = texture(environmentMap, reflected.xyz);
+        vec4 environmentMapColor2 = texture(environmentMap, randomMicrofacetReflectionVector1);
+//        vec4 environmentMapColor3 = texture(environmentMap, randomMicrofacetReflectionVector2);
+//        vec4 environmentMapColor4 = texture(environmentMap, randomMicrofacetReflectionVector3);
+//        vec4 environmentMapColor5 = texture(environmentMap, randomMicrofacetReflectionVector4);
+//        environmentMapColor = normalize(environmentMapColor1 + environmentMapColor2 + environmentMapColor3 + environmentMapColor4 + environmentMapColor5);
+        environmentMapColor = normalize(environmentMapColor1 + environmentMapColor2);
+//        environmentMapColor *= pow((1.0f - roughness), 2); // Scale the sampled color by the roughness.
     }
     else {
         environmentMapColor = texture(environmentMap, reflected.xyz);
