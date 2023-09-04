@@ -395,7 +395,7 @@ namespace Engine::Scenes
         GenerateFaceImage(CubeMapFace::LOWER);
 
         //WriteImagesToFiles();
-        auto blurredFront = BlurImage(_front, _faceSizePixels, _faceSizePixels, 20, 4);
+        auto blurredFront = BlurImage(_front, _faceSizePixels, _faceSizePixels, 20, 12);
         stbi_write_png("C:\\Users\\paolo.parker\\source\\repos\\celeritas-engine\\textures\\FrontFaceBlurred.png",
             _faceSizePixels,
             _faceSizePixels,
