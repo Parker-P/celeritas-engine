@@ -402,8 +402,32 @@ namespace Engine::Scenes
 		GenerateFaceImage(CubeMapFace::LOWER);
 
 		//WriteImagesToFiles();
-		auto blurredFront = BoxBlurImage(_front, _faceSizePixels, _faceSizePixels, 3);
-		stbi_write_png("C:\\code\\celeritas-engine\\textures\\FrontFaceBlurred.png",
+		auto blurredFront = BoxBlurImage(_front, _faceSizePixels, _faceSizePixels, 8);
+		stbi_write_png("C:\\code\\celeritas-engine\\textures\\FrontFaceBlurred1.png",
+			_faceSizePixels,
+			_faceSizePixels,
+			4,
+			blurredFront.data(),
+			_faceSizePixels * 4);
+
+		blurredFront = BoxBlurImage(_front, _faceSizePixels, _faceSizePixels, 16);
+		stbi_write_png("C:\\code\\celeritas-engine\\textures\\FrontFaceBlurred2.png",
+			_faceSizePixels,
+			_faceSizePixels,
+			4,
+			blurredFront.data(),
+			_faceSizePixels * 4);
+
+		blurredFront = BoxBlurImage(_front, _faceSizePixels, _faceSizePixels, 32);
+		stbi_write_png("C:\\code\\celeritas-engine\\textures\\FrontFaceBlurred3.png",
+			_faceSizePixels,
+			_faceSizePixels,
+			4,
+			blurredFront.data(),
+			_faceSizePixels * 4);
+
+		blurredFront = BoxBlurImage(_front, _faceSizePixels, _faceSizePixels, 64);
+		stbi_write_png("C:\\code\\celeritas-engine\\textures\\FrontFaceBlurred4.png",
 			_faceSizePixels,
 			_faceSizePixels,
 			4,
