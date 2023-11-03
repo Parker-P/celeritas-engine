@@ -352,8 +352,6 @@ namespace Engine::Vulkan
 
 		void LoadScene();
 
-		void LoadEnvironmentMap();
-
 		VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
 
 		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);

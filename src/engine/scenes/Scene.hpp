@@ -13,7 +13,7 @@ namespace Engine::Scenes
 
 	public:
 		/**
-		 * @brief Collection of lights.
+		 * @brief Collection of point lights.
 		 */
 		std::vector<PointLight> _pointLights;
 

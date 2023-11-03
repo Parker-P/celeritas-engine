@@ -118,6 +118,7 @@
     <ClInclude Include="include\stb\stb_image.h" />
     <ClInclude Include="src\utils\Utils.hpp" />
     <ClInclude Include="src\engine\vulkan\VulkanApplication.hpp" />
+    <ClInclude Include="src\utils\BoxBlur.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="src\settings\GlobalSettings.json" />
@@ -246,8 +247,8 @@
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\VertexShader.vert" -o "$(SolutionDir)src\engine\shaders\VertexShader.spv"
-$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\FragmentShader.frag" -o "$(SolutionDir)src\engine\shaders\FragmentShader.spv"</Command>
+      <Command>$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\graphics\VertexShader.vert" -o "$(SolutionDir)src\engine\shaders\graphics\VertexShader.spv"
+$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\graphics\FragmentShader.frag" -o "$(SolutionDir)src\engine\shaders\graphics\FragmentShader.spv"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -272,8 +273,8 @@ $(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\FragmentShader.fra
       <AdditionalDependencies>assimp-vc142-mtd.lib;vulkan-1.lib;glfw3.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\VertexShader.vert" -o "$(SolutionDir)src\engine\shaders\VertexShader.spv"
-$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\FragmentShader.frag" -o "$(SolutionDir)src\engine\shaders\FragmentShader.spv"</Command>
+      <Command>$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\graphics\VertexShader.vert" -o "$(SolutionDir)src\engine\shaders\graphics\VertexShader.spv"
+$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\graphics\FragmentShader.frag" -o "$(SolutionDir)src\engine\shaders\graphics\FragmentShader.spv"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

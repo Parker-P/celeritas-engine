@@ -10,6 +10,7 @@
 #include <vulkan/vulkan.h>
 
 #include "utils/Utils.hpp"
+#include "settings/Paths.hpp"
 #include "structural/IUpdatable.hpp"
 #include "engine/vulkan/PhysicalDevice.hpp"
 #include "engine/vulkan/Queue.hpp"
@@ -41,7 +42,7 @@ namespace Engine::Scenes
     {
         if (_materials.size() <= 0) {
             std::cout << "there is a problem... a scene object should always have at least a default material" << std::endl;
-            std::exit(0);
+            std::exit(1);
         }
         return _materials[0];
     }
@@ -59,6 +60,16 @@ namespace Engine::Scenes
 
     void Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
     {
+        _environmentMap.LoadFromSphericalHDRI(physicalDevice, Settings::Paths::TexturesPath() /= "Waterfall.hdr");
+        //_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Debug.png");
+        //_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ModernBuilding.hdr");
+        //_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.png");
+        //_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ItalianFlag.png");
+        //_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "TestPng.png");
+        //_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "EnvMap.png");
+        //_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "texture.jpg");
+        //_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Test1.png");
+
         _environmentMap.CreateShaderResources(physicalDevice, logicalDevice, commandPool, graphicsQueue);
         _images.push_back(_environmentMap._cubeMapImage);
         _descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, _images[0], VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, 1.0f));

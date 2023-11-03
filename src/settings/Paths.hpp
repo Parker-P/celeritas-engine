@@ -26,14 +26,19 @@ namespace Settings
 		static inline auto Settings = []() -> std::filesystem::path { return CurrentWorkingDirectory() /= L"src\\settings\\GlobalSettings.json"; };
 		
 		/**
+		 * @brief Function returning the path to the folder containing shaders.
+		 */
+		static inline auto ShadersPath = []() -> std::filesystem::path { return CurrentWorkingDirectory() /= L"src\\engine\\shaders"; };
+
+		/**
 		 * @brief Function returning the path to the compiled vertex shader file.
 		 */
-		static inline auto VertexShaderPath = []() -> std::filesystem::path { return CurrentWorkingDirectory() /= L"src\\engine\\shaders\\VertexShader.spv"; };
+		static inline auto VertexShaderPath = []() -> std::filesystem::path { return ShadersPath() /= L"Graphics\\VertexShader.spv"; };
 		
 		/**
 		 * @brief Function returning the path to the compiled fragment shader file.
 		 */
-		static inline auto FragmentShaderPath = []() -> std::filesystem::path { return CurrentWorkingDirectory() /= L"src\\engine\\shaders\\FragmentShader.spv"; };
+		static inline auto FragmentShaderPath = []() -> std::filesystem::path { return ShadersPath() /= L"Graphics\\FragmentShader.spv"; };
 
 		/**
 		 * @brief Function returning the path to the textures folder.

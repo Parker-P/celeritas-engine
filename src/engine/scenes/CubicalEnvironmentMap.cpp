@@ -26,11 +26,13 @@
 #include "engine/scenes/Vertex.hpp"
 #include "engine/structural/IPipelineable.hpp"
 #include "engine/scenes/CubicalEnvironmentMap.hpp"
+#include "utils/BoxBlur.hpp"
 
 namespace Engine::Scenes
 {
 	// Returns the 0-based pixel coordinates given the component index of an image data array. Assumes that the
-	// input component index starts from 0.
+	// input component index starts from 0, and that the origin of the image is at the top left corner, with X
+	// increasing to the right, and Y increasing downward.
 	glm::vec2 ComponentIndexToCartesian(int componentIndex, int imageWidthPixels) {
 		int x = (int(componentIndex * 0.25f) % imageWidthPixels);
 		int y = (int(componentIndex * 0.25f) / imageWidthPixels);
@@ -38,7 +40,7 @@ namespace Engine::Scenes
 	}
 
 	// Returns the 0-based component index into an image data array given the pixel coordinates of the image.
-	// Assumes that x and y both start from 0, and the maximum x can be is equal to imageWidthPixels-1.
+	// Assumes that X and Y both start from 0, and the maximum X can be is equal to imageWidthPixels-1.
 	int CartesianToComponentIndex(int x, int y, int imageWidthPixels) {
 		return (x + (y * imageWidthPixels)) * 4;
 	}
@@ -356,7 +358,7 @@ namespace Engine::Scenes
 			_faceSizePixels * 4);
 	}
 
-	void CubicalEnvironmentMap::LoadFromSphericalHDRI(std::filesystem::path imageFilePath)
+	void CubicalEnvironmentMap::LoadFromSphericalHDRI(Vulkan::PhysicalDevice& physicalDevice, std::filesystem::path imageFilePath)
 	{
 		int wantedComponents = 4;
 		int componentsDetected;
@@ -402,36 +404,42 @@ namespace Engine::Scenes
 		GenerateFaceImage(CubeMapFace::LOWER);
 
 		//WriteImagesToFiles();
-		auto blurredFront = BoxBlurImage(_front, _faceSizePixels, _faceSizePixels, 8);
-		stbi_write_png("C:\\code\\celeritas-engine\\textures\\FrontFaceBlurred1.png",
+		Utils::BoxBlur blurrer;
+		auto blur1 = blurrer.Run(physicalDevice._handle, _front.data(), _faceSizePixels, _faceSizePixels, 10);
+		auto blur2 = blurrer.Run(physicalDevice._handle, _front.data(), _faceSizePixels, _faceSizePixels, 20);
+		auto blur3 = blurrer.Run(physicalDevice._handle, _front.data(), _faceSizePixels, _faceSizePixels, 40);
+		auto blur4 = blurrer.Run(physicalDevice._handle, _front.data(), _faceSizePixels, _faceSizePixels, 80);
+
+		auto path = Settings::Paths::TexturesPath() /= "FrontFaceBlurred1.png";
+		stbi_write_png(path.string().c_str(),
 			_faceSizePixels,
 			_faceSizePixels,
 			4,
-			blurredFront.data(),
+			blur1,
 			_faceSizePixels * 4);
 
-		blurredFront = BoxBlurImage(_front, _faceSizePixels, _faceSizePixels, 16);
-		stbi_write_png("C:\\code\\celeritas-engine\\textures\\FrontFaceBlurred2.png",
+		path = Settings::Paths::TexturesPath() /= "FrontFaceBlurred2.png";
+		stbi_write_png(path.string().c_str(),
 			_faceSizePixels,
 			_faceSizePixels,
 			4,
-			blurredFront.data(),
+			blur2,
 			_faceSizePixels * 4);
 
-		blurredFront = BoxBlurImage(_front, _faceSizePixels, _faceSizePixels, 32);
-		stbi_write_png("C:\\code\\celeritas-engine\\textures\\FrontFaceBlurred3.png",
+		path = Settings::Paths::TexturesPath() /= "FrontFaceBlurred3.png";
+		stbi_write_png(path.string().c_str(),
 			_faceSizePixels,
 			_faceSizePixels,
 			4,
-			blurredFront.data(),
+			blur3,
 			_faceSizePixels * 4);
 
-		blurredFront = BoxBlurImage(_front, _faceSizePixels, _faceSizePixels, 64);
-		stbi_write_png("C:\\code\\celeritas-engine\\textures\\FrontFaceBlurred4.png",
+		path = Settings::Paths::TexturesPath() /= "FrontFaceBlurred4.png";
+		stbi_write_png(path.string().c_str(),
 			_faceSizePixels,
 			_faceSizePixels,
 			4,
-			blurredFront.data(),
+			blur4,
 			_faceSizePixels * 4);
 
 		std::cout << "Environment map " << imageFilePath.string() << " loaded." << std::endl;

@@ -126,7 +126,7 @@ namespace Engine::Scenes
         /**
          * @brief Loads an environment map from a spherical HDRi file and converts it to a cubical map.
          */
-        void LoadFromSphericalHDRI(std::filesystem::path imageFilePath);
+        void LoadFromSphericalHDRI(Vulkan::PhysicalDevice& physicalDevice, std::filesystem::path imageFilePath);
 
         /**
          * @brief Writes each cube map face's image to 6 separate files.
