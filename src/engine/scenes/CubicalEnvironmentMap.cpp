@@ -367,7 +367,7 @@ namespace Engine::Scenes
 
 		// First, we load the spherical HDRi image.
 		// In the stbi_load() function, comp stands for components. In a PNG image, for example, there are 4 components 
-		// for each pixel, red, green, blue and alpha.
+		// for each pixel: red, green, blue and alpha.
 		// The image's pixels are read and stored left to right, top to bottom, relative to the image.
 		// Each pixel's component is an unsigned char.
 		_hdriImageData = stbi_load(imageFilePath.string().c_str(), &width, &height, &componentsDetected, wantedComponents);

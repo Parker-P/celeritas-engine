@@ -1,0 +1,108 @@
+#version 450
+
+layout(local_size_x_id = 0, local_size_y_id = 1, local_size_z_id = 2) in;
+
+layout(push_constant) uniform PushConstants {
+    uint imageWidthPixels;
+    uint imageHeightPixels;
+} inputImageSize;
+
+layout(set = 0, binding = 0) buffer InputBuffer {
+    uint inputData[];
+};
+
+layout(set = 0, binding = 1) buffer OutputBuffer {
+    uint outputData[];
+};
+
+// Returns a single unique ID from a three dimensional ID.
+uint FlattenID(uvec3 threeDimensionalID, uvec3 maxDimensions)
+{
+    uint xComponent = threeDimensionalID.x;
+    uint yComponent = threeDimensionalID.y * maxDimensions.x;
+    uint zComponent = threeDimensionalID.z * (maxDimensions.x * maxDimensions.y);
+    return xComponent + yComponent + zComponent;
+}
+
+vec2 PixelIndexToCartesian(int pixelIndex, int widthPixels) 
+{
+		int x = pixelIndex % widthPixels;
+		int y = pixelIndex / widthPixels;
+		return vec2(x, y);
+}
+
+// Returns the 0-based component index into an image data array given the pixel coordinates of the image.
+// Assumes that X and Y both start from 0, and the maximum X can be is equal to imageWidthPixels-1.
+int CartesianToPixelIndex(int x, int y, int widthPixels) 
+{
+    return (x + (y * widthPixels));
+}
+
+void main() {
+    // Work group dimensions.
+    uvec3 workGroupCount = gl_NumWorkGroups;
+    uvec3 workGroupSize = gl_WorkGroupSize;
+
+    // Work group and invocation IDs.
+    uvec3 workGroupID = gl_WorkGroupID;
+    uvec3 threadID = gl_LocalInvocationID;
+
+    float inputAndOutputCount = inputData.length();
+
+    // Flattened IDs.
+    uint workGroupIDFlattened = FlattenID(workGroupID, workGroupCount);
+    uint threadIDFlattened = FlattenID(threadID, workGroupSize);
+    uint finalFlattenedID = threadIDFlattened + (workGroupIDFlattened * (workGroupSize.x * workGroupSize.y * workGroupSize.z));
+
+    // Prepare some variables used throughout the function.
+    uint radiusPixels = 10;
+    uint boxSideLength = (radiusPixels * 2) + 1;
+
+    // Start sampling from the top left relative to the current pixel. Coordinates increase going left to right for X
+    // and top to bottom for Y.
+    vec2 currentPixelCoordinates = PixelIndexToCartesian(int(finalFlattenedID), int(inputImageSize.imageWidthPixels));
+    int sampleCoordinateY = int(currentPixelCoordinates.y - radiusPixels);
+    uvec4 averageColor = uvec4(0,0,0,0);
+    uint firstTimeThrough = 1;
+    uvec4 firstColor = uvec4(0);
+    int timesSampled = 0;
+
+    for (int i = 0; i < boxSideLength; ++i) {
+        int sampleCoordinateX = int(currentPixelCoordinates.x - radiusPixels);
+        for (int j = 0; j < boxSideLength; ++j) {
+
+        // Only sample if the coordinates fall within the range of the image.
+        int sampleIndex = CartesianToPixelIndex(sampleCoordinateX, sampleCoordinateY, int(inputImageSize.imageWidthPixels));
+            if (sampleIndex >= 0 && sampleIndex < (inputImageSize.imageWidthPixels * inputImageSize.imageHeightPixels)) {
+                uint sampledColor = inputData[sampleIndex];
+
+                // Decompose the color into its individual channels.
+                uint alphaSampled = (sampledColor >> 24) & 255;
+                uint blueSampled = (sampledColor >> 16) & 255;
+                uint greenSampled = (sampledColor >> 8) & 255;
+                uint redSampled = sampledColor & 255;
+
+                // Only calculate the average if averageColor is initialized, otherwise just use the average color as is, to account for
+                // the first time this line of code is reached.
+                if (firstTimeThrough == 1){
+                    firstTimeThrough = 0;
+                    averageColor = uvec4(redSampled, greenSampled, blueSampled, alphaSampled);
+                    firstColor = averageColor;
+                    ++timesSampled;
+                }
+                else {
+                    averageColor = uvec4(averageColor.r + redSampled, averageColor.g + greenSampled, averageColor.b + blueSampled, averageColor.a + alphaSampled);
+                    ++timesSampled;
+                }
+            }
+            ++sampleCoordinateX;
+        }
+        ++sampleCoordinateY;
+    }
+
+    // Calculate the average.
+    averageColor = uvec4(averageColor.r / timesSampled, averageColor.g / timesSampled, averageColor.b / timesSampled, averageColor.a / timesSampled);
+
+    // Assign the calculated average color.
+    outputData[finalFlattenedID] = averageColor.a << 24 | averageColor.b << 16 | averageColor.g << 8 | averageColor.r;
+}
