@@ -358,7 +358,7 @@ namespace Engine::Scenes
 			_faceSizePixels * 4);
 	}
 
-	void CubicalEnvironmentMap::LoadFromSphericalHDRI(Vulkan::PhysicalDevice& physicalDevice, std::filesystem::path imageFilePath)
+	void CubicalEnvironmentMap::LoadFromSphericalHDRI(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, std::filesystem::path imageFilePath)
 	{
 		int wantedComponents = 4;
 		int componentsDetected;
@@ -405,10 +405,10 @@ namespace Engine::Scenes
 
 		//WriteImagesToFiles();
 		Utils::BoxBlur blurrer;
-		auto blur1 = blurrer.Run(physicalDevice._handle, _front.data(), _faceSizePixels, _faceSizePixels, 10);
-		auto blur2 = blurrer.Run(physicalDevice._handle, _front.data(), _faceSizePixels, _faceSizePixels, 20);
-		auto blur3 = blurrer.Run(physicalDevice._handle, _front.data(), _faceSizePixels, _faceSizePixels, 40);
-		auto blur4 = blurrer.Run(physicalDevice._handle, _front.data(), _faceSizePixels, _faceSizePixels, 80);
+		auto blur1 = blurrer.Run(physicalDevice._handle, logicalDevice, _front.data(), _faceSizePixels, _faceSizePixels, 10);
+		auto blur2 = blurrer.Run(physicalDevice._handle, logicalDevice, _front.data(), _faceSizePixels, _faceSizePixels, 20);
+		auto blur3 = blurrer.Run(physicalDevice._handle, logicalDevice, _front.data(), _faceSizePixels, _faceSizePixels, 40);
+		auto blur4 = blurrer.Run(physicalDevice._handle, logicalDevice, _front.data(), _faceSizePixels, _faceSizePixels, 80);
 
 		auto path = Settings::Paths::TexturesPath() /= "FrontFaceBlurred1.png";
 		stbi_write_png(path.string().c_str(),
