@@ -5,7 +5,8 @@ layout(local_size_x_id = 0, local_size_y_id = 1, local_size_z_id = 2) in;
 layout(push_constant) uniform PushConstants {
     uint imageWidthPixels;
     uint imageHeightPixels;
-} inputImageSize;
+    uint radiusPixels;
+} pushConstants;
 
 layout(set = 0, binding = 0) buffer InputBuffer {
     uint inputData[];
@@ -55,25 +56,24 @@ void main() {
     uint finalFlattenedID = threadIDFlattened + (workGroupIDFlattened * (workGroupSize.x * workGroupSize.y * workGroupSize.z));
 
     // Prepare some variables used throughout the function.
-    uint radiusPixels = 10;
-    uint boxSideLength = (radiusPixels * 2) + 1;
+    uint boxSideLength = (pushConstants.radiusPixels * 2) + 1;
 
     // Start sampling from the top left relative to the current pixel. Coordinates increase going left to right for X
     // and top to bottom for Y.
-    vec2 currentPixelCoordinates = PixelIndexToCartesian(int(finalFlattenedID), int(inputImageSize.imageWidthPixels));
-    int sampleCoordinateY = int(currentPixelCoordinates.y - radiusPixels);
+    vec2 currentPixelCoordinates = PixelIndexToCartesian(int(finalFlattenedID), int(pushConstants.imageWidthPixels));
+    int sampleCoordinateY = int(currentPixelCoordinates.y - pushConstants.radiusPixels);
     uvec4 averageColor = uvec4(0,0,0,0);
     uint firstTimeThrough = 1;
     uvec4 firstColor = uvec4(0);
     int timesSampled = 0;
 
     for (int i = 0; i < boxSideLength; ++i) {
-        int sampleCoordinateX = int(currentPixelCoordinates.x - radiusPixels);
+        int sampleCoordinateX = int(currentPixelCoordinates.x - pushConstants.radiusPixels);
         for (int j = 0; j < boxSideLength; ++j) {
 
         // Only sample if the coordinates fall within the range of the image.
-        int sampleIndex = CartesianToPixelIndex(sampleCoordinateX, sampleCoordinateY, int(inputImageSize.imageWidthPixels));
-            if (sampleIndex >= 0 && sampleIndex < (inputImageSize.imageWidthPixels * inputImageSize.imageHeightPixels)) {
+        int sampleIndex = CartesianToPixelIndex(sampleCoordinateX, sampleCoordinateY, int(pushConstants.imageWidthPixels));
+            if (sampleIndex >= 0 && sampleIndex < (pushConstants.imageWidthPixels * pushConstants.imageHeightPixels)) {
                 uint sampledColor = inputData[sampleIndex];
 
                 // Decompose the color into its individual channels.

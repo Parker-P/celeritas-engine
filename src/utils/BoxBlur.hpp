@@ -650,12 +650,12 @@ namespace Utils {
             }
 
             // Return the calculated size and count in the output params.
-            workGroupCount[0] = workGroupCount[0];
-            workGroupCount[1] = workGroupCount[1];
-            workGroupCount[2] = workGroupCount[2];
-            workGroupSize[0] = workGroupSize[0];
-            workGroupSize[1] = workGroupSize[1];
-            workGroupSize[2] = workGroupSize[2];
+            _workGroupCount[0] = workGroupCount[0];
+            _workGroupCount[1] = workGroupCount[1];
+            _workGroupCount[2] = workGroupCount[2];
+            _workGroupSize[0] = workGroupSize[0];
+            _workGroupSize[1] = workGroupSize[1];
+            _workGroupSize[2] = workGroupSize[2];
         }
 
     public:
