@@ -409,6 +409,7 @@ namespace Engine::Scenes
 		auto blur2 = blurrer.Run(physicalDevice._handle, logicalDevice, _front.data(), _faceSizePixels, _faceSizePixels, 20);
 		auto blur3 = blurrer.Run(physicalDevice._handle, logicalDevice, _front.data(), _faceSizePixels, _faceSizePixels, 40);
 		auto blur4 = blurrer.Run(physicalDevice._handle, logicalDevice, _front.data(), _faceSizePixels, _faceSizePixels, 80);
+		blurrer.Destroy();
 
 		auto path = Settings::Paths::TexturesPath() /= "FrontFaceBlurred1.png";
 		stbi_write_png(path.string().c_str(),
