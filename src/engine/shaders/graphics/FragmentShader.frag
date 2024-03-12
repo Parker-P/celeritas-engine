@@ -145,8 +145,8 @@ void main()
         }
         
         // Sample the environment map using the calculated reflected vector. Here we are using an overload of the texture function
-		    // that takes a samplerCube and a 3D coordinate and spits out the color of the texture at the intersection
-		    // of a cube's face with that 3D vector.
+		// that takes a samplerCube and a 3D coordinate and spits out the color of the texture at the intersection
+		// of a cube's face with that 3D vector.
         vec4 environmentMapColor1 = texture(environmentMap, reflected.xyz);
         vec4 environmentMapColor2 = texture(environmentMap, randomMicrofacetReflectionVector1);
 //        vec4 environmentMapColor3 = texture(environmentMap, randomMicrofacetReflectionVector2);

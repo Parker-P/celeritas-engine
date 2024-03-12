@@ -358,7 +358,7 @@ namespace Engine::Scenes
 			_faceSizePixels * 4);
 	}
 
-	void CubicalEnvironmentMap::LoadFromSphericalHDRI(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, std::filesystem::path imageFilePath)
+	void CubicalEnvironmentMap::LoadFromSphericalHDRI(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, std::filesystem::path imageFilePath, int mipmapCount)
 	{
 		int wantedComponents = 4;
 		int componentsDetected;
@@ -403,45 +403,32 @@ namespace Engine::Scenes
 		GenerateFaceImage(CubeMapFace::UPPER);
 		GenerateFaceImage(CubeMapFace::LOWER);
 
-		//WriteImagesToFiles();
+		//WriteImagesToFiles(Settings::Paths::TexturesPath());
+		int imageCount = 10;
+		int maxRadius = (_faceSizePixels * 0.5f);
+		auto radiusIncrement = maxRadius / imageCount;
+		std::vector<unsigned char*> blurredFaceImages(imageCount);
 		Utils::BoxBlur blurrer;
-		auto blur1 = blurrer.Run(physicalDevice._handle, logicalDevice, _front.data(), _faceSizePixels, _faceSizePixels, 10);
-		auto blur2 = blurrer.Run(physicalDevice._handle, logicalDevice, _front.data(), _faceSizePixels, _faceSizePixels, 20);
-		auto blur3 = blurrer.Run(physicalDevice._handle, logicalDevice, _front.data(), _faceSizePixels, _faceSizePixels, 40);
-		auto blur4 = blurrer.Run(physicalDevice._handle, logicalDevice, _front.data(), _faceSizePixels, _faceSizePixels, 80);
+		for (auto radius = radiusIncrement; radius < maxRadius; radius += radiusIncrement) {
+			blurredFaceImages.push_back(blurrer.Run(physicalDevice._handle, logicalDevice, _front.data(), _faceSizePixels, _faceSizePixels, radius));
+		}
 		blurrer.Destroy();
 
-		auto path = Settings::Paths::TexturesPath() /= "FrontFaceBlurred1.png";
-		stbi_write_png(path.string().c_str(),
-			_faceSizePixels,
-			_faceSizePixels,
-			4,
-			blur1,
-			_faceSizePixels * 4);
+		for (int i = 0; i < blurredFaceImages.size(); ++i) {
+			char* buf = (char*)malloc(64);
+			if (buf == nullptr) {
+				continue;
+			}
 
-		path = Settings::Paths::TexturesPath() /= "FrontFaceBlurred2.png";
-		stbi_write_png(path.string().c_str(),
-			_faceSizePixels,
-			_faceSizePixels,
-			4,
-			blur2,
-			_faceSizePixels * 4);
+			if (_itoa_s(i, buf, 64, 10)) {
+				free(buf);
+				continue;
+			}
 
-		path = Settings::Paths::TexturesPath() /= "FrontFaceBlurred3.png";
-		stbi_write_png(path.string().c_str(),
-			_faceSizePixels,
-			_faceSizePixels,
-			4,
-			blur3,
-			_faceSizePixels * 4);
-
-		path = Settings::Paths::TexturesPath() /= "FrontFaceBlurred4.png";
-		stbi_write_png(path.string().c_str(),
-			_faceSizePixels,
-			_faceSizePixels,
-			4,
-			blur4,
-			_faceSizePixels * 4);
+			auto path = Settings::Paths::TexturesPath() /= std::string("front_") + std::string(buf) + std::string(".png");
+			free(buf);
+			stbi_write_png(path.string().c_str(), _faceSizePixels, _faceSizePixels, 4, blurredFaceImages[i], _faceSizePixels * 4);
+		}
 
 		std::cout << "Environment map " << imageFilePath.string() << " loaded." << std::endl;
 	}

@@ -53,7 +53,7 @@ namespace Utils {
 		VkDebugUtilsMessengerEXT _debugMessenger;                            // Extension for debugging.
 		uint32_t _queueFamilyIndex;                                          // If multiple queues are available, specify the used one.
 		VkQueue _queue;                                                      // A place, where all operations are submitted.
-		VkCommandPool _commandPool;                                          // An opaque objects that command buffer memory is allocated from.
+		VkCommandPool _commandPool;                                          // An opaque object that command buffer memory is allocated from.
 		VkFence _fence;                                                      // A fence used to synchronize dispatches.
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)

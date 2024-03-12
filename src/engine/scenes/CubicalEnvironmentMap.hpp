@@ -64,7 +64,7 @@ namespace Engine::Scenes
         VkExtent2D _hdriSizePixels;
 
         /**
-         * @brief Width and height of each face's image.
+         * @brief Width and height of each face's image in pixels.
          */
         int _faceSizePixels;
 
@@ -124,9 +124,15 @@ namespace Engine::Scenes
         }
 
         /**
-         * @brief Loads an environment map from a spherical HDRi file and converts it to a cubical map.
+         * Loads an environment map from a spherical HDRi file and converts it to a cubical map.
+         * 
+         * @param physicalDevice
+         * @param logicalDevice
+         * @param imageFilePath
+         * @param mipmapCount The mipmap count for each cubemap's face, used to simulate material roughness. The higher the number, the higher the quality
+         * of the mipmap generation, but the higher the time needed to pre-compute the blurred mipmaps.
          */
-        void LoadFromSphericalHDRI(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, std::filesystem::path imageFilePath);
+        void LoadFromSphericalHDRI(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, std::filesystem::path imageFilePath, int mipmapCount);
 
         /**
          * @brief Writes each cube map face's image to 6 separate files.

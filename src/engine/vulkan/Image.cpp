@@ -161,7 +161,7 @@ namespace Engine::Vulkan
 
         // Check if the image was sent to the GPU.
         if (_sentToGPU) {
-            std::cout << "image " << _imageHandle << " has already been sent to the GPU and was not destroyed or updated" << std::endl;
+            std::cout << "image " << _imageHandle << " has already been sent to the GPU and was not destroyed or updated, skipping..." << std::endl;
             return;
         }
 
@@ -227,7 +227,7 @@ namespace Engine::Vulkan
                 stagingBuffer._handle,
                 _imageHandle,
                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                bufferCopyRegions.size(),
+                (uint32_t)bufferCopyRegions.size(),
                 bufferCopyRegions.data());
         }
 
