@@ -98,7 +98,13 @@ namespace Engine::Scenes
 		return outImageData;
 	}
 
-	void CubicalEnvironmentMap::GenerateFaceImage(CubeMapFace face, std::vector<unsigned char>& outImageData)
+	CubicalEnvironmentMap::CubeMapImage::CubeMapImage(int widthHeightPixels, unsigned char* data)
+	{
+		_widthHeightPixels = widthHeightPixels;
+		_data = data;
+	}
+
+	CubicalEnvironmentMap::CubeMapImage CubicalEnvironmentMap::GenerateFaceImage(CubeMapFace face, int faceSizePixels)
 	{
 		// The world space unit vector that points in the positive X direction of the image (must be left to right), as if the image was placed in the 3D world on a square plane.
 		glm::vec3 imageXWorldSpace;
@@ -108,6 +114,13 @@ namespace Engine::Scenes
 
 		// The origin of the image (must be the bottom left corner) in world space, as if the image was placed in the 3D world on a square plane.
 		glm::vec3 imageOriginWorldSpace;
+
+		int dataSize = faceSizePixels * faceSizePixels * 4;
+		unsigned char* outImage = (unsigned char*)malloc(dataSize);
+
+		if (outImage == nullptr) {
+			return;
+		}
 
 		switch (face) {
 		case CubeMapFace::FRONT:
@@ -142,13 +155,13 @@ namespace Engine::Scenes
 			break;
 		}
 
-		for (auto y = 0; y < _faceSizePixels; ++y) {
-			for (auto x = 0; x < _faceSizePixels; ++x) {
+		for (auto y = 0; y < faceSizePixels; ++y) {
+			for (auto x = 0; x < faceSizePixels; ++x) {
 
 				// First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
 				glm::vec3 cartesianCoordinatesOnFace;
-				cartesianCoordinatesOnFace = imageOriginWorldSpace + (imageXWorldSpace * ((1.0f / _faceSizePixels) * x));
-				cartesianCoordinatesOnFace += -imageYWorldSpace * ((1.0f / _faceSizePixels) * y);
+				cartesianCoordinatesOnFace = imageOriginWorldSpace + (imageXWorldSpace * ((1.0f / faceSizePixels) * x));
+				cartesianCoordinatesOnFace += -imageYWorldSpace * ((1.0f / faceSizePixels) * y);
 
 				// Then we get the cartesian coordinates on the sphere from the cartesian coordinates on the face. You can
 				// imagine a cube that contains a sphere of exactly the same radius. Only the sphere's poles and sides will
@@ -254,11 +267,11 @@ namespace Engine::Scenes
 				auto alpha = _hdriImageData[componentIndex + 3];
 
 				// Assign the color fetched from the HDRi to the cube map face's image we want to generate.
-				int faceComponentIndex = (x + (_faceSizePixels * y)) * 4;
-				outImageData[faceComponentIndex] = red;
-				outImageData[faceComponentIndex + 1] = green;
-				outImageData[faceComponentIndex + 2] = blue;
-				outImageData[faceComponentIndex + 3] = alpha;
+				int faceComponentIndex = (x + (faceSizePixels * y)) * 4;
+				outImage[faceComponentIndex] = red;
+				outImage[faceComponentIndex + 1] = green;
+				outImage[faceComponentIndex + 2] = blue;
+				outImage[faceComponentIndex + 3] = alpha;
 			}
 		}
 	}
@@ -324,13 +337,13 @@ namespace Engine::Scenes
 			_faceSizePixels * 4);
 	}
 
-	std::vector<unsigned char*> CubicalEnvironmentMap::GenerateBlurredMipmaps(Vulkan::PhysicalDevice physicalDevice, VkDevice logicalDevice, Utils::BoxBlur& blurrer, unsigned char* sourceImage, int mipmapCount)
+	std::vector<unsigned char*> CubicalEnvironmentMap::GenerateBlurredMipmaps(Vulkan::PhysicalDevice physicalDevice, VkDevice logicalDevice, Utils::BoxBlur& blurrer, unsigned char* sourceImage, int sourceImageSizePixels, int mipmapCount)
 	{
-		int maxRadius = (_faceSizePixels * 0.5f);
+		int maxRadius = (sourceImageSizePixels * 0.5f);
 		auto radiusIncrement = maxRadius / mipmapCount;
 		std::vector<unsigned char*> blurredFaceImages(mipmapCount);
 		for (auto radius = radiusIncrement; radius < maxRadius; radius += radiusIncrement) {
-			blurredFaceImages.push_back(blurrer.Run(physicalDevice._handle, logicalDevice, sourceImage, _faceSizePixels, _faceSizePixels, radius));
+			blurredFaceImages.push_back(blurrer.Run(physicalDevice._handle, logicalDevice, sourceImage, sourceImageSizePixels, sourceImageSizePixels, radius));
 		}
 		return blurredFaceImages;
 	}
@@ -361,28 +374,37 @@ namespace Engine::Scenes
 		auto pixelCount = width * height;
 
 		// Then we initialize the image data containers.
-		_faceSizePixels = width / 4;
-		int dataSize = _faceSizePixels * _faceSizePixels * 4;
-		_front = std::vector<unsigned char>(dataSize);
-		_right = std::vector<unsigned char>(dataSize);
-		_back = std::vector<unsigned char>(dataSize);
-		_left = std::vector<unsigned char>(dataSize);
-		_upper = std::vector<unsigned char>(dataSize);
-		_lower = std::vector<unsigned char>(dataSize);
+		auto faceSizePixels = width / 4;
 		//auto debugImage = std::vector<unsigned char>(imageLength);
 
 		// Now we start sampling the spherical HDRi for each individual pixel of each
 		// face of the cube map we want to generate.
-		GenerateFaceImage(CubeMapFace::FRONT, _front);
-		GenerateFaceImage(CubeMapFace::RIGHT, _right);
-		GenerateFaceImage(CubeMapFace::BACK, _back);
-		GenerateFaceImage(CubeMapFace::LEFT, _left);
-		GenerateFaceImage(CubeMapFace::UPPER, _upper);
-		GenerateFaceImage(CubeMapFace::LOWER, _lower);
+		_front.push_back(GenerateFaceImage(CubeMapFace::FRONT, faceSizePixels));
+		_right.push_back(GenerateFaceImage(CubeMapFace::RIGHT, faceSizePixels));
+		_back.push_back(GenerateFaceImage(CubeMapFace::BACK, faceSizePixels));
+		_left.push_back(GenerateFaceImage(CubeMapFace::LEFT, faceSizePixels));
+		_upper.push_back(GenerateFaceImage(CubeMapFace::UPPER, faceSizePixels));
+		_lower.push_back(GenerateFaceImage(CubeMapFace::LOWER, faceSizePixels));
 
 		//WriteImagesToFiles(Settings::Paths::TexturesPath());
 		Utils::BoxBlur blurrer;
-		GenerateBlurredMipmaps(physicalDevice, logicalDevice, blurrer, _front, mipmapCount);
+		auto mipmaps = GenerateBlurredMipmaps(physicalDevice, logicalDevice, blurrer, _front[0]._data, _front[0]._widthHeightPixels, mipmapCount);
+		_front.insert(_front.end(), mipmaps.begin(), mipmaps.end());
+
+		mipmaps = GenerateBlurredMipmaps(physicalDevice, logicalDevice, blurrer, _right[0]._data, _right[0]._widthHeightPixels, mipmapCount);
+		_right.insert(_right.end(), mipmaps.begin(), mipmaps.end());
+
+		mipmaps = GenerateBlurredMipmaps(physicalDevice, logicalDevice, blurrer, _back[0]._data, _back[0]._widthHeightPixels, mipmapCount);
+		_back.insert(_back.end(), mipmaps.begin(), mipmaps.end());
+
+		mipmaps = GenerateBlurredMipmaps(physicalDevice, logicalDevice, blurrer, _left[0]._data, _left[0]._widthHeightPixels, mipmapCount);
+		_left.insert(_left.end(), mipmaps.begin(), mipmaps.end());
+
+		mipmaps = GenerateBlurredMipmaps(physicalDevice, logicalDevice, blurrer, _upper[0]._data, _upper[0]._widthHeightPixels, mipmapCount);
+		_upper.insert(_upper.end(), mipmaps.begin(), mipmaps.end());
+
+		mipmaps = GenerateBlurredMipmaps(physicalDevice, logicalDevice, blurrer, _lower[0]._data, _lower[0]._widthHeightPixels, mipmapCount);
+		_lower.insert(_lower.end(), mipmaps.begin(), mipmaps.end());
 		blurrer.Destroy();
 
 		/*for (int i = 0; i < blurredFaceImages.size(); ++i) {
