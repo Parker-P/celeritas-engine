@@ -25,8 +25,8 @@
 #include "engine/vulkan/ShaderResources.hpp"
 #include "engine/scenes/Vertex.hpp"
 #include "engine/structural/IPipelineable.hpp"
-#include "engine/scenes/CubicalEnvironmentMap.hpp"
 #include "utils/BoxBlur.hpp"
+#include "engine/scenes/CubicalEnvironmentMap.hpp"
 
 namespace Engine::Scenes
 {
@@ -98,7 +98,7 @@ namespace Engine::Scenes
 		return outImageData;
 	}
 
-	void CubicalEnvironmentMap::GenerateFaceImage(CubeMapFace face)
+	void CubicalEnvironmentMap::GenerateFaceImage(CubeMapFace face, std::vector<unsigned char>& outImageData)
 	{
 		// The world space unit vector that points in the positive X direction of the image (must be left to right), as if the image was placed in the 3D world on a square plane.
 		glm::vec3 imageXWorldSpace;
@@ -255,44 +255,10 @@ namespace Engine::Scenes
 
 				// Assign the color fetched from the HDRi to the cube map face's image we want to generate.
 				int faceComponentIndex = (x + (_faceSizePixels * y)) * 4;
-				switch (face) {
-				case CubeMapFace::FRONT:
-					_front[faceComponentIndex] = red;
-					_front[faceComponentIndex + 1] = green;
-					_front[faceComponentIndex + 2] = blue;
-					_front[faceComponentIndex + 3] = alpha;
-					break;
-				case CubeMapFace::RIGHT:
-					_right[faceComponentIndex] = red;
-					_right[faceComponentIndex + 1] = green;
-					_right[faceComponentIndex + 2] = blue;
-					_right[faceComponentIndex + 3] = alpha;
-					break;
-				case CubeMapFace::BACK:
-					_back[faceComponentIndex] = red;
-					_back[faceComponentIndex + 1] = green;
-					_back[faceComponentIndex + 2] = blue;
-					_back[faceComponentIndex + 3] = alpha;
-					break;
-				case CubeMapFace::LEFT:
-					_left[faceComponentIndex] = red;
-					_left[faceComponentIndex + 1] = green;
-					_left[faceComponentIndex + 2] = blue;
-					_left[faceComponentIndex + 3] = alpha;
-					break;
-				case CubeMapFace::UPPER:
-					_upper[faceComponentIndex] = red;
-					_upper[faceComponentIndex + 1] = green;
-					_upper[faceComponentIndex + 2] = blue;
-					_upper[faceComponentIndex + 3] = alpha;
-					break;
-				case CubeMapFace::LOWER:
-					_lower[faceComponentIndex] = red;
-					_lower[faceComponentIndex + 1] = green;
-					_lower[faceComponentIndex + 2] = blue;
-					_lower[faceComponentIndex + 3] = alpha;
-					break;
-				}
+				outImageData[faceComponentIndex] = red;
+				outImageData[faceComponentIndex + 1] = green;
+				outImageData[faceComponentIndex + 2] = blue;
+				outImageData[faceComponentIndex + 3] = alpha;
 			}
 		}
 	}
@@ -358,6 +324,17 @@ namespace Engine::Scenes
 			_faceSizePixels * 4);
 	}
 
+	std::vector<unsigned char*> CubicalEnvironmentMap::GenerateBlurredMipmaps(Vulkan::PhysicalDevice physicalDevice, VkDevice logicalDevice, Utils::BoxBlur& blurrer, unsigned char* sourceImage, int mipmapCount)
+	{
+		int maxRadius = (_faceSizePixels * 0.5f);
+		auto radiusIncrement = maxRadius / mipmapCount;
+		std::vector<unsigned char*> blurredFaceImages(mipmapCount);
+		for (auto radius = radiusIncrement; radius < maxRadius; radius += radiusIncrement) {
+			blurredFaceImages.push_back(blurrer.Run(physicalDevice._handle, logicalDevice, sourceImage, _faceSizePixels, _faceSizePixels, radius));
+		}
+		return blurredFaceImages;
+	}
+
 	void CubicalEnvironmentMap::LoadFromSphericalHDRI(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, std::filesystem::path imageFilePath, int mipmapCount)
 	{
 		int wantedComponents = 4;
@@ -396,25 +373,19 @@ namespace Engine::Scenes
 
 		// Now we start sampling the spherical HDRi for each individual pixel of each
 		// face of the cube map we want to generate.
-		GenerateFaceImage(CubeMapFace::FRONT);
-		GenerateFaceImage(CubeMapFace::RIGHT);
-		GenerateFaceImage(CubeMapFace::BACK);
-		GenerateFaceImage(CubeMapFace::LEFT);
-		GenerateFaceImage(CubeMapFace::UPPER);
-		GenerateFaceImage(CubeMapFace::LOWER);
+		GenerateFaceImage(CubeMapFace::FRONT, _front);
+		GenerateFaceImage(CubeMapFace::RIGHT, _right);
+		GenerateFaceImage(CubeMapFace::BACK, _back);
+		GenerateFaceImage(CubeMapFace::LEFT, _left);
+		GenerateFaceImage(CubeMapFace::UPPER, _upper);
+		GenerateFaceImage(CubeMapFace::LOWER, _lower);
 
 		//WriteImagesToFiles(Settings::Paths::TexturesPath());
-		int imageCount = 10;
-		int maxRadius = (_faceSizePixels * 0.5f);
-		auto radiusIncrement = maxRadius / imageCount;
-		std::vector<unsigned char*> blurredFaceImages(imageCount);
 		Utils::BoxBlur blurrer;
-		for (auto radius = radiusIncrement; radius < maxRadius; radius += radiusIncrement) {
-			blurredFaceImages.push_back(blurrer.Run(physicalDevice._handle, logicalDevice, _front.data(), _faceSizePixels, _faceSizePixels, radius));
-		}
+		GenerateBlurredMipmaps(physicalDevice, logicalDevice, blurrer, _front, mipmapCount);
 		blurrer.Destroy();
 
-		for (int i = 0; i < blurredFaceImages.size(); ++i) {
+		/*for (int i = 0; i < blurredFaceImages.size(); ++i) {
 			char* buf = (char*)malloc(64);
 			if (buf == nullptr) {
 				continue;
@@ -428,7 +399,7 @@ namespace Engine::Scenes
 			auto path = Settings::Paths::TexturesPath() /= std::string("front_") + std::string(buf) + std::string(".png");
 			free(buf);
 			stbi_write_png(path.string().c_str(), _faceSizePixels, _faceSizePixels, 4, blurredFaceImages[i], _faceSizePixels * 4);
-		}
+		}*/
 
 		std::cout << "Environment map " << imageFilePath.string() << " loaded." << std::endl;
 	}

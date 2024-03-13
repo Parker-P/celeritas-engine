@@ -26,32 +26,32 @@ namespace Engine::Scenes
         /**
          * @brief Front face data.
          */
-        std::vector<unsigned char> _front;
+        std::vector<unsigned char*> _front;
 
         /**
          * @brief Right face data.
          */
-        std::vector<unsigned char> _right;
+        std::vector<unsigned char*> _right;
 
         /**
          * @brief Back face data.
          */
-        std::vector<unsigned char> _back;
+        std::vector<unsigned char*> _back;
 
         /**
          * @brief Left face data.
          */
-        std::vector<unsigned char> _left;
+        std::vector<unsigned char*> _left;
 
         /**
          * @brief Upper face data.
          */
-        std::vector<unsigned char> _upper;
+        std::vector<unsigned char*> _upper;
 
         /**
          * @brief Lower face data.
          */
-        std::vector<unsigned char> _lower;
+        std::vector<unsigned char*> _lower;
 
         /**
          * @brief Data loaded from the HDRi image file.
@@ -75,11 +75,16 @@ namespace Engine::Scenes
         Vulkan::Image _cubeMapImage;
 
         /**
+         * @brief Number of mipmaps each face has.
+         */
+        int _mipmapCount;
+
+        /**
          * @brief Default constructor.
          */
         CubicalEnvironmentMap() = default;
 
-        std::vector<unsigned char>& operator[](const CubeMapFace& face) {
+        std::vector<unsigned char*>& operator[](const CubeMapFace& face) {
             switch (face) {
             case CubeMapFace::FRONT:
                 return _front;
@@ -98,31 +103,6 @@ namespace Engine::Scenes
             }
         }
 
-        void SetFaceData(const CubeMapFace& face, const std::vector<unsigned char>& data) {
-            switch (face) {
-            case CubeMapFace::FRONT:
-                _front = data;
-                break;
-            case CubeMapFace::RIGHT:
-                _right = data;
-                break;
-            case CubeMapFace::BACK:
-                _back = data;
-                break;
-            case CubeMapFace::UPPER:
-                _upper = data;
-                break;
-            case CubeMapFace::LEFT:
-                _left = data;
-                break;
-            case CubeMapFace::LOWER:
-                _lower = data;
-                break;
-            default:
-                break;
-            }
-        }
-
         /**
          * Loads an environment map from a spherical HDRi file and converts it to a cubical map.
          * 
@@ -132,7 +112,7 @@ namespace Engine::Scenes
          * @param mipmapCount The mipmap count for each cubemap's face, used to simulate material roughness. The higher the number, the higher the quality
          * of the mipmap generation, but the higher the time needed to pre-compute the blurred mipmaps.
          */
-        void LoadFromSphericalHDRI(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, std::filesystem::path imageFilePath, int mipmapCount);
+        void LoadFromSphericalHDRI(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, std::filesystem::path imageFilePath, int mipmapCount = 0);
 
         /**
          * @brief Writes each cube map face's image to 6 separate files.
@@ -160,9 +140,15 @@ namespace Engine::Scenes
     private:
 
         /**
+         * @brief Generates blurred mipmaps for the given image, and returns an array of pointers to the start of each blurred image's data.
+         * @param sourceImageData
+         */
+        std::vector<unsigned char*> GenerateBlurredMipmaps(Vulkan::PhysicalDevice physicalDevice, VkDevice logicalDevice, Utils::BoxBlur& blurrer, unsigned char* sourceImage, int mipmapCount);
+
+        /**
          * @brief Internal method for code-shortening.
          */
-        void GenerateFaceImage(CubeMapFace face);
+        void GenerateFaceImage(CubeMapFace face, std::vector<unsigned char>& outImageData);
     };
 }
 
