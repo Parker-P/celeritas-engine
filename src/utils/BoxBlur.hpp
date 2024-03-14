@@ -5,11 +5,14 @@
 #include <ctime>
 #include <stdio.h>
 #include <corecrt_math.h>
-#include <stb/stb_image_write.h>
-#include <stb/stb_image.h>
+//#include <stb/stb_image_write.h>
+//#include <stb/stb_image.h>
 #include <iostream>
 #include <fstream>
 #include <vector>
+
+#include "settings/Paths.hpp"
+#include "utils/Utils.hpp"
 
 namespace Utils
 {

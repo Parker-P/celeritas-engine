@@ -49,6 +49,7 @@
 #include "engine/structural/IPipelineable.hpp"
 #include "engine/structural/Drawable.hpp"
 #include "engine/scenes/PointLight.hpp"
+#include "utils/BoxBlur.hpp"
 #include "engine/scenes/CubicalEnvironmentMap.hpp"
 #include "engine/scenes/Scene.hpp"
 #include "engine/scenes/GameObject.hpp"
@@ -498,10 +499,15 @@ namespace Engine::Vulkan
 					_physicalDevice,
 					VK_FORMAT_R8G8B8A8_SRGB,
 					VkExtent3D{ size.width, size.height, 1 },
+					size.width * size.height * 4,
 					copiedImageData,
 					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
 					VK_IMAGE_ASPECT_COLOR_BIT,
-					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+					1,
+					1,
+					(VkImageCreateFlagBits)0,
+					VkImageViewType::VK_IMAGE_VIEW_TYPE_2D);
 				m._albedo._name = gltfScene.textures[baseColorTextureIndex].name == "" ? m._name + "_albedo" : gltfScene.textures[baseColorTextureIndex].name;
 
 				_scene._materials.push_back(m);
@@ -730,10 +736,15 @@ namespace Engine::Vulkan
 			_physicalDevice,
 			VK_FORMAT_D32_SFLOAT,
 			VkExtent3D{ _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 },
+			_swapchain._framebufferSize.width * _swapchain._framebufferSize.height * 4,
 			nullptr,
 			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 			VK_IMAGE_ASPECT_DEPTH_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			1,
+			1,
+			(VkImageCreateFlagBits)0,
+			VkImageViewType::VK_IMAGE_VIEW_TYPE_2D);
 
 		std::cout << "created image views for swap chain images" << std::endl;
 

@@ -15,21 +15,21 @@ namespace Engine::Scenes
 		LOWER
 	};
 
+	class CubeMapImage
+	{
+	public:
+		int _widthHeightPixels;
+		unsigned char* _data;
+
+		int GetSizeBytes();
+	};
+
 	/**
 	 * @brief Represents a cubical environment map, used as an image-based light source
 	 * in the shaders.
 	 */
 	class CubicalEnvironmentMap : public Structural::IPipelineable
 	{
-	private:
-		class CubeMapImage
-		{
-		public:
-			int _widthHeightPixels;
-			unsigned char* _data;
-
-			CubeMapImage(int widthHeightPixels, unsigned char* data);
-		};
 
 	public:
 
@@ -72,6 +72,11 @@ namespace Engine::Scenes
 		 * @brief Width and height of the loaded HDRi image.
 		 */
 		VkExtent2D _hdriSizePixels;
+
+		/**
+		 * @brief Width and height of each face's image.
+		 */
+		int _faceSizePixels;
 
 		/**
 		 * @brief Vulkan handle to the cube map image used in the shaders. This image is meant to contain all the cube map's images as a serialized array of pixels.
@@ -126,17 +131,17 @@ namespace Engine::Scenes
 		 * @brief Generates blurred mipmaps for the given image, and returns an array of pointers to the start of each blurred image's data.
 		 * @param sourceImageData
 		 */
-		std::vector<unsigned char*> GenerateBlurredMipmaps(Vulkan::PhysicalDevice physicalDevice, VkDevice logicalDevice, Utils::BoxBlur& blurrer, unsigned char* sourceImage, int sourceImageSizePixels, int mipmapCount);
+		std::vector<CubeMapImage> GenerateBlurredMipmaps(Vulkan::PhysicalDevice physicalDevice, VkDevice logicalDevice, Utils::BoxBlur& blurrer, unsigned char* sourceImage, int sourceImageSizePixels, int mipmapCount);
 		
 		/**
 		 * @brief Returns the size of a cubemap's face in bytes. This also includes the size of all mipmaps for the face.
 		 */
-		int GetFaceSizeBytes(std::vector<CubicalEnvironmentMap::CubeMapImage> face);
+		int GetFaceSizeBytes(std::vector<CubeMapImage> face);
 
 		/**
 		 * @brief Serializes a face into a single unsigned char array.
 		 */
-		unsigned char* SerializeFace(std::vector<CubicalEnvironmentMap::CubeMapImage> face);
+		unsigned char* SerializeFace(std::vector<CubeMapImage> face);
 
 		/**
 		 * @brief Internal method for code-shortening.

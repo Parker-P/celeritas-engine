@@ -98,13 +98,18 @@ namespace Engine::Scenes
 		return outImageData;
 	}
 
-	CubicalEnvironmentMap::CubeMapImage::CubeMapImage(int widthHeightPixels, unsigned char* data)
+	/*CubeMapImage::CubeMapImage(int widthHeightPixels, unsigned char* data)
 	{
 		_widthHeightPixels = widthHeightPixels;
 		_data = data;
+	}*/
+
+	int CubeMapImage::GetSizeBytes()
+	{
+		return _widthHeightPixels * _widthHeightPixels * 4;
 	}
 
-	CubicalEnvironmentMap::CubeMapImage CubicalEnvironmentMap::GenerateFaceImage(CubeMapFace face, int faceSizePixels)
+	CubeMapImage CubicalEnvironmentMap::GenerateFaceImage(CubeMapFace face, int faceSizePixels)
 	{
 		// The world space unit vector that points in the positive X direction of the image (must be left to right), as if the image was placed in the 3D world on a square plane.
 		glm::vec3 imageXWorldSpace;
@@ -119,7 +124,7 @@ namespace Engine::Scenes
 		unsigned char* outImage = (unsigned char*)malloc(dataSize);
 
 		if (outImage == nullptr) {
-			return;
+			return CubeMapImage{ 0, nullptr };
 		}
 
 		switch (face) {
@@ -274,11 +279,13 @@ namespace Engine::Scenes
 				outImage[faceComponentIndex + 3] = alpha;
 			}
 		}
+
+		return CubeMapImage{ faceSizePixels, outImage };
 	}
 
 	void CubicalEnvironmentMap::WriteImagesToFiles(std::filesystem::path absoluteFolderPath)
 	{
-		if (!std::filesystem::exists(absoluteFolderPath)) {
+		/*if (!std::filesystem::exists(absoluteFolderPath)) {
 			if (std::filesystem::is_directory(absoluteFolderPath)) {
 				std::filesystem::create_directories(absoluteFolderPath);
 			}
@@ -334,16 +341,18 @@ namespace Engine::Scenes
 			_faceSizePixels,
 			4,
 			_lower.data(),
-			_faceSizePixels * 4);
+			_faceSizePixels * 4);*/
 	}
 
-	std::vector<unsigned char*> CubicalEnvironmentMap::GenerateBlurredMipmaps(Vulkan::PhysicalDevice physicalDevice, VkDevice logicalDevice, Utils::BoxBlur& blurrer, unsigned char* sourceImage, int sourceImageSizePixels, int mipmapCount)
+	std::vector<CubeMapImage> CubicalEnvironmentMap::GenerateBlurredMipmaps(Vulkan::PhysicalDevice physicalDevice, VkDevice logicalDevice, Utils::BoxBlur& blurrer, unsigned char* sourceImage, int sourceImageSizePixels, int mipmapCount)
 	{
-		int maxRadius = (sourceImageSizePixels * 0.5f);
+		int maxRadius = (int)(sourceImageSizePixels * 0.5f);
 		auto radiusIncrement = maxRadius / mipmapCount;
-		std::vector<unsigned char*> blurredFaceImages(mipmapCount);
+		std::vector<CubeMapImage> blurredFaceImages;
+		blurredFaceImages.reserve(mipmapCount);
 		for (auto radius = radiusIncrement; radius < maxRadius; radius += radiusIncrement) {
-			blurredFaceImages.push_back(blurrer.Run(physicalDevice._handle, logicalDevice, sourceImage, sourceImageSizePixels, sourceImageSizePixels, radius));
+			auto blurredImageData = blurrer.Run(physicalDevice._handle, logicalDevice, sourceImage, sourceImageSizePixels, sourceImageSizePixels, radius);
+			blurredFaceImages.push_back(CubeMapImage{ sourceImageSizePixels, blurredImageData });
 		}
 		return blurredFaceImages;
 	}
@@ -354,8 +363,6 @@ namespace Engine::Scenes
 		int componentsDetected;
 		int width;
 		int height;
-
-		_mipmapCount = mipmapCount;
 
 		// First, we load the spherical HDRi image.
 		// In the stbi_load() function, comp stands for components. In a PNG image, for example, there are 4 components 
@@ -376,17 +383,17 @@ namespace Engine::Scenes
 		auto pixelCount = width * height;
 
 		// Then we initialize the image data containers.
-		auto faceSizePixels = width / 4;
+		_faceSizePixels = width / 4;
 		//auto debugImage = std::vector<unsigned char>(imageLength);
 
 		// Now we start sampling the spherical HDRi for each individual pixel of each
 		// face of the cube map we want to generate.
-		_front.push_back(GenerateFaceImage(CubeMapFace::FRONT, faceSizePixels));
-		_right.push_back(GenerateFaceImage(CubeMapFace::RIGHT, faceSizePixels));
-		_back.push_back(GenerateFaceImage(CubeMapFace::BACK, faceSizePixels));
-		_left.push_back(GenerateFaceImage(CubeMapFace::LEFT, faceSizePixels));
-		_upper.push_back(GenerateFaceImage(CubeMapFace::UPPER, faceSizePixels));
-		_lower.push_back(GenerateFaceImage(CubeMapFace::LOWER, faceSizePixels));
+		_front.push_back(GenerateFaceImage(CubeMapFace::FRONT, _faceSizePixels));
+		_right.push_back(GenerateFaceImage(CubeMapFace::RIGHT, _faceSizePixels));
+		_back.push_back(GenerateFaceImage(CubeMapFace::BACK, _faceSizePixels));
+		_left.push_back(GenerateFaceImage(CubeMapFace::LEFT, _faceSizePixels));
+		_upper.push_back(GenerateFaceImage(CubeMapFace::UPPER, _faceSizePixels));
+		_lower.push_back(GenerateFaceImage(CubeMapFace::LOWER, _faceSizePixels));
 
 		//WriteImagesToFiles(Settings::Paths::TexturesPath());
 		Utils::BoxBlur blurrer;
@@ -444,6 +451,7 @@ namespace Engine::Scenes
 
 		int faceIndex = 0;
 		for (auto face : faces) {
+			offset = 0;
 			for (int mipmapIndex = 0; mipmapIndex < face.size(); ++mipmapIndex) {
 				VkBufferImageCopy bufferCopyRegion{};
 				bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -454,7 +462,7 @@ namespace Engine::Scenes
 				bufferCopyRegion.imageExtent.height = face[mipmapIndex]._widthHeightPixels;
 				bufferCopyRegion.imageExtent.depth = 1;
 				bufferCopyRegion.bufferOffset = offset;
-				offset += (int)(singleImageArraySize / faceCount);
+				offset += (int)singleImageArraySize + face[mipmapIndex].GetSizeBytes();
 				bufferCopyRegions.push_back(bufferCopyRegion);
 			}
 
@@ -465,35 +473,40 @@ namespace Engine::Scenes
 		_cubeMapImage = Vulkan::Image(logicalDevice,
 			physicalDevice,
 			VK_FORMAT_R8G8B8A8_SRGB,
-			VkExtent3D{ (uint32_t)_faceSizePixels, (uint32_t)_faceSizePixels, 1 },
+			VkExtent3D{ (uint32_t)faces.begin()->begin()->_widthHeightPixels, (uint32_t)faces.begin()->begin()->_widthHeightPixels, 1 },
+			singleImageArraySize,
 			serializedFaceImages.data(),
 			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT),
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			6,
+			(uint32_t)faces.begin()->size(),
 			VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
 			VK_IMAGE_VIEW_TYPE_CUBE);
 
 		_cubeMapImage.SendToGPU(commandPool, graphicsQueue, bufferCopyRegions);
 	}
 
-	int CubicalEnvironmentMap::GetFaceSizeBytes(std::vector<CubicalEnvironmentMap::CubeMapImage> face)
+	int CubicalEnvironmentMap::GetFaceSizeBytes(std::vector<CubeMapImage> face)
 	{
 		auto totalSizeBytes = 0;
 		for (int i = 0; i < face.size(); ++i) {
-			totalSizeBytes += pow(face[i]._widthHeightPixels, 2) * 4;
+			totalSizeBytes += face[i].GetSizeBytes();
 		}
 		return totalSizeBytes;
 	}
 
-	unsigned char* CubicalEnvironmentMap::SerializeFace(std::vector<CubicalEnvironmentMap::CubeMapImage> face)
+	unsigned char* CubicalEnvironmentMap::SerializeFace(std::vector<CubeMapImage> face)
 	{
 		int sizeBytes = GetFaceSizeBytes(face);
 		unsigned char* serializedImage = (unsigned char*)malloc(sizeBytes);
+		if (serializedImage == nullptr) {
+			return nullptr;
+		}
 
 		auto offsetBytes = 0;
 		for (int i = 0; i < face.size(); ++i) {
-			auto imageSize = pow(face[i]._widthHeightPixels, 2);
+			auto imageSize = (int)pow(face[i]._widthHeightPixels, 2);
 			offsetBytes = i * imageSize;
 			memcpy(serializedImage + offsetBytes, face[i]._data + offsetBytes, imageSize);
 		}

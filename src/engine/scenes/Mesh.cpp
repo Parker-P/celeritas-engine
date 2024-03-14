@@ -21,6 +21,7 @@
 #include "engine/scenes/Material.hpp"
 #include "engine/math/Transform.hpp"
 #include "engine/scenes/PointLight.hpp"
+#include "utils/BoxBlur.hpp"
 #include "engine/scenes/CubicalEnvironmentMap.hpp"
 #include "engine/scenes/Scene.hpp"
 #include "engine/scenes/GameObject.hpp"

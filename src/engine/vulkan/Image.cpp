@@ -41,28 +41,42 @@ namespace Engine::Vulkan
     {
         unsigned int* pixelColor = new unsigned int;
         *pixelColor = alpha << 24 | blue << 16 | green << 8 | red;
-        return Image(logicalDevice, physicalDevice, VK_FORMAT_R8G8B8A8_SRGB, VkExtent3D{ 1, 1, 1 }, pixelColor, (VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT), VK_IMAGE_ASPECT_COLOR_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        return Image(logicalDevice,
+            physicalDevice,
+            VK_FORMAT_R8G8B8A8_SRGB,
+            VkExtent3D{ 1, 1, 1 },
+            4,
+            pixelColor,
+            (VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
+            VK_IMAGE_ASPECT_COLOR_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            1,
+            1,
+            (VkImageCreateFlagBits)0,
+            VkImageViewType::VK_IMAGE_VIEW_TYPE_2D);
     }
 
     Image::Image(VkDevice& logicalDevice,
         PhysicalDevice& physicalDevice,
         const VkFormat& imageFormat,
         const VkExtent3D& sizePixels,
+        const size_t& sizeBytes,
         void* data,
         const VkImageUsageFlagBits& usageFlags,
         const VkImageAspectFlagBits& typeFlags,
         const VkMemoryPropertyFlagBits& memoryPropertiesFlags,
         const uint32_t& arrayLayerCount,
-        const VkImageCreateFlags& creationFlags,
+        const uint32_t& mipmapCount,
+        const VkImageCreateFlagBits& creationFlags,
         const VkImageViewType& imageViewType)
     {
         _physicalDevice = physicalDevice;
         _logicalDevice = logicalDevice;
         _format = imageFormat;
         _sizePixels = sizePixels;
+        _sizeBytes = sizeBytes;
         _typeFlags = typeFlags;
         _memoryPropertiesFlags = memoryPropertiesFlags;
-        _sizeBytes = GetPixelSizeBytes(imageFormat) * sizePixels.width * sizePixels.height * arrayLayerCount;
         _pData = data;
 
         // Tiling is very important. Tiling describes how the data for the texture is arranged in the GPU. 
@@ -80,7 +94,7 @@ namespace Engine::Vulkan
         imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
         imageCreateInfo.format = imageFormat;
         imageCreateInfo.extent = imageSize;
-        imageCreateInfo.mipLevels = 1;
+        imageCreateInfo.mipLevels = mipmapCount;
         imageCreateInfo.arrayLayers = arrayLayerCount;
         imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
         imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;

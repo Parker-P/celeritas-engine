@@ -25,6 +25,7 @@
 #include "engine/structural/IPipelineable.hpp"
 #include "engine/structural/Drawable.hpp"
 #include "engine/scenes/PointLight.hpp"
+#include "utils/BoxBlur.hpp"
 #include "engine/scenes/CubicalEnvironmentMap.hpp"
 #include "engine/scenes/Scene.hpp"
 #include "engine/scenes/GameObject.hpp"
