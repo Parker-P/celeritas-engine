@@ -355,6 +355,8 @@ namespace Engine::Scenes
 		int width;
 		int height;
 
+		_mipmapCount = mipmapCount;
+
 		// First, we load the spherical HDRi image.
 		// In the stbi_load() function, comp stands for components. In a PNG image, for example, there are 4 components 
 		// for each pixel: red, green, blue and alpha.
@@ -431,26 +433,32 @@ namespace Engine::Scenes
 		// Get the data of the cube map's images as one serialized data array.
 		auto serializedFaceImages = Serialize();
 
-		// Setup buffer copy regions for each face. A copy region is just a structure to tell Vulkan how to direct the data
-		// to the right place when copying it from a buffer to the image or vice-versa.
+		// Setup buffer copy regions for each face. A copy region is just a structure to tell Vulkan how to direct the (face image in this case) data
+		// to the right place when copying it from a buffer to an image or vice-versa.
 		// For cube and cube array image views, the layers of the image view starting at baseArrayLayer correspond to 
 		// faces in the order +X, -X, +Y, -Y, +Z, -Z, which is, in order, _right, _left, _upper, _lower, _front, _back in our case.
 		uint32_t offset = 0;
 		std::vector<VkBufferImageCopy> bufferCopyRegions;
-		int faceCount = 6;
 		auto singleImageArraySize = Utils::GetVectorSizeInBytes(serializedFaceImages);
-		for (int faceIndex = 0; faceIndex < faceCount; ++faceIndex) {
-			VkBufferImageCopy bufferCopyRegion{};
-			bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			bufferCopyRegion.imageSubresource.mipLevel = 0;
-			bufferCopyRegion.imageSubresource.baseArrayLayer = faceIndex;
-			bufferCopyRegion.imageSubresource.layerCount = 1;
-			bufferCopyRegion.imageExtent.width = _faceSizePixels;
-			bufferCopyRegion.imageExtent.height = _faceSizePixels;
-			bufferCopyRegion.imageExtent.depth = 1;
-			bufferCopyRegion.bufferOffset = offset;
-			offset += (int)(singleImageArraySize / faceCount);
-			bufferCopyRegions.push_back(bufferCopyRegion);
+		auto faces = { _right, _left, _upper, _lower, _front, _back };
+
+		int faceIndex = 0;
+		for (auto face : faces) {
+			for (int mipmapIndex = 0; mipmapIndex < face.size(); ++mipmapIndex) {
+				VkBufferImageCopy bufferCopyRegion{};
+				bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				bufferCopyRegion.imageSubresource.mipLevel = mipmapIndex;
+				bufferCopyRegion.imageSubresource.baseArrayLayer = faceIndex;
+				bufferCopyRegion.imageSubresource.layerCount = 1;
+				bufferCopyRegion.imageExtent.width = face[mipmapIndex]._widthHeightPixels;
+				bufferCopyRegion.imageExtent.height = face[mipmapIndex]._widthHeightPixels;
+				bufferCopyRegion.imageExtent.depth = 1;
+				bufferCopyRegion.bufferOffset = offset;
+				offset += (int)(singleImageArraySize / faceCount);
+				bufferCopyRegions.push_back(bufferCopyRegion);
+			}
+
+			++faceIndex;
 		}
 
 		// Now we need to create the image and image view that will be used in the shaders and stored in VRAM. The image will contain our image data as a single array.
@@ -469,19 +477,65 @@ namespace Engine::Scenes
 		_cubeMapImage.SendToGPU(commandPool, graphicsQueue, bufferCopyRegions);
 	}
 
+	int CubicalEnvironmentMap::GetFaceSizeBytes(std::vector<CubicalEnvironmentMap::CubeMapImage> face)
+	{
+		auto totalSizeBytes = 0;
+		for (int i = 0; i < face.size(); ++i) {
+			totalSizeBytes += pow(face[i]._widthHeightPixels, 2) * 4;
+		}
+		return totalSizeBytes;
+	}
+
+	unsigned char* CubicalEnvironmentMap::SerializeFace(std::vector<CubicalEnvironmentMap::CubeMapImage> face)
+	{
+		int sizeBytes = GetFaceSizeBytes(face);
+		unsigned char* serializedImage = (unsigned char*)malloc(sizeBytes);
+
+		auto offsetBytes = 0;
+		for (int i = 0; i < face.size(); ++i) {
+			auto imageSize = pow(face[i]._widthHeightPixels, 2);
+			offsetBytes = i * imageSize;
+			memcpy(serializedImage + offsetBytes, face[i]._data + offsetBytes, imageSize);
+		}
+
+		return serializedImage;
+	}
+
 	std::vector<unsigned char> CubicalEnvironmentMap::Serialize()
 	{
 		// According to the Vulkan documentation, the faces should be serialized in the following order: +X, -X, +Y, -Y, +Z, -Z.
 		// This corresponds to _right, _left, _upper, _lower, _front, _back for our cube map structure that we have in place.
 		std::vector<unsigned char> serialized;
-		size_t imageSizeBytes = _front.size();
-		serialized.resize(imageSizeBytes * 6); // Type is unsigned char so the slot count in the vector is the same as the byte count.
-		memcpy(serialized.data(), _right.data(), imageSizeBytes);
-		memcpy(serialized.data() + imageSizeBytes, _left.data(), imageSizeBytes);
-		memcpy(serialized.data() + (imageSizeBytes * 2), _upper.data(), imageSizeBytes);
-		memcpy(serialized.data() + (imageSizeBytes * 3), _lower.data(), imageSizeBytes);
-		memcpy(serialized.data() + (imageSizeBytes * 4), _front.data(), imageSizeBytes);
-		memcpy(serialized.data() + (imageSizeBytes * 5), _back.data(), imageSizeBytes);
+
+		auto sizeRight = GetFaceSizeBytes(_right);
+		auto sizeLeft = GetFaceSizeBytes(_left);
+		auto sizeUpper = GetFaceSizeBytes(_upper);
+		auto sizeLower = GetFaceSizeBytes(_lower);
+		auto sizeFront = GetFaceSizeBytes(_front);
+		auto sizeBack = GetFaceSizeBytes(_back);
+
+		// Calculate the total size and allocate memory first.
+		auto totalSizeBytes = sizeRight + sizeLeft + sizeUpper + sizeLower + sizeFront + sizeBack;
+		serialized.resize(totalSizeBytes); // Type is unsigned char so the slot count in the vector is the same as the byte count.
+
+		auto offsetBytes = 0;
+		memcpy(serialized.data(), SerializeFace(_right), sizeRight);
+
+		offsetBytes += sizeRight;
+		memcpy(serialized.data(), SerializeFace(_left), sizeLeft);
+
+		offsetBytes += sizeLeft;
+		memcpy(serialized.data(), SerializeFace(_upper), sizeUpper);
+
+		offsetBytes += sizeUpper;
+		memcpy(serialized.data(), SerializeFace(_lower), sizeLower);
+
+		offsetBytes += sizeLower;
+		memcpy(serialized.data(), SerializeFace(_front), sizeFront);
+
+		offsetBytes += sizeBack;
+		memcpy(serialized.data(), SerializeFace(_back), sizeBack);
+
 		return serialized;
 	}
 

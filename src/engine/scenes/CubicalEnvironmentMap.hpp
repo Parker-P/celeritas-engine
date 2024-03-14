@@ -80,33 +80,9 @@ namespace Engine::Scenes
 		Vulkan::Image _cubeMapImage;
 
 		/**
-		 * @brief Number of mipmaps each face has.
-		 */
-		int _mipmapCount;
-
-		/**
 		 * @brief Default constructor.
 		 */
 		CubicalEnvironmentMap() = default;
-
-		std::vector<unsigned char*>& operator[](const CubeMapFace& face) {
-			switch (face) {
-			case CubeMapFace::FRONT:
-				return _front;
-			case CubeMapFace::RIGHT:
-				return _right;
-			case CubeMapFace::BACK:
-				return _back;
-			case CubeMapFace::UPPER:
-				return _upper;
-			case CubeMapFace::LEFT:
-				return _left;
-			case CubeMapFace::LOWER:
-				return _lower;
-			default:
-				return _front;
-			}
-		}
 
 		/**
 		 * Loads an environment map from a spherical HDRi file and converts it to a cubical map.
@@ -137,6 +113,8 @@ namespace Engine::Scenes
 		 */
 		virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue) override;
 
+		
+
 		/**
 		 * @brief See IPipelineable.
 		 */
@@ -149,6 +127,16 @@ namespace Engine::Scenes
 		 * @param sourceImageData
 		 */
 		std::vector<unsigned char*> GenerateBlurredMipmaps(Vulkan::PhysicalDevice physicalDevice, VkDevice logicalDevice, Utils::BoxBlur& blurrer, unsigned char* sourceImage, int sourceImageSizePixels, int mipmapCount);
+		
+		/**
+		 * @brief Returns the size of a cubemap's face in bytes. This also includes the size of all mipmaps for the face.
+		 */
+		int GetFaceSizeBytes(std::vector<CubicalEnvironmentMap::CubeMapImage> face);
+
+		/**
+		 * @brief Serializes a face into a single unsigned char array.
+		 */
+		unsigned char* SerializeFace(std::vector<CubicalEnvironmentMap::CubeMapImage> face);
 
 		/**
 		 * @brief Internal method for code-shortening.
