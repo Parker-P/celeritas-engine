@@ -104,12 +104,7 @@ namespace Engine::Scenes
 		_data = data;
 	}*/
 
-	int CubeMapImage::GetSizeBytes()
-	{
-		return _widthHeightPixels * _widthHeightPixels * 4;
-	}
-
-	CubeMapImage CubicalEnvironmentMap::GenerateFaceImage(CubeMapFace face, int faceSizePixels)
+	std::vector<unsigned char> CubicalEnvironmentMap::GenerateFaceImage(CubeMapFace face)
 	{
 		// The world space unit vector that points in the positive X direction of the image (must be left to right), as if the image was placed in the 3D world on a square plane.
 		glm::vec3 imageXWorldSpace;
@@ -120,12 +115,8 @@ namespace Engine::Scenes
 		// The origin of the image (must be the bottom left corner) in world space, as if the image was placed in the 3D world on a square plane.
 		glm::vec3 imageOriginWorldSpace;
 
-		int dataSize = faceSizePixels * faceSizePixels * 4;
-		unsigned char* outImage = (unsigned char*)malloc(dataSize);
-
-		if (outImage == nullptr) {
-			return CubeMapImage{ 0, nullptr };
-		}
+		std::vector<unsigned char> outImage;
+		outImage.resize(_faceSizePixels * _faceSizePixels * 4);
 
 		switch (face) {
 		case CubeMapFace::FRONT:
@@ -160,13 +151,13 @@ namespace Engine::Scenes
 			break;
 		}
 
-		for (auto y = 0; y < faceSizePixels; ++y) {
-			for (auto x = 0; x < faceSizePixels; ++x) {
+		for (auto y = 0; y < _faceSizePixels; ++y) {
+			for (auto x = 0; x < _faceSizePixels; ++x) {
 
 				// First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
 				glm::vec3 cartesianCoordinatesOnFace;
-				cartesianCoordinatesOnFace = imageOriginWorldSpace + (imageXWorldSpace * ((1.0f / faceSizePixels) * x));
-				cartesianCoordinatesOnFace += -imageYWorldSpace * ((1.0f / faceSizePixels) * y);
+				cartesianCoordinatesOnFace = imageOriginWorldSpace + (imageXWorldSpace * ((1.0f / _faceSizePixels) * x));
+				cartesianCoordinatesOnFace += -imageYWorldSpace * ((1.0f / _faceSizePixels) * y);
 
 				// Then we get the cartesian coordinates on the sphere from the cartesian coordinates on the face. You can
 				// imagine a cube that contains a sphere of exactly the same radius. Only the sphere's poles and sides will
@@ -272,7 +263,7 @@ namespace Engine::Scenes
 				auto alpha = _hdriImageData[componentIndex + 3];
 
 				// Assign the color fetched from the HDRi to the cube map face's image we want to generate.
-				int faceComponentIndex = (x + (faceSizePixels * y)) * 4;
+				int faceComponentIndex = (x + (_faceSizePixels * y)) * 4;
 				outImage[faceComponentIndex] = red;
 				outImage[faceComponentIndex + 1] = green;
 				outImage[faceComponentIndex + 2] = blue;
@@ -280,7 +271,7 @@ namespace Engine::Scenes
 			}
 		}
 
-		return CubeMapImage{ faceSizePixels, outImage };
+		return outImage;
 	}
 
 	void CubicalEnvironmentMap::WriteImagesToFiles(std::filesystem::path absoluteFolderPath)
@@ -344,20 +335,39 @@ namespace Engine::Scenes
 			_faceSizePixels * 4);*/
 	}
 
-	std::vector<CubeMapImage> CubicalEnvironmentMap::GenerateBlurredMipmaps(Vulkan::PhysicalDevice physicalDevice, VkDevice logicalDevice, Utils::BoxBlur& blurrer, unsigned char* sourceImage, int sourceImageSizePixels, int mipmapCount)
+	Engine::Scenes::CubicalEnvironmentMap::CubicalEnvironmentMap(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice)
 	{
-		int maxRadius = (int)(sourceImageSizePixels * 0.5f);
-		auto radiusIncrement = maxRadius / mipmapCount;
-		std::vector<CubeMapImage> blurredFaceImages;
-		blurredFaceImages.reserve(mipmapCount);
-		for (auto radius = radiusIncrement; radius < maxRadius; radius += radiusIncrement) {
-			auto blurredImageData = blurrer.Run(physicalDevice._handle, logicalDevice, sourceImage, sourceImageSizePixels, sourceImageSizePixels, radius);
-			blurredFaceImages.push_back(CubeMapImage{ sourceImageSizePixels, blurredImageData });
-		}
-		return blurredFaceImages;
+		_physicalDevice = physicalDevice;
+		_logicalDevice = logicalDevice;
+		_faceSizePixels = 512;
 	}
 
-	void CubicalEnvironmentMap::LoadFromSphericalHDRI(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, std::filesystem::path imageFilePath, int mipmapCount)
+	std::vector<unsigned char> ResizeImage(std::vector<unsigned char> image, int oldWidthPixels, int oldHeightPixels, int newWidthPixels, int newHeightPixels)
+	{
+		std::vector<unsigned char> outImage(newWidthPixels * newHeightPixels * 4);
+		int ratioX = oldWidthPixels / newWidthPixels;
+		int ratioY = oldHeightPixels / newHeightPixels;
+		int oldImageX = 0;
+		int oldImageY = 0;
+		int newImageX = 0;
+		int newImageY = 0;
+
+		for (; newImageY < newHeightPixels; ++newImageY) {
+			newImageX = 0;
+			for (; newImageX < newWidthPixels; ++newImageX) {
+				auto oldImageComponentIndex = CartesianToComponentIndex(newImageX * ratioX, newImageY * ratioY, oldWidthPixels);
+				auto newImageComponentIndex = CartesianToComponentIndex(newImageX, newImageY, newWidthPixels);
+				outImage[newImageComponentIndex] = image[oldImageComponentIndex];
+				outImage[newImageComponentIndex + 1] = image[oldImageComponentIndex + 1];
+				outImage[newImageComponentIndex + 2] = image[oldImageComponentIndex + 2];
+				outImage[newImageComponentIndex + 3] = image[oldImageComponentIndex + 3];
+			}
+		}
+
+		return outImage;
+	}
+
+	void CubicalEnvironmentMap::LoadFromSphericalHDRI(std::filesystem::path imageFilePath)
 	{
 		int wantedComponents = 4;
 		int componentsDetected;
@@ -370,7 +380,6 @@ namespace Engine::Scenes
 		// The image's pixels are read and stored left to right, top to bottom, relative to the image.
 		// Each pixel's component is an unsigned char.
 		_hdriImageData = stbi_load(imageFilePath.string().c_str(), &width, &height, &componentsDetected, wantedComponents);
-
 		_hdriSizePixels.width = width;
 		_hdriSizePixels.height = height;
 
@@ -382,38 +391,41 @@ namespace Engine::Scenes
 		auto imageLength = width * height * 4;
 		auto pixelCount = width * height;
 
-		// Then we initialize the image data containers.
-		_faceSizePixels = width / 4;
 		//auto debugImage = std::vector<unsigned char>(imageLength);
 
 		// Now we start sampling the spherical HDRi for each individual pixel of each
 		// face of the cube map we want to generate.
-		_front.push_back(GenerateFaceImage(CubeMapFace::FRONT, _faceSizePixels));
-		_right.push_back(GenerateFaceImage(CubeMapFace::RIGHT, _faceSizePixels));
-		_back.push_back(GenerateFaceImage(CubeMapFace::BACK, _faceSizePixels));
-		_left.push_back(GenerateFaceImage(CubeMapFace::LEFT, _faceSizePixels));
-		_upper.push_back(GenerateFaceImage(CubeMapFace::UPPER, _faceSizePixels));
-		_lower.push_back(GenerateFaceImage(CubeMapFace::LOWER, _faceSizePixels));
+		_front.push_back(GenerateFaceImage(CubeMapFace::FRONT));
+		_right.push_back(GenerateFaceImage(CubeMapFace::RIGHT));
+		_back.push_back(GenerateFaceImage(CubeMapFace::BACK));
+		_left.push_back(GenerateFaceImage(CubeMapFace::LEFT));
+		_upper.push_back(GenerateFaceImage(CubeMapFace::UPPER));
+		_lower.push_back(GenerateFaceImage(CubeMapFace::LOWER));
+
+		Utils::BoxBlur blurrer;
+		auto mipmapIndex = 1;
+		auto resolution = _faceSizePixels;
+		auto faces = { &_front, &_right, &_back, &_left, &_upper, &_lower };
+		for (auto resolution = _faceSizePixels, radius = 2; resolution > 1; resolution /= 2, radius *= 2) {
+
+			for (auto face : faces) {
+				std::vector<unsigned char> tmp;
+				auto halfResolution = resolution / 2;
+				tmp = ResizeImage((*face)[mipmapIndex - 1], resolution, resolution, halfResolution, halfResolution);
+				auto blurredImageData = blurrer.Run(_physicalDevice._handle, _logicalDevice, tmp.data(), halfResolution, halfResolution, radius);
+
+				if (blurredImageData != nullptr) {
+					auto sizeBytes = (halfResolution) * (halfResolution) * 4;
+					(*face).push_back(std::vector<unsigned char>());
+					(*face)[mipmapIndex].resize(sizeBytes);
+					memcpy((*face)[mipmapIndex].data(), blurredImageData, sizeBytes);
+				}
+			}
+
+			mipmapIndex++;
+		}
 
 		//WriteImagesToFiles(Settings::Paths::TexturesPath());
-		Utils::BoxBlur blurrer;
-		auto mipmaps = GenerateBlurredMipmaps(physicalDevice, logicalDevice, blurrer, _front[0]._data, _front[0]._widthHeightPixels, mipmapCount);
-		_front.insert(_front.end(), mipmaps.begin(), mipmaps.end());
-
-		mipmaps = GenerateBlurredMipmaps(physicalDevice, logicalDevice, blurrer, _right[0]._data, _right[0]._widthHeightPixels, mipmapCount);
-		_right.insert(_right.end(), mipmaps.begin(), mipmaps.end());
-
-		mipmaps = GenerateBlurredMipmaps(physicalDevice, logicalDevice, blurrer, _back[0]._data, _back[0]._widthHeightPixels, mipmapCount);
-		_back.insert(_back.end(), mipmaps.begin(), mipmaps.end());
-
-		mipmaps = GenerateBlurredMipmaps(physicalDevice, logicalDevice, blurrer, _left[0]._data, _left[0]._widthHeightPixels, mipmapCount);
-		_left.insert(_left.end(), mipmaps.begin(), mipmaps.end());
-
-		mipmaps = GenerateBlurredMipmaps(physicalDevice, logicalDevice, blurrer, _upper[0]._data, _upper[0]._widthHeightPixels, mipmapCount);
-		_upper.insert(_upper.end(), mipmaps.begin(), mipmaps.end());
-
-		mipmaps = GenerateBlurredMipmaps(physicalDevice, logicalDevice, blurrer, _lower[0]._data, _lower[0]._widthHeightPixels, mipmapCount);
-		_lower.insert(_lower.end(), mipmaps.begin(), mipmaps.end());
 		blurrer.Destroy();
 
 		/*for (int i = 0; i < blurredFaceImages.size(); ++i) {
@@ -446,23 +458,27 @@ namespace Engine::Scenes
 		// faces in the order +X, -X, +Y, -Y, +Z, -Z, which is, in order, _right, _left, _upper, _lower, _front, _back in our case.
 		uint32_t offset = 0;
 		std::vector<VkBufferImageCopy> bufferCopyRegions;
-		auto singleImageArraySize = Utils::GetVectorSizeInBytes(serializedFaceImages);
+		auto singleImageArraySizeBytes = Utils::GetVectorSizeInBytes(serializedFaceImages);
 		auto faces = { _right, _left, _upper, _lower, _front, _back };
 
 		int faceIndex = 0;
-		for (auto face : faces) {
-			offset = 0;
+		int resolution = _faceSizePixels;
+		for (auto& face : faces) {
+			resolution = _faceSizePixels;
+			
 			for (int mipmapIndex = 0; mipmapIndex < face.size(); ++mipmapIndex) {
 				VkBufferImageCopy bufferCopyRegion{};
 				bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 				bufferCopyRegion.imageSubresource.mipLevel = mipmapIndex;
 				bufferCopyRegion.imageSubresource.baseArrayLayer = faceIndex;
 				bufferCopyRegion.imageSubresource.layerCount = 1;
-				bufferCopyRegion.imageExtent.width = face[mipmapIndex]._widthHeightPixels;
-				bufferCopyRegion.imageExtent.height = face[mipmapIndex]._widthHeightPixels;
+				bufferCopyRegion.imageExtent.width = resolution;
+				bufferCopyRegion.imageExtent.height = resolution;
 				bufferCopyRegion.imageExtent.depth = 1;
 				bufferCopyRegion.bufferOffset = offset;
-				offset += (int)singleImageArraySize + face[mipmapIndex].GetSizeBytes();
+
+				resolution /= 2;
+				offset += face[mipmapIndex].size();
 				bufferCopyRegions.push_back(bufferCopyRegion);
 			}
 
@@ -473,8 +489,8 @@ namespace Engine::Scenes
 		_cubeMapImage = Vulkan::Image(logicalDevice,
 			physicalDevice,
 			VK_FORMAT_R8G8B8A8_SRGB,
-			VkExtent3D{ (uint32_t)faces.begin()->begin()->_widthHeightPixels, (uint32_t)faces.begin()->begin()->_widthHeightPixels, 1 },
-			singleImageArraySize,
+			VkExtent3D{ (uint32_t)_faceSizePixels, (uint32_t)_faceSizePixels, 1 },
+			singleImageArraySizeBytes,
 			serializedFaceImages.data(),
 			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT),
 			VK_IMAGE_ASPECT_COLOR_BIT,
@@ -487,16 +503,16 @@ namespace Engine::Scenes
 		_cubeMapImage.SendToGPU(commandPool, graphicsQueue, bufferCopyRegions);
 	}
 
-	int CubicalEnvironmentMap::GetFaceSizeBytes(std::vector<CubeMapImage> face)
+	int CubicalEnvironmentMap::GetFaceSizeBytes(std::vector<std::vector<unsigned char>> face)
 	{
 		auto totalSizeBytes = 0;
 		for (int i = 0; i < face.size(); ++i) {
-			totalSizeBytes += face[i].GetSizeBytes();
+			totalSizeBytes += face[i].size();
 		}
 		return totalSizeBytes;
 	}
 
-	unsigned char* CubicalEnvironmentMap::SerializeFace(std::vector<CubeMapImage> face)
+	unsigned char* CubicalEnvironmentMap::SerializeFace(std::vector<std::vector<unsigned char>> face)
 	{
 		int sizeBytes = GetFaceSizeBytes(face);
 		unsigned char* serializedImage = (unsigned char*)malloc(sizeBytes);
@@ -506,9 +522,9 @@ namespace Engine::Scenes
 
 		auto offsetBytes = 0;
 		for (int i = 0; i < face.size(); ++i) {
-			auto imageSize = (int)pow(face[i]._widthHeightPixels, 2);
+			auto imageSize = face[i].size();
 			offsetBytes = i * imageSize;
-			memcpy(serializedImage + offsetBytes, face[i]._data + offsetBytes, imageSize);
+			memcpy(serializedImage + offsetBytes, face[i].data(), imageSize);
 		}
 
 		return serializedImage;
@@ -530,24 +546,22 @@ namespace Engine::Scenes
 		// Calculate the total size and allocate memory first.
 		auto totalSizeBytes = sizeRight + sizeLeft + sizeUpper + sizeLower + sizeFront + sizeBack;
 		serialized.resize(totalSizeBytes); // Type is unsigned char so the slot count in the vector is the same as the byte count.
-
-		auto offsetBytes = 0;
 		memcpy(serialized.data(), SerializeFace(_right), sizeRight);
 
-		offsetBytes += sizeRight;
-		memcpy(serialized.data(), SerializeFace(_left), sizeLeft);
+		auto offsetBytes = sizeRight;
+		memcpy(serialized.data() + offsetBytes, SerializeFace(_left), sizeLeft);
 
 		offsetBytes += sizeLeft;
-		memcpy(serialized.data(), SerializeFace(_upper), sizeUpper);
+		memcpy(serialized.data() + offsetBytes, SerializeFace(_upper), sizeUpper);
 
 		offsetBytes += sizeUpper;
-		memcpy(serialized.data(), SerializeFace(_lower), sizeLower);
+		memcpy(serialized.data() + offsetBytes, SerializeFace(_lower), sizeLower);
 
 		offsetBytes += sizeLower;
-		memcpy(serialized.data(), SerializeFace(_front), sizeFront);
+		memcpy(serialized.data() + offsetBytes, SerializeFace(_front), sizeFront);
 
 		offsetBytes += sizeBack;
-		memcpy(serialized.data(), SerializeFace(_back), sizeBack);
+		memcpy(serialized.data() + offsetBytes, SerializeFace(_back), sizeBack);
 
 		return serialized;
 	}

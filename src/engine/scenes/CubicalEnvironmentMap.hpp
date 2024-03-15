@@ -15,15 +15,6 @@ namespace Engine::Scenes
 		LOWER
 	};
 
-	class CubeMapImage
-	{
-	public:
-		int _widthHeightPixels;
-		unsigned char* _data;
-
-		int GetSizeBytes();
-	};
-
 	/**
 	 * @brief Represents a cubical environment map, used as an image-based light source
 	 * in the shaders.
@@ -34,34 +25,34 @@ namespace Engine::Scenes
 	public:
 
 		/**
-		 * @brief Front face data.
+		 * @brief Front face data, including all mipmaps.
 		 */
-		std::vector<CubeMapImage> _front;
+		std::vector<std::vector<unsigned char>> _front;
 
 		/**
-		 * @brief Right face data.
+		 * @brief Right face data, including all mipmaps.
 		 */
-		std::vector<CubeMapImage> _right;
+		std::vector<std::vector<unsigned char>> _right;
 
 		/**
-		 * @brief Back face data.
+		 * @brief Back face data, including all mipmaps.
 		 */
-		std::vector<CubeMapImage> _back;
+		std::vector<std::vector<unsigned char>> _back;
 
 		/**
-		 * @brief Left face data.
+		 * @brief Left face data, including all mipmaps.
 		 */
-		std::vector<CubeMapImage> _left;
+		std::vector<std::vector<unsigned char>> _left;
 
 		/**
-		 * @brief Upper face data.
+		 * @brief Upper face data, including all mipmaps.
 		 */
-		std::vector<CubeMapImage> _upper;
+		std::vector<std::vector<unsigned char>> _upper;
 
 		/**
-		 * @brief Lower face data.
+		 * @brief Lower face data, including all mipmaps.
 		 */
-		std::vector<CubeMapImage> _lower;
+		std::vector<std::vector<unsigned char>> _lower;
 
 		/**
 		 * @brief Data loaded from the HDRi image file.
@@ -90,6 +81,11 @@ namespace Engine::Scenes
 		CubicalEnvironmentMap() = default;
 
 		/**
+		 * @brief Constructor.
+		 */
+		CubicalEnvironmentMap(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice);
+
+		/**
 		 * Loads an environment map from a spherical HDRi file and converts it to a cubical map.
 		 *
 		 * @param physicalDevice
@@ -98,7 +94,7 @@ namespace Engine::Scenes
 		 * @param mipmapCount The mipmap count for each cubemap's face, used to simulate material roughness. The higher the number, the higher the quality
 		 * of the mipmap generation, but the higher the time needed to pre-compute the blurred mipmaps.
 		 */
-		void LoadFromSphericalHDRI(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, std::filesystem::path imageFilePath, int mipmapCount = 0);
+		void LoadFromSphericalHDRI(std::filesystem::path imageFilePath);
 
 		/**
 		 * @brief Writes each cube map face's image to 6 separate files.
@@ -128,25 +124,29 @@ namespace Engine::Scenes
 	private:
 
 		/**
-		 * @brief Generates blurred mipmaps for the given image, and returns an array of pointers to the start of each blurred image's data.
-		 * @param sourceImageData
+		 * @brief Physical device.
 		 */
-		std::vector<CubeMapImage> GenerateBlurredMipmaps(Vulkan::PhysicalDevice physicalDevice, VkDevice logicalDevice, Utils::BoxBlur& blurrer, unsigned char* sourceImage, int sourceImageSizePixels, int mipmapCount);
-		
+		Vulkan::PhysicalDevice _physicalDevice;
+
+		/**
+		 * @brief Logical device.
+		 */
+		VkDevice _logicalDevice;
+
 		/**
 		 * @brief Returns the size of a cubemap's face in bytes. This also includes the size of all mipmaps for the face.
 		 */
-		int GetFaceSizeBytes(std::vector<CubeMapImage> face);
+		int GetFaceSizeBytes(std::vector<std::vector<unsigned char>> face);
 
 		/**
 		 * @brief Serializes a face into a single unsigned char array.
 		 */
-		unsigned char* SerializeFace(std::vector<CubeMapImage> face);
+		unsigned char* SerializeFace(std::vector<std::vector<unsigned char>> face);
 
 		/**
 		 * @brief Internal method for code-shortening.
 		 */
-		CubeMapImage GenerateFaceImage(CubeMapFace face, int faceSizePixels);
+		std::vector<unsigned char> GenerateFaceImage(CubeMapFace face);
 	};
 }
 

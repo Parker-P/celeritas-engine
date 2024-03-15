@@ -61,7 +61,8 @@ namespace Engine::Scenes
 
     void Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
     {
-        _environmentMap.LoadFromSphericalHDRI(physicalDevice, logicalDevice, Settings::Paths::TexturesPath() /= "Waterfall.hdr", 9);
+        _environmentMap = CubicalEnvironmentMap(physicalDevice, logicalDevice);
+        _environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Waterfall.hdr");
         //_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Debug.png");
         //_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ModernBuilding.hdr");
         //_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.png");
