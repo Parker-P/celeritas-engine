@@ -450,6 +450,7 @@ namespace Engine::Vulkan
 		VkCommandPoolCreateInfo poolCreateInfo = {};
 		poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		poolCreateInfo.queueFamilyIndex = _queue._familyIndex;
+		poolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
 		if (vkCreateCommandPool(_logicalDevice, &poolCreateInfo, nullptr, &_commandPool) != VK_SUCCESS) {
 			std::cerr << "failed to create command queue for graphics queue family" << std::endl;
@@ -471,8 +472,8 @@ namespace Engine::Vulkan
 		std::string warn;
 
 		//auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb";
-		auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "Cube.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
+		auto scenePath = Settings::Paths::ModelsPath() /= "Cube.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "monster.glb";
@@ -586,13 +587,13 @@ namespace Engine::Vulkan
 				memcpy(vertexNormals.data(), gltfScene.buffers[vertexNormalsBufferIndex].data.data() + vertexNormalsBufferOffset, vertexNormalsBufferSizeBytes);
 
 				// Load UV coordinates for UV slot 0.
-				auto uvCoords0Count = uvCoords0Accessor.count;
+				/*auto uvCoords0Count = uvCoords0Accessor.count;
 				auto uvCoords0BufferIndex = gltfScene.bufferViews[uvCoords0Accessor.bufferView].buffer;
 				auto uvCoords0BufferOffset = gltfScene.bufferViews[uvCoords0Accessor.bufferView].byteOffset;
 				auto uvCoords0BufferStride = uvCoords0Accessor.ByteStride(gltfScene.bufferViews[uvCoords0Accessor.bufferView]);
 				auto uvCoords0BufferSize = uvCoords0Count * uvCoords0BufferStride;
 				std::vector<glm::vec2> uvCoords0(uvCoords0Count);
-				memcpy(uvCoords0.data(), gltfScene.buffers[uvCoords0BufferIndex].data.data() + uvCoords0BufferOffset, uvCoords0BufferSize);
+				memcpy(uvCoords0.data(), gltfScene.buffers[uvCoords0BufferIndex].data.data() + uvCoords0BufferOffset, uvCoords0BufferSize);*/
 
 				gameObject._pMesh = new Scenes::Mesh{ &_scene };
 				auto& mesh = gameObject._pMesh;
@@ -609,7 +610,7 @@ namespace Engine::Vulkan
 					Scenes::Vertex v;
 					v._position = vertexPositions[i];
 					v._normal = vertexNormals[i];
-					v._uvCoord = uvCoords0[i];
+					//v._uvCoord = uvCoords0[i];
 					vertices[i] = v;
 				}
 

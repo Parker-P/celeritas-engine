@@ -95,7 +95,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Describes how this image is going to be read by the physical GPU texture samplers, which feed textures to shaders.
 		 */
-		VkSampler _sampler;
+		VkSampler _sampler{};
 
 		/**
 		 * @brief  This can be any of the following values:

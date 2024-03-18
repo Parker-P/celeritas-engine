@@ -121,7 +121,7 @@ namespace Engine::Vulkan
         vkBindImageMemory(logicalDevice, _imageHandle, mem, 0);
 
         _subresourceRange.baseMipLevel = 0;
-        _subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+        _subresourceRange.levelCount = mipmapCount;
         _subresourceRange.baseArrayLayer = 0;
         _subresourceRange.layerCount = arrayLayerCount;
         _subresourceRange.aspectMask = typeFlags;
@@ -292,7 +292,7 @@ namespace Engine::Vulkan
         samplerCreateInfo.addressModeW = addressMode;
         samplerCreateInfo.mipLodBias = 0.0f;
         samplerCreateInfo.minLod = minLod;
-        samplerCreateInfo.maxLod = 1.0f;
+        samplerCreateInfo.maxLod = maxLod;
         samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
         samplerCreateInfo.anisotropyEnable = anisotropyLevel > 0.0f ? VK_TRUE : VK_FALSE;
         samplerCreateInfo.maxAnisotropy = anisotropyLevel;

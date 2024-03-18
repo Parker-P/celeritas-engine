@@ -76,6 +76,11 @@ namespace Engine::Scenes
 		Vulkan::Image _cubeMapImage;
 
 		/**
+		 * @brief Number of mipmaps. This is dynamically caluclated.
+		 */
+		int _mipmapCount;
+
+		/**
 		 * @brief Default constructor.
 		 */
 		CubicalEnvironmentMap() = default;
@@ -96,6 +101,8 @@ namespace Engine::Scenes
 		 */
 		void LoadFromSphericalHDRI(std::filesystem::path imageFilePath);
 
+		void CopyFacesToImage(VkCommandBuffer commandBuffer);
+
 		/**
 		 * @brief Writes each cube map face's image to 6 separate files.
 		 * @param absoluteFolderPath Folder in which each of the 6 images of the cube map will be written. Defaults to the current working directory
@@ -113,8 +120,6 @@ namespace Engine::Scenes
 		 * @brief See IPipelineable.
 		 */
 		virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue) override;
-
-		
 
 		/**
 		 * @brief See IPipelineable.
@@ -134,14 +139,14 @@ namespace Engine::Scenes
 		VkDevice _logicalDevice;
 
 		/**
-		 * @brief Returns the size of a cubemap's face in bytes. This also includes the size of all mipmaps for the face.
+		 * @brief Returns the size of a face in bytes.
 		 */
 		int GetFaceSizeBytes(std::vector<std::vector<unsigned char>> face);
 
 		/**
 		 * @brief Serializes a face into a single unsigned char array.
 		 */
-		unsigned char* SerializeFace(std::vector<std::vector<unsigned char>> face);
+		std::vector<unsigned char> SerializeFace(std::vector<std::vector<unsigned char>> face);
 
 		/**
 		 * @brief Internal method for code-shortening.
