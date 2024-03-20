@@ -15,6 +15,17 @@ namespace Engine::Scenes
 		LOWER
 	};
 
+	struct Image
+	{
+		VkImageCreateInfo imageCreateInfo{};
+		VkImageViewCreateInfo imageViewCreateInfo{};
+		VkSamplerCreateInfo samplerCreateInfo{};
+
+		VkImage image{};
+		VkImageView imageView{};
+		VkSampler sampler{};
+	};
+
 	/**
 	 * @brief Represents a cubical environment map, used as an image-based light source
 	 * in the shaders.
@@ -73,7 +84,7 @@ namespace Engine::Scenes
 		 * @brief Vulkan handle to the cube map image used in the shaders. This image is meant to contain all the cube map's images as a serialized array of pixels.
 		 * In order to know where, in the array of pixels, each image starts/ends and what format it's in, a sampler and image view are used.
 		 */
-		Vulkan::Image _cubeMapImage;
+		Image _cubeMapImage;
 
 		/**
 		 * @brief Number of mipmaps. This is dynamically caluclated.

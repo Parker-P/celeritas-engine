@@ -256,6 +256,8 @@ namespace Engine::Vulkan
 		Scenes::Scene _scene;
 		Scenes::Camera _mainCamera;
 
+		VkDescriptorSet _sceneDescriptorSet{};
+
 		/*
 		 * @brief Function called by Vulkan's validation layers once an error has occourred.
 		 * @param flags

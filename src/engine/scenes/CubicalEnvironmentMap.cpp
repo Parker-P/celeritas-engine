@@ -518,13 +518,15 @@ namespace Engine::Scenes
 		uint32_t resolution = _faceSizePixels;
 		uint32_t faceIndex = 0;
 
+
+
 		StartRecording(commandBuffer);
 		auto noLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		auto srcLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 		auto dstLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		auto srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		auto dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-		ChangeImageLayout(commandBuffer, _cubeMapImage._imageHandle, noLayout, dstLayout, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT, srcStage, dstStage);
+		ChangeImageLayout(commandBuffer, _cubeMapImage.image, noLayout, dstLayout, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT, srcStage, dstStage);
 
 		for (auto& face : faces) {
 			resolution = _faceSizePixels;
@@ -560,14 +562,12 @@ namespace Engine::Scenes
 				copyRegion.dstSubresource.mipLevel = mipmapIndex;
 
 				ChangeImageLayout(commandBuffer, image._imageHandle, noLayout, srcLayout, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_READ_BIT, srcStage, dstStage);
-				vkCmdCopyImage(commandBuffer, image._imageHandle, srcLayout, _cubeMapImage._imageHandle, dstLayout, 1, &copyRegion);
+				vkCmdCopyImage(commandBuffer, image._imageHandle, srcLayout, _cubeMapImage.image, dstLayout, 1, &copyRegion);
 			}
 
 			++faceIndex;
 		}
-		
 
-		ChangeImageLayout(commandBuffer, _cubeMapImage._imageHandle, dstLayout, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 		StopRecording(commandBuffer);
 
 		// Submit command buffer to the queue
@@ -579,28 +579,145 @@ namespace Engine::Scenes
 		if (vkQueueWaitIdle(queue._handle) != VK_SUCCESS) {
 			std::cout << "error copying environment map face images to cube map image\n";
 		}
-	}
 
-	void CubicalEnvironmentMap::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
-	{
+
+
+
+
+
+
+
+
+
+
+
+
 		// Get the data of the cube map's images as one serialized data array.
 		auto serializedFaceImages = Serialize();
 		auto singleImageArraySizeBytes = Utils::GetVectorSizeInBytes(serializedFaceImages);
 
+		// Allocate a temporary buffer for holding image data to upload to VRAM.
+		VkBuffer stagingBuffer{};
+		VkBufferCreateInfo vertexBufferInfo = {};
+		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		vertexBufferInfo.size = singleImageArraySizeBytes;
+		vertexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		vkCreateBuffer(_logicalDevice, &vertexBufferInfo, nullptr, &stagingBuffer);
+
+		// Allocate memory for the buffer.
+		VkMemoryRequirements requirements{};
+		vkGetBufferMemoryRequirements(_logicalDevice, stagingBuffer, &requirements);
+		VkDeviceMemory memory = _physicalDevice.AllocateMemory(_logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+		// Creates a reference/connection to the buffer on the GPU side.
+		vkBindBufferMemory(_logicalDevice, stagingBuffer, memory, 0);
+
+		// Creates a reference/connection to the buffer on the CPU side.
+		void* pData;
+		vkMapMemory(_logicalDevice, memory, 0, singleImageArraySizeBytes, 0, &pData);
+		memcpy(pData, serializedFaceImages.data(), serializedFaceImages.size());
+
+		StartRecording(commandBuffer);
+
+		VkBufferImageCopy copyRegion = {};
+		copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		copyRegion.imageExtent = { (uint32_t)_faceSizePixels, (uint32_t)_faceSizePixels, 1 };
+		vkCmdCopyBufferToImage(commandBuffer,
+			stagingBuffer,
+			_cubeMapImage.image,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			1,
+			&copyRegion);
+
+		ChangeImageLayout(commandBuffer, _cubeMapImage.image, dstLayout, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+		// Stop recording copy commands and submit them for execution.
+		vkEndCommandBuffer(commandBuffer);
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &commandBuffer;
+		vkQueueSubmit(queue._handle, 1, &submitInfo, nullptr);
+		vkQueueWaitIdle(queue._handle);
+	}
+
+	void CubicalEnvironmentMap::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
+	{
+
+
 		// Now we need to create the image and image view that will be used in the shaders and stored in VRAM. The image will contain our image data as a single array.
-		_cubeMapImage = Vulkan::Image(logicalDevice,
+		/*_cubeMapImage = Vulkan::Image(logicalDevice,
 			physicalDevice,
 			VK_FORMAT_R8G8B8A8_SRGB,
 			VkExtent3D{ (uint32_t)_faceSizePixels, (uint32_t)_faceSizePixels, 1 },
-			singleImageArraySizeBytes,
-			serializedFaceImages.data(),
+			0,
+			nullptr,
 			(VkImageUsageFlagBits)(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT),
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			6,
 			10,
 			VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
-			VK_IMAGE_VIEW_TYPE_CUBE);
+			VK_IMAGE_VIEW_TYPE_CUBE);*/
+
+			// Create the cubemap image.
+		{
+			auto& imageCreateInfo = _cubeMapImage.imageCreateInfo;
+			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+			imageCreateInfo.arrayLayers = 6;
+			imageCreateInfo.extent = { (uint32_t)_faceSizePixels, (uint32_t)_faceSizePixels, 1 };
+			imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+			imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			imageCreateInfo.mipLevels = 10;
+			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+			imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+			vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_cubeMapImage.image);
+
+			// Allocate memory on the GPU for the image.
+			VkMemoryRequirements reqs;
+			vkGetImageMemoryRequirements(logicalDevice, _cubeMapImage.image, &reqs);
+			VkMemoryAllocateInfo allocInfo{};
+			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+			allocInfo.allocationSize = reqs.size;
+			allocInfo.memoryTypeIndex = _physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			VkDeviceMemory mem;
+			vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &mem);
+			vkBindImageMemory(logicalDevice, _cubeMapImage.image, mem, 0);
+
+			auto& imageViewCreateInfo = _cubeMapImage.imageViewCreateInfo;
+			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			imageViewCreateInfo.components = { {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY} };
+			imageViewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+			imageViewCreateInfo.image = _cubeMapImage.image;
+			imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+			imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+			imageViewCreateInfo.subresourceRange.layerCount = 6;
+			imageViewCreateInfo.subresourceRange.levelCount = 10;
+			vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_cubeMapImage.imageView);
+
+			auto& samplerCreateInfo = _cubeMapImage.samplerCreateInfo;
+			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.anisotropyEnable = false;
+			samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+			samplerCreateInfo.flags = 0;
+			samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+			samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+			samplerCreateInfo.maxLod = 10;
+			samplerCreateInfo.minLod = 0;
+			samplerCreateInfo.mipLodBias = 0.0f;
+			samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+			vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_cubeMapImage.sampler);
+
+
+		}
 
 		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
 
