@@ -112,7 +112,7 @@ namespace Engine::Scenes
 		 */
 		void LoadFromSphericalHDRI(std::filesystem::path imageFilePath);
 
-		void CopyFacesToImage(VkCommandBuffer commandBuffer, Vulkan::Queue& queue);
+		void CopyFacesToImage(VkCommandPool commandPool, VkCommandBuffer commandBuffer, Vulkan::Queue& queue);
 
 		/**
 		 * @brief Writes each cube map face's image to 6 separate files.

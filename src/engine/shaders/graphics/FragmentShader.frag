@@ -93,9 +93,9 @@ void main()
         float roughness = (roughnessMapColor.x + roughnessMapColor.y + roughnessMapColor.z) / 3.0f;
         float metalness = (metalnessMapColor.x + metalnessMapColor.y + metalnessMapColor.z) / 3.0f;
 
-        vec4 environmentMapColor = textureLod(environmentMap, reflected.xyz, 3.0f);
-//        outColor = normalize(environmentMapColor + albedoMapColor);
-        outColor = environmentMapColor;
+        vec4 environmentMapColor = textureLod(environmentMap, reflected.xyz, 0.5f);
+        outColor = normalize(environmentMapColor + albedoMapColor);
+//        outColor = albedoMapColor;
 	}
 	else {
 		outColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);
