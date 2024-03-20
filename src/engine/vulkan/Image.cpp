@@ -1,15 +1,5 @@
-// STL.
-#include <iostream>
-#include <string>
-#include <vector>
-#include <optional>
-
-#include <vulkan/vulkan.h>
-
-#include "engine/vulkan/PhysicalDevice.hpp"
-#include "engine/vulkan/Queue.hpp"
-#include "engine/vulkan/Buffer.hpp"
-#include "engine/vulkan/Image.hpp"
+#define GLFW_INCLUDE_VULKAN
+#include "Includes.hpp"
 
 namespace Engine::Vulkan
 {
@@ -296,7 +286,6 @@ namespace Engine::Vulkan
         samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
         samplerCreateInfo.anisotropyEnable = anisotropyLevel > 0.0f ? VK_TRUE : VK_FALSE;
         samplerCreateInfo.maxAnisotropy = anisotropyLevel;
-        VkSampler sampler;
         vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_sampler);
 
         return VkDescriptorImageInfo{ _sampler, _viewHandle, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };

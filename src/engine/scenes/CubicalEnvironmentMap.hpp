@@ -125,7 +125,7 @@ namespace Engine::Scenes
 		 * @brief Serializes the data of all the faces' images and returns a vector that contains all images, in this specific order:
 		 * right, left, upper, lower, front, back.
 		 */
-		std::vector<unsigned char> Serialize();
+		//std::vector<unsigned char> Serialize();
 
 		/**
 		 * @brief See IPipelineable.
@@ -152,12 +152,12 @@ namespace Engine::Scenes
 		/**
 		 * @brief Returns the size of a face in bytes.
 		 */
-		int GetFaceSizeBytes(std::vector<std::vector<unsigned char>> face);
+		//int GetFaceSizeBytes(std::vector<std::vector<unsigned char>> face);
 
 		/**
 		 * @brief Serializes a face into a single unsigned char array.
 		 */
-		std::vector<unsigned char> SerializeFace(std::vector<std::vector<unsigned char>> face);
+		//std::vector<unsigned char> SerializeFace(std::vector<std::vector<unsigned char>> face);
 
 		/**
 		 * @brief Internal method for code-shortening.

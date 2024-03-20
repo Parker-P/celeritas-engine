@@ -43,6 +43,7 @@
     <ClCompile Include="src\engine\math\Transform.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\Includes.hpp" />
     <ClInclude Include="include\json\json.h" />
     <ClInclude Include="include\nlohmann\adl_serializer.hpp" />
     <ClInclude Include="include\nlohmann\byte_container_with_subtype.hpp" />

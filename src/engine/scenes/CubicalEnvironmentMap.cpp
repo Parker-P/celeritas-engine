@@ -1,32 +1,10 @@
-#include <iostream>
-#include <unordered_map>
-#include <vector>
-#include <string>
-#include <GLFW/glfw3.h>
-#include <filesystem>
-#include <glm/gtc/matrix_transform.hpp>
+#define GLFW_INCLUDE_VULKAN
+
+// Image management.
 #include <stb/stb_image.h>
-#include <vulkan/vulkan.h>
 #include <stb/stb_image_write.h>
 
-#include "utils/Utils.hpp"
-#include "settings/Paths.hpp"
-#include "engine/vulkan/Queue.hpp"
-#include "engine/vulkan/PhysicalDevice.hpp"
-#include "engine/vulkan/Image.hpp"
-#include "engine/vulkan/Buffer.hpp"
-#include "structural/IUpdatable.hpp"
-#include "structural/Singleton.hpp"
-#include "engine/Time.hpp"
-#include "settings/GlobalSettings.hpp"
-#include "engine/math/Transform.hpp"
-#include "engine/vulkan/PhysicalDevice.hpp"
-#include "engine/scenes/Material.hpp"
-#include "engine/vulkan/ShaderResources.hpp"
-#include "engine/scenes/Vertex.hpp"
-#include "engine/structural/IPipelineable.hpp"
-#include "utils/BoxBlur.hpp"
-#include "engine/scenes/CubicalEnvironmentMap.hpp"
+#include "Includes.hpp"
 
 namespace Engine::Scenes
 {
@@ -676,7 +654,7 @@ namespace Engine::Scenes
 		samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 		samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 		samplerCreateInfo.anisotropyEnable = false;
-		samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+		samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
 		samplerCreateInfo.flags = 0;
 		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
@@ -690,16 +668,16 @@ namespace Engine::Scenes
 		CopyFacesToImage(commandPool, commandBuffer, graphicsQueue);
 	}
 
-	int Engine::Scenes::CubicalEnvironmentMap::GetFaceSizeBytes(std::vector<std::vector<unsigned char>> face)
+	/*int Engine::Scenes::CubicalEnvironmentMap::GetFaceSizeBytes(std::vector<std::vector<unsigned char>> face)
 	{
 		int sizeBytes = 0;
 		for (int mipmapIndex = 0; mipmapIndex < face.size(); ++mipmapIndex) {
 			sizeBytes += face[mipmapIndex].size();
 		}
 		return sizeBytes;
-	}
+	}*/
 
-	std::vector<unsigned char> CubicalEnvironmentMap::SerializeFace(std::vector<std::vector<unsigned char>> face)
+	/*std::vector<unsigned char> CubicalEnvironmentMap::SerializeFace(std::vector<std::vector<unsigned char>> face)
 	{
 		int sizeBytes = GetFaceSizeBytes(face);
 		std::vector<unsigned char> serializedImage(sizeBytes);
@@ -711,45 +689,45 @@ namespace Engine::Scenes
 		}
 
 		return serializedImage;
-	}
+	}*/
 
-	std::vector<unsigned char> CubicalEnvironmentMap::Serialize()
-	{
-		// According to the Vulkan documentation, the faces should be serialized in the following order: +X, -X, +Y, -Y, +Z, -Z.
-		// This corresponds to _right, _left, _upper, _lower, _front, _back for our cube map structure that we have in place.
-		std::vector<unsigned char> serialized;
+	//std::vector<unsigned char> CubicalEnvironmentMap::Serialize()
+	//{
+	//	// According to the Vulkan documentation, the faces should be serialized in the following order: +X, -X, +Y, -Y, +Z, -Z.
+	//	// This corresponds to _right, _left, _upper, _lower, _front, _back for our cube map structure that we have in place.
+	//	std::vector<unsigned char> serialized;
 
-		auto serializedRight = SerializeFace(_right);
-		auto serializedLeft = SerializeFace(_left);
-		auto serializedUpper = SerializeFace(_upper);
-		auto serializedLower = SerializeFace(_lower);
-		auto serializedFront = SerializeFace(_front);
-		auto serializedBack = SerializeFace(_back);
-		auto faceSizeBytes = serializedRight.size();
+	//	auto serializedRight = SerializeFace(_right);
+	//	auto serializedLeft = SerializeFace(_left);
+	//	auto serializedUpper = SerializeFace(_upper);
+	//	auto serializedLower = SerializeFace(_lower);
+	//	auto serializedFront = SerializeFace(_front);
+	//	auto serializedBack = SerializeFace(_back);
+	//	auto faceSizeBytes = serializedRight.size();
 
-		// Calculate the total size and allocate memory first.
-		auto totalSizeBytes = faceSizeBytes * 6;
+	//	// Calculate the total size and allocate memory first.
+	//	auto totalSizeBytes = faceSizeBytes * 6;
 
-		serialized.resize(totalSizeBytes); // Type is unsigned char so the slot count in the vector is the same as the byte count.
-		memcpy(serialized.data(), serializedRight.data(), faceSizeBytes);
+	//	serialized.resize(totalSizeBytes); // Type is unsigned char so the slot count in the vector is the same as the byte count.
+	//	memcpy(serialized.data(), serializedRight.data(), faceSizeBytes);
 
-		auto offsetBytes = serializedRight.size();
-		memcpy(serialized.data() + offsetBytes, serializedLeft.data(), faceSizeBytes);
+	//	auto offsetBytes = serializedRight.size();
+	//	memcpy(serialized.data() + offsetBytes, serializedLeft.data(), faceSizeBytes);
 
-		offsetBytes += faceSizeBytes;
-		memcpy(serialized.data() + offsetBytes, serializedUpper.data(), faceSizeBytes);
+	//	offsetBytes += faceSizeBytes;
+	//	memcpy(serialized.data() + offsetBytes, serializedUpper.data(), faceSizeBytes);
 
-		offsetBytes += faceSizeBytes;
-		memcpy(serialized.data() + offsetBytes, serializedLower.data(), faceSizeBytes);
+	//	offsetBytes += faceSizeBytes;
+	//	memcpy(serialized.data() + offsetBytes, serializedLower.data(), faceSizeBytes);
 
-		offsetBytes += faceSizeBytes;
-		memcpy(serialized.data() + offsetBytes, serializedFront.data(), faceSizeBytes);
+	//	offsetBytes += faceSizeBytes;
+	//	memcpy(serialized.data() + offsetBytes, serializedFront.data(), faceSizeBytes);
 
-		offsetBytes += faceSizeBytes;
-		memcpy(serialized.data() + offsetBytes, serializedBack.data(), faceSizeBytes);
+	//	offsetBytes += faceSizeBytes;
+	//	memcpy(serialized.data() + offsetBytes, serializedBack.data(), faceSizeBytes);
 
-		return serialized;
-	}
+	//	return serialized;
+	//}
 
 	void CubicalEnvironmentMap::UpdateShaderResources()
 	{

@@ -1,12 +1,5 @@
-#include <iostream>
-#include <string>
-#include <GLFW/glfw3.h>
-#include <vector>
-#include <map>
-
-#include "structural/IUpdatable.hpp"
-#include "structural/Singleton.hpp"
-#include "engine/input/Input.hpp"
+#define GLFW_INCLUDE_VULKAN
+#include "Includes.hpp"
 
 namespace Engine::Input
 {

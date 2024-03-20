@@ -1,10 +1,5 @@
-#include <functional>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
-
-
-#include "engine/math/Transform.hpp"
-#include <iostream>
+#define GLFW_INCLUDE_VULKAN
+#include "Includes.hpp"
 
 namespace Engine::Math
 {

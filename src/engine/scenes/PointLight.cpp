@@ -1,30 +1,5 @@
-#include <string>
-#include <iostream>
-#include <filesystem>
-#include <optional>
-#include <vector>
-#include <map>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <vulkan/vulkan.h>
-
-#include <GLFW/glfw3.h>
-#include "structural/IUpdatable.hpp"
-#include "engine/math/Transform.hpp"
-#include "engine/vulkan/PhysicalDevice.hpp"
-#include "engine/vulkan/Queue.hpp"
-#include "engine/vulkan/Buffer.hpp"
-#include "engine/vulkan/Image.hpp"
-#include "engine/scenes/Material.hpp"
-#include "engine/vulkan/ShaderResources.hpp"
-#include "engine/structural/IPipelineable.hpp"
-#include "engine/scenes/PointLight.hpp"
-#include "utils/BoxBlur.hpp"
-#include "engine/scenes/CubicalEnvironmentMap.hpp"
-#include "engine/scenes/Scene.hpp"
-#include "engine/scenes/GameObject.hpp"
-#include "structural/Singleton.hpp"
-#include "engine/input/Input.hpp"
+#define GLFW_INCLUDE_VULKAN
+#include "Includes.hpp"
 
 namespace Engine::Scenes
 {
