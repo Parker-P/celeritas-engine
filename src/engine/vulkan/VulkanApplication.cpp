@@ -1182,6 +1182,41 @@ namespace Engine::Vulkan
 		}
 	}
 
+	void ChangeImageLayout(VkCommandBuffer commandBuffer,
+		VkImage image,
+		VkImageLayout currentLayout,
+		VkImageLayout desiredLayout,
+		VkAccessFlagBits srcAccessMask,
+		VkAccessFlagBits dstAccessMask,
+		VkPipelineStageFlagBits srcStageMask,
+		VkPipelineStageFlagBits dstStageMask)
+	{
+		VkImageMemoryBarrier barrier{};
+		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		barrier.srcAccessMask = srcAccessMask;
+		barrier.dstAccessMask = dstAccessMask;
+		barrier.oldLayout = currentLayout;
+		barrier.newLayout = desiredLayout;
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.image = image;
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+		barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+
+		vkCmdPipelineBarrier(commandBuffer,
+			srcStageMask,
+			dstStageMask,
+			0,
+			0,
+			nullptr,
+			0,
+			nullptr,
+			1,
+			&barrier
+		);
+	}
+
 	void VulkanApplication::RecordDrawCommands()
 	{
 		// Prepare data for recording command buffers.

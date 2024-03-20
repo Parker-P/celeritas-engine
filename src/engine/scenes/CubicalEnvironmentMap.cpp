@@ -450,7 +450,7 @@ namespace Engine::Scenes
 		std::cout << "Environment map " << imageFilePath.string() << " loaded." << std::endl;
 	}
 
-	VkCommandBuffer CreateCommandBuffer(VkDevice logicalDevice, VkCommandPool commandPool) 
+	VkCommandBuffer CreateCommandBuffer(VkDevice logicalDevice, VkCommandPool commandPool)
 	{
 		VkCommandBufferAllocateInfo cmdBufInfo = {};
 		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -466,7 +466,7 @@ namespace Engine::Scenes
 		return commandBuffer;
 	}
 
-	void StartRecording(VkCommandBuffer commandBuffer) 
+	void StartRecording(VkCommandBuffer commandBuffer)
 	{
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -477,13 +477,13 @@ namespace Engine::Scenes
 
 	void StopRecording(VkCommandBuffer commandBuffer) { vkEndCommandBuffer(commandBuffer); }
 
-	void ChangeImageLayout(VkCommandBuffer commandBuffer, 
-		VkImage image, 
-		VkImageLayout currentLayout, 
-		VkImageLayout desiredLayout, 
-		VkAccessFlagBits srcAccessMask, 
-		VkAccessFlagBits dstAccessMask, 
-		VkPipelineStageFlagBits srcStageMask, 
+	void ChangeImageLayout(VkCommandBuffer commandBuffer,
+		VkImage image,
+		VkImageLayout currentLayout,
+		VkImageLayout desiredLayout,
+		VkAccessFlagBits srcAccessMask,
+		VkAccessFlagBits dstAccessMask,
+		VkPipelineStageFlagBits srcStageMask,
 		VkPipelineStageFlagBits dstStageMask)
 	{
 		VkImageMemoryBarrier barrier{};
@@ -512,11 +512,17 @@ namespace Engine::Scenes
 		);
 	}
 
-	void CubicalEnvironmentMap::CopyFacesToImage(VkCommandBuffer commandBuffer)
+	void CubicalEnvironmentMap::CopyFacesToImage(VkCommandBuffer commandBuffer, Vulkan::Queue& queue)
 	{
 		auto faces = { _right, _left, _upper, _lower, _front, _back };
 		uint32_t resolution = _faceSizePixels;
 		uint32_t faceIndex = 0;
+
+		StartRecording(commandBuffer);
+		auto noLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		auto srcLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		auto dstLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		ChangeImageLayout(commandBuffer, _cubeMapImage._imageHandle, noLayout, dstLayout, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
 		for (auto& face : faces) {
 			resolution = _faceSizePixels;
@@ -528,7 +534,7 @@ namespace Engine::Scenes
 					{ resolution, resolution, 1 },
 					resolution * resolution * 4,
 					(void*)face[mipmapIndex].data(),
-					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_TRANSFER_SRC_BIT),
+					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT),
 					VK_IMAGE_ASPECT_COLOR_BIT,
 					(VkMemoryPropertyFlagBits)VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 					1,
@@ -551,21 +557,24 @@ namespace Engine::Scenes
 				copyRegion.dstSubresource.layerCount = 1;
 				copyRegion.dstSubresource.mipLevel = mipmapIndex;
 
-				StartRecording(commandBuffer);
-				auto noLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-				auto srcLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-				auto dstLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 				ChangeImageLayout(commandBuffer, image._imageHandle, noLayout, srcLayout, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-				ChangeImageLayout(commandBuffer, _cubeMapImage._imageHandle, noLayout, dstLayout, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 				vkCmdCopyImage(commandBuffer, image._imageHandle, srcLayout, _cubeMapImage._imageHandle, dstLayout, 1, &copyRegion);
-				StopRecording(commandBuffer);
 			}
 		}
 		++faceIndex;
 
-		StartRecording(commandBuffer);
-		ChangeImageLayout(commandBuffer, _cubeMapImage._imageHandle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+		ChangeImageLayout(commandBuffer, _cubeMapImage._imageHandle, dstLayout, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 		StopRecording(commandBuffer);
+
+		// Submit command buffer to the queue
+		VkSubmitInfo submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &commandBuffer;
+		vkQueueSubmit(queue._handle, 1, &submitInfo, VK_NULL_HANDLE);
+		if (vkQueueWaitIdle(queue._handle) != VK_SUCCESS) {
+			std::cout << "error copying environment map face images to cube map image\n";
+		}
 	}
 
 	void CubicalEnvironmentMap::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
@@ -591,7 +600,7 @@ namespace Engine::Scenes
 
 		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
 
-		CopyFacesToImage(commandBuffer);
+		CopyFacesToImage(commandBuffer, graphicsQueue);
 
 		// Setup buffer copy regions for each face. A copy region is just a structure to tell Vulkan how to direct the (face image in this case) data
 		// to the right place when copying it from a buffer to an image or vice-versa.
