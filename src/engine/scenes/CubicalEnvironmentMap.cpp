@@ -522,7 +522,9 @@ namespace Engine::Scenes
 		auto noLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		auto srcLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 		auto dstLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		ChangeImageLayout(commandBuffer, _cubeMapImage._imageHandle, noLayout, dstLayout, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+		auto srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		auto dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		ChangeImageLayout(commandBuffer, _cubeMapImage._imageHandle, noLayout, dstLayout, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT, srcStage, dstStage);
 
 		for (auto& face : faces) {
 			resolution = _faceSizePixels;
@@ -557,13 +559,15 @@ namespace Engine::Scenes
 				copyRegion.dstSubresource.layerCount = 1;
 				copyRegion.dstSubresource.mipLevel = mipmapIndex;
 
-				ChangeImageLayout(commandBuffer, image._imageHandle, noLayout, srcLayout, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+				ChangeImageLayout(commandBuffer, image._imageHandle, noLayout, srcLayout, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_READ_BIT, srcStage, dstStage);
 				vkCmdCopyImage(commandBuffer, image._imageHandle, srcLayout, _cubeMapImage._imageHandle, dstLayout, 1, &copyRegion);
 			}
-		}
-		++faceIndex;
 
-		ChangeImageLayout(commandBuffer, _cubeMapImage._imageHandle, dstLayout, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+			++faceIndex;
+		}
+		
+
+		ChangeImageLayout(commandBuffer, _cubeMapImage._imageHandle, dstLayout, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 		StopRecording(commandBuffer);
 
 		// Submit command buffer to the queue
