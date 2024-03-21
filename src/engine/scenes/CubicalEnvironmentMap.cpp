@@ -455,6 +455,38 @@ namespace Engine::Scenes
 
 	void StopRecording(VkCommandBuffer commandBuffer) { vkEndCommandBuffer(commandBuffer); }
 
+	/**
+	 * @brief Stops the current thread and waits for commands to finish executing on the GPU.
+	 * @param commandBuffer A command buffer with recorded commands.
+	 * @param queue A queue that is compatible with all commands recorded in the command buffer to execute.
+	 */
+	void ExecuteCommands(VkCommandBuffer commandBuffer, Vulkan::Queue queue)
+	{
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &commandBuffer;
+		vkQueueSubmit(queue._handle, 1, &submitInfo, nullptr);
+		vkQueueWaitIdle(queue._handle);
+	}
+
+	/**
+	 * @brief Changes the layout of an image.
+	 *
+	 * This function changes the layout of the specified image from its current layout to the desired layout.
+	 * It creates an image memory barrier in the specified command buffer to synchronize memory accesses
+	 * and layout transitions.
+	 *
+	 * @param commandBuffer The command buffer where the image memory barrier will be recorded.
+	 * @param image The image whose layout is to be changed.
+	 * @param currentLayout The current layout of the image.
+	 * @param desiredLayout The desired layout for the image.
+	 * @param srcAccessMask Specifies the types of memory accesses that need to be available in the source access scope before the barrier.
+	 * @param dstAccessMask Specifies the types of memory accesses that need to be available in the destination access scope after the barrier.
+	 * @param srcStageMask Specifies the pipeline stages at which memory accesses occur in the source access scope before the barrier.
+	 * @param dstStageMask Specifies the pipeline stages at which memory accesses will occur in the destination access scope after the barrier.
+	 * @param subresourceRange Optional subresource range within the image to apply the barrier. If not specified, the barrier is applied to the entire image.
+	 */
 	void ChangeImageLayout(VkCommandBuffer commandBuffer,
 		VkImage image,
 		VkImageLayout currentLayout,
@@ -462,7 +494,8 @@ namespace Engine::Scenes
 		VkAccessFlagBits srcAccessMask,
 		VkAccessFlagBits dstAccessMask,
 		VkPipelineStageFlagBits srcStageMask,
-		VkPipelineStageFlagBits dstStageMask)
+		VkPipelineStageFlagBits dstStageMask,
+		VkImageSubresourceRange subresourceRange = {})
 	{
 		VkImageMemoryBarrier barrier{};
 		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -470,27 +503,12 @@ namespace Engine::Scenes
 		barrier.dstAccessMask = dstAccessMask;
 		barrier.oldLayout = currentLayout;
 		barrier.newLayout = desiredLayout;
-		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		barrier.image = image;
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		barrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
-		barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
-
-		vkCmdPipelineBarrier(commandBuffer,
-			srcStageMask,
-			dstStageMask,
-			0,
-			0,
-			nullptr,
-			0,
-			nullptr,
-			1,
-			&barrier
-		);
+		barrier.subresourceRange = subresourceRange;
+		vkCmdPipelineBarrier(commandBuffer, srcStageMask, dstStageMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 	}
 
-	void CubicalEnvironmentMap::CopyFacesToImage(VkCommandPool commandPool, VkCommandBuffer commandBuffer, Vulkan::Queue& queue)
+	void CubicalEnvironmentMap::CopyFacesToImage(VkDevice logicalDevice, Vulkan::PhysicalDevice& physicalDevice, VkCommandPool commandPool, VkCommandBuffer commandBuffer, Vulkan::Queue& queue)
 	{
 		auto faces = { _right, _left, _upper, _lower, _front, _back };
 		uint32_t resolution = _faceSizePixels;
@@ -498,31 +516,85 @@ namespace Engine::Scenes
 
 		StartRecording(commandBuffer);
 		auto noLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		auto srcLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		auto dstLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		auto srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		auto dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-		ChangeImageLayout(commandBuffer, _cubeMapImage.image, noLayout, dstLayout, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT, srcStage, dstStage);
+		auto transferSrcLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		auto transferDstLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		auto firstStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		auto transferStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		ChangeImageLayout(commandBuffer, _cubeMapImage.image, noLayout, transferDstLayout, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT, firstStage, transferStage);
 
 		for (auto& face : faces) {
 			resolution = _faceSizePixels;
 
 			for (int mipmapIndex = 0; mipmapIndex < face.size(); ++mipmapIndex, resolution /= 2) {
-				auto image = Vulkan::Image(_logicalDevice,
-					_physicalDevice,
-					VK_FORMAT_R8G8B8A8_SRGB,
-					{ resolution, resolution, 1 },
-					resolution * resolution * 4,
-					(void*)face[mipmapIndex].data(),
-					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
-					VK_IMAGE_ASPECT_COLOR_BIT,
-					(VkMemoryPropertyFlagBits)VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-					1,
-					1,
-					(VkImageCreateFlagBits)0,
-					VK_IMAGE_VIEW_TYPE_2D);
 
-				image.SendToGPU(commandPool, queue);
+				// Create the image.
+				Image image{};
+				image.createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+				image.createInfo.imageType = VK_IMAGE_TYPE_2D;
+				image.createInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+				image.createInfo.extent = { resolution, resolution, 1 };
+				image.createInfo.mipLevels = 1;
+				image.createInfo.arrayLayers = 1;
+				image.createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+				image.createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+				image.createInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+				vkCreateImage(logicalDevice, &image.createInfo, nullptr, &image.image);
+
+				// Allocate memory for it.
+				VkMemoryRequirements reqs;
+				VkDeviceMemory mem;
+				vkGetImageMemoryRequirements(logicalDevice, image.image, &reqs);
+				VkMemoryAllocateInfo allocInfo{};
+				allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+				allocInfo.allocationSize = reqs.size;
+				allocInfo.memoryTypeIndex = physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+				vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &mem);
+				vkBindImageMemory(logicalDevice, image.image, mem, 0);
+
+				// Create the image view.
+				image.viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+				image.viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+				image.viewCreateInfo.image = image.image;
+				image.viewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+				image.viewCreateInfo.subresourceRange.baseMipLevel = 0;
+				image.viewCreateInfo.subresourceRange.levelCount = 1;
+				image.viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+				image.viewCreateInfo.subresourceRange.layerCount = 1;
+				image.viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				vkCreateImageView(logicalDevice, &image.viewCreateInfo, nullptr, &image.view);
+
+				// Send the image to the GPU.
+				// Allocate a temporary buffer for holding image data to upload to VRAM.
+				Vulkan::Buffer stagingBuffer = Vulkan::Buffer(logicalDevice,
+					physicalDevice,
+					VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+					VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+					(void*)face[mipmapIndex].data(),
+					face[mipmapIndex].size());
+
+				ChangeImageLayout(commandBuffer,
+					image.image,
+					VK_IMAGE_LAYOUT_UNDEFINED,
+					VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+					VK_ACCESS_NONE,
+					VK_ACCESS_TRANSFER_WRITE_BIT,
+					firstStage,
+					transferStage);
+
+				// Copy the temporary buffer into the image using copy regions. A copy region is just a structure to tell Vulkan 
+				// how to direct the data to the right place when copying it from a buffer to the image or vice-versa.
+				{
+					VkBufferImageCopy copyRegion = {};
+					copyRegion.bufferOffset = 0;
+					copyRegion.bufferRowLength = 0;
+					copyRegion.bufferImageHeight = 0;
+					copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+					copyRegion.imageSubresource.mipLevel = 0;
+					copyRegion.imageSubresource.baseArrayLayer = 0;
+					copyRegion.imageSubresource.layerCount = 1;
+					copyRegion.imageExtent = { resolution, resolution, 1 };
+					vkCmdCopyBufferToImage(commandBuffer, stagingBuffer._handle, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+				}
 
 				VkImageCopy copyRegion{};
 				copyRegion.srcOffset = { 0,0,0 };
@@ -539,25 +611,23 @@ namespace Engine::Scenes
 				copyRegion.dstSubresource.layerCount = 1;
 				copyRegion.dstSubresource.mipLevel = mipmapIndex;
 
-				ChangeImageLayout(commandBuffer, image._imageHandle, noLayout, srcLayout, VK_ACCESS_NONE, VK_ACCESS_TRANSFER_READ_BIT, srcStage, dstStage);
-				vkCmdCopyImage(commandBuffer, image._imageHandle, srcLayout, _cubeMapImage.image, dstLayout, 1, &copyRegion);
+				ChangeImageLayout(commandBuffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, transferStage, transferStage);
+				vkCmdCopyImage(commandBuffer, image.image, transferSrcLayout, _cubeMapImage.image, transferDstLayout, 1, &copyRegion);
 			}
 
 			++faceIndex;
 		}
 
-		ChangeImageLayout(commandBuffer, _cubeMapImage.image, dstLayout, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+		ChangeImageLayout(commandBuffer, 
+			_cubeMapImage.image, 
+			transferDstLayout, 
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+			VK_ACCESS_TRANSFER_WRITE_BIT, 
+			VK_ACCESS_SHADER_READ_BIT, 
+			VK_PIPELINE_STAGE_TRANSFER_BIT, 
+			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 		StopRecording(commandBuffer);
-
-		// Submit command buffer to the queue
-		VkSubmitInfo submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandBuffer;
-		vkQueueSubmit(queue._handle, 1, &submitInfo, VK_NULL_HANDLE);
-		if (vkQueueWaitIdle(queue._handle) != VK_SUCCESS) {
-			std::cout << "error copying environment map face images to cube map image\n";
-		}
+		ExecuteCommands(commandBuffer, queue);
 
 		// Get the data of the cube map's images as one serialized data array.
 		//auto serializedFaceImages = Serialize();
@@ -610,7 +680,7 @@ namespace Engine::Scenes
 	void CubicalEnvironmentMap::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
 		// Create the cubemap image.
-		auto& imageCreateInfo = _cubeMapImage.imageCreateInfo;
+		auto& imageCreateInfo = _cubeMapImage.createInfo;
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageCreateInfo.arrayLayers = 6;
 		imageCreateInfo.extent = { (uint32_t)_faceSizePixels, (uint32_t)_faceSizePixels, 1 };
@@ -635,7 +705,7 @@ namespace Engine::Scenes
 		vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &mem);
 		vkBindImageMemory(logicalDevice, _cubeMapImage.image, mem, 0);
 
-		auto& imageViewCreateInfo = _cubeMapImage.imageViewCreateInfo;
+		auto& imageViewCreateInfo = _cubeMapImage.viewCreateInfo;
 		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		imageViewCreateInfo.components = { {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY} };
 		imageViewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
@@ -646,7 +716,7 @@ namespace Engine::Scenes
 		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
 		imageViewCreateInfo.subresourceRange.layerCount = 6;
 		imageViewCreateInfo.subresourceRange.levelCount = 10;
-		vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_cubeMapImage.imageView);
+		vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_cubeMapImage.view);
 
 		auto& samplerCreateInfo = _cubeMapImage.samplerCreateInfo;
 		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -665,69 +735,8 @@ namespace Engine::Scenes
 		vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_cubeMapImage.sampler);
 
 		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
-		CopyFacesToImage(commandPool, commandBuffer, graphicsQueue);
+		CopyFacesToImage(logicalDevice, physicalDevice, commandPool, commandBuffer, graphicsQueue);
 	}
-
-	/*int Engine::Scenes::CubicalEnvironmentMap::GetFaceSizeBytes(std::vector<std::vector<unsigned char>> face)
-	{
-		int sizeBytes = 0;
-		for (int mipmapIndex = 0; mipmapIndex < face.size(); ++mipmapIndex) {
-			sizeBytes += face[mipmapIndex].size();
-		}
-		return sizeBytes;
-	}*/
-
-	/*std::vector<unsigned char> CubicalEnvironmentMap::SerializeFace(std::vector<std::vector<unsigned char>> face)
-	{
-		int sizeBytes = GetFaceSizeBytes(face);
-		std::vector<unsigned char> serializedImage(sizeBytes);
-		auto offsetBytes = 0;
-		for (int mipmapIndex = 0; mipmapIndex < face.size(); ++mipmapIndex) {
-			auto imageSize = face[mipmapIndex].size();
-			memcpy(serializedImage.data() + offsetBytes, face[mipmapIndex].data(), imageSize);
-			offsetBytes = mipmapIndex * imageSize;
-		}
-
-		return serializedImage;
-	}*/
-
-	//std::vector<unsigned char> CubicalEnvironmentMap::Serialize()
-	//{
-	//	// According to the Vulkan documentation, the faces should be serialized in the following order: +X, -X, +Y, -Y, +Z, -Z.
-	//	// This corresponds to _right, _left, _upper, _lower, _front, _back for our cube map structure that we have in place.
-	//	std::vector<unsigned char> serialized;
-
-	//	auto serializedRight = SerializeFace(_right);
-	//	auto serializedLeft = SerializeFace(_left);
-	//	auto serializedUpper = SerializeFace(_upper);
-	//	auto serializedLower = SerializeFace(_lower);
-	//	auto serializedFront = SerializeFace(_front);
-	//	auto serializedBack = SerializeFace(_back);
-	//	auto faceSizeBytes = serializedRight.size();
-
-	//	// Calculate the total size and allocate memory first.
-	//	auto totalSizeBytes = faceSizeBytes * 6;
-
-	//	serialized.resize(totalSizeBytes); // Type is unsigned char so the slot count in the vector is the same as the byte count.
-	//	memcpy(serialized.data(), serializedRight.data(), faceSizeBytes);
-
-	//	auto offsetBytes = serializedRight.size();
-	//	memcpy(serialized.data() + offsetBytes, serializedLeft.data(), faceSizeBytes);
-
-	//	offsetBytes += faceSizeBytes;
-	//	memcpy(serialized.data() + offsetBytes, serializedUpper.data(), faceSizeBytes);
-
-	//	offsetBytes += faceSizeBytes;
-	//	memcpy(serialized.data() + offsetBytes, serializedLower.data(), faceSizeBytes);
-
-	//	offsetBytes += faceSizeBytes;
-	//	memcpy(serialized.data() + offsetBytes, serializedFront.data(), faceSizeBytes);
-
-	//	offsetBytes += faceSizeBytes;
-	//	memcpy(serialized.data() + offsetBytes, serializedBack.data(), faceSizeBytes);
-
-	//	return serialized;
-	//}
 
 	void CubicalEnvironmentMap::UpdateShaderResources()
 	{

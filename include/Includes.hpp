@@ -1,5 +1,3 @@
-#include <windows.h>
-
 // STL.
 #include <iostream>
 #include <fstream>

@@ -3,25 +3,6 @@
 
 namespace Engine::Vulkan
 {
-    size_t Image::GetPixelSizeBytes(const VkFormat& format)
-    {
-        if (format == VK_FORMAT_R8G8B8A8_SRGB ||
-            format == VK_FORMAT_D32_SFLOAT) {
-            return 4;
-        }
-
-        if (format == VK_FORMAT_R8G8B8_SRGB ||
-            format == VK_FORMAT_R8G8B8_UINT) {
-            return 3;
-        }
-
-        if (format == VK_FORMAT_R32G32B32_SFLOAT) {
-            return 12;
-        }
-
-        return 0;
-    }
-
     Image Image::SolidColor(VkDevice& logicalDevice, 
         PhysicalDevice& physicalDevice, 
         const unsigned char& red, 
@@ -78,12 +59,11 @@ namespace Engine::Vulkan
         // The other tiling we can care about is VK_IMAGE_TILING_LINEAR, which will store the image as a 2d 
         // array of pixels. While LINEAR tiling will be a lot slower, it will allow the CPU to safely write 
         // and read from that memory.
-        auto imageSize = VkExtent3D{ sizePixels.width, sizePixels.height, 1 };
         VkImageCreateInfo imageCreateInfo = { };
         imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
         imageCreateInfo.format = imageFormat;
-        imageCreateInfo.extent = imageSize;
+        imageCreateInfo.extent = { sizePixels.width, sizePixels.height, 1 };
         imageCreateInfo.mipLevels = mipmapCount;
         imageCreateInfo.arrayLayers = arrayLayerCount;
         imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;

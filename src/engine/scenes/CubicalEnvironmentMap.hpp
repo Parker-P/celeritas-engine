@@ -17,12 +17,12 @@ namespace Engine::Scenes
 
 	struct Image
 	{
-		VkImageCreateInfo imageCreateInfo{};
-		VkImageViewCreateInfo imageViewCreateInfo{};
+		VkImageCreateInfo createInfo{};
+		VkImageViewCreateInfo viewCreateInfo{};
 		VkSamplerCreateInfo samplerCreateInfo{};
 
 		VkImage image{};
-		VkImageView imageView{};
+		VkImageView view{};
 		VkSampler sampler{};
 	};
 
@@ -68,28 +68,28 @@ namespace Engine::Scenes
 		/**
 		 * @brief Data loaded from the HDRi image file.
 		 */
-		unsigned char* _hdriImageData;
+		unsigned char* _hdriImageData = 0;
 
 		/**
 		 * @brief Width and height of the loaded HDRi image.
 		 */
-		VkExtent2D _hdriSizePixels;
+		VkExtent2D _hdriSizePixels{};
 
 		/**
 		 * @brief Width and height of each face's image.
 		 */
-		int _faceSizePixels;
+		int _faceSizePixels = 0;
 
 		/**
 		 * @brief Vulkan handle to the cube map image used in the shaders. This image is meant to contain all the cube map's images as a serialized array of pixels.
 		 * In order to know where, in the array of pixels, each image starts/ends and what format it's in, a sampler and image view are used.
 		 */
-		Image _cubeMapImage;
+		Image _cubeMapImage{};
 
 		/**
 		 * @brief Number of mipmaps. This is dynamically caluclated.
 		 */
-		int _mipmapCount;
+		int _mipmapCount = 0;
 
 		/**
 		 * @brief Default constructor.
@@ -112,7 +112,7 @@ namespace Engine::Scenes
 		 */
 		void LoadFromSphericalHDRI(std::filesystem::path imageFilePath);
 
-		void CopyFacesToImage(VkCommandPool commandPool, VkCommandBuffer commandBuffer, Vulkan::Queue& queue);
+		void CopyFacesToImage(VkDevice logicalDevice, Vulkan::PhysicalDevice& physicalDevice, VkCommandPool commandPool, VkCommandBuffer commandBuffer, Vulkan::Queue& queue);
 
 		/**
 		 * @brief Writes each cube map face's image to 6 separate files.
@@ -120,12 +120,6 @@ namespace Engine::Scenes
 		 * of the executable running the code.
 		 */
 		void WriteImagesToFiles(std::filesystem::path absoluteFolderPath);
-
-		/**
-		 * @brief Serializes the data of all the faces' images and returns a vector that contains all images, in this specific order:
-		 * right, left, upper, lower, front, back.
-		 */
-		//std::vector<unsigned char> Serialize();
 
 		/**
 		 * @brief See IPipelineable.
@@ -148,16 +142,6 @@ namespace Engine::Scenes
 		 * @brief Logical device.
 		 */
 		VkDevice _logicalDevice;
-
-		/**
-		 * @brief Returns the size of a face in bytes.
-		 */
-		//int GetFaceSizeBytes(std::vector<std::vector<unsigned char>> face);
-
-		/**
-		 * @brief Serializes a face into a single unsigned char array.
-		 */
-		//std::vector<unsigned char> SerializeFace(std::vector<std::vector<unsigned char>> face);
 
 		/**
 		 * @brief Internal method for code-shortening.

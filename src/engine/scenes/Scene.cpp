@@ -73,7 +73,7 @@ namespace Engine::Scenes
 			vkAllocateDescriptorSets(logicalDevice, &allocInfo, &outDescriptorSet);
 
 			// Update the descriptor set's data with the environment map's image.
-			VkDescriptorImageInfo imageInfo{ _environmentMap._cubeMapImage.sampler, _environmentMap._cubeMapImage.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+			VkDescriptorImageInfo imageInfo{ _environmentMap._cubeMapImage.sampler, _environmentMap._cubeMapImage.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
 			VkWriteDescriptorSet writeInfo = {};
 			writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writeInfo.dstSet = outDescriptorSet;
@@ -83,14 +83,6 @@ namespace Engine::Scenes
 			writeInfo.dstBinding = 0;
 			vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
 		}
-
-		/*auto environmentMapDescriptor = Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, _images[0], VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, 0.0f, 0.0f, 9.0f, VK_SAMPLER_MIPMAP_MODE_LINEAR);
-		_descriptors.push_back(environmentMapDescriptor);
-
-		auto set = Vulkan::DescriptorSet(logicalDevice, VK_SHADER_STAGE_FRAGMENT_BIT, _descriptors);
-		_sets.push_back(set);
-
-		_pool = Vulkan::DescriptorPool(logicalDevice, _sets);*/
 	}
 
 	void Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
