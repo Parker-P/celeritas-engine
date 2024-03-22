@@ -15,15 +15,31 @@ namespace Engine::Scenes
 		LOWER
 	};
 
-	struct Image
+	class Image
 	{
-		VkImageCreateInfo createInfo{};
-		VkImageViewCreateInfo viewCreateInfo{};
-		VkSamplerCreateInfo samplerCreateInfo{};
+	public:
+		VkImageCreateInfo _createInfo{};
+		VkImageViewCreateInfo _viewCreateInfo{};
+		VkSamplerCreateInfo _samplerCreateInfo{};
 
-		VkImage image{};
-		VkImageView view{};
-		VkSampler sampler{};
+		VkImage _image{};
+		VkImageView _view{};
+		VkSampler _sampler{};
+
+		VkImageLayout _currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	};
+
+	class Buffer
+	{
+	public:
+		VkBufferCreateInfo _createInfo{};
+		VkBufferViewCreateInfo _viewCreateInfo{};
+
+		VkBuffer _buffer{};
+		VkBufferView _view{};
+
+		VkDeviceMemory _gpuMemory = nullptr;
+		void* _cpuMemory = nullptr;
 	};
 
 	/**
@@ -136,12 +152,12 @@ namespace Engine::Scenes
 		/**
 		 * @brief Physical device.
 		 */
-		Vulkan::PhysicalDevice _physicalDevice;
+		Vulkan::PhysicalDevice _physicalDevice{};
 
 		/**
 		 * @brief Logical device.
 		 */
-		VkDevice _logicalDevice;
+		VkDevice _logicalDevice = nullptr;
 
 		/**
 		 * @brief Internal method for code-shortening.

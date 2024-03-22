@@ -57,7 +57,7 @@ namespace Engine::Scenes
 			createInfo.pPoolSizes = poolSizes;
 			vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
 
-			VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_environmentMap._cubeMapImage.sampler } };
+			VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_environmentMap._cubeMapImage._sampler } };
 			VkDescriptorSetLayoutCreateInfo descriptorSetCreateInfo{};
 			descriptorSetCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 			descriptorSetCreateInfo.bindingCount = 1;
@@ -73,7 +73,7 @@ namespace Engine::Scenes
 			vkAllocateDescriptorSets(logicalDevice, &allocInfo, &outDescriptorSet);
 
 			// Update the descriptor set's data with the environment map's image.
-			VkDescriptorImageInfo imageInfo{ _environmentMap._cubeMapImage.sampler, _environmentMap._cubeMapImage.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+			VkDescriptorImageInfo imageInfo{ _environmentMap._cubeMapImage._sampler, _environmentMap._cubeMapImage._view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
 			VkWriteDescriptorSet writeInfo = {};
 			writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writeInfo.dstSet = outDescriptorSet;
