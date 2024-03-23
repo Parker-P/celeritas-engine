@@ -178,7 +178,7 @@ namespace Engine::Vulkan
 
 		//	vkDestroyInstance(_instance, nullptr);
 		//}
-	} // Cleanup
+	}
 
 	bool VulkanApplication::ValidationLayersSupported(const std::vector<const char*>& validationLayers)
 	{
@@ -291,31 +291,6 @@ namespace Engine::Vulkan
 			}
 		}
 	}
-
-	//void VulkanApplication::GetComputeQueueFamilyIndex()
-	//{
-	//	//find a queue family for a selected GPU, select the first available for use
-	//	uint32_t queueFamilyCount;
-	//	vkGetPhysicalDeviceQueueFamilyProperties(_physicalDevice, &queueFamilyCount, NULL);
-	//
-	//	VkQueueFamilyProperties* queueFamilies = (VkQueueFamilyProperties*)malloc(sizeof(VkQueueFamilyProperties) * queueFamilyCount);
-	//
-	//	vkGetPhysicalDeviceQueueFamilyProperties(_physicalDevice, &queueFamilyCount, queueFamilies);
-	//	uint32_t i = 0;
-	//	for (; i < queueFamilyCount; i++) {
-	//		VkQueueFamilyProperties props = queueFamilies[i];
-	//
-	//		if (props.queueCount > 0 && (props.queueFlags & VK_QUEUE_COMPUTE_BIT)) {
-	//			break;
-	//		}
-	//	}
-	//	free(queueFamilies);
-	//	if (i == queueFamilyCount) {
-	//		return VK_ERROR_INITIALIZATION_FAILED;
-	//	}
-	//	_queueFamilyIndex = i;
-	//	return VK_SUCCESS;
-	//}
 
 	void VulkanApplication::CreateLogicalDevice()
 	{

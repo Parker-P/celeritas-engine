@@ -6,6 +6,8 @@
 
 #include "Includes.hpp"
 
+using namespace Engine::Vulkan;
+
 namespace Engine::Scenes
 {
 	// Returns the 0-based pixel coordinates given the component index of an image data array. Assumes that the
@@ -75,12 +77,6 @@ namespace Engine::Scenes
 
 		return outImageData;
 	}
-
-	/*CubeMapImage::CubeMapImage(int widthHeightPixels, unsigned char* data)
-	{
-		_widthHeightPixels = widthHeightPixels;
-		_data = data;
-	}*/
 
 	std::vector<unsigned char> CubicalEnvironmentMap::GenerateFaceImage(CubeMapFace face)
 	{

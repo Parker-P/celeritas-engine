@@ -23,7 +23,7 @@ namespace Engine::Scenes
 	{
 		using namespace Engine::Vulkan;
 
-		_buffers.push_back(Vulkan::Buffer(logicalDevice,
+		_buffers.push_back(Buffer(logicalDevice,
 			physicalDevice,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,

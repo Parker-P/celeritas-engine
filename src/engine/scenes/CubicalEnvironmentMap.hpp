@@ -15,33 +15,6 @@ namespace Engine::Scenes
 		LOWER
 	};
 
-	class Image
-	{
-	public:
-		VkImageCreateInfo _createInfo{};
-		VkImageViewCreateInfo _viewCreateInfo{};
-		VkSamplerCreateInfo _samplerCreateInfo{};
-
-		VkImage _image{};
-		VkImageView _view{};
-		VkSampler _sampler{};
-
-		VkImageLayout _currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	};
-
-	class Buffer
-	{
-	public:
-		VkBufferCreateInfo _createInfo{};
-		VkBufferViewCreateInfo _viewCreateInfo{};
-
-		VkBuffer _buffer{};
-		VkBufferView _view{};
-
-		VkDeviceMemory _gpuMemory = nullptr;
-		void* _cpuMemory = nullptr;
-	};
-
 	/**
 	 * @brief Represents a cubical environment map, used as an image-based light source
 	 * in the shaders.
@@ -100,7 +73,7 @@ namespace Engine::Scenes
 		 * @brief Vulkan handle to the cube map image used in the shaders. This image is meant to contain all the cube map's images as a serialized array of pixels.
 		 * In order to know where, in the array of pixels, each image starts/ends and what format it's in, a sampler and image view are used.
 		 */
-		Image _cubeMapImage{};
+		Vulkan::Image _cubeMapImage{};
 
 		/**
 		 * @brief Number of mipmaps. This is dynamically caluclated.
