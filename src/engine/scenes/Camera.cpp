@@ -37,12 +37,23 @@ namespace Engine::Scenes
 	{
 		using namespace Engine::Vulkan;
 
-		_buffers.push_back(Buffer(logicalDevice,
-			physicalDevice,
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-			&_cameraData,
-			(size_t)sizeof(_cameraData)));
+		// Create a temporary buffer.
+		Buffer stagingBuffer{};
+		auto bufferSizeBytes = sizeof(_cameraData);
+		stagingBuffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		stagingBuffer._createInfo.size = bufferSizeBytes;
+		stagingBuffer._createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+		vkCreateBuffer(logicalDevice, &stagingBuffer._createInfo, nullptr, &stagingBuffer._buffer);
+
+		// Allocate memory for the buffer.
+		VkMemoryRequirements requirements{};
+		vkGetBufferMemoryRequirements(logicalDevice, stagingBuffer._buffer, &requirements);
+		stagingBuffer._gpuMemory = physicalDevice.AllocateMemory(logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+		// Map memory to the correct GPU and CPU ranges for the buffer.
+		vkBindBufferMemory(logicalDevice, stagingBuffer._buffer, stagingBuffer._gpuMemory, 0);
+		vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, bufferSizeBytes, 0, &stagingBuffer._cpuMemory);
+		memcpy(stagingBuffer._cpuMemory, &_cameraData, bufferSizeBytes);
 
 		_descriptors.push_back(Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, _buffers[0]));
 		_sets.push_back(DescriptorSet(logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, _descriptors));
