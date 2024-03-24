@@ -1,10 +1,20 @@
 #define GLFW_INCLUDE_VULKAN
-
-// Image management.
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <chrono>
+#include <functional>
+#include <optional>
+#include <filesystem>
+#include <map>
+#include <bitset>
 #include <stb/stb_image.h>
 #include <stb/stb_image_write.h>
-
-#include "Includes.hpp"
+#include <GLFW/glfw3.h>
+#include <glm/gtc/matrix_transform.hpp>
+#include "LocalIncludes.hpp"
 
 using namespace Engine::Vulkan;
 

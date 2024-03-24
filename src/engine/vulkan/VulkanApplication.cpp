@@ -4,6 +4,21 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define _CRT_SECURE_NO_WARNINGS
 
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <chrono>
+#include <functional>
+#include <optional>
+#include <filesystem>
+#include <map>
+#include <bitset>
+#include <GLFW/glfw3.h>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <tinygltf/tiny_gltf.h>
 #include "LocalIncludes.hpp"
 
 namespace Engine::Vulkan
@@ -124,7 +139,7 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::DestroyRenderPass()
 	{
-		_renderPass._depthImage.Destroy();
+		//_renderPass._depthImage.Destroy();
 		/*for (auto image : _renderPass.colorImages) {
 			image.Destroy();
 		}*/
