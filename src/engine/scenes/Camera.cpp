@@ -1,5 +1,4 @@
 #define GLFW_INCLUDE_VULKAN
-
 #include <iostream>
 #include <fstream>
 #include <vector>
