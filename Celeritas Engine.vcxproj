@@ -33,7 +33,6 @@
     <ClCompile Include="src\engine\vulkan\Buffer.cpp" />
     <ClCompile Include="src\engine\vulkan\PhysicalDevice.cpp" />
     <ClCompile Include="src\engine\vulkan\Image.cpp" />
-    <ClCompile Include="src\engine\vulkan\Queue.cpp" />
     <ClCompile Include="src\utils\Json.cpp" />
     <ClCompile Include="src\game\input\KeyBinds.cpp" />
     <ClCompile Include="src\engine\scenes\Mesh.cpp" />

@@ -1,8 +1,5 @@
 #pragma once
 
-// Forward declarations for compilation.
-//namespace Engine::Scenes { class Mesh { class Vertex; }; }
-
 namespace Engine::Structural
 {
 	/**

@@ -12,6 +12,7 @@
 #include <bitset>
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include "LocalIncludes.hpp"
 
 namespace Engine::Scenes
@@ -37,22 +38,24 @@ namespace Engine::Scenes
 		using namespace Engine::Vulkan;
 
 		// Create a temporary buffer.
-		Buffer stagingBuffer{};
+		Buffer buffer{};
 		auto bufferSizeBytes = sizeof(_cameraData);
-		stagingBuffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		stagingBuffer._createInfo.size = bufferSizeBytes;
-		stagingBuffer._createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-		vkCreateBuffer(logicalDevice, &stagingBuffer._createInfo, nullptr, &stagingBuffer._buffer);
+		buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		buffer._createInfo.size = bufferSizeBytes;
+		buffer._createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+		vkCreateBuffer(logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
 
 		// Allocate memory for the buffer.
 		VkMemoryRequirements requirements{};
-		vkGetBufferMemoryRequirements(logicalDevice, stagingBuffer._buffer, &requirements);
-		stagingBuffer._gpuMemory = physicalDevice.AllocateMemory(logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+		vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
+		buffer._gpuMemory = physicalDevice.AllocateMemory(logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
 		// Map memory to the correct GPU and CPU ranges for the buffer.
-		vkBindBufferMemory(logicalDevice, stagingBuffer._buffer, stagingBuffer._gpuMemory, 0);
-		vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, bufferSizeBytes, 0, &stagingBuffer._cpuMemory);
-		memcpy(stagingBuffer._cpuMemory, &_cameraData, bufferSizeBytes);
+		vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
+		vkMapMemory(logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
+		memcpy(buffer._cpuMemory, &_cameraData, bufferSizeBytes);
+
+		_buffers.push_back(buffer);
 
 		_descriptors.push_back(Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, _buffers[0]));
 		_sets.push_back(DescriptorSet(logicalDevice, VK_SHADER_STAGE_VERTEX_BIT, _descriptors));
@@ -70,7 +73,7 @@ namespace Engine::Scenes
 		_cameraData.farClipDistance = _farClippingDistance;
 		_cameraData.transform = _transform.Position();
 
-		_buffers[0].UpdateData(&_cameraData, (size_t)sizeof(_cameraData));
+		memcpy(_buffers[0]._cpuMemory, &_cameraData, sizeof(_cameraData));
 	}
 
 	void Camera::Update()
