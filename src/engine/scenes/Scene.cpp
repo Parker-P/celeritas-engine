@@ -42,7 +42,7 @@ namespace Engine::Scenes
 		}
 	}
 
-	void Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, VkDescriptorSetLayout& outLayout, VkDescriptorSet& outDescriptorSet)
+	std::vector<Vulkan::DescriptorSet> Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
 		_environmentMap = CubicalEnvironmentMap(physicalDevice, logicalDevice);
 		//_environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Waterfall.hdr");
@@ -58,48 +58,8 @@ namespace Engine::Scenes
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Test1.png");
 
 		_environmentMap.CreateShaderResources(physicalDevice, logicalDevice, commandPool, graphicsQueue);
-
-		// Map the cubemap image to the fragment shader.
-		{
-			VkDescriptorPool descriptorPool{};
-			VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 } };
-			VkDescriptorPoolCreateInfo createInfo = {};
-			createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-			createInfo.maxSets = (uint32_t)1;
-			createInfo.poolSizeCount = (uint32_t)1;
-			createInfo.pPoolSizes = poolSizes;
-			vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
-
-			VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_environmentMap._cubeMapImage._sampler } };
-			VkDescriptorSetLayoutCreateInfo descriptorSetCreateInfo{};
-			descriptorSetCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-			descriptorSetCreateInfo.bindingCount = 1;
-			descriptorSetCreateInfo.pBindings = bindings;
-			vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetCreateInfo, nullptr, &outLayout);
-
-			// Create the descriptor set.
-			VkDescriptorSetAllocateInfo allocInfo = {};
-			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-			allocInfo.descriptorPool = descriptorPool;
-			allocInfo.descriptorSetCount = (uint32_t)1;
-			allocInfo.pSetLayouts = &outLayout;
-			vkAllocateDescriptorSets(logicalDevice, &allocInfo, &outDescriptorSet);
-
-			// Update the descriptor set's data with the environment map's image.
-			VkDescriptorImageInfo imageInfo{ _environmentMap._cubeMapImage._sampler, _environmentMap._cubeMapImage._view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-			VkWriteDescriptorSet writeInfo = {};
-			writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeInfo.dstSet = outDescriptorSet;
-			writeInfo.descriptorCount = 1;
-			writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			writeInfo.pImageInfo = &imageInfo;
-			writeInfo.dstBinding = 0;
-			vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
-		}
-	}
-
-	void Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
-	{
+		return _environmentMap._sets;
+		
 	}
 
 	void Scene::UpdateShaderResources()

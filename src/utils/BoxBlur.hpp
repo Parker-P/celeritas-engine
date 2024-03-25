@@ -166,7 +166,7 @@ namespace Utils
 												 (uint32_t)0,
 												 (uint32_t)1,
 												 (VkDescriptorType)descriptorTypes[i],
-												 (const VkDescriptorImageInfo*)NULL,
+												 0,
 												 (const VkDescriptorBufferInfo*)&descriptorBufferInfo,
 												 (const VkBufferView*)NULL };
 				vkUpdateDescriptorSets((VkDevice)_device,

@@ -702,30 +702,76 @@ namespace Engine::Vulkan
 
 		// Create the color attachments.
 		for (uint32_t i = 0; i < actualImageCount; ++i) {
-			_renderPass._colorImages[i] = Image(_logicalDevice, images[i], VK_FORMAT_R8G8B8A8_UNORM);
+			auto& createInfo = _renderPass._colorImages[i]._viewCreateInfo;
+			createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			createInfo.image = images[i];
+			createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			createInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+			createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+			createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+			createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+			createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+			createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			createInfo.subresourceRange.baseMipLevel = 0;
+			createInfo.subresourceRange.levelCount = 1;
+			createInfo.subresourceRange.baseArrayLayer = 0;
+			createInfo.subresourceRange.layerCount = 1;
+			vkCreateImageView(_logicalDevice, &createInfo, nullptr, &_renderPass._colorImages[i]._view);
 		}
 
-		// Create the depth attachment.
-		auto& settings = Settings::GlobalSettings::Instance();
-		_renderPass._depthImage = Image(_logicalDevice,
-			_physicalDevice,
-			VK_FORMAT_D32_SFLOAT,
-			VkExtent3D{ _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 },
-			_swapchain._framebufferSize.width * _swapchain._framebufferSize.height * 4,
-			nullptr,
-			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-			VK_IMAGE_ASPECT_DEPTH_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			1,
-			1,
-			(VkImageCreateFlagBits)0,
-			VkImageViewType::VK_IMAGE_VIEW_TYPE_2D);
+		// Create the cubemap image.
+		auto& imageCreateInfo = _renderPass._depthImage._createInfo;
+		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imageCreateInfo.arrayLayers = 1;
+		imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
+		imageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+		imageCreateInfo.mipLevels = 1;
+		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_renderPass._depthImage._image);
+
+		// Allocate memory on the GPU for the image.
+		VkMemoryRequirements reqs;
+		vkGetImageMemoryRequirements(_logicalDevice, _renderPass._depthImage._image, &reqs);
+		VkMemoryAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.allocationSize = reqs.size;
+		allocInfo.memoryTypeIndex = _physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		VkDeviceMemory mem;
+		vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem);
+		vkBindImageMemory(_logicalDevice, _renderPass._depthImage._image, mem, 0);
+
+		auto& imageViewCreateInfo = _renderPass._depthImage._viewCreateInfo;
+		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		imageViewCreateInfo.components = { {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY} };
+		imageViewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+		imageViewCreateInfo.image = _renderPass._depthImage._image;
+		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+		imageViewCreateInfo.subresourceRange.layerCount = 1;
+		imageViewCreateInfo.subresourceRange.levelCount = 1;
+		vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_renderPass._depthImage._view);
+
+		auto& samplerCreateInfo = _renderPass._depthImage._samplerCreateInfo;
+		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerCreateInfo.anisotropyEnable = false;
+		samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+		vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._depthImage._sampler);
 
 		std::cout << "created image views for swap chain images" << std::endl;
 
-		// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for image.
+		// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for "image used for a render pass".
 		VkAttachmentDescription colorAttachmentDescription = {};
-		colorAttachmentDescription.format = _renderPass._colorImages.size() > 0 ? _renderPass._colorImages[0]._format : VK_FORMAT_UNDEFINED;
+		colorAttachmentDescription.format = VK_FORMAT_R8G8B8A8_UNORM;
 		colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
 		colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -743,7 +789,7 @@ namespace Engine::Vulkan
 		// Describes how the render pass is going to use the depth attachment.
 		VkAttachmentDescription depthAttachmentDescription = {};
 		depthAttachmentDescription.flags = 0;
-		depthAttachmentDescription.format = _renderPass._depthImage._format;
+		depthAttachmentDescription.format = VK_FORMAT_D32_SFLOAT;
 		depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
 		depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1083,45 +1129,42 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreatePipelineLayout()
 	{
-		_mainCamera.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
-		_mainCamera.UpdateShaderResources();
+		auto& descriptorSets = _graphicsPipeline._descriptorSets;
 
-		VkDescriptorSetLayout* gameObjectLayout = nullptr;
-		VkDescriptorSetLayout* meshLayout = nullptr;
-		VkDescriptorSetLayout* lightLayout = nullptr;
-		VkDescriptorSetLayout* sceneLayout = nullptr;
+		auto cameraDescriptorSets = _mainCamera.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+		_mainCamera.UpdateShaderResources();
+		descriptorSets.insert(descriptorSets.end(), cameraDescriptorSets.begin(), cameraDescriptorSets.end());
 
 		for (auto& gameObject : _scene._gameObjects) {
 			if (gameObject._pMesh != nullptr) {
-				gameObject.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
-				gameObject._pMesh->CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+				auto goSets = gameObject.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+				auto meshSets = gameObject._pMesh->CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+				
 				gameObject.UpdateShaderResources();
 				gameObject._pMesh->UpdateShaderResources();
 
-				if (gameObjectLayout == nullptr) {
-					gameObjectLayout = &gameObject._sets[0]._layout;
-				}
-
-				if (meshLayout == nullptr) {
-					meshLayout = &gameObject._pMesh->_sets[0]._layout;
-				}
+				descriptorSets.insert(descriptorSets.end(), goSets.begin(), goSets.end());
+				descriptorSets.insert(descriptorSets.end(), meshSets.begin(), meshSets.end());
 			}
 		}
 
 		for (auto& light : _scene._pointLights) {
-			light.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+			auto lightSets = light.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
 			light.UpdateShaderResources();
-
-			if (lightLayout == nullptr) {
-				lightLayout = &light._sets[0]._layout;
-			}
+			descriptorSets.insert(descriptorSets.end(), lightSets.begin(), lightSets.end());
 		}
 
-		VkDescriptorSetLayout outLayout{};
-		_scene.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue, outLayout, _sceneDescriptorSet);
+		auto sceneSets = _scene.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
 		_scene.UpdateShaderResources();
+		descriptorSets.insert(descriptorSets.end(), sceneSets.begin(), sceneSets.end());
 
-		std::vector<VkDescriptorSetLayout> layouts = { _mainCamera._sets[0]._layout, *gameObjectLayout, *lightLayout, *meshLayout, outLayout };
+		// Sort descriptor set layouts by set id.
+		std::sort(descriptorSets.begin(), descriptorSets.end(), [](const DescriptorSet& a, const DescriptorSet& b) { return a._id < b._id; });
+		
+		// Select the layout from each descriptor set to create a layout-only vector.
+		std::vector<VkDescriptorSetLayout> layouts(descriptorSets.size());
+		std::transform(descriptorSets.begin(), descriptorSets.end(), std::back_inserter(layouts), [](const DescriptorSet& descSet) { return descSet._layout; });
+
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipelineLayoutCreateInfo.setLayoutCount = (uint32_t)layouts.size();
@@ -1189,7 +1232,6 @@ namespace Engine::Vulkan
 
 			vkCmdPipelineBarrier(_drawCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
 
-#pragma region RenderPassCommandRecording
 			VkClearValue clearColor = {
 			{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
 			};
@@ -1212,8 +1254,8 @@ namespace Engine::Vulkan
 			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
 			for (auto& gameObject : _scene._gameObjects) {
-				VkDescriptorSet sets[5] = { _mainCamera._sets[0]._handle, gameObject._sets[0]._handle, _scene._pointLights[0]._sets[0]._handle, gameObject._pMesh->_sets[0]._handle, _sceneDescriptorSet };
-				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 5, sets, 0, nullptr);
+				//VkDescriptorSet sets[5] = { _mainCamera._sets[0]._handle, gameObject._sets[0]._handle, _scene._pointLights[0]._sets[0]._handle, gameObject._pMesh->_sets[0]._handle, _sceneDescriptorSet };
+				//vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 5, sets, 0, nullptr);
 				VkDeviceSize offset = 0;
 				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._pMesh->_vertices._vertexBuffer._buffer, &offset);
 				vkCmdBindIndexBuffer(_drawCommandBuffers[i], gameObject._pMesh->_faceIndices._indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
@@ -1225,7 +1267,6 @@ namespace Engine::Vulkan
 			if (vkEndCommandBuffer(_drawCommandBuffers[i]) != VK_SUCCESS) {
 				std::cerr << "failed to record command buffer" << std::endl;
 				exit(1);
-#pragma endregion
 			}
 
 			std::cout << "recorded draw commands in draw command buffer" << std::endl;

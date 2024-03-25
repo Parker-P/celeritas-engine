@@ -1,8 +1,5 @@
 #pragma once
 
-#include <array>
-#include <iostream>
-
 namespace Engine::Structural
 {
 	/**
@@ -28,19 +25,9 @@ namespace Engine::Structural
 		std::vector<Vulkan::Image> _images;
 
 		/**
-		 * @brief Descriptors to be used in _sets.
-		 */
-		std::vector<Vulkan::Descriptor> _descriptors;
-
-		/**
-		 * @brief Descriptor sets to be allocated by _pool.
+		 * @brief Descriptor sets.
 		 */
 		std::vector<Vulkan::DescriptorSet> _sets;
-
-		/**
-		 * @brief GPU-memory allocator for _sets.
-		 */
-		Engine::Vulkan::DescriptorPool _pool;
 
 		/**
 		 * @brief Function that is meant for deriving classes to create shader resources and send them to GPU-visible memory (could be either RAM or VRAM).
@@ -48,7 +35,7 @@ namespace Engine::Structural
 		 * @param physicalDevice Intended to be used to gather GPU information when allocating buffers or images.
 		 * @param logicalDevice Intended to be used for binding created buffers, images, descriptors, descriptor sets etc. to the GPU.
 		 */
-		virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue) = 0;
+		virtual std::vector<Vulkan::DescriptorSet> CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue) = 0;
 
 		/**
 		 * @brief Function that is meant for deriving classes to update the shader resources that have been created with CreateShaderResources.

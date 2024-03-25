@@ -46,7 +46,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief See IPipelinable.
 		 */
-		virtual void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue);
+		virtual std::vector<Vulkan::DescriptorSet> CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue);
 
 		/**
 		 * @brief See IPipelinable.

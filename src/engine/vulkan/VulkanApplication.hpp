@@ -244,6 +244,11 @@ namespace Engine::Vulkan
 			*/
 			VkPipelineLayout _layout;
 
+			/**
+			 * @brief See DescriptorSet.
+			 */
+			std::vector<DescriptorSet> _descriptorSets;
+
 		} _graphicsPipeline;
 
 		// Vulkan commands.
@@ -255,8 +260,6 @@ namespace Engine::Vulkan
 		Settings::GlobalSettings& _settings = Settings::GlobalSettings::Instance();
 		Scenes::Scene _scene;
 		Scenes::Camera _mainCamera;
-
-		VkDescriptorSet _sceneDescriptorSet{};
 
 		/*
 		 * @brief Function called by Vulkan's validation layers once an error has occourred.

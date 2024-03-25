@@ -47,7 +47,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief See IPipelinable
 		 */
-		void CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue) override;
+		std::vector<Vulkan::DescriptorSet> CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue) override;
 
 		/**
 		 * @brief See IPipelinable

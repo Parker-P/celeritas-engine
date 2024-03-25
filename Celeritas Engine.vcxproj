@@ -27,12 +27,11 @@
     <ClCompile Include="src\engine\scenes\PointLight.cpp" />
     <ClCompile Include="src\engine\scenes\Vertex.cpp" />
     <ClCompile Include="src\engine\structural\Drawable.cpp" />
+    <ClCompile Include="src\engine\vulkan\Helpers.cpp" />
     <ClCompile Include="src\engine\vulkan\VulkanApplication.cpp" />
     <ClCompile Include="src\Main.cpp" />
-    <ClCompile Include="src\engine\vulkan\ShaderResources.cpp" />
-    <ClCompile Include="src\engine\vulkan\Buffer.cpp" />
+    <ClCompile Include="src\engine\vulkan\ShaderResource.cpp" />
     <ClCompile Include="src\engine\vulkan\PhysicalDevice.cpp" />
-    <ClCompile Include="src\engine\vulkan\Image.cpp" />
     <ClCompile Include="src\utils\Json.cpp" />
     <ClCompile Include="src\game\input\KeyBinds.cpp" />
     <ClCompile Include="src\engine\scenes\Mesh.cpp" />
@@ -44,6 +43,7 @@
   <ItemGroup>
     <ClInclude Include="include\Includes.hpp" />
     <ClInclude Include="include\json\json.h" />
+    <ClInclude Include="include\LocalIncludes.hpp" />
     <ClInclude Include="include\nlohmann\adl_serializer.hpp" />
     <ClInclude Include="include\nlohmann\byte_container_with_subtype.hpp" />
     <ClInclude Include="include\nlohmann\detail\abi_macros.hpp" />
@@ -97,7 +97,8 @@
     <ClInclude Include="src\engine\scenes\Vertex.hpp" />
     <ClInclude Include="src\engine\structural\Drawable.hpp" />
     <ClInclude Include="src\engine\structural\IPipelineable.hpp" />
-    <ClInclude Include="src\engine\vulkan\ShaderResources.hpp" />
+    <ClInclude Include="src\engine\vulkan\Helpers.hpp" />
+    <ClInclude Include="src\engine\vulkan\ShaderResource.hpp" />
     <ClInclude Include="src\engine\vulkan\Buffer.hpp" />
     <ClInclude Include="src\engine\vulkan\PhysicalDevice.hpp" />
     <ClInclude Include="src\engine\vulkan\Image.hpp" />
