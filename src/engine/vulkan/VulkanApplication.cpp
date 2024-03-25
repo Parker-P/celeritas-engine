@@ -1161,7 +1161,7 @@ namespace Engine::Vulkan
 		std::sort(descriptorSets.begin(), descriptorSets.end(), [](const DescriptorSet& a, const DescriptorSet& b) { return a._id < b._id; });
 		
 		// Select the layout from each descriptor set to create a layout-only vector.
-		std::vector<VkDescriptorSetLayout> layouts(descriptorSets.size());
+		std::vector<VkDescriptorSetLayout> layouts;
 		std::transform(descriptorSets.begin(), descriptorSets.end(), std::back_inserter(layouts), [](const DescriptorSet& descSet) { return descSet._layout; });
 
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};

@@ -61,4 +61,53 @@ namespace Engine::Vulkan
 
 		return image;
 	}
+
+	void CopyBufferToDeviceMemory(VkDevice logicalDevice, PhysicalDevice& physicalDevice, VkCommandPool commandPool, Queue& queue, Buffer& buffer, void* data, int size)
+	{
+		// Create a temporary buffer.
+		Buffer stagingBuffer{};
+		stagingBuffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		stagingBuffer._createInfo.size = size;
+		stagingBuffer._createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		vkCreateBuffer(logicalDevice, &stagingBuffer._createInfo, nullptr, &stagingBuffer._buffer);
+
+		// Allocate memory for the buffer.
+		VkMemoryRequirements requirements{};
+		vkGetBufferMemoryRequirements(logicalDevice, stagingBuffer._buffer, &requirements);
+		stagingBuffer._gpuMemory = physicalDevice.AllocateMemory(logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+		// Map memory to the correct GPU and CPU ranges for the buffer.
+		vkBindBufferMemory(logicalDevice, stagingBuffer._buffer, stagingBuffer._gpuMemory, 0);
+		vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, size, 0, &stagingBuffer._cpuMemory);
+
+		VkCommandBufferAllocateInfo cmdBufInfo = {};
+		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		cmdBufInfo.commandPool = commandPool;
+		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		cmdBufInfo.commandBufferCount = 1;
+
+		VkCommandBuffer copyCommandBuffer;
+		vkAllocateCommandBuffers(logicalDevice, &cmdBufInfo, &copyCommandBuffer);
+
+		VkCommandBufferBeginInfo bufferBeginInfo = {};
+		bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		bufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+		vkBeginCommandBuffer(copyCommandBuffer, &bufferBeginInfo);
+		VkBufferCopy copyRegion = {};
+		copyRegion.size = size;
+		vkCmdCopyBuffer(copyCommandBuffer, stagingBuffer._buffer, buffer._buffer, 1, &copyRegion);
+		vkEndCommandBuffer(copyCommandBuffer);
+
+		VkSubmitInfo submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &copyCommandBuffer;
+
+		vkQueueSubmit(queue._handle, 1, &submitInfo, VK_NULL_HANDLE);
+		vkQueueWaitIdle(queue._handle);
+
+		vkFreeCommandBuffers(logicalDevice, commandPool, 1, &copyCommandBuffer);
+		vkDestroyBuffer(logicalDevice, stagingBuffer._buffer, nullptr);
+	}
 }
