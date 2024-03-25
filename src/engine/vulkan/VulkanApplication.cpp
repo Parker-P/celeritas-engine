@@ -439,7 +439,6 @@ namespace Engine::Vulkan
 				imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 				imageCreateInfo.arrayLayers = 1;
 				imageCreateInfo.extent = { (uint32_t)size.width, (uint32_t)size.height, 1 };
-				imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
 				imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
 				imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 				imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -1254,8 +1253,8 @@ namespace Engine::Vulkan
 			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
 			for (auto& gameObject : _scene._gameObjects) {
-				//VkDescriptorSet sets[5] = { _mainCamera._sets[0]._handle, gameObject._sets[0]._handle, _scene._pointLights[0]._sets[0]._handle, gameObject._pMesh->_sets[0]._handle, _sceneDescriptorSet };
-				//vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 5, sets, 0, nullptr);
+				VkDescriptorSet sets[5] = { _mainCamera._sets[0]._set, gameObject._sets[0]._set, _scene._pointLights[0]._sets[0]._set, gameObject._pMesh->_sets[0]._set, _scene._sets[0]._set};
+				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 5, sets, 0, nullptr);
 				VkDeviceSize offset = 0;
 				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._pMesh->_vertices._vertexBuffer._buffer, &offset);
 				vkCmdBindIndexBuffer(_drawCommandBuffers[i], gameObject._pMesh->_faceIndices._indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
