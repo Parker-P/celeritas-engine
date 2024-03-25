@@ -435,20 +435,55 @@ namespace Engine::Vulkan
 				memcpy(copiedImageData, baseColorImageData.data(), baseColorImageData.size());
 				auto size = VkExtent2D{ (uint32_t)gltfScene.images[baseColorImageIndex].width, (uint32_t)gltfScene.images[baseColorImageIndex].height };
 
-				m._albedo = Image(_logicalDevice,
-					_physicalDevice,
-					VK_FORMAT_R8G8B8A8_SRGB,
-					VkExtent3D{ size.width, size.height, 1 },
-					size.width * size.height * 4,
-					copiedImageData,
-					(VkImageUsageFlagBits)(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
-					VK_IMAGE_ASPECT_COLOR_BIT,
-					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-					1,
-					1,
-					(VkImageCreateFlagBits)0,
-					VkImageViewType::VK_IMAGE_VIEW_TYPE_2D);
-				m._albedo._name = gltfScene.textures[baseColorTextureIndex].name == "" ? m._name + "_albedo" : gltfScene.textures[baseColorTextureIndex].name;
+				auto& imageCreateInfo = m._albedo._createInfo;
+				imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+				imageCreateInfo.arrayLayers = 1;
+				imageCreateInfo.extent = { (uint32_t)size.width, (uint32_t)size.height, 1 };
+				imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+				imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+				imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+				imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				imageCreateInfo.mipLevels = 1;
+				imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+				imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+				imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+				vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &m._albedo._image);
+
+				// Allocate memory on the GPU for the image.
+				VkMemoryRequirements reqs;
+				vkGetImageMemoryRequirements(_logicalDevice, m._albedo._image, &reqs);
+				VkMemoryAllocateInfo allocInfo{};
+				allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+				allocInfo.allocationSize = reqs.size;
+				allocInfo.memoryTypeIndex = _physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+				VkDeviceMemory mem;
+				vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem);
+				vkBindImageMemory(_logicalDevice, m._albedo._image, mem, 0);
+
+				auto& imageViewCreateInfo = m._albedo._viewCreateInfo;
+				imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+				imageViewCreateInfo.components = { {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY} };
+				imageViewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+				imageViewCreateInfo.image = m._albedo._image;
+				imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+				imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+				imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+				imageViewCreateInfo.subresourceRange.layerCount = 1;
+				imageViewCreateInfo.subresourceRange.levelCount = 1;
+				vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &m._albedo._view);
+
+				auto& samplerCreateInfo = m._albedo._samplerCreateInfo;
+				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+				samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+				samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+				samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+				samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+				samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+				vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &m._albedo._sampler);
+
+				// TODO: send the image to VRAM (maybe?).
 
 				_scene._materials.push_back(m);
 				loadedMaterialCache.emplace(i, (unsigned int)_scene._materials.size() - 1);
@@ -622,7 +657,7 @@ namespace Engine::Vulkan
 
 			// We will render to the same depth image for each frame. 
 			// We can just keep clearing and reusing the same depth image for every frame.
-			VkImageView colorAndDepthImages[2] = { _renderPass._colorImages[i]._viewHandle, _renderPass._depthImage._viewHandle };
+			VkImageView colorAndDepthImages[2] = { _renderPass._colorImages[i]._view, _renderPass._depthImage._view };
 			VkFramebufferCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 			createInfo.renderPass = _renderPass._handle;
@@ -1149,7 +1184,7 @@ namespace Engine::Vulkan
 			presentToDrawBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 			presentToDrawBarrier.srcQueueFamilyIndex = _queue._familyIndex;
 			presentToDrawBarrier.dstQueueFamilyIndex = _queue._familyIndex;
-			presentToDrawBarrier.image = _renderPass._colorImages[i]._imageHandle;
+			presentToDrawBarrier.image = _renderPass._colorImages[i]._image;
 			presentToDrawBarrier.subresourceRange = subResourceRange;
 
 			vkCmdPipelineBarrier(_drawCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
@@ -1180,8 +1215,8 @@ namespace Engine::Vulkan
 				VkDescriptorSet sets[5] = { _mainCamera._sets[0]._handle, gameObject._sets[0]._handle, _scene._pointLights[0]._sets[0]._handle, gameObject._pMesh->_sets[0]._handle, _sceneDescriptorSet };
 				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 5, sets, 0, nullptr);
 				VkDeviceSize offset = 0;
-				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._pMesh->_vertices._vertexBuffer._handle, &offset);
-				vkCmdBindIndexBuffer(_drawCommandBuffers[i], gameObject._pMesh->_faceIndices._indexBuffer._handle, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._pMesh->_vertices._vertexBuffer._buffer, &offset);
+				vkCmdBindIndexBuffer(_drawCommandBuffers[i], gameObject._pMesh->_faceIndices._indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
 				vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)gameObject._pMesh->_faceIndices._indexData.size(), 1, 0, 0, 0);
 			}
 
