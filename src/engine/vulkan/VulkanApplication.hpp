@@ -245,9 +245,9 @@ namespace Engine::Vulkan
 			VkPipelineLayout _layout;
 
 			/**
-			 * @brief See DescriptorSet.
+			 * @brief See ShaderResources definition.
 			 */
-			std::vector<DescriptorSet> _descriptorSets;
+			ShaderResources _shaderResources;
 
 		} _graphicsPipeline;
 

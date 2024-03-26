@@ -33,7 +33,7 @@ namespace Engine::Scenes
 		_up = glm::vec3(0.0f, 1.0f, 0.0f);
 	}
 
-	std::vector<Vulkan::DescriptorSet> Camera::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
+	Vulkan::ShaderResources Camera::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
 		using namespace Engine::Vulkan;
 
@@ -57,6 +57,14 @@ namespace Engine::Scenes
 
 		_buffers.push_back(buffer);
 
+		VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr } };
+		VkDescriptorSetLayoutCreateInfo descriptorSetCreateInfo{};
+		descriptorSetCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		descriptorSetCreateInfo.bindingCount = 1;
+		descriptorSetCreateInfo.pBindings = bindings;
+		VkDescriptorSetLayout layout;
+		vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetCreateInfo, nullptr, &layout);
+
 		VkDescriptorPool descriptorPool{};
 		VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 } };
 		VkDescriptorPoolCreateInfo createInfo = {};
@@ -65,14 +73,6 @@ namespace Engine::Scenes
 		createInfo.poolSizeCount = (uint32_t)1;
 		createInfo.pPoolSizes = poolSizes;
 		vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
-
-		VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr } };
-		VkDescriptorSetLayoutCreateInfo descriptorSetCreateInfo{};
-		descriptorSetCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptorSetCreateInfo.bindingCount = 1;
-		descriptorSetCreateInfo.pBindings = bindings;
-		VkDescriptorSetLayout layout;
-		vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetCreateInfo, nullptr, &layout);
 
 		// Create the descriptor set.
 		VkDescriptorSetAllocateInfo allocInfo = {};
@@ -94,8 +94,8 @@ namespace Engine::Scenes
 		writeInfo.dstBinding = 0;
 		vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
 
-		_sets.push_back(DescriptorSet{ 0, descriptorSet, layout });
-		return _sets;
+		_shaderResources._data.emplace(descriptorSet);
+		return _shaderResources;
 	}
 
 	void Camera::UpdateShaderResources()

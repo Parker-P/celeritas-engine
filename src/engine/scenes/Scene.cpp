@@ -42,8 +42,27 @@ namespace Engine::Scenes
 		}
 	}
 
-	std::vector<Vulkan::DescriptorSet> Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
+	Vulkan::ShaderResources Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
+		for (auto& gameObject : _gameObjects) {
+			if (gameObject._pMesh != nullptr) {
+				auto gameObjectResources = gameObject.CreateShaderResources(physicalDevice, logicalDevice, commandPool, graphicsQueue);
+				auto meshSets = gameObject._pMesh->CreateShaderResources(physicalDevice, logicalDevice, commandPool, graphicsQueue);
+
+				gameObject.UpdateShaderResources();
+				gameObject._pMesh->UpdateShaderResources();
+
+				descriptorSets.insert(descriptorSets.end(), goSets.begin(), goSets.end());
+				descriptorSets.insert(descriptorSets.end(), meshSets.begin(), meshSets.end());
+			}
+		}
+
+		for (auto& light : _pointLights) {
+			auto lightSets = light.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+			light.UpdateShaderResources();
+			descriptorSets.insert(descriptorSets.end(), lightSets.begin(), lightSets.end());
+		}
+
 		_environmentMap = CubicalEnvironmentMap(physicalDevice, logicalDevice);
 		//_environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Waterfall.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Debug.png");
@@ -58,7 +77,7 @@ namespace Engine::Scenes
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Test1.png");
 
 		_environmentMap.CreateShaderResources(physicalDevice, logicalDevice, commandPool, graphicsQueue);
-		return _environmentMap._sets;
+		return _environmentMap._shaderResources;
 		
 	}
 

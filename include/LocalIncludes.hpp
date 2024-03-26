@@ -15,7 +15,7 @@
 #include "engine/vulkan/Image.hpp"
 #include "engine/scenes/Material.hpp"
 #include "engine/scenes/Vertex.hpp"
-#include "engine/vulkan/ShaderResource.hpp"
+#include "engine/vulkan/ShaderResources.hpp"
 #include "engine/structural/IPipelineable.hpp"
 #include "engine/structural/Drawable.hpp"
 #include "engine/scenes/PointLight.hpp"

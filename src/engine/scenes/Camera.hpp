@@ -80,7 +80,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief See Pipelinable.
 		 */
-		virtual std::vector<Vulkan::DescriptorSet> CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue) override;
+		virtual Vulkan::ShaderResources CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue) override;
 
 		/**
 		 * @brief See Pipelinable.

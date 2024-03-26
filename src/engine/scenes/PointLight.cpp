@@ -24,7 +24,7 @@ namespace Engine::Scenes
 		_transform.SetPosition(glm::vec3(3.0f, 10.0f, -10.0f));
 	}
 
-	std::vector<Vulkan::DescriptorSet> PointLight::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
+	Vulkan::ShaderResources PointLight::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
 		// Create a temporary buffer.
 		Buffer buffer{};
@@ -46,9 +46,13 @@ namespace Engine::Scenes
 
 		_buffers.push_back(buffer);
 
-		/*_descriptors.push_back(Vulkan::Descriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, _buffers[0]));
-		_sets.push_back(Vulkan::DescriptorSet(logicalDevice, (VkShaderStageFlagBits)(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT), _descriptors));
-		_pool = Vulkan::DescriptorPool(logicalDevice, _sets);*/
+		VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr } };
+		VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
+		layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutCreateInfo.bindingCount = 1;
+		layoutCreateInfo.pBindings = bindings;
+		VkDescriptorSetLayout layout;
+		vkCreateDescriptorSetLayout(logicalDevice, &layoutCreateInfo, nullptr, &layout);
 
 		VkDescriptorPool descriptorPool{};
 		VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 } };
@@ -58,14 +62,6 @@ namespace Engine::Scenes
 		createInfo.poolSizeCount = (uint32_t)1;
 		createInfo.pPoolSizes = poolSizes;
 		vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
-
-		VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr } };
-		VkDescriptorSetLayoutCreateInfo descriptorSetCreateInfo{};
-		descriptorSetCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptorSetCreateInfo.bindingCount = 1;
-		descriptorSetCreateInfo.pBindings = bindings;
-		VkDescriptorSetLayout layout;
-		vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetCreateInfo, nullptr, &layout);
 
 		// Create the descriptor set.
 		VkDescriptorSetAllocateInfo allocInfo = {};
@@ -87,8 +83,8 @@ namespace Engine::Scenes
 		writeInfo.dstBinding = 0;
 		vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
 
-		_sets.push_back(DescriptorSet{2, descriptorSet, layout });
-		return _sets;
+		_shaderResources._data.emplace(PipelineLayout{ 2, layoutCreateInfo , layout }, descriptorSet);
+		return _shaderResources;
 	}
 
 	void PointLight::UpdateShaderResources()

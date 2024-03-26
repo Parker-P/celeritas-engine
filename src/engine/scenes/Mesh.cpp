@@ -23,7 +23,7 @@ namespace Engine::Scenes
 		_pScene = scene;
 	}
 
-	std::vector<Vulkan::DescriptorSet> Mesh::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
+	Vulkan::ShaderResources Mesh::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
 	{
 		// Get the textures to send to the shaders.
 		Vulkan::Image albedoMap;
@@ -66,6 +66,16 @@ namespace Engine::Scenes
 		//_pScene->_materials[_materialIndex]._roughness.SendToGPU(commandPool, graphicsQueue);
 		//_pScene->_materials[_materialIndex]._metalness.SendToGPU(commandPool, graphicsQueue);
 
+		VkDescriptorSetLayoutBinding bindings[3];
+		bindings[0] = { VkDescriptorSetLayoutBinding {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_pScene->_materials[_materialIndex]._albedo._sampler} };
+		bindings[1] = { VkDescriptorSetLayoutBinding {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_pScene->_materials[_materialIndex]._roughness._sampler} };
+		bindings[2] = { VkDescriptorSetLayoutBinding {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_pScene->_materials[_materialIndex]._metalness._sampler} };
+		VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
+		layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutCreateInfo.bindingCount = 3;
+		layoutCreateInfo.pBindings = bindings;
+		VkDescriptorSetLayout layout;
+		vkCreateDescriptorSetLayout(logicalDevice, &layoutCreateInfo, nullptr, &layout);
 
 		VkDescriptorPool descriptorPool{};
 		VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3 } };
@@ -75,17 +85,6 @@ namespace Engine::Scenes
 		createInfo.poolSizeCount = (uint32_t)1;
 		createInfo.pPoolSizes = poolSizes;
 		vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
-
-		VkDescriptorSetLayoutBinding bindings[3];
-		bindings[0] = { VkDescriptorSetLayoutBinding {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_pScene->_materials[_materialIndex]._albedo._sampler} };
-		bindings[1] = { VkDescriptorSetLayoutBinding {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_pScene->_materials[_materialIndex]._roughness._sampler} };
-		bindings[2] = { VkDescriptorSetLayoutBinding {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_pScene->_materials[_materialIndex]._metalness._sampler} };
-		VkDescriptorSetLayoutCreateInfo descriptorSetCreateInfo{};
-		descriptorSetCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptorSetCreateInfo.bindingCount = 3;
-		descriptorSetCreateInfo.pBindings = bindings;
-		VkDescriptorSetLayout layout;
-		vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetCreateInfo, nullptr, &layout);
 
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -108,8 +107,8 @@ namespace Engine::Scenes
 		writeInfo.dstBinding = 0;
 		vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
 
-		_sets.push_back(DescriptorSet{ 3, descriptorSet, layout });
-		return _sets;
+		_shaderResources._data.emplace(PipelineLayout{ 3, layoutCreateInfo, layout}, descriptorSet);
+		return _shaderResources;
 	}
 
 	void Mesh::UpdateShaderResources()

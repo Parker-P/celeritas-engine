@@ -1128,32 +1128,13 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::CreatePipelineLayout()
 	{
-		auto& descriptorSets = _graphicsPipeline._descriptorSets;
+		auto& shaderResources = _graphicsPipeline._shaderResources;
 
-		auto cameraDescriptorSets = _mainCamera.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+		auto cameraResources = _mainCamera.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
 		_mainCamera.UpdateShaderResources();
 		descriptorSets.insert(descriptorSets.end(), cameraDescriptorSets.begin(), cameraDescriptorSets.end());
 
-		for (auto& gameObject : _scene._gameObjects) {
-			if (gameObject._pMesh != nullptr) {
-				auto goSets = gameObject.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
-				auto meshSets = gameObject._pMesh->CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
-				
-				gameObject.UpdateShaderResources();
-				gameObject._pMesh->UpdateShaderResources();
-
-				descriptorSets.insert(descriptorSets.end(), goSets.begin(), goSets.end());
-				descriptorSets.insert(descriptorSets.end(), meshSets.begin(), meshSets.end());
-			}
-		}
-
-		for (auto& light : _scene._pointLights) {
-			auto lightSets = light.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
-			light.UpdateShaderResources();
-			descriptorSets.insert(descriptorSets.end(), lightSets.begin(), lightSets.end());
-		}
-
-		auto sceneSets = _scene.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
+		auto sceneResources = _scene.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
 		_scene.UpdateShaderResources();
 		descriptorSets.insert(descriptorSets.end(), sceneSets.begin(), sceneSets.end());
 
@@ -1253,7 +1234,7 @@ namespace Engine::Vulkan
 			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
 			for (auto& gameObject : _scene._gameObjects) {
-				VkDescriptorSet sets[5] = { _mainCamera._sets[0]._set, gameObject._sets[0]._set, _scene._pointLights[0]._sets[0]._set, gameObject._pMesh->_sets[0]._set, _scene._sets[0]._set};
+				VkDescriptorSet sets[5] = { _mainCamera._shaderResources[0]._set, gameObject._shaderResources[0]._set, _scene._pointLights[0]._shaderResources[0]._set, gameObject._pMesh->_shaderResources[0]._set, _scene._shaderResources[0]._set};
 				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 5, sets, 0, nullptr);
 				VkDeviceSize offset = 0;
 				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._pMesh->_vertices._vertexBuffer._buffer, &offset);
