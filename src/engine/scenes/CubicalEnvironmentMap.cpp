@@ -577,12 +577,12 @@ namespace Engine::Scenes
 		// Allocate memory on the GPU for the image.
 		VkMemoryRequirements reqs;
 		vkGetImageMemoryRequirements(logicalDevice, _cubeMapImage._image, &reqs);
-		VkMemoryAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.allocationSize = reqs.size;
-		allocInfo.memoryTypeIndex = _physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		VkMemoryAllocateInfo imageAllocInfo{};
+		imageAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		imageAllocInfo.allocationSize = reqs.size;
+		imageAllocInfo.memoryTypeIndex = _physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 		VkDeviceMemory mem;
-		vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &mem);
+		vkAllocateMemory(logicalDevice, &imageAllocInfo, nullptr, &mem);
 		vkBindImageMemory(logicalDevice, _cubeMapImage._image, mem, 0);
 
 		auto& imageViewCreateInfo = _cubeMapImage._viewCreateInfo;
@@ -625,41 +625,40 @@ namespace Engine::Scenes
 		layoutCreateInfo.pBindings = bindings;
 		vkCreateDescriptorSetLayout(logicalDevice, &layoutCreateInfo, nullptr, &layout);
 
-		{
-			// Map the cubemap image to the fragment shader.
-			VkDescriptorPool descriptorPool{};
-			VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 } };
-			VkDescriptorPoolCreateInfo createInfo = {};
-			createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-			createInfo.maxSets = (uint32_t)1;
-			createInfo.poolSizeCount = (uint32_t)1;
-			createInfo.pPoolSizes = poolSizes;
-			vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
+		// Map the cubemap image to the fragment shader.
+		VkDescriptorPool descriptorPool{};
+		VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 } };
+		VkDescriptorPoolCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		createInfo.maxSets = (uint32_t)1;
+		createInfo.poolSizeCount = (uint32_t)1;
+		createInfo.pPoolSizes = poolSizes;
+		vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
 
-			// Create the descriptor set.
-			VkDescriptorSet set{};
-			VkDescriptorSetAllocateInfo allocInfo = {};
-			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-			allocInfo.descriptorPool = descriptorPool;
-			allocInfo.descriptorSetCount = (uint32_t)1;
-			allocInfo.pSetLayouts = &layout;
-			vkAllocateDescriptorSets(logicalDevice, &allocInfo, &set);
+		// Create the descriptor set.
+		VkDescriptorSet set{};
+		VkDescriptorSetAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = descriptorPool;
+		allocInfo.descriptorSetCount = (uint32_t)1;
+		allocInfo.pSetLayouts = &layout;
+		vkAllocateDescriptorSets(logicalDevice, &allocInfo, &set);
 
-			// Update the descriptor set's data with the environment map's image.
-			VkDescriptorImageInfo imageInfo{ _cubeMapImage._sampler, _cubeMapImage._view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-			VkWriteDescriptorSet writeInfo = {};
-			writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeInfo.dstSet = set;
-			writeInfo.descriptorCount = 1;
-			writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			writeInfo.pImageInfo = &imageInfo;
-			writeInfo.dstBinding = 0;
-			vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
+		// Update the descriptor set's data with the environment map's image.
+		VkDescriptorImageInfo imageInfo{ _cubeMapImage._sampler, _cubeMapImage._view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+		VkWriteDescriptorSet writeInfo = {};
+		writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeInfo.dstSet = set;
+		writeInfo.descriptorCount = 1;
+		writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		writeInfo.pImageInfo = &imageInfo;
+		writeInfo.dstBinding = 0;
+		vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
 
-			auto pl = PipelineLayout{4, layoutCreateInfo, layout };
-			_shaderResources._data.emplace(pl, set);
-		}
-		
+		auto pipelineLayout = PipelineLayout{ 4, layoutCreateInfo, layout };
+		auto descriptorSets = std::vector<VkDescriptorSet>{ set };
+		_shaderResources._data.emplace(pipelineLayout, descriptorSets);
+
 		return _shaderResources;
 	}
 
