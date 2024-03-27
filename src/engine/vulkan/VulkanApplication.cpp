@@ -475,21 +475,21 @@ namespace Engine::Vulkan
 
 				auto& samplerCreateInfo = m._albedo._samplerCreateInfo;
 				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-				samplerCreateInfo.magFilter = VK_FILTER_LINEAR; // Magnification filter (e.g., linear)
-				samplerCreateInfo.minFilter = VK_FILTER_LINEAR; // Minification filter (e.g., linear)
-				samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE; // Address mode for U coordinate (e.g., clamp to edge)
-				samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE; // Address mode for V coordinate (e.g., clamp to edge)
-				samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE; // Address mode for W coordinate (e.g., clamp to edge)
-				samplerCreateInfo.anisotropyEnable = VK_FALSE; // Anisotropic filtering (disable)
-				samplerCreateInfo.maxAnisotropy = 1.0f; // Anisotropy level
-				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK; // Border color (e.g., transparent black)
-				samplerCreateInfo.unnormalizedCoordinates = VK_FALSE; // Coordinate normalization (disable)
-				samplerCreateInfo.compareEnable = VK_FALSE; // Enable comparison (disable)
-				samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS; // Comparison operator
-				samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR; // Mipmap interpolation mode (e.g., linear)
-				samplerCreateInfo.mipLodBias = 0.0f; // Mipmap level-of-detail bias
-				samplerCreateInfo.minLod = 0.0f; // Minimum level-of-detail
-				samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE; // Maximum level-of-detail
+				samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+				samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+				samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+				samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+				samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+				samplerCreateInfo.anisotropyEnable = VK_FALSE;
+				samplerCreateInfo.maxAnisotropy = 1.0f;
+				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+				samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+				samplerCreateInfo.compareEnable = VK_FALSE;
+				samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+				samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+				samplerCreateInfo.mipLodBias = 0.0f;
+				samplerCreateInfo.minLod = 0.0f;
+				samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
 				vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &m._albedo._sampler);
 
 				m._albedo._pData = copiedImageData;

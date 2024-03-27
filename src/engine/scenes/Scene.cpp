@@ -54,8 +54,6 @@ namespace Engine::Scenes
 				gameObject.UpdateShaderResources();
 				gameObject._pMesh->UpdateShaderResources();
 
-				
-
 				//descriptorSets.insert(descriptorSets.end(), goSets.begin(), goSets.end());
 				//descriptorSets.insert(descriptorSets.end(), meshSets.begin(), meshSets.end());
 			}
