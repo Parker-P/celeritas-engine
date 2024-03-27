@@ -42,18 +42,19 @@ namespace Engine::Scenes
 		}
 	}
 
-	Vulkan::ShaderResources Scene::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
+	Vulkan::ShaderResources Scene::CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
 		for (auto& gameObject : _gameObjects) {
 			if (gameObject._pMesh != nullptr) {
-				auto gameObjectResources = gameObject.CreateShaderResources(physicalDevice, logicalDevice, commandPool, graphicsQueue);
-				auto meshResources = gameObject._pMesh->CreateShaderResources(physicalDevice, logicalDevice, commandPool, graphicsQueue);
+				auto gameObjectResources = gameObject.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, graphicsQueue, layouts);
+				auto meshResources = gameObject._pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, graphicsQueue, layouts);
+				_shaderResources.MergeResources(gameObjectResources);
+				_shaderResources.MergeResources(meshResources);
 
 				gameObject.UpdateShaderResources();
 				gameObject._pMesh->UpdateShaderResources();
 
-				_shaderResources.MergeResources(gameObjectResources);
-				_shaderResources.MergeResources(meshResources);
+				
 
 				//descriptorSets.insert(descriptorSets.end(), goSets.begin(), goSets.end());
 				//descriptorSets.insert(descriptorSets.end(), meshSets.begin(), meshSets.end());
@@ -61,27 +62,14 @@ namespace Engine::Scenes
 		}
 
 		for (auto& light : _pointLights) {
-			auto lightResources = light.CreateShaderResources(physicalDevice, logicalDevice, commandPool, graphicsQueue);
+			auto lightResources = light.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, graphicsQueue, layouts);
+			_shaderResources.MergeResources(lightResources);
 			light.UpdateShaderResources();
 
-			_shaderResources.MergeResources(lightResources);
 			//descriptorSets.insert(descriptorSets.end(), lightSets.begin(), lightSets.end());
 		}
 
-		_environmentMap = CubicalEnvironmentMap(physicalDevice, logicalDevice);
-		//_environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Waterfall.hdr");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Debug.png");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ModernBuilding.hdr");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.png");
-		//_environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.hdr");
-		_environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "garden.hdr");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ItalianFlag.png");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "TestPng.png");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "EnvMap.png");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "texture.jpg");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Test1.png");
-
-		auto environmentMapResources = _environmentMap.CreateShaderResources(physicalDevice, logicalDevice, commandPool, graphicsQueue);
+		auto environmentMapResources = _environmentMap.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, graphicsQueue, layouts);
 		_shaderResources.MergeResources(environmentMapResources);
 		return _shaderResources;
 	}

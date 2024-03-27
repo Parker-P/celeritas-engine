@@ -37,10 +37,11 @@ namespace Engine::Structural
 
 		// Map memory to the correct GPU and CPU ranges for the buffer.
 		vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
-		//vkMapMemory(logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
 
 		// Send the buffer to GPU.
-		CopyBufferToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer, (void*)vertices.data(), (int)bufferSizeBytes);
+		buffer._pData = (void*)vertices.data();
+		buffer._sizeBytes = bufferSizeBytes;
+		CopyBufferToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer);
 	}
 
 	void Drawable::CreateIndexBuffer(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& queue, const std::vector<unsigned int>& indices)
@@ -48,7 +49,7 @@ namespace Engine::Structural
 		_faceIndices._indexData = indices;
 
 		// Create a temporary buffer.
-		auto& buffer = _vertices._vertexBuffer;
+		auto& buffer = _faceIndices._indexBuffer;
 		auto bufferSizeBytes = Utils::GetVectorSizeInBytes(indices);
 		buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		buffer._createInfo.size = bufferSizeBytes;
@@ -62,9 +63,10 @@ namespace Engine::Structural
 
 		// Map memory to the correct GPU and CPU ranges for the buffer.
 		vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
-		//vkMapMemory(logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
 
 		// TODO: send the buffer to GPU.
-		CopyBufferToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer, (void*)indices.data(), (int)bufferSizeBytes);
+		buffer._pData = (void*)indices.data();
+		buffer._sizeBytes = bufferSizeBytes;
+		CopyBufferToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer);
 	}
 }

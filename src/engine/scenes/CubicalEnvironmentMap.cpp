@@ -434,6 +434,67 @@ namespace Engine::Scenes
 		std::cout << "Environment map " << imageFilePath.string() << " loaded." << std::endl;
 	}
 
+	void Engine::Scenes::CubicalEnvironmentMap::CreateImage(VulkanContext& context, PhysicalDevice& physicalDevice)
+	{
+		// Create the cubemap image.
+		auto& imageCreateInfo = _cubeMapImage._createInfo;
+		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imageCreateInfo.arrayLayers = 6;
+		imageCreateInfo.extent = { (uint32_t)_faceSizePixels, (uint32_t)_faceSizePixels, 1 };
+		imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+		imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		imageCreateInfo.mipLevels = 10;
+		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+		vkCreateImage(context._logicalDevice, &imageCreateInfo, nullptr, &_cubeMapImage._image);
+
+		// Allocate memory on the GPU for the image.
+		VkMemoryRequirements reqs;
+		vkGetImageMemoryRequirements(context._logicalDevice, _cubeMapImage._image, &reqs);
+		VkMemoryAllocateInfo imageAllocInfo{};
+		imageAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		imageAllocInfo.allocationSize = reqs.size;
+		imageAllocInfo.memoryTypeIndex = _physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		VkDeviceMemory mem;
+		vkAllocateMemory(context._logicalDevice, &imageAllocInfo, nullptr, &mem);
+		vkBindImageMemory(context._logicalDevice, _cubeMapImage._image, mem, 0);
+
+		auto& imageViewCreateInfo = _cubeMapImage._viewCreateInfo;
+		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		imageViewCreateInfo.components = { {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY} };
+		imageViewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+		imageViewCreateInfo.image = _cubeMapImage._image;
+		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+		imageViewCreateInfo.subresourceRange.layerCount = 6;
+		imageViewCreateInfo.subresourceRange.levelCount = 10;
+		vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_cubeMapImage._view);
+
+		auto& samplerCreateInfo = _cubeMapImage._samplerCreateInfo;
+		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerCreateInfo.anisotropyEnable = false;
+		samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+		samplerCreateInfo.flags = 0;
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.maxLod = 10;
+		samplerCreateInfo.minLod = 0;
+		samplerCreateInfo.mipLodBias = 0.0f;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_cubeMapImage._sampler);
+
+		auto commandBuffer = CreateCommandBuffer(context._logicalDevice, context._commandPool);
+		CopyFacesToImage(context._logicalDevice, physicalDevice, context._commandPool, commandBuffer, context._queue);
+	}
+
 	VkCommandBuffer CreateCommandBuffer(VkDevice logicalDevice, VkCommandPool commandPool)
 	{
 		VkCommandBufferAllocateInfo cmdBufInfo = {};
@@ -466,17 +527,17 @@ namespace Engine::Scenes
 	 * @param commandBuffer A command buffer with recorded commands.
 	 * @param queue A queue that is compatible with all commands recorded in the command buffer to execute.
 	 */
-	void ExecuteCommands(VkCommandBuffer commandBuffer, Vulkan::Queue queue)
+	void ExecuteCommands(VkCommandBuffer commandBuffer, VkQueue queue)
 	{
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &commandBuffer;
-		vkQueueSubmit(queue._handle, 1, &submitInfo, nullptr);
-		vkQueueWaitIdle(queue._handle);
+		vkQueueSubmit(queue, 1, &submitInfo, nullptr);
+		vkQueueWaitIdle(queue);
 	}
 
-	void CubicalEnvironmentMap::CopyFacesToImage(VkDevice logicalDevice, Vulkan::PhysicalDevice& physicalDevice, VkCommandPool commandPool, VkCommandBuffer commandBuffer, Vulkan::Queue& queue)
+	void CubicalEnvironmentMap::CopyFacesToImage(VkDevice logicalDevice, Vulkan::PhysicalDevice& physicalDevice, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue)
 	{
 		auto faces = { _right, _left, _upper, _lower, _front, _back };
 		uint32_t resolution = _faceSizePixels;
@@ -557,73 +618,11 @@ namespace Engine::Scenes
 		}
 	}
 
-	Vulkan::ShaderResources CubicalEnvironmentMap::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
+
+
+	Vulkan::ShaderResources CubicalEnvironmentMap::CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
-		// Create the cubemap image.
-		auto& imageCreateInfo = _cubeMapImage._createInfo;
-		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		imageCreateInfo.arrayLayers = 6;
-		imageCreateInfo.extent = { (uint32_t)_faceSizePixels, (uint32_t)_faceSizePixels, 1 };
-		imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-		imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageCreateInfo.mipLevels = 10;
-		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-		vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_cubeMapImage._image);
-
-		// Allocate memory on the GPU for the image.
-		VkMemoryRequirements reqs;
-		vkGetImageMemoryRequirements(logicalDevice, _cubeMapImage._image, &reqs);
-		VkMemoryAllocateInfo imageAllocInfo{};
-		imageAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		imageAllocInfo.allocationSize = reqs.size;
-		imageAllocInfo.memoryTypeIndex = _physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		VkDeviceMemory mem;
-		vkAllocateMemory(logicalDevice, &imageAllocInfo, nullptr, &mem);
-		vkBindImageMemory(logicalDevice, _cubeMapImage._image, mem, 0);
-
-		auto& imageViewCreateInfo = _cubeMapImage._viewCreateInfo;
-		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		imageViewCreateInfo.components = { {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY} };
-		imageViewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-		imageViewCreateInfo.image = _cubeMapImage._image;
-		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
-		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-		imageViewCreateInfo.subresourceRange.layerCount = 6;
-		imageViewCreateInfo.subresourceRange.levelCount = 10;
-		vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_cubeMapImage._view);
-
-		auto& samplerCreateInfo = _cubeMapImage._samplerCreateInfo;
-		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerCreateInfo.anisotropyEnable = false;
-		samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-		samplerCreateInfo.flags = 0;
-		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-		samplerCreateInfo.maxLod = 10;
-		samplerCreateInfo.minLod = 0;
-		samplerCreateInfo.mipLodBias = 0.0f;
-		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-		vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_cubeMapImage._sampler);
-
-		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
-		CopyFacesToImage(logicalDevice, physicalDevice, commandPool, commandBuffer, graphicsQueue);
-
-		VkDescriptorSetLayout layout{};
-		VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_cubeMapImage._sampler } };
-		VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
-		layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		layoutCreateInfo.bindingCount = 1;
-		layoutCreateInfo.pBindings = bindings;
-		vkCreateDescriptorSetLayout(logicalDevice, &layoutCreateInfo, nullptr, &layout);
+		auto descriptorSetID = 4;
 
 		// Map the cubemap image to the fragment shader.
 		VkDescriptorPool descriptorPool{};
@@ -641,7 +640,7 @@ namespace Engine::Scenes
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		allocInfo.descriptorPool = descriptorPool;
 		allocInfo.descriptorSetCount = (uint32_t)1;
-		allocInfo.pSetLayouts = &layout;
+		allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
 		vkAllocateDescriptorSets(logicalDevice, &allocInfo, &set);
 
 		// Update the descriptor set's data with the environment map's image.
@@ -655,10 +654,8 @@ namespace Engine::Scenes
 		writeInfo.dstBinding = 0;
 		vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
 
-		auto pipelineLayout = PipelineLayout{ 4, layoutCreateInfo, layout };
 		auto descriptorSets = std::vector<VkDescriptorSet>{ set };
-		_shaderResources._data.emplace(pipelineLayout, descriptorSets);
-
+		_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
 		return _shaderResources;
 	}
 

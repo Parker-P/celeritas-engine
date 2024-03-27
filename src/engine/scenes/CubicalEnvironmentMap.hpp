@@ -73,7 +73,7 @@ namespace Engine::Scenes
 		 * @brief Vulkan handle to the cube map image used in the shaders. This image is meant to contain all the cube map's images as a serialized array of pixels.
 		 * In order to know where, in the array of pixels, each image starts/ends and what format it's in, a sampler and image view are used.
 		 */
-		Vulkan::Image _cubeMapImage{};
+		Vulkan::Image _cubeMapImage{ nullptr, 0 };
 
 		/**
 		 * @brief Number of mipmaps. This is dynamically caluclated.
@@ -101,7 +101,12 @@ namespace Engine::Scenes
 		 */
 		void LoadFromSphericalHDRI(std::filesystem::path imageFilePath);
 
-		void CopyFacesToImage(VkDevice logicalDevice, Vulkan::PhysicalDevice& physicalDevice, VkCommandPool commandPool, VkCommandBuffer commandBuffer, Vulkan::Queue& queue);
+		/**
+		 * @brief Creates the vulkan image that will be sampled in the shaders.
+		 */
+		void CreateImage(VulkanContext& context, Vulkan::PhysicalDevice& physicalDevice);
+
+		void CopyFacesToImage(VkDevice logicalDevice, Vulkan::PhysicalDevice& physicalDevice, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue);
 
 		/**
 		 * @brief Writes each cube map face's image to 6 separate files.
@@ -113,7 +118,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief See IPipelineable.
 		 */
-		virtual Vulkan::ShaderResources CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue) override;
+		virtual Vulkan::ShaderResources CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts) override;
 
 		/**
 		 * @brief See IPipelineable.

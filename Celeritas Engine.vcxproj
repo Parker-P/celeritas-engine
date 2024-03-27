@@ -27,9 +27,12 @@
     <ClCompile Include="src\engine\scenes\PointLight.cpp" />
     <ClCompile Include="src\engine\scenes\Vertex.cpp" />
     <ClCompile Include="src\engine\structural\Drawable.cpp" />
+    <ClCompile Include="src\engine\vulkan\Buffer.cpp" />
     <ClCompile Include="src\engine\vulkan\Helpers.cpp" />
+    <ClCompile Include="src\engine\vulkan\Image.cpp" />
     <ClCompile Include="src\engine\vulkan\ShaderResources.cpp" />
     <ClCompile Include="src\engine\vulkan\VulkanApplication.cpp" />
+    <ClCompile Include="src\engine\vulkan\VulkanContext.cpp" />
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\engine\vulkan\PhysicalDevice.cpp" />
     <ClCompile Include="src\utils\Json.cpp" />
@@ -103,6 +106,7 @@
     <ClInclude Include="src\engine\vulkan\Image.hpp" />
     <ClInclude Include="src\engine\vulkan\Queue.hpp" />
     <ClInclude Include="src\engine\vulkan\ShaderResources.hpp" />
+    <ClInclude Include="src\engine\vulkan\VulkanContext.hpp" />
     <ClInclude Include="src\settings\Paths.hpp" />
     <ClInclude Include="src\engine\scenes\Camera.hpp" />
     <ClInclude Include="src\engine\scenes\GameObject.hpp" />

@@ -3,13 +3,13 @@
 namespace Engine::Vulkan
 {
 	/**
-	 * @brief Describes the structure that a single descriptor set to provide context on how the shader should treat the descriptor set.
-	 * To make an analogy: if descriptor sets were cars, the blueprints used to fabricate them would be the pipeline layout, and the
+	 * @brief Describes the structure of a single descriptor set to provide context on how the shader should treat the descriptor set.
+	 * To make an analogy: if descriptor sets were cars, the blueprint used to fabricate them would be the descriptor set layout, and the
 	 * people inside the car would be the descriptors (the data the sets contain).
 	 * A descriptor set is a group of descriptors. Each descriptor in the set is an entry in the shader's input variables, and can be either
 	 * a buffer or an image.
 	 */
-	class PipelineLayout
+	class DescriptorSetLayout
 	{
 	public:
 		/**
@@ -20,11 +20,6 @@ namespace Engine::Vulkan
 		int _id;
 
 		/**
-		 * @brief Info with which the pipeline layout was created.
-		 */
-		VkDescriptorSetLayoutCreateInfo _createInfo;
-
-		/**
 		 * @brief Layout handle.
 		 */
 		VkDescriptorSetLayout _layout;
@@ -32,7 +27,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Used for ordering pipeline layouts in map structures.
 		 */
-		bool operator<(const PipelineLayout& other) const
+		bool operator<(const DescriptorSetLayout& other) const
 		{
 			return _id < other._id;
 		}
@@ -40,7 +35,7 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Used for ordering pipeline layouts in map structures.
 		 */
-		bool operator==(const PipelineLayout& other) const
+		bool operator==(const DescriptorSetLayout& other) const
 		{
 			return _id == other._id;
 		}
@@ -53,7 +48,7 @@ namespace Engine::Vulkan
 	{
 	public:
 		
-		std::map<PipelineLayout, std::vector<VkDescriptorSet>> _data;
+		std::map<DescriptorSetLayout, std::vector<VkDescriptorSet>> _data;
 
 		/**
 		 * @brief Merges this shader resources instance with another.
@@ -81,7 +76,7 @@ namespace Engine::Vulkan
 			auto it = std::find_if(_data.begin(), _data.end(), [index](const auto& pair) { return pair.first._id == index; });
 
 			if (it == _data.end()) {
-				throw std::exception("No resources found for the given index");
+				exit(1);
 			}
 
 			return it->second;

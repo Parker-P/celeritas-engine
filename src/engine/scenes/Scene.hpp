@@ -53,11 +53,11 @@ namespace Engine::Scenes
 		 * @brief Updates all scene-related data.
 		 */
 		virtual void Update() override;
-		
+
 		/**
 		 * @brief See IPipelinable.
 		 */
-		Vulkan::ShaderResources CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue);
+		Vulkan::ShaderResources CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts);
 
 		/**
 		 * @brief See IPipelinable.

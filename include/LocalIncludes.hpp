@@ -1,4 +1,5 @@
 #include "utils/Json.h"
+#include "engine/vulkan/VulkanContext.hpp"
 #include "structural/IUpdatable.hpp"
 #include "structural/Singleton.hpp"
 #include "settings/GlobalSettings.hpp"
@@ -25,5 +26,5 @@
 #include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Camera.hpp"
 #include "engine/scenes/Mesh.hpp"
-#include "engine/vulkan/VulkanApplication.hpp"
 #include "engine/vulkan/Helpers.hpp"
+#include "engine/vulkan/VulkanApplication.hpp"

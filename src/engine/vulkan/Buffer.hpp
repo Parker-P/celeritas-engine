@@ -13,5 +13,10 @@ namespace Engine::Vulkan
 
 		VkDeviceMemory _gpuMemory = nullptr;
 		void* _cpuMemory = nullptr;
+		void* _pData = nullptr;
+		size_t _sizeBytes = 0;
+
+		Buffer() = default;
+		Buffer(void* pData, size_t sizeBytes);
 	};
 }

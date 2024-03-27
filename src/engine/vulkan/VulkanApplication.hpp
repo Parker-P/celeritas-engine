@@ -357,6 +357,8 @@ namespace Engine::Vulkan
 
 		void LoadScene();
 
+		void LoadEnvironmentMap();
+
 		VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes);
 
 		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
@@ -391,6 +393,11 @@ namespace Engine::Vulkan
 		 * @see _graphicsPipeline
 		 */
 		void CreateGraphicsPipeline();
+
+		/**
+		 * @brief Creates the layouts of each descriptor set used in the shaders.
+		 */
+		std::vector<Vulkan::DescriptorSetLayout> CreateDescriptorSetLayouts();
 
 		/**
 		 * @brief Creates the pipeline layout. See _graphicsPipeline._layout.

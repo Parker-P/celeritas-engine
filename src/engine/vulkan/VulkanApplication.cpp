@@ -74,6 +74,7 @@ namespace Engine::Vulkan
 		CreateSemaphores();
 		CreateCommandPool();
 		LoadScene();
+		LoadEnvironmentMap();
 		CreateSwapchain();
 		CreateRenderPass();
 		CreateFramebuffers();
@@ -437,11 +438,11 @@ namespace Engine::Vulkan
 
 				auto& imageCreateInfo = m._albedo._createInfo;
 				imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-				imageCreateInfo.arrayLayers = 1;
 				imageCreateInfo.extent = { (uint32_t)size.width, (uint32_t)size.height, 1 };
 				imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
 				imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 				imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				imageCreateInfo.arrayLayers = 1;
 				imageCreateInfo.mipLevels = 1;
 				imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 				imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -474,15 +475,25 @@ namespace Engine::Vulkan
 
 				auto& samplerCreateInfo = m._albedo._samplerCreateInfo;
 				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-				samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-				samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-				samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-				samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-				samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+				samplerCreateInfo.magFilter = VK_FILTER_LINEAR; // Magnification filter (e.g., linear)
+				samplerCreateInfo.minFilter = VK_FILTER_LINEAR; // Minification filter (e.g., linear)
+				samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE; // Address mode for U coordinate (e.g., clamp to edge)
+				samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE; // Address mode for V coordinate (e.g., clamp to edge)
+				samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE; // Address mode for W coordinate (e.g., clamp to edge)
+				samplerCreateInfo.anisotropyEnable = VK_FALSE; // Anisotropic filtering (disable)
+				samplerCreateInfo.maxAnisotropy = 1.0f; // Anisotropy level
+				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK; // Border color (e.g., transparent black)
+				samplerCreateInfo.unnormalizedCoordinates = VK_FALSE; // Coordinate normalization (disable)
+				samplerCreateInfo.compareEnable = VK_FALSE; // Enable comparison (disable)
+				samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS; // Comparison operator
+				samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR; // Mipmap interpolation mode (e.g., linear)
+				samplerCreateInfo.mipLodBias = 0.0f; // Mipmap level-of-detail bias
+				samplerCreateInfo.minLod = 0.0f; // Minimum level-of-detail
+				samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE; // Maximum level-of-detail
 				vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &m._albedo._sampler);
 
-				// TODO: send the image to VRAM (maybe?).
+				m._albedo._pData = copiedImageData;
+				m._albedo._sizeBytes = baseColorImageData.size();
 
 				_scene._materials.push_back(m);
 				loadedMaterialCache.emplace(i, (unsigned int)_scene._materials.size() - 1);
@@ -601,6 +612,32 @@ namespace Engine::Vulkan
 		std::cout << "scene " << scenePath.string() << " loaded" << std::endl;
 	}
 
+	void VulkanApplication::LoadEnvironmentMap()
+	{
+		_scene._environmentMap = Engine::Scenes::CubicalEnvironmentMap::CubicalEnvironmentMap(_physicalDevice, _logicalDevice);
+		//_environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Waterfall.hdr");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Debug.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ModernBuilding.hdr");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.png");
+		//_environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.hdr");
+		_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "garden.hdr");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ItalianFlag.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "TestPng.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "EnvMap.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "texture.jpg");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Test1.png");
+
+		VulkanContext ctx{
+			_instance,
+			_logicalDevice,
+			_physicalDevice._handle,
+			_queue._handle,
+			_commandPool
+		};
+
+		_scene._environmentMap.CreateImage(ctx, _physicalDevice);
+	}
+
 	VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)
 	{
 		for (const auto& presentMode : presentModes) {
@@ -701,6 +738,7 @@ namespace Engine::Vulkan
 
 		// Create the color attachments.
 		for (uint32_t i = 0; i < actualImageCount; ++i) {
+			_renderPass._colorImages[i]._image = images[i];
 			auto& createInfo = _renderPass._colorImages[i]._viewCreateInfo;
 			createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 			createInfo.image = images[i];
@@ -1126,31 +1164,97 @@ namespace Engine::Vulkan
 		vkDestroyShaderModule(_logicalDevice, fragmentShaderModule, nullptr);
 	}
 
+	std::vector<Vulkan::DescriptorSetLayout> VulkanApplication::CreateDescriptorSetLayouts()
+	{
+		VkDescriptorSetLayout cameraLayout;
+		VkDescriptorSetLayout gameObjectLayout;
+		VkDescriptorSetLayout meshLayout;
+		VkDescriptorSetLayout lightLayout;
+		VkDescriptorSetLayout environmentMapLayout;
+
+		{
+			VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr } };
+			VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
+			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+			layoutCreateInfo.bindingCount = 1;
+			layoutCreateInfo.pBindings = bindings;
+			vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, nullptr, &cameraLayout);
+		}
+
+		{
+			VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr } };
+			VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
+			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+			layoutCreateInfo.bindingCount = 1;
+			layoutCreateInfo.pBindings = bindings;
+			vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, nullptr, &gameObjectLayout);
+		}
+
+		{
+			VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr } };
+			VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
+			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+			layoutCreateInfo.bindingCount = 1;
+			layoutCreateInfo.pBindings = bindings;
+			vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, nullptr, &lightLayout);
+		}
+
+		{
+			VkDescriptorSetLayoutBinding bindings[3];
+			bindings[0] = { VkDescriptorSetLayoutBinding {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._materials[0]._albedo._sampler} };
+			bindings[1] = { VkDescriptorSetLayoutBinding {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._materials[0]._roughness._sampler} };
+			bindings[2] = { VkDescriptorSetLayoutBinding {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._materials[0]._metalness._sampler} };
+			VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
+			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+			layoutCreateInfo.bindingCount = 3;
+			layoutCreateInfo.pBindings = bindings;
+			vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, nullptr, &meshLayout);
+		}
+
+		{
+			VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._environmentMap._cubeMapImage._sampler } };
+			VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
+			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+			layoutCreateInfo.bindingCount = 1;
+			layoutCreateInfo.pBindings = bindings;
+			vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, nullptr, &environmentMapLayout);
+		}
+
+		return {
+			Vulkan::DescriptorSetLayout{ 0, cameraLayout },
+			Vulkan::DescriptorSetLayout{ 1, gameObjectLayout },
+			Vulkan::DescriptorSetLayout{ 2, lightLayout },
+			Vulkan::DescriptorSetLayout{ 3, meshLayout },
+			Vulkan::DescriptorSetLayout{ 4, environmentMapLayout }
+		};
+	}
+
 	void VulkanApplication::CreatePipelineLayout()
 	{
+		auto layouts = CreateDescriptorSetLayouts();
+
 		auto& shaderResources = _graphicsPipeline._shaderResources;
-
-		auto cameraResources = _mainCamera.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
-		_mainCamera.UpdateShaderResources();
+		auto cameraResources = _mainCamera.CreateDescriptorSets(_physicalDevice, _logicalDevice, _commandPool, _queue, layouts);
 		shaderResources.MergeResources(cameraResources);
+		_mainCamera.UpdateShaderResources();
 
-		auto sceneResources = _scene.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
-		_scene.UpdateShaderResources();
+		auto sceneResources = _scene.CreateDescriptorSets(_physicalDevice, _logicalDevice, _commandPool, _queue, layouts);
 		shaderResources.MergeResources(sceneResources);
-		
+		_scene.UpdateShaderResources();
+
 		// Select the layout from each descriptor set to create a layout-only vector.
-		std::vector<VkDescriptorSetLayout> layouts;
+		std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
 		//std::transform(shaderResources._data.begin(), shaderResources._data.end(), std::back_inserter(layouts), [](const std::pair<PipelineLayout, VkDescriptorSet>& res) { return res.first._layout; });
 
-		std::transform(shaderResources._data.begin(), shaderResources._data.end(), std::back_inserter(layouts),
-			[](const std::pair<PipelineLayout, std::vector<VkDescriptorSet>>& pair) {
+		std::transform(shaderResources._data.begin(), shaderResources._data.end(), std::back_inserter(descriptorSetLayouts),
+			[](const std::pair<DescriptorSetLayout, std::vector<VkDescriptorSet>>& pair) {
 				return pair.first._layout;
 			});
 
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutCreateInfo.setLayoutCount = (uint32_t)layouts.size();
-		pipelineLayoutCreateInfo.pSetLayouts = layouts.data();
+		pipelineLayoutCreateInfo.setLayoutCount = (uint32_t)descriptorSetLayouts.size();
+		pipelineLayoutCreateInfo.pSetLayouts = descriptorSetLayouts.data();
 
 		if (vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_graphicsPipeline._layout) != VK_SUCCESS) {
 			std::cerr << "failed to create pipeline layout" << std::endl;
@@ -1235,8 +1339,10 @@ namespace Engine::Vulkan
 			vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
+			auto& shaderResources = _graphicsPipeline._shaderResources;
 			for (auto& gameObject : _scene._gameObjects) {
-				VkDescriptorSet sets[5] = { _mainCamera._shaderResources[0][0], gameObject._shaderResources[0][0], _scene._pointLights[0]._shaderResources[0][0], gameObject._pMesh->_shaderResources[0][0], _scene._shaderResources[0][0]};
+				auto x = shaderResources[3];
+				VkDescriptorSet sets[5] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], x[0], shaderResources[4][0] };
 				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 5, sets, 0, nullptr);
 				VkDeviceSize offset = 0;
 				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._pMesh->_vertices._vertexBuffer._buffer, &offset);

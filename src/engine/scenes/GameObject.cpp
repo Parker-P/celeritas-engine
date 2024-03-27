@@ -24,8 +24,10 @@ namespace Engine::Scenes
 		_pScene = pScene;
 	}
 
-	Vulkan::ShaderResources GameObject::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
+	Vulkan::ShaderResources GameObject::CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
+		auto descriptorSetID = 1;
+
 		// Create a temporary buffer.
 		Buffer buffer{};
 		auto bufferSizeBytes = sizeof(_transform._matrix);
@@ -46,14 +48,6 @@ namespace Engine::Scenes
 
 		_buffers.push_back(buffer);
 
-		VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr } };
-		VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
-		layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		layoutCreateInfo.bindingCount = 1;
-		layoutCreateInfo.pBindings = bindings;
-		VkDescriptorSetLayout layout;
-		vkCreateDescriptorSetLayout(logicalDevice, &layoutCreateInfo, nullptr, &layout);
-
 		VkDescriptorPool descriptorPool{};
 		VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 } };
 		VkDescriptorPoolCreateInfo createInfo = {};
@@ -68,7 +62,7 @@ namespace Engine::Scenes
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		allocInfo.descriptorPool = descriptorPool;
 		allocInfo.descriptorSetCount = (uint32_t)1;
-		allocInfo.pSetLayouts = &layout;
+		allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
 		VkDescriptorSet descriptorSet;
 		vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
 
@@ -83,9 +77,8 @@ namespace Engine::Scenes
 		writeInfo.dstBinding = 0;
 		vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
 
-		auto pipelineLayout = PipelineLayout{ 1, layoutCreateInfo, layout };
 		auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
-		_shaderResources._data.emplace(pipelineLayout, descriptorSets);
+		_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
 		return _shaderResources;
 	}
 

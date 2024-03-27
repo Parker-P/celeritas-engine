@@ -35,10 +35,10 @@ namespace Engine::Structural
 		 * @param physicalDevice Intended to be used to gather GPU information when allocating buffers or images.
 		 * @param logicalDevice Intended to be used for binding created buffers, images, descriptors, descriptor sets etc. to the GPU.
 		 */
-		virtual Vulkan::ShaderResources CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue) = 0;
+		virtual Vulkan::ShaderResources CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts) = 0;
 
 		/**
-		 * @brief Function that is meant for deriving classes to update the shader resources that have been created with CreateShaderResources.
+		 * @brief Function that is meant for deriving classes to update the shader resources that have been created with CreateDescriptorSets.
 		 */
 		virtual void UpdateShaderResources() = 0;
 	};

@@ -23,8 +23,10 @@ namespace Engine::Scenes
 		_pScene = scene;
 	}
 
-	Vulkan::ShaderResources Mesh::CreateShaderResources(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue)
+	Vulkan::ShaderResources Mesh::CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
+		auto descriptorSetID = 3;
+
 		// Get the textures to send to the shaders.
 		Vulkan::Image albedoMap;
 		Vulkan::Image roughnessMap;
@@ -62,20 +64,49 @@ namespace Engine::Scenes
 		_pScene->_materials[_materialIndex]._metalness = metalnessMap;
 
 		// Send the textures to the GPU.
-		//_pScene->_materials[_materialIndex]._albedo.SendToGPU(commandPool, graphicsQueue);
-		//_pScene->_materials[_materialIndex]._roughness.SendToGPU(commandPool, graphicsQueue);
-		//_pScene->_materials[_materialIndex]._metalness.SendToGPU(commandPool, graphicsQueue);
+		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, graphicsQueue, albedoMap, albedoMap._createInfo.extent.width, albedoMap._createInfo.extent.height, albedoMap._createInfo.extent.depth);
+		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, graphicsQueue, roughnessMap, roughnessMap._createInfo.extent.width, roughnessMap._createInfo.extent.height, roughnessMap._createInfo.extent.depth);
+		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, graphicsQueue, metalnessMap, metalnessMap._createInfo.extent.width, metalnessMap._createInfo.extent.height, metalnessMap._createInfo.extent.depth);
 
-		VkDescriptorSetLayoutBinding bindings[3];
-		bindings[0] = { VkDescriptorSetLayoutBinding {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_pScene->_materials[_materialIndex]._albedo._sampler} };
-		bindings[1] = { VkDescriptorSetLayoutBinding {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_pScene->_materials[_materialIndex]._roughness._sampler} };
-		bindings[2] = { VkDescriptorSetLayoutBinding {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_pScene->_materials[_materialIndex]._metalness._sampler} };
-		VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
-		layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		layoutCreateInfo.bindingCount = 3;
-		layoutCreateInfo.pBindings = bindings;
-		VkDescriptorSetLayout layout;
-		vkCreateDescriptorSetLayout(logicalDevice, &layoutCreateInfo, nullptr, &layout);
+		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
+		StartRecording(commandBuffer);
+
+		// Transition the images to shader read layout.
+		{
+			VkImageMemoryBarrier barrier{};
+			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			barrier.oldLayout = albedoMap._currentLayout;
+			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			barrier.image = albedoMap._image;
+			barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
+			albedoMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			barrier.oldLayout = roughnessMap._currentLayout;
+			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			barrier.image = roughnessMap._image;
+			barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
+			roughnessMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			barrier.oldLayout = metalnessMap._currentLayout;
+			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			barrier.image = metalnessMap._image;
+			barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
+			metalnessMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+		}
+
+		StopRecording(commandBuffer);
+		ExecuteCommands(commandBuffer, graphicsQueue._handle);
 
 		VkDescriptorPool descriptorPool{};
 		VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3 } };
@@ -90,7 +121,7 @@ namespace Engine::Scenes
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		allocInfo.descriptorPool = descriptorPool;
 		allocInfo.descriptorSetCount = (uint32_t)1;
-		allocInfo.pSetLayouts = &layout;
+		allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
 		VkDescriptorSet descriptorSet;
 		vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
 
@@ -107,9 +138,8 @@ namespace Engine::Scenes
 		writeInfo.dstBinding = 0;
 		vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
 
-		auto pipelineLayout = PipelineLayout{ 3, layoutCreateInfo, layout };
 		auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
-		_shaderResources._data.emplace(pipelineLayout, descriptorSets);
+		_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
 		return _shaderResources;
 	}
 
