@@ -52,7 +52,26 @@ namespace Engine::Vulkan
 	class ShaderResources
 	{
 	public:
+		
 		std::map<PipelineLayout, std::vector<VkDescriptorSet>> _data;
+
+		/**
+		 * @brief Merges this shader resources instance with another.
+		 */
+		void MergeResources(ShaderResources& other) {
+			for (const auto& pair : other._data) {
+				auto it = _data.find(pair.first);
+				if (it != _data.end()) {
+					// Here, you can decide how to merge the values.
+					// For simplicity, I'm replacing the value in map1 with the value from map2.
+					it->second = pair.second;
+				}
+				else {
+					// If the key doesn't exist in map1, simply insert the key-value pair
+					_data.insert(pair);
+				}
+			}
+		}
 
 		/**
 		 * @brief Operator overload to index into _data.
@@ -62,7 +81,7 @@ namespace Engine::Vulkan
 			auto it = std::find_if(_data.begin(), _data.end(), [index](const auto& pair) { return pair.first._id == index; });
 
 			if (it == _data.end()) {
-				throw std::out_of_range("No resources found for the given index");
+				throw std::exception("No resources found for the given index");
 			}
 
 			return it->second;

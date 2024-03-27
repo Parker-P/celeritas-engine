@@ -718,7 +718,7 @@ namespace Engine::Vulkan
 			vkCreateImageView(_logicalDevice, &createInfo, nullptr, &_renderPass._colorImages[i]._view);
 		}
 
-		// Create the cubemap image.
+		// Create the image.
 		auto& imageCreateInfo = _renderPass._depthImage._createInfo;
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageCreateInfo.arrayLayers = 1;
@@ -1132,18 +1132,20 @@ namespace Engine::Vulkan
 
 		auto cameraResources = _mainCamera.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
 		_mainCamera.UpdateShaderResources();
-		descriptorSets.insert(descriptorSets.end(), cameraDescriptorSets.begin(), cameraDescriptorSets.end());
+		shaderResources.MergeResources(cameraResources);
 
 		auto sceneResources = _scene.CreateShaderResources(_physicalDevice, _logicalDevice, _commandPool, _queue);
 		_scene.UpdateShaderResources();
-		descriptorSets.insert(descriptorSets.end(), sceneSets.begin(), sceneSets.end());
-
-		// Sort descriptor set layouts by set id.
-		std::sort(descriptorSets.begin(), descriptorSets.end(), [](const DescriptorSet& a, const DescriptorSet& b) { return a._id < b._id; });
+		shaderResources.MergeResources(sceneResources);
 		
 		// Select the layout from each descriptor set to create a layout-only vector.
 		std::vector<VkDescriptorSetLayout> layouts;
-		std::transform(descriptorSets.begin(), descriptorSets.end(), std::back_inserter(layouts), [](const DescriptorSet& descSet) { return descSet._layout; });
+		//std::transform(shaderResources._data.begin(), shaderResources._data.end(), std::back_inserter(layouts), [](const std::pair<PipelineLayout, VkDescriptorSet>& res) { return res.first._layout; });
+
+		std::transform(shaderResources._data.begin(), shaderResources._data.end(), std::back_inserter(layouts),
+			[](const std::pair<PipelineLayout, std::vector<VkDescriptorSet>>& pair) {
+				return pair.first._layout;
+			});
 
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -1234,7 +1236,7 @@ namespace Engine::Vulkan
 			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
 			for (auto& gameObject : _scene._gameObjects) {
-				VkDescriptorSet sets[5] = { _mainCamera._shaderResources[0]._set, gameObject._shaderResources[0]._set, _scene._pointLights[0]._shaderResources[0]._set, gameObject._pMesh->_shaderResources[0]._set, _scene._shaderResources[0]._set};
+				VkDescriptorSet sets[5] = { _mainCamera._shaderResources[0][0], gameObject._shaderResources[0][0], _scene._pointLights[0]._shaderResources[0][0], gameObject._pMesh->_shaderResources[0][0], _scene._shaderResources[0][0]};
 				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 5, sets, 0, nullptr);
 				VkDeviceSize offset = 0;
 				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._pMesh->_vertices._vertexBuffer._buffer, &offset);

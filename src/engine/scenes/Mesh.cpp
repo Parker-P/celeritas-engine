@@ -107,7 +107,9 @@ namespace Engine::Scenes
 		writeInfo.dstBinding = 0;
 		vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
 
-		_shaderResources._data.emplace(PipelineLayout{ 3, layoutCreateInfo, layout}, descriptorSet);
+		auto pipelineLayout = PipelineLayout{ 3, layoutCreateInfo, layout };
+		auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
+		_shaderResources._data.emplace(pipelineLayout, descriptorSets);
 		return _shaderResources;
 	}
 

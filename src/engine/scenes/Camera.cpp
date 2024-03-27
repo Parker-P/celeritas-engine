@@ -58,12 +58,12 @@ namespace Engine::Scenes
 		_buffers.push_back(buffer);
 
 		VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr } };
-		VkDescriptorSetLayoutCreateInfo descriptorSetCreateInfo{};
-		descriptorSetCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptorSetCreateInfo.bindingCount = 1;
-		descriptorSetCreateInfo.pBindings = bindings;
+		VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
+		layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutCreateInfo.bindingCount = 1;
+		layoutCreateInfo.pBindings = bindings;
 		VkDescriptorSetLayout layout;
-		vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetCreateInfo, nullptr, &layout);
+		vkCreateDescriptorSetLayout(logicalDevice, &layoutCreateInfo, nullptr, &layout);
 
 		VkDescriptorPool descriptorPool{};
 		VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 } };
@@ -94,7 +94,9 @@ namespace Engine::Scenes
 		writeInfo.dstBinding = 0;
 		vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
 
-		_shaderResources._data.emplace(descriptorSet);
+		auto pipelineLayout = PipelineLayout{ 0, layoutCreateInfo, layout };
+		auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
+		_shaderResources._data.emplace(pipelineLayout, descriptorSets);
 		return _shaderResources;
 	}
 
