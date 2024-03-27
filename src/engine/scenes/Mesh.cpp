@@ -28,40 +28,22 @@ namespace Engine::Scenes
 		auto descriptorSetID = 3;
 
 		// Get the textures to send to the shaders.
-		Vulkan::Image albedoMap;
-		Vulkan::Image roughnessMap;
-		Vulkan::Image metalnessMap;
+		auto defaultMaterial = _pScene->DefaultMaterial();
+		Vulkan::Image albedoMap = defaultMaterial._albedo;
+		Vulkan::Image roughnessMap = defaultMaterial._roughness;
+		Vulkan::Image metalnessMap = defaultMaterial._metalness;
+
 		if (_materialIndex >= 0) {
 			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._albedo._image) {
 				albedoMap = _pScene->_materials[_materialIndex]._albedo;
 			}
-			else {
-				albedoMap = SolidColorImage(logicalDevice, physicalDevice, 125, 125, 125, 255);
-			}
 			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._roughness._image) {
 				roughnessMap = _pScene->_materials[_materialIndex]._roughness;
-			}
-			else {
-				roughnessMap = SolidColorImage(logicalDevice, physicalDevice, 255, 255, 255, 255);
 			}
 			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._metalness._image) {
 				metalnessMap = _pScene->_materials[_materialIndex]._metalness;
 			}
-			else {
-				metalnessMap = SolidColorImage(logicalDevice, physicalDevice, 125, 125, 125, 255);
-			}
 		}
-		else {
-			auto defaultMaterial = _pScene->DefaultMaterial();
-			albedoMap = defaultMaterial._albedo;
-			roughnessMap = defaultMaterial._roughness;
-			metalnessMap = defaultMaterial._metalness;
-		}
-
-		// The mesh MUST have a material by this point, so we assign the images we created for the texture maps it needs.
-		_pScene->_materials[_materialIndex]._albedo = albedoMap;
-		_pScene->_materials[_materialIndex]._roughness = roughnessMap;
-		_pScene->_materials[_materialIndex]._metalness = metalnessMap;
 
 		// Send the textures to the GPU.
 		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, graphicsQueue, albedoMap, albedoMap._createInfo.extent.width, albedoMap._createInfo.extent.height, albedoMap._createInfo.extent.depth);
@@ -126,9 +108,9 @@ namespace Engine::Scenes
 		vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
 
 		VkDescriptorImageInfo imageInfo[3];
-		imageInfo[0] = { _pScene->_materials[_materialIndex]._albedo._sampler, _pScene->_materials[_materialIndex]._albedo._view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-		imageInfo[1] = { _pScene->_materials[_materialIndex]._roughness._sampler, _pScene->_materials[_materialIndex]._roughness._view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-		imageInfo[2] = { _pScene->_materials[_materialIndex]._metalness._sampler, _pScene->_materials[_materialIndex]._metalness._view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+		imageInfo[0] = { albedoMap._sampler, albedoMap._view, albedoMap._currentLayout };
+		imageInfo[1] = { roughnessMap._sampler, roughnessMap._view, roughnessMap._currentLayout };
+		imageInfo[2] = { metalnessMap._sampler, metalnessMap._view, metalnessMap._currentLayout };
 		VkWriteDescriptorSet writeInfo = {};
 		writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		writeInfo.dstSet = descriptorSet;

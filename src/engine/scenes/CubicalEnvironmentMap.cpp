@@ -618,8 +618,6 @@ namespace Engine::Scenes
 		}
 	}
 
-
-
 	Vulkan::ShaderResources CubicalEnvironmentMap::CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
 		auto descriptorSetID = 4;

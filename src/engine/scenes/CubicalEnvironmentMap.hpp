@@ -106,6 +106,9 @@ namespace Engine::Scenes
 		 */
 		void CreateImage(VulkanContext& context, Vulkan::PhysicalDevice& physicalDevice);
 
+		/**
+		 * @brief Copies all the face's data to the main cubemap image.
+		 */
 		void CopyFacesToImage(VkDevice logicalDevice, Vulkan::PhysicalDevice& physicalDevice, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue);
 
 		/**

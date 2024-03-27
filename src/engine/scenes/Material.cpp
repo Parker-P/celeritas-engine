@@ -22,7 +22,7 @@ namespace Engine::Scenes
     {
         _name = "DefaultMaterial";
 
-        _albedo = SolidColorImage(logicalDevice, physicalDevice, 125, 125, 125, 255);
+        _albedo = SolidColorImage(logicalDevice, physicalDevice, 255, 0, 255, 255);
         _roughness = SolidColorImage(logicalDevice, physicalDevice, 125, 125, 125, 255);
         _metalness = SolidColorImage(logicalDevice, physicalDevice, 125, 125, 125, 255);
     }

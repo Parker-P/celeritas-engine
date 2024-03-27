@@ -475,21 +475,12 @@ namespace Engine::Vulkan
 
 				auto& samplerCreateInfo = m._albedo._samplerCreateInfo;
 				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-				samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-				samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-				samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-				samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-				samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-				samplerCreateInfo.anisotropyEnable = VK_FALSE;
-				samplerCreateInfo.maxAnisotropy = 1.0f;
+				samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+				samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+				samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-				samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-				samplerCreateInfo.compareEnable = VK_FALSE;
-				samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-				samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-				samplerCreateInfo.mipLodBias = 0.0f;
-				samplerCreateInfo.minLod = 0.0f;
-				samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
+				samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+				samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 				vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &m._albedo._sampler);
 
 				m._albedo._pData = copiedImageData;
@@ -1201,7 +1192,7 @@ namespace Engine::Vulkan
 
 		{
 			VkDescriptorSetLayoutBinding bindings[3];
-			bindings[0] = { VkDescriptorSetLayoutBinding {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._materials[0]._albedo._sampler} };
+			bindings[0] = { VkDescriptorSetLayoutBinding {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._materials[1]._albedo._sampler} };
 			bindings[1] = { VkDescriptorSetLayoutBinding {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._materials[0]._roughness._sampler} };
 			bindings[2] = { VkDescriptorSetLayoutBinding {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._materials[0]._metalness._sampler} };
 			VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};

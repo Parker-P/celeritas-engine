@@ -95,7 +95,7 @@ void main()
 
         vec4 environmentMapColor = textureLod(environmentMap, reflected.xyz, 7.0f);
         outColor = normalize(environmentMapColor + albedoMapColor);
-//        outColor = albedoMapColor;
+        outColor = albedoMapColor;
 	}
 	else {
 		outColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);

@@ -138,12 +138,6 @@ namespace Engine::Vulkan
 		vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, image._sizeBytes, 0, &stagingBuffer._cpuMemory);
 		memcpy(stagingBuffer._cpuMemory, image._pData, image._sizeBytes);
 
-		VkCommandBufferAllocateInfo cmdBufInfo = {};
-		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cmdBufInfo.commandPool = commandPool;
-		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		cmdBufInfo.commandBufferCount = 1;
-
 		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
 		StartRecording(commandBuffer);
 
@@ -158,16 +152,12 @@ namespace Engine::Vulkan
 		image._currentLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-		// Copy the buffer to the specific face by defining the subresource range.
 		VkBufferImageCopy copyInfo{};
 		copyInfo.bufferImageHeight = height;
 		copyInfo.bufferRowLength = width;
 		copyInfo.imageExtent = { (uint32_t)width, (uint32_t)height, (uint32_t)depth };
 		copyInfo.imageOffset = { 0,0,0 };
-		copyInfo.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		copyInfo.imageSubresource.layerCount = 1;
-		copyInfo.imageSubresource.baseArrayLayer = 0;
-		copyInfo.imageSubresource.mipLevel = 0;
+		copyInfo.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
 		vkCmdCopyBufferToImage(commandBuffer, stagingBuffer._buffer, image._image, image._currentLayout, 1, &copyInfo);
 
 		StopRecording(commandBuffer);
