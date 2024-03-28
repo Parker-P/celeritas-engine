@@ -33,7 +33,7 @@ namespace Engine::Scenes
 		_up = glm::vec3(0.0f, 1.0f, 0.0f);
 	}
 
-	Vulkan::ShaderResources Camera::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
+	Vulkan::ShaderResources Camera::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
 		using namespace Engine::Vulkan;
 

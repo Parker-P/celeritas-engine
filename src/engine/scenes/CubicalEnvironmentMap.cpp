@@ -431,7 +431,7 @@ namespace Engine::Scenes
 			stbi_write_png(path.string().c_str(), _faceSizePixels, _faceSizePixels, 4, blurredFaceImages[i], _faceSizePixels * 4);
 		}*/
 
-		std::cout << "Environment map " << imageFilePath.string() << " loaded." << std::endl;
+		//Utils::Logger::Log("Environment map " + imageFilePath.string() + " loaded.");
 	}
 
 	void Engine::Scenes::CubicalEnvironmentMap::CreateImage(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue)
@@ -576,7 +576,7 @@ namespace Engine::Scenes
 		}
 	}
 
-	Vulkan::ShaderResources CubicalEnvironmentMap::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
+	Vulkan::ShaderResources CubicalEnvironmentMap::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
 		auto descriptorSetID = 4;
 

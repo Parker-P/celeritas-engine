@@ -19,6 +19,14 @@
 
 namespace Engine::Vulkan
 {
+	void CheckResult(VkResult result)
+	{
+		if (result != VK_SUCCESS) {
+			std::string message = "ERROR: code " + std::to_string(result);
+			Utils::Exit(result, message.c_str());
+		}
+	}
+
 	Image SolidColorImage(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, unsigned char r, unsigned char g, unsigned char b, unsigned char a)
 	{
 		Image image;

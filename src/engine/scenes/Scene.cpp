@@ -42,12 +42,12 @@ namespace Engine::Scenes
 		}
 	}
 
-	Vulkan::ShaderResources Scene::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
+	Vulkan::ShaderResources Scene::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
 		for (auto& gameObject : _gameObjects) {
 			if (gameObject._pMesh != nullptr) {
-				auto gameObjectResources = gameObject.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, graphicsQueue, layouts);
-				auto meshResources = gameObject._pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, graphicsQueue, layouts);
+				auto gameObjectResources = gameObject.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+				auto meshResources = gameObject._pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
 				_shaderResources.MergeResources(gameObjectResources);
 				_shaderResources.MergeResources(meshResources);
 
@@ -60,14 +60,14 @@ namespace Engine::Scenes
 		}
 
 		for (auto& light : _pointLights) {
-			auto lightResources = light.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, graphicsQueue, layouts);
+			auto lightResources = light.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
 			_shaderResources.MergeResources(lightResources);
 			light.UpdateShaderResources();
 
 			//descriptorSets.insert(descriptorSets.end(), lightSets.begin(), lightSets.end());
 		}
 
-		auto environmentMapResources = _environmentMap.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, graphicsQueue, layouts);
+		auto environmentMapResources = _environmentMap.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
 		_shaderResources.MergeResources(environmentMapResources);
 		return _shaderResources;
 	}

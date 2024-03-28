@@ -42,6 +42,7 @@
     <ClCompile Include="src\settings\GlobalSettings.cpp" />
     <ClCompile Include="src\engine\Time.cpp" />
     <ClCompile Include="src\engine\math\Transform.cpp" />
+    <ClCompile Include="src\utils\Logger.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Includes.hpp" />
@@ -121,6 +122,7 @@
     <ClInclude Include="src\engine\Time.hpp" />
     <ClInclude Include="src\engine\math\Transform.hpp" />
     <ClInclude Include="include\stb\stb_image.h" />
+    <ClInclude Include="src\utils\Logger.hpp" />
     <ClInclude Include="src\utils\Utils.hpp" />
     <ClInclude Include="src\engine\vulkan\VulkanApplication.hpp" />
     <ClInclude Include="src\utils\BoxBlur.hpp" />

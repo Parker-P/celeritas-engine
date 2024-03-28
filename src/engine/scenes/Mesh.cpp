@@ -23,7 +23,7 @@ namespace Engine::Scenes
 		_pScene = scene;
 	}
 
-	Vulkan::ShaderResources Mesh::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
+	Vulkan::ShaderResources Mesh::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
 		auto descriptorSetID = 3;
 
@@ -46,9 +46,9 @@ namespace Engine::Scenes
 		}
 
 		// Send the textures to the GPU.
-		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, graphicsQueue, albedoMap._image, albedoMap._createInfo.extent.width, albedoMap._createInfo.extent.height, albedoMap._createInfo.extent.depth, albedoMap._pData, albedoMap._sizeBytes);
-		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, graphicsQueue, albedoMap._image, roughnessMap._createInfo.extent.width, roughnessMap._createInfo.extent.height, roughnessMap._createInfo.extent.depth, roughnessMap._pData, roughnessMap._sizeBytes);
-		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, graphicsQueue, albedoMap._image, metalnessMap._createInfo.extent.width, metalnessMap._createInfo.extent.height, metalnessMap._createInfo.extent.depth, metalnessMap._pData, metalnessMap._sizeBytes);
+		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, albedoMap._createInfo.extent.width, albedoMap._createInfo.extent.height, albedoMap._createInfo.extent.depth, albedoMap._pData, albedoMap._sizeBytes);
+		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, roughnessMap._createInfo.extent.width, roughnessMap._createInfo.extent.height, roughnessMap._createInfo.extent.depth, roughnessMap._pData, roughnessMap._sizeBytes);
+		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, metalnessMap._createInfo.extent.width, metalnessMap._createInfo.extent.height, metalnessMap._createInfo.extent.depth, metalnessMap._pData, metalnessMap._sizeBytes);
 
 		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
 		StartRecording(commandBuffer);
@@ -88,7 +88,7 @@ namespace Engine::Scenes
 		}
 
 		StopRecording(commandBuffer);
-		ExecuteCommands(commandBuffer, graphicsQueue);
+		ExecuteCommands(commandBuffer, queue);
 
 		_images.push_back(albedoMap);
 		_images.push_back(roughnessMap);

@@ -3,6 +3,11 @@
 namespace Engine::Vulkan
 {
 	/**
+	 * @brief Checks a VkResult and terminates the program, logging a message.
+	 */
+	void CheckResult(VkResult result);
+
+	/**
 	 * @brief .
 	 */
 	Image SolidColorImage(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, unsigned char r, unsigned char g, unsigned char b, unsigned char a);

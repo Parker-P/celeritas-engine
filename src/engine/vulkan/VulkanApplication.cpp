@@ -45,10 +45,10 @@ namespace Engine::Vulkan
 		void* pUserData)
 	{
 		if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
-			std::cerr << "\nERROR: [" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg << std::endl;
+			Utils::Logger::Log("ERROR: [" + std::string(pLayerPrefix) + "] Code " + std::to_string(msgCode) + " : " + pMsg);
 		}
 		else if (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT) {
-			std::cerr << "\nWARNING: [" << pLayerPrefix << "] Code " << msgCode << " : " << pMsg << std::endl;
+			Utils::Logger::Log("WARNING: [" + std::string(pLayerPrefix) + "] Code " + std::to_string(msgCode) + " : " + pMsg);
 		}
 
 		return VK_FALSE;
@@ -260,21 +260,14 @@ namespace Engine::Vulkan
 		}
 
 		uint32_t extensionCount = 0;
-		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+		CheckResult(vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr));
 
 		if (extensionCount == 0) {
-			std::cerr << "no extensions supported!" << std::endl;
-			exit(1);
+			Utils::Exit(1, "no extensions supported");
 		}
 
 		std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, availableExtensions.data());
-
-		std::cout << "supported instance extensions:" << std::endl;
-
-		for (const auto& extension : availableExtensions) {
-			std::cout << "\t" << extension.extensionName << std::endl;
-		}
+		CheckResult(vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, availableExtensions.data()));
 
 		VkInstanceCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -290,14 +283,14 @@ namespace Engine::Vulkan
 		}
 
 		VkInstance outInstance;
-		vkCreateInstance(&createInfo, nullptr, &outInstance);
+		CheckResult(vkCreateInstance(&createInfo, nullptr, &outInstance));
 		return outInstance;
 	}
 
 	VkSurfaceKHR VulkanApplication::CreateWindowSurface(VkInstance& instance)
 	{
 		VkSurfaceKHR outSurface;
-		glfwCreateWindowSurface(instance, _pWindow, NULL, &outSurface);
+		CheckResult(glfwCreateWindowSurface(instance, _pWindow, NULL, &outSurface));
 		return outSurface;
 	}
 
@@ -306,25 +299,19 @@ namespace Engine::Vulkan
 		// Try to find 1 Vulkan supported device.
 		// Note: perhaps refactor to loop through devices and find first one that supports all required features and extensions.
 		uint32_t deviceCount = 0;
-		if (vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr) != VK_SUCCESS || deviceCount == 0) {
-			std::cerr << "Failed to get number of physical devices." << std::endl;
-			exit(1);
+		CheckResult(vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr));
+
+		if (deviceCount <= 0) {
+			Utils::Exit(1, "device count was zero");
 		}
 
 		deviceCount = 1;
-		VkPhysicalDevice outDevice;
-		VkResult res = vkEnumeratePhysicalDevices(instance, &deviceCount, &outDevice);
-		if (res != VK_SUCCESS && res != VK_INCOMPLETE) {
-			std::cerr << "Enumerating physical devices failed." << std::endl;
-			exit(1);
-		}
+		std::vector<VkPhysicalDevice> outDevice(deviceCount);
+		vkEnumeratePhysicalDevices(instance, &deviceCount, outDevice.data());
 
-		if (deviceCount == 0) {
-			std::cerr << "No physical devices that support vulkan." << std::endl;
-			exit(1);
+		if (deviceCount <= 0) {
+			Utils::Exit(1, "device count was zero");
 		}
-
-		std::cout << "Physical device with vulkan support found." << std::endl;
 
 		// Check device features
 		// Note: will apiVersion >= appInfo.apiVersion? Probably yes, but spec is unclear.
@@ -341,7 +328,7 @@ namespace Engine::Vulkan
 
 		std::cout << "physical device supports version " << supportedVersion[0] << "." << supportedVersion[1] << "." << supportedVersion[2] << std::endl;*/
 
-		return outDevice;
+		return outDevice[0];
 	}
 
 	VkDevice VulkanApplication::CreateLogicalDevice(VkPhysicalDevice& physicalDevice, const std::vector<VkDeviceQueueCreateInfo>& queueCreateInfos)
@@ -382,16 +369,7 @@ namespace Engine::Vulkan
 
 			PFN_vkCreateDebugReportCallbackEXT createDebugReportCallback = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
 
-			if (createDebugReportCallback(instance, &createInfo, nullptr, &_callback) != VK_SUCCESS) {
-				std::cerr << "failed to create debug callback" << std::endl;
-				exit(1);
-			}
-			else {
-				std::cout << "created debug callback" << std::endl;
-			}
-		}
-		else {
-			std::cout << "skipped creating debug callback" << std::endl;
+			CheckResult(createDebugReportCallback(instance, &createInfo, nullptr, &_callback));
 		}
 	}
 
@@ -399,8 +377,8 @@ namespace Engine::Vulkan
 	{
 		VkSemaphoreCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_imageAvailableSemaphore);
-		vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_renderingFinishedSemaphore);
+		CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_imageAvailableSemaphore));
+		CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_renderingFinishedSemaphore));
 	}
 
 	void VulkanApplication::LoadScene()
@@ -414,7 +392,8 @@ namespace Engine::Vulkan
 		std::string warn;
 
 		//auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb";
-		auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
+		auto scenePath = Settings::Paths::ModelsPath() /= "cubes.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "Cube.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb";
@@ -449,7 +428,7 @@ namespace Engine::Vulkan
 				imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 				imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 				imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-				vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &m._albedo._image);
+				CheckResult(vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &m._albedo._image));
 
 				// Allocate memory on the GPU for the image.
 				VkMemoryRequirements reqs;
@@ -459,8 +438,8 @@ namespace Engine::Vulkan
 				allocInfo.allocationSize = reqs.size;
 				allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(_physicalDevice, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 				VkDeviceMemory mem;
-				vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem);
-				vkBindImageMemory(_logicalDevice, m._albedo._image, mem, 0);
+				CheckResult(vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem));
+				CheckResult(vkBindImageMemory(_logicalDevice, m._albedo._image, mem, 0));
 
 				auto& imageViewCreateInfo = m._albedo._viewCreateInfo;
 				imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -473,7 +452,7 @@ namespace Engine::Vulkan
 				imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
 				imageViewCreateInfo.subresourceRange.layerCount = 1;
 				imageViewCreateInfo.subresourceRange.levelCount = 1;
-				vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &m._albedo._view);
+				CheckResult(vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &m._albedo._view));
 
 				auto& samplerCreateInfo = m._albedo._samplerCreateInfo;
 				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -601,8 +580,6 @@ namespace Engine::Vulkan
 				mesh->_gameObjectIndex = (unsigned int)(_scene._gameObjects.size() - 1);
 			}
 		}
-
-		std::cout << "scene " << scenePath.string() << " loaded" << std::endl;
 	}
 
 	void VulkanApplication::LoadEnvironmentMap()
@@ -688,13 +665,8 @@ namespace Engine::Vulkan
 			createInfo.height = _swapchain._framebufferSize.height;
 			createInfo.layers = 1;
 
-			if (vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_swapchain._frameBuffers[i]) != VK_SUCCESS) {
-				std::cerr << "failed to create framebuffer for swap chain image view #" << i << std::endl;
-				exit(1);
-			}
+			CheckResult(vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_swapchain._frameBuffers[i]));
 		}
-
-		std::cout << "created framebuffers for swap chain image views" << std::endl;
 	}
 
 	void VulkanApplication::CreateRenderPass()
@@ -705,21 +677,13 @@ namespace Engine::Vulkan
 		// Note: these are the images that swap chain image indices refer to.
 		// Note: actual number of images may differ from requested number, since it's a lower bound.
 		uint32_t actualImageCount = 0;
-		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, nullptr) != VK_SUCCESS || actualImageCount == 0) {
-			std::cerr << "failed to acquire number of swap chain images" << std::endl;
-			exit(1);
-		}
+		CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, nullptr));
 
 		_renderPass._colorImages.resize(actualImageCount);
 
 		std::vector<VkImage> images;
 		images.resize(actualImageCount);
-		if (vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, images.data()) != VK_SUCCESS) {
-			std::cerr << "failed to acquire swapchain images" << std::endl;
-			exit(1);
-		}
-
-		std::cout << "acquired swap chain images" << std::endl;
+		CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, images.data()));
 
 		// Create the color attachments.
 		for (uint32_t i = 0; i < actualImageCount; ++i) {
@@ -789,8 +753,6 @@ namespace Engine::Vulkan
 		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 		vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._depthImage._sampler);
 
-		std::cout << "created image views for swap chain images" << std::endl;
-
 		// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for "image used for a render pass".
 		VkAttachmentDescription colorAttachmentDescription = {};
 		colorAttachmentDescription.format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -845,7 +807,7 @@ namespace Engine::Vulkan
 		colorDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
 		// This dependency tells Vulkan that the depth attachment in a renderpass cannot be used before 
-		// previous renderpasses have finished using it.
+		// previous subpasses have finished using it.
 		VkSubpassDependency depthDependency = {};
 		depthDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 		depthDependency.dstSubpass = 0;
@@ -867,13 +829,7 @@ namespace Engine::Vulkan
 		createInfo.dependencyCount = 2;
 		createInfo.pDependencies = &subpassDependencies[0];
 
-		if (vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass._handle) != VK_SUCCESS) {
-			std::cerr << "failed to create render pass" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created render pass" << std::endl;
-		}
+		CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass._handle));
 	}
 
 	void VulkanApplication::CreateSwapchain()
@@ -888,8 +844,6 @@ namespace Engine::Vulkan
 		if (surfaceCapabilities.maxImageCount != 0 && imageCount > surfaceCapabilities.maxImageCount) {
 			imageCount = surfaceCapabilities.maxImageCount;
 		}
-
-		std::cout << "using " << imageCount << " images for swap chain" << std::endl;
 
 		VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat(surfaceFormats);
 		_swapchain._framebufferSize = ChooseFramebufferSize(surfaceCapabilities);
@@ -925,13 +879,7 @@ namespace Engine::Vulkan
 		createInfo.clipped = VK_TRUE;
 		createInfo.oldSwapchain = _swapchain._oldSwapchainHandle;
 
-		if (vkCreateSwapchainKHR(_logicalDevice, &createInfo, nullptr, &_swapchain._handle) != VK_SUCCESS) {
-			std::cerr << "failed to create swapchain" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created swapchain" << std::endl;
-		}
+		CheckResult(vkCreateSwapchainKHR(_logicalDevice, &createInfo, nullptr, &_swapchain._handle));
 
 		if (_swapchain._oldSwapchainHandle != VK_NULL_HANDLE) {
 			vkDestroySwapchainKHR(_logicalDevice, _swapchain._oldSwapchainHandle, nullptr);
@@ -955,15 +903,11 @@ namespace Engine::Vulkan
 			createInfo.codeSize = fileBytes.size();
 			createInfo.pCode = (uint32_t*)fileBytes.data();
 
-			if (vkCreateShaderModule(_logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-				std::wcerr << "failed to create shader module for " << absolutePath.c_str() << std::endl;
-				exit(1);
-			}
-
-			std::wcout << "created shader module for " << absolutePath.c_str() << std::endl;
+			CheckResult(vkCreateShaderModule(_logicalDevice, &createInfo, nullptr, &shaderModule));
 		}
 		else {
-			std::wcout << "failed to open file " << absolutePath.c_str() << std::endl;
+			auto msg = "failed to open file " + absolutePath.string();
+			Utils::Exit(1, msg.c_str());
 			exit(0);
 		}
 
@@ -1136,13 +1080,7 @@ namespace Engine::Vulkan
 		pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
 		pipelineCreateInfo.basePipelineIndex = -1;
 
-		if (vkCreateGraphicsPipelines(_logicalDevice, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_graphicsPipeline._handle) != VK_SUCCESS) {
-			std::cerr << "failed to create graphics pipeline" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created graphics pipeline" << std::endl;
-		}
+		CheckResult(vkCreateGraphicsPipelines(_logicalDevice, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_graphicsPipeline._handle));
 
 		// No longer necessary as it has all been put into the _graphicsPipeline object.
 		vkDestroyShaderModule(_logicalDevice, vertexShaderModule, nullptr);
@@ -1186,7 +1124,7 @@ namespace Engine::Vulkan
 
 		{
 			VkDescriptorSetLayoutBinding bindings[3];
-			bindings[0] = { VkDescriptorSetLayoutBinding {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._materials[1]._albedo._sampler} };
+			bindings[0] = { VkDescriptorSetLayoutBinding {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._materials[0]._albedo._sampler} };
 			bindings[1] = { VkDescriptorSetLayoutBinding {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._materials[0]._roughness._sampler} };
 			bindings[2] = { VkDescriptorSetLayoutBinding {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._materials[0]._metalness._sampler} };
 			VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
@@ -1241,13 +1179,7 @@ namespace Engine::Vulkan
 		pipelineLayoutCreateInfo.setLayoutCount = (uint32_t)descriptorSetLayouts.size();
 		pipelineLayoutCreateInfo.pSetLayouts = descriptorSetLayouts.data();
 
-		if (vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_graphicsPipeline._layout) != VK_SUCCESS) {
-			std::cerr << "failed to create pipeline layout" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created pipeline layout" << std::endl;
-		}
+		CheckResult(vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_graphicsPipeline._layout));
 	}
 
 	void VulkanApplication::AllocateDrawCommandBuffers()
@@ -1261,13 +1193,7 @@ namespace Engine::Vulkan
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		allocInfo.commandBufferCount = (uint32_t)_renderPass._colorImages.size();
 
-		if (vkAllocateCommandBuffers(_logicalDevice, &allocInfo, _drawCommandBuffers.data()) != VK_SUCCESS) {
-			std::cerr << "failed to allocate draw command buffers" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "allocated draw command buffers" << std::endl;
-		}
+		CheckResult(vkAllocateCommandBuffers(_logicalDevice, &allocInfo, _drawCommandBuffers.data()));
 	}
 
 	void VulkanApplication::RecordDrawCommands()
@@ -1333,12 +1259,7 @@ namespace Engine::Vulkan
 
 			vkCmdEndRenderPass(_drawCommandBuffers[i]);
 
-			if (vkEndCommandBuffer(_drawCommandBuffers[i]) != VK_SUCCESS) {
-				std::cerr << "failed to record command buffer" << std::endl;
-				exit(1);
-			}
-
-			std::cout << "recorded draw commands in draw command buffer" << std::endl;
+			CheckResult(vkEndCommandBuffer(_drawCommandBuffers[i]));
 		}
 	}
 

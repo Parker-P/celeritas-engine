@@ -2,6 +2,7 @@
 #include "engine/vulkan/VulkanContext.hpp"
 #include "structural/IUpdatable.hpp"
 #include "structural/Singleton.hpp"
+#include "utils/Logger.hpp"
 #include "settings/GlobalSettings.hpp"
 #include "settings/Paths.hpp"
 #include "engine/Time.hpp"

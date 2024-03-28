@@ -8,6 +8,8 @@
 #include <type_traits>
 #include <filesystem>
 #include <glm/glm.hpp>
+#include "structural/Singleton.hpp"
+#include "utils/Logger.hpp"
 
 namespace Utils
 {
@@ -153,6 +155,12 @@ namespace Utils
 			return fileText;
 		}
 	};
+
+	inline void Exit(int errorCode, const char* message) {
+		Utils::Logger::Log(message);
+		throw std::exception(message);
+		std::exit(errorCode);
+	}
 
 	/**
 	 * @brief Prints a message to a stream given a function that does the printing and a message. 

@@ -24,7 +24,7 @@ namespace Engine::Scenes
 		_transform.SetPosition(glm::vec3(3.0f, 10.0f, -10.0f));
 	}
 
-	Vulkan::ShaderResources PointLight::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
+	Vulkan::ShaderResources PointLight::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
 		auto descriptorSetID = 2;
 

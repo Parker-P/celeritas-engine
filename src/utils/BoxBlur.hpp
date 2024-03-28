@@ -305,7 +305,6 @@ namespace Utils
 			// Calculate the time in milliseconds it took to execute and print the result to the console.
 			t = clock() - t;
 			double time = ((double)t) / CLOCKS_PER_SEC * 1000;
-			std::cout << "Executions finished in " << (float)time << "ms\n";
 
 			// Destroy the command buffer and reset the fence's status. A fence can be signalled or unsignalled. Once a fence is signalled, control is given back to the
 			// the code that called vkWaitForFences().
