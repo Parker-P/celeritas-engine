@@ -8,7 +8,7 @@ namespace Engine::Scenes
 	/**
 	 * @brief Represents a collection of vertices and face indices as triangles.
 	 */
-	class Mesh : public ::Structural::IUpdatable, public Engine::Structural::Drawable, public Structural::IPipelineable
+	class Mesh : public ::Structural::IUpdatable, public Engine::Structural::IDrawable, public Structural::IPipelineable
 	{
 
 	public:
@@ -37,17 +37,22 @@ namespace Engine::Scenes
 		/**
 		 * @brief See Pipelinable.
 		 */
-		virtual Vulkan::ShaderResources CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts);
+		virtual Vulkan::ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts);
 
 		/**
 		 * @brief See Pipelinable.
 		 */
 		virtual void UpdateShaderResources() override;
 
-		 /**
-		  * @brief See IUpdatable.
-		  */
+		/**
+		* @brief See IUpdatable.
+		*/
 		virtual void Update() override;
+
+		/**
+		 * @brief See IDrawable.
+		 */
+		virtual void Draw(VkPipelineLayout pipelineLayout, VkCommandBuffer drawCommandBuffer) override;
 
 		/**
 		 * @brief Returns the game object this mesh belongs to.

@@ -42,7 +42,7 @@ namespace Engine::Scenes
 		 * @param logicalDevice
 		 * @param physicalDevice
 		 */
-		Scene(VkDevice& logicalDevice, Vulkan::PhysicalDevice physicalDevice);
+		Scene(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice);
 
 		/**
 		 * @brief Returns the default material in the scene, which is always stored as the first material in the _materials vector.
@@ -57,7 +57,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief See IPipelinable.
 		 */
-		Vulkan::ShaderResources CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts);
+		Vulkan::ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts);
 
 		/**
 		 * @brief See IPipelinable.

@@ -64,15 +64,28 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::SetupVulkan()
 	{
-		CreateInstance();
-		CreateDebugCallback();
-		CreateWindowSurface();
-		_physicalDevice = PhysicalDevice(_instance);
-		FindQueueFamilyIndex();
-		CreateLogicalDevice();
-		vkGetDeviceQueue(_logicalDevice, _queue._familyIndex, 0, &_queue._handle);
-		CreateSemaphores();
-		CreateCommandPool();
+		_instance = CreateInstance();
+		CreateDebugCallback(_instance);
+		_windowSurface = CreateWindowSurface(_instance);
+		_physicalDevice = CreatePhysicalDevice(_instance);
+
+		auto flags = (VkQueueFlagBits)(VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT);
+		_queueFamilyIndex = FindQueueFamilyIndex(_physicalDevice, flags);
+		if (PhysicalDevice::SupportsSurface(_physicalDevice, _queueFamilyIndex, _windowSurface) == false) {
+			std::exit(1);
+		}
+
+		VkDeviceQueueCreateInfo graphicsQueueInfo{};
+		float queuePriority = 1.0f;
+		graphicsQueueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		graphicsQueueInfo.queueFamilyIndex = _queueFamilyIndex;
+		graphicsQueueInfo.queueCount = 1;
+		graphicsQueueInfo.pQueuePriorities = &queuePriority;
+
+		_logicalDevice = CreateLogicalDevice(_physicalDevice, { graphicsQueueInfo });
+		vkGetDeviceQueue(_logicalDevice, _queueFamilyIndex, 0, &_queue);
+		_commandPool = CreateCommandPool(_logicalDevice, _queueFamilyIndex);
+
 		LoadScene();
 		LoadEnvironmentMap();
 		CreateSwapchain();
@@ -82,6 +95,7 @@ namespace Engine::Vulkan
 		CreateGraphicsPipeline();
 		AllocateDrawCommandBuffers();
 		RecordDrawCommands();
+		CreateSemaphores();
 	}
 
 	glm::vec3 RotateVector(glm::vec3 vectorToRotate, glm::vec3 axis, float angleDegrees) {
@@ -221,7 +235,7 @@ namespace Engine::Vulkan
 		return true;
 	}
 
-	void VulkanApplication::CreateInstance()
+	VkInstance VulkanApplication::CreateInstance()
 	{
 		VkApplicationInfo appInfo = {};
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -275,52 +289,67 @@ namespace Engine::Vulkan
 			}
 		}
 
-		if (vkCreateInstance(&createInfo, nullptr, &_instance)) {
-			std::cerr << "failed to create instance" << std::endl;
+		VkInstance outInstance;
+		vkCreateInstance(&createInfo, nullptr, &outInstance);
+		return outInstance;
+	}
+
+	VkSurfaceKHR VulkanApplication::CreateWindowSurface(VkInstance& instance)
+	{
+		VkSurfaceKHR outSurface;
+		glfwCreateWindowSurface(instance, _pWindow, NULL, &outSurface);
+		return outSurface;
+	}
+
+	VkPhysicalDevice VulkanApplication::CreatePhysicalDevice(VkInstance instance)
+	{
+		// Try to find 1 Vulkan supported device.
+		// Note: perhaps refactor to loop through devices and find first one that supports all required features and extensions.
+		uint32_t deviceCount = 0;
+		if (vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr) != VK_SUCCESS || deviceCount == 0) {
+			std::cerr << "Failed to get number of physical devices." << std::endl;
 			exit(1);
 		}
-		else {
-			std::cout << "created vulkan instance" << std::endl;
-		}
-	}
 
-	void VulkanApplication::CreateWindowSurface()
-	{
-		if (glfwCreateWindowSurface(_instance, _pWindow, NULL, &_windowSurface) != VK_SUCCESS) {
-			std::cerr << "failed to create window surface!" << std::endl;
+		deviceCount = 1;
+		VkPhysicalDevice outDevice;
+		VkResult res = vkEnumeratePhysicalDevices(instance, &deviceCount, &outDevice);
+		if (res != VK_SUCCESS && res != VK_INCOMPLETE) {
+			std::cerr << "Enumerating physical devices failed." << std::endl;
 			exit(1);
 		}
 
-		std::cout << "created window surface" << std::endl;
-	}
-
-	void VulkanApplication::FindQueueFamilyIndex()
-	{
-		auto queueFamilyProperties = _physicalDevice.GetAllQueueFamilyProperties();
-
-		for (uint32_t i = 0; i < queueFamilyProperties.size(); i++) {
-			if (_physicalDevice.SupportsSurface(i, _windowSurface) &&
-				queueFamilyProperties[i].queueCount > 0 &&
-				queueFamilyProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-
-				_queue._familyIndex = i;
-			}
+		if (deviceCount == 0) {
+			std::cerr << "No physical devices that support vulkan." << std::endl;
+			exit(1);
 		}
+
+		std::cout << "Physical device with vulkan support found." << std::endl;
+
+		// Check device features
+		// Note: will apiVersion >= appInfo.apiVersion? Probably yes, but spec is unclear.
+		/*VkPhysicalDeviceProperties deviceProperties;
+		VkPhysicalDeviceFeatures deviceFeatures;
+		vkGetPhysicalDeviceProperties(_handle, &deviceProperties);
+		vkGetPhysicalDeviceFeatures(_handle, &deviceFeatures);
+
+		uint32_t supportedVersion[] = {
+			VK_VERSION_MAJOR(deviceProperties.apiVersion),
+			VK_VERSION_MINOR(deviceProperties.apiVersion),
+			VK_VERSION_PATCH(deviceProperties.apiVersion)
+		};
+
+		std::cout << "physical device supports version " << supportedVersion[0] << "." << supportedVersion[1] << "." << supportedVersion[2] << std::endl;*/
+
+		return outDevice;
 	}
 
-	void VulkanApplication::CreateLogicalDevice()
+	VkDevice VulkanApplication::CreateLogicalDevice(VkPhysicalDevice& physicalDevice, const std::vector<VkDeviceQueueCreateInfo>& queueCreateInfos)
 	{
-		VkDeviceQueueCreateInfo queueCreateInfo{};
-		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCreateInfo.queueFamilyIndex = _queue._familyIndex;
-		queueCreateInfo.queueCount = 1;
-		float queuePriority = 1.0f;
-		queueCreateInfo.pQueuePriorities = &queuePriority;
-
 		VkDeviceCreateInfo deviceCreateInfo = {};
 		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
-		deviceCreateInfo.queueCreateInfoCount = 1;
+		deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
+		deviceCreateInfo.queueCreateInfoCount = (uint32_t)queueCreateInfos.size();
 
 		// Devices features to enable.
 		VkPhysicalDeviceFeatures enabledFeatures = {};
@@ -338,15 +367,12 @@ namespace Engine::Vulkan
 			deviceCreateInfo.ppEnabledLayerNames = _settings._pValidationLayers.data();
 		}
 
-		if (vkCreateDevice(_physicalDevice._handle, &deviceCreateInfo, nullptr, &_logicalDevice) != VK_SUCCESS) {
-			std::cerr << "failed to create logical device" << std::endl;
-			exit(1);
-		}
-
-		std::cout << "created logical device" << std::endl;
+		VkDevice outDevice;
+		vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &outDevice);
+		return outDevice;
 	}
 
-	void VulkanApplication::CreateDebugCallback()
+	void VulkanApplication::CreateDebugCallback(VkInstance& instance)
 	{
 		if (_settings._enableValidationLayers) {
 			VkDebugReportCallbackCreateInfoEXT createInfo = {};
@@ -354,9 +380,9 @@ namespace Engine::Vulkan
 			createInfo.pfnCallback = (PFN_vkDebugReportCallbackEXT)DebugCallback;
 			createInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
 
-			PFN_vkCreateDebugReportCallbackEXT CreateDebugReportCallback = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(_instance, "vkCreateDebugReportCallbackEXT");
+			PFN_vkCreateDebugReportCallbackEXT createDebugReportCallback = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
 
-			if (CreateDebugReportCallback(_instance, &createInfo, nullptr, &_callback) != VK_SUCCESS) {
+			if (createDebugReportCallback(instance, &createInfo, nullptr, &_callback) != VK_SUCCESS) {
 				std::cerr << "failed to create debug callback" << std::endl;
 				exit(1);
 			}
@@ -373,32 +399,8 @@ namespace Engine::Vulkan
 	{
 		VkSemaphoreCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-		if (vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_imageAvailableSemaphore) != VK_SUCCESS ||
-			vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_renderingFinishedSemaphore) != VK_SUCCESS) {
-			std::cerr << "failed to create semaphores" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created semaphores" << std::endl;
-		}
-	}
-
-	void VulkanApplication::CreateCommandPool()
-	{
-		// Create graphics command pool
-		VkCommandPoolCreateInfo poolCreateInfo = {};
-		poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		poolCreateInfo.queueFamilyIndex = _queue._familyIndex;
-		poolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-
-		if (vkCreateCommandPool(_logicalDevice, &poolCreateInfo, nullptr, &_commandPool) != VK_SUCCESS) {
-			std::cerr << "failed to create command queue for graphics queue family" << std::endl;
-			exit(1);
-		}
-		else {
-			std::cout << "created command pool for graphics queue family" << std::endl;
-		}
+		vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_imageAvailableSemaphore);
+		vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_renderingFinishedSemaphore);
 	}
 
 	void VulkanApplication::LoadScene()
@@ -455,7 +457,7 @@ namespace Engine::Vulkan
 				VkMemoryAllocateInfo allocInfo{};
 				allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 				allocInfo.allocationSize = reqs.size;
-				allocInfo.memoryTypeIndex = _physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+				allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(_physicalDevice, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 				VkDeviceMemory mem;
 				vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem);
 				vkBindImageMemory(_logicalDevice, m._albedo._image, mem, 0);
@@ -618,15 +620,7 @@ namespace Engine::Vulkan
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "texture.jpg");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Test1.png");
 
-		VulkanContext ctx{
-			_instance,
-			_logicalDevice,
-			_physicalDevice._handle,
-			_queue._handle,
-			_commandPool
-		};
-
-		_scene._environmentMap.CreateImage(ctx, _physicalDevice);
+		_scene._environmentMap.CreateImage(_logicalDevice, _physicalDevice, _commandPool, _queue);
 	}
 
 	VkPresentModeKHR VulkanApplication::ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes)
@@ -766,7 +760,7 @@ namespace Engine::Vulkan
 		VkMemoryAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = reqs.size;
-		allocInfo.memoryTypeIndex = _physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(_physicalDevice, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 		VkDeviceMemory mem;
 		vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem);
 		vkBindImageMemory(_logicalDevice, _renderPass._depthImage._image, mem, 0);
@@ -885,9 +879,9 @@ namespace Engine::Vulkan
 	void VulkanApplication::CreateSwapchain()
 	{
 		// Get physical device capabilities for the window surface.
-		VkSurfaceCapabilitiesKHR surfaceCapabilities = _physicalDevice.GetSurfaceCapabilities(_windowSurface);
-		std::vector<VkSurfaceFormatKHR> surfaceFormats = _physicalDevice.GetSupportedFormatsForSurface(_windowSurface);
-		std::vector<VkPresentModeKHR> presentModes = _physicalDevice.GetSupportedPresentModesForSurface(_windowSurface);
+		VkSurfaceCapabilitiesKHR surfaceCapabilities = PhysicalDevice::GetSurfaceCapabilities(_physicalDevice, _windowSurface);
+		std::vector<VkSurfaceFormatKHR> surfaceFormats = PhysicalDevice::GetSupportedFormatsForSurface(_physicalDevice, _windowSurface);
+		std::vector<VkPresentModeKHR> presentModes = PhysicalDevice::GetSupportedPresentModesForSurface(_physicalDevice, _windowSurface);
 
 		// Determine number of images for swapchain.
 		uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
@@ -1212,11 +1206,11 @@ namespace Engine::Vulkan
 		}
 
 		return {
-			Vulkan::DescriptorSetLayout{ 0, cameraLayout },
-			Vulkan::DescriptorSetLayout{ 1, gameObjectLayout },
-			Vulkan::DescriptorSetLayout{ 2, lightLayout },
-			Vulkan::DescriptorSetLayout{ 3, meshLayout },
-			Vulkan::DescriptorSetLayout{ 4, environmentMapLayout }
+			Vulkan::DescriptorSetLayout{ "cameraLayout", 0, cameraLayout },
+			Vulkan::DescriptorSetLayout{ "gameObjectLayout", 1, gameObjectLayout },
+			Vulkan::DescriptorSetLayout{ "lightLayout", 2, lightLayout },
+			Vulkan::DescriptorSetLayout{ "meshLayout", 3, meshLayout },
+			Vulkan::DescriptorSetLayout{ "environmentMapLayout", 4, environmentMapLayout }
 		};
 	}
 
@@ -1302,8 +1296,6 @@ namespace Engine::Vulkan
 			presentToDrawBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 			presentToDrawBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			presentToDrawBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			presentToDrawBarrier.srcQueueFamilyIndex = _queue._familyIndex;
-			presentToDrawBarrier.dstQueueFamilyIndex = _queue._familyIndex;
 			presentToDrawBarrier.image = _renderPass._colorImages[i]._image;
 			presentToDrawBarrier.subresourceRange = subResourceRange;
 
@@ -1331,14 +1323,12 @@ namespace Engine::Vulkan
 			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
 			auto& shaderResources = _graphicsPipeline._shaderResources;
+			VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
+			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 3, sets, 0, nullptr);
+			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
+
 			for (auto& gameObject : _scene._gameObjects) {
-				auto x = shaderResources[3];
-				VkDescriptorSet sets[5] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], x[0], shaderResources[4][0] };
-				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 5, sets, 0, nullptr);
-				VkDeviceSize offset = 0;
-				vkCmdBindVertexBuffers(_drawCommandBuffers[i], 0, 1, &gameObject._pMesh->_vertices._vertexBuffer._buffer, &offset);
-				vkCmdBindIndexBuffer(_drawCommandBuffers[i], gameObject._pMesh->_faceIndices._indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
-				vkCmdDrawIndexed(_drawCommandBuffers[i], (uint32_t)gameObject._pMesh->_faceIndices._indexData.size(), 1, 0, 0, 0);
+				gameObject._pMesh->Draw(_graphicsPipeline._layout, _drawCommandBuffers[i]);
 			}
 
 			vkCmdEndRenderPass(_drawCommandBuffers[i]);
@@ -1383,7 +1373,7 @@ namespace Engine::Vulkan
 			submitInfo.commandBufferCount = 1;
 			submitInfo.pCommandBuffers = &_drawCommandBuffers[imageIndex];
 
-			if (auto res = vkQueueSubmit(_queue._handle, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS) {
+			if (auto res = vkQueueSubmit(_queue, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS) {
 				std::cerr << "failed to submit draw command buffer" << std::endl;
 				exit(1);
 			}
@@ -1398,7 +1388,7 @@ namespace Engine::Vulkan
 			presentInfo.pSwapchains = &_swapchain._handle;
 			presentInfo.pImageIndices = &imageIndex;
 
-			res = vkQueuePresentKHR(_queue._handle, &presentInfo);
+			res = vkQueuePresentKHR(_queue, &presentInfo);
 
 			if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
 				WindowSizeChanged();
@@ -1408,19 +1398,5 @@ namespace Engine::Vulkan
 				exit(1);
 			}
 		}
-	}
-
-	VkFormat VulkanApplication::ChooseImageFormat(const std::filesystem::path& absolutePathToImage)
-	{
-		auto extension = absolutePathToImage.extension();
-
-		if (extension == L".jpg") {
-			return VK_FORMAT_R8G8B8_SRGB;
-		}
-		else if (extension == L".png") {
-			return VK_FORMAT_R8G8B8A8_SRGB;
-		}
-
-		return VK_FORMAT_UNDEFINED;
 	}
 }

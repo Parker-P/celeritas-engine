@@ -319,7 +319,7 @@ namespace Engine::Scenes
 			_faceSizePixels * 4);*/
 	}
 
-	Engine::Scenes::CubicalEnvironmentMap::CubicalEnvironmentMap(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice)
+	Engine::Scenes::CubicalEnvironmentMap::CubicalEnvironmentMap(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice)
 	{
 		_physicalDevice = physicalDevice;
 		_logicalDevice = logicalDevice;
@@ -396,7 +396,7 @@ namespace Engine::Scenes
 				std::vector<unsigned char> tmp;
 				auto halfResolution = resolution / 2;
 				tmp = ResizeImage((*face)[mipmapIndex - 1], resolution, resolution, halfResolution, halfResolution);
-				auto blurredImageData = blurrer.Run(_physicalDevice._handle, _logicalDevice, tmp.data(), halfResolution, halfResolution, radius);
+				auto blurredImageData = blurrer.Run(_physicalDevice, _logicalDevice, tmp.data(), halfResolution, halfResolution, radius);
 
 				if (blurredImageData == nullptr) {
 					std::cout << "failed blurring image\n";
@@ -434,7 +434,7 @@ namespace Engine::Scenes
 		std::cout << "Environment map " << imageFilePath.string() << " loaded." << std::endl;
 	}
 
-	void Engine::Scenes::CubicalEnvironmentMap::CreateImage(VulkanContext& context, PhysicalDevice& physicalDevice)
+	void Engine::Scenes::CubicalEnvironmentMap::CreateImage(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue)
 	{
 		// Create the cubemap image.
 		auto& imageCreateInfo = _cubeMapImage._createInfo;
@@ -449,18 +449,18 @@ namespace Engine::Scenes
 		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-		vkCreateImage(context._logicalDevice, &imageCreateInfo, nullptr, &_cubeMapImage._image);
+		vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, &_cubeMapImage._image);
 
 		// Allocate memory on the GPU for the image.
 		VkMemoryRequirements reqs;
-		vkGetImageMemoryRequirements(context._logicalDevice, _cubeMapImage._image, &reqs);
+		vkGetImageMemoryRequirements(logicalDevice, _cubeMapImage._image, &reqs);
 		VkMemoryAllocateInfo imageAllocInfo{};
 		imageAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		imageAllocInfo.allocationSize = reqs.size;
-		imageAllocInfo.memoryTypeIndex = _physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		imageAllocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(physicalDevice, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 		VkDeviceMemory mem;
-		vkAllocateMemory(context._logicalDevice, &imageAllocInfo, nullptr, &mem);
-		vkBindImageMemory(context._logicalDevice, _cubeMapImage._image, mem, 0);
+		vkAllocateMemory(logicalDevice, &imageAllocInfo, nullptr, &mem);
+		vkBindImageMemory(logicalDevice, _cubeMapImage._image, mem, 0);
 
 		auto& imageViewCreateInfo = _cubeMapImage._viewCreateInfo;
 		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -491,53 +491,11 @@ namespace Engine::Scenes
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 		vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_cubeMapImage._sampler);
 
-		auto commandBuffer = CreateCommandBuffer(context._logicalDevice, context._commandPool);
-		CopyFacesToImage(context._logicalDevice, physicalDevice, context._commandPool, commandBuffer, context._queue);
+		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
+		CopyFacesToImage(logicalDevice, physicalDevice, commandPool, commandBuffer, queue);
 	}
 
-	VkCommandBuffer CreateCommandBuffer(VkDevice logicalDevice, VkCommandPool commandPool)
-	{
-		VkCommandBufferAllocateInfo cmdBufInfo = {};
-		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cmdBufInfo.commandPool = commandPool;
-		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		cmdBufInfo.commandBufferCount = 1;
-		VkCommandBuffer commandBuffer;
-		if (vkAllocateCommandBuffers(logicalDevice, &cmdBufInfo, &commandBuffer) != VK_SUCCESS) {
-			std::cout << "Failed allocating copy command buffer to copy buffer to texture." << std::endl;
-			exit(1);
-		}
-
-		return commandBuffer;
-	}
-
-	void StartRecording(VkCommandBuffer commandBuffer)
-	{
-		VkCommandBufferBeginInfo beginInfo{};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-		vkResetCommandBuffer(commandBuffer, 0);
-		vkBeginCommandBuffer(commandBuffer, &beginInfo);
-	}
-
-	void StopRecording(VkCommandBuffer commandBuffer) { vkEndCommandBuffer(commandBuffer); }
-
-	/**
-	 * @brief Stops the current thread and waits for commands to finish executing on the GPU.
-	 * @param commandBuffer A command buffer with recorded commands.
-	 * @param queue A queue that is compatible with all commands recorded in the command buffer to execute.
-	 */
-	void ExecuteCommands(VkCommandBuffer commandBuffer, VkQueue queue)
-	{
-		VkSubmitInfo submitInfo{};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandBuffer;
-		vkQueueSubmit(queue, 1, &submitInfo, nullptr);
-		vkQueueWaitIdle(queue);
-	}
-
-	void CubicalEnvironmentMap::CopyFacesToImage(VkDevice logicalDevice, Vulkan::PhysicalDevice& physicalDevice, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue)
+	void CubicalEnvironmentMap::CopyFacesToImage(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkCommandBuffer& commandBuffer, VkQueue& queue)
 	{
 		auto faces = { _right, _left, _upper, _lower, _front, _back };
 		uint32_t resolution = _faceSizePixels;
@@ -572,7 +530,7 @@ namespace Engine::Scenes
 				// Allocate memory for the buffer.
 				VkMemoryRequirements requirements{};
 				vkGetBufferMemoryRequirements(_logicalDevice, stagingBuffer._buffer, &requirements);
-				stagingBuffer._gpuMemory = physicalDevice.AllocateMemory(logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+				stagingBuffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
 				// Map memory to the correct GPU and CPU ranges for the buffer.
 				vkBindBufferMemory(_logicalDevice, stagingBuffer._buffer, stagingBuffer._gpuMemory, 0);
@@ -618,7 +576,7 @@ namespace Engine::Scenes
 		}
 	}
 
-	Vulkan::ShaderResources CubicalEnvironmentMap::CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
+	Vulkan::ShaderResources CubicalEnvironmentMap::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
 		auto descriptorSetID = 4;
 

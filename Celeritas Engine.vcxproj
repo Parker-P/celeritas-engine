@@ -26,7 +26,7 @@
     <ClCompile Include="src\engine\scenes\Material.cpp" />
     <ClCompile Include="src\engine\scenes\PointLight.cpp" />
     <ClCompile Include="src\engine\scenes\Vertex.cpp" />
-    <ClCompile Include="src\engine\structural\Drawable.cpp" />
+    <ClCompile Include="src\engine\structural\IDrawable.cpp" />
     <ClCompile Include="src\engine\vulkan\Buffer.cpp" />
     <ClCompile Include="src\engine\vulkan\Helpers.cpp" />
     <ClCompile Include="src\engine\vulkan\Image.cpp" />
@@ -98,7 +98,7 @@
     <ClInclude Include="src\engine\scenes\Material.hpp" />
     <ClInclude Include="src\engine\scenes\PointLight.hpp" />
     <ClInclude Include="src\engine\scenes\Vertex.hpp" />
-    <ClInclude Include="src\engine\structural\Drawable.hpp" />
+    <ClInclude Include="src\engine\structural\IDrawable.hpp" />
     <ClInclude Include="src\engine\structural\IPipelineable.hpp" />
     <ClInclude Include="src\engine\vulkan\Helpers.hpp" />
     <ClInclude Include="src\engine\vulkan\Buffer.hpp" />

@@ -18,7 +18,7 @@ using namespace Engine::Vulkan;
 
 namespace Engine::Structural
 {
-	void Drawable::CreateVertexBuffer(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& queue, const std::vector<Scenes::Vertex>& vertices)
+	void IDrawable::CreateVertexBuffer(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, const std::vector<Scenes::Vertex>& vertices)
 	{
 		_vertices._vertexData = vertices;
 
@@ -33,7 +33,7 @@ namespace Engine::Structural
 		// Allocate memory for the buffer.
 		VkMemoryRequirements requirements{};
 		vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
-		buffer._gpuMemory = physicalDevice.AllocateMemory(logicalDevice, requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		// Map memory to the correct GPU and CPU ranges for the buffer.
 		vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
@@ -41,10 +41,10 @@ namespace Engine::Structural
 		// Send the buffer to GPU.
 		buffer._pData = (void*)vertices.data();
 		buffer._sizeBytes = bufferSizeBytes;
-		CopyBufferToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer);
+		CopyBufferToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
 	}
 
-	void Drawable::CreateIndexBuffer(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& queue, const std::vector<unsigned int>& indices)
+	void IDrawable::CreateIndexBuffer(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, const std::vector<unsigned int>& indices)
 	{
 		_faceIndices._indexData = indices;
 
@@ -59,7 +59,7 @@ namespace Engine::Structural
 		// Allocate memory for the buffer.
 		VkMemoryRequirements requirements{};
 		vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
-		buffer._gpuMemory = physicalDevice.AllocateMemory(logicalDevice, requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		// Map memory to the correct GPU and CPU ranges for the buffer.
 		vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
@@ -67,6 +67,6 @@ namespace Engine::Structural
 		// TODO: send the buffer to GPU.
 		buffer._pData = (void*)indices.data();
 		buffer._sizeBytes = bufferSizeBytes;
-		CopyBufferToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer);
+		CopyBufferToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
 	}
 }

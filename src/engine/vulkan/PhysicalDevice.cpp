@@ -8,52 +8,12 @@
 
 namespace Engine::Vulkan
 {
-	PhysicalDevice::PhysicalDevice(VkInstance& instance)
-	{
-		// Try to find 1 Vulkan supported device.
-		// Note: perhaps refactor to loop through devices and find first one that supports all required features and extensions.
-		uint32_t deviceCount = 0;
-		if (vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr) != VK_SUCCESS || deviceCount == 0) {
-			std::cerr << "Failed to get number of physical devices." << std::endl;
-			exit(1);
-		}
-
-		deviceCount = 1;
-		VkResult res = vkEnumeratePhysicalDevices(instance, &deviceCount, &_handle);
-		if (res != VK_SUCCESS && res != VK_INCOMPLETE) {
-			std::cerr << "Enumerating physical devices failed." << std::endl;
-			exit(1);
-		}
-
-		if (deviceCount == 0) {
-			std::cerr << "No physical devices that support vulkan." << std::endl;
-			exit(1);
-		}
-
-		std::cout << "Physical device with vulkan support found." << std::endl;
-
-		// Check device features
-		// Note: will apiVersion >= appInfo.apiVersion? Probably yes, but spec is unclear.
-		/*VkPhysicalDeviceProperties deviceProperties;
-		VkPhysicalDeviceFeatures deviceFeatures;
-		vkGetPhysicalDeviceProperties(_handle, &deviceProperties);
-		vkGetPhysicalDeviceFeatures(_handle, &deviceFeatures);
-
-		uint32_t supportedVersion[] = {
-			VK_VERSION_MAJOR(deviceProperties.apiVersion),
-			VK_VERSION_MINOR(deviceProperties.apiVersion),
-			VK_VERSION_PATCH(deviceProperties.apiVersion)
-		};
-
-		std::cout << "physical device supports version " << supportedVersion[0] << "." << supportedVersion[1] << "." << supportedVersion[2] << std::endl;*/
-	}
-
-	VkDeviceMemory PhysicalDevice::AllocateMemory(VkDevice& logicalDevice, const VkMemoryRequirements& memoryRequirements, const VkMemoryPropertyFlagBits& memoryType)
+	VkDeviceMemory PhysicalDevice::AllocateMemory(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, const VkMemoryRequirements& memoryRequirements, const VkMemoryPropertyFlagBits& memoryType)
 	{
 		VkMemoryAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = memoryRequirements.size;
-		allocInfo.memoryTypeIndex = GetMemoryTypeIndex(memoryRequirements.memoryTypeBits, memoryType);
+		allocInfo.memoryTypeIndex = GetMemoryTypeIndex(physicalDevice, memoryRequirements.memoryTypeBits, memoryType);
 
 		VkDeviceMemory handleToAllocatedMemory;
 
@@ -65,10 +25,10 @@ namespace Engine::Vulkan
 		return handleToAllocatedMemory;
 	}
 
-	bool PhysicalDevice::SupportsSwapchains()
+	bool PhysicalDevice::SupportsSwapchains(VkPhysicalDevice& physicalDevice)
 	{
 		uint32_t extensionCount = 0;
-		vkEnumerateDeviceExtensionProperties(_handle, nullptr, &extensionCount, nullptr);
+		vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, nullptr);
 
 		if (extensionCount == 0) {
 			std::cerr << "physical device doesn't support any extensions" << std::endl;
@@ -76,7 +36,7 @@ namespace Engine::Vulkan
 		}
 
 		std::vector<VkExtensionProperties> deviceExtensions(extensionCount);
-		vkEnumerateDeviceExtensionProperties(_handle, nullptr, &extensionCount, deviceExtensions.data());
+		vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, deviceExtensions.data());
 
 		for (const auto& extension : deviceExtensions) {
 			if (strcmp(extension.extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0) {
@@ -88,23 +48,23 @@ namespace Engine::Vulkan
 		return false;
 	}
 
-	bool PhysicalDevice::SupportsSurface(uint32_t& queueFamilyIndex, VkSurfaceKHR& surface)
+	bool PhysicalDevice::SupportsSurface(VkPhysicalDevice& physicalDevice, int& queueFamilyIndex, VkSurfaceKHR& surface)
 	{
 		VkBool32 presentSupport = false;
-		vkGetPhysicalDeviceSurfaceSupportKHR(_handle, queueFamilyIndex, surface, &presentSupport);
+		vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, queueFamilyIndex, surface, &presentSupport);
 		return presentSupport == 0 ? false : true;
 	}
 
-	VkPhysicalDeviceMemoryProperties PhysicalDevice::GetMemoryProperties()
+	VkPhysicalDeviceMemoryProperties PhysicalDevice::GetMemoryProperties(VkPhysicalDevice& physicalDevice)
 	{
 		VkPhysicalDeviceMemoryProperties props;
-		vkGetPhysicalDeviceMemoryProperties(_handle, &props);
+		vkGetPhysicalDeviceMemoryProperties(physicalDevice, &props);
 		return props;
 	}
 
-	uint32_t PhysicalDevice::GetMemoryTypeIndex(uint32_t typeBits, VkMemoryPropertyFlagBits properties)
+	uint32_t PhysicalDevice::GetMemoryTypeIndex(VkPhysicalDevice& physicalDevice, uint32_t typeBits, VkMemoryPropertyFlagBits properties)
 	{
-		auto props = GetMemoryProperties();
+		auto props = GetMemoryProperties(physicalDevice);
 
 		for (uint32_t i = 0; i < 32; i++) {
 			if ((typeBits & 1) == 1) {
@@ -118,27 +78,27 @@ namespace Engine::Vulkan
 		return -1;
 	}
 
-	std::vector<VkQueueFamilyProperties> PhysicalDevice::GetAllQueueFamilyProperties()
+	std::vector<VkQueueFamilyProperties> PhysicalDevice::GetAllQueueFamilyProperties(VkPhysicalDevice& physicalDevice)
 	{
 		uint32_t queueFamilyCount = 0;
-		vkGetPhysicalDeviceQueueFamilyProperties(_handle, &queueFamilyCount, nullptr);
+		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
 
 		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-		vkGetPhysicalDeviceQueueFamilyProperties(_handle, &queueFamilyCount, queueFamilies.data());
+		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
 
 		return queueFamilies;
 	}
 
-	void PhysicalDevice::GetQueueFamilyIndices(const VkQueueFlagBits& queueFlags, bool needsPresentationSupport, const VkSurfaceKHR& surface)
+	void PhysicalDevice::GetQueueFamilyIndices(VkPhysicalDevice& physicalDevice, const VkQueueFlagBits& queueFlags, bool needsPresentationSupport, const VkSurfaceKHR& surface)
 	{
 		// Check queue families
-		auto queueFamilyProperties = GetAllQueueFamilyProperties();
+		auto queueFamilyProperties = GetAllQueueFamilyProperties(physicalDevice);
 
 		std::vector<uint32_t> queueFamilyIndices;
 
 		for (uint32_t i = 0; i < queueFamilyProperties.size(); i++) {
 			VkBool32 presentationSupported = false;
-			vkGetPhysicalDeviceSurfaceSupportKHR(_handle, i, surface, &presentationSupported);
+			vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, surface, &presentationSupported);
 
 			if (queueFamilyProperties[i].queueCount > 0 && queueFamilyProperties[i].queueFlags & queueFlags) {
 				if (needsPresentationSupport) {
@@ -153,37 +113,37 @@ namespace Engine::Vulkan
 		}
 	}
 
-	VkSurfaceCapabilitiesKHR PhysicalDevice::GetSurfaceCapabilities(VkSurfaceKHR& windowSurface) {
+	VkSurfaceCapabilitiesKHR PhysicalDevice::GetSurfaceCapabilities(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface) {
 		VkSurfaceCapabilitiesKHR surfaceCapabilities;
-		if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_handle, windowSurface, &surfaceCapabilities) != VK_SUCCESS) {
+		if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, windowSurface, &surfaceCapabilities) != VK_SUCCESS) {
 			std::cerr << "failed to acquire presentation surface capabilities" << std::endl;
 		}
 		return surfaceCapabilities;
 	}
 
-	std::vector<VkSurfaceFormatKHR> PhysicalDevice::GetSupportedFormatsForSurface(VkSurfaceKHR& windowSurface) {
+	std::vector<VkSurfaceFormatKHR> PhysicalDevice::GetSupportedFormatsForSurface(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface) {
 		uint32_t formatCount;
-		if (vkGetPhysicalDeviceSurfaceFormatsKHR(_handle, windowSurface, &formatCount, nullptr) != VK_SUCCESS || formatCount == 0) {
+		if (vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, windowSurface, &formatCount, nullptr) != VK_SUCCESS || formatCount == 0) {
 			std::cerr << "failed to get number of supported surface formats" << std::endl;
 		}
 
 		std::vector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
-		if (vkGetPhysicalDeviceSurfaceFormatsKHR(_handle, windowSurface, &formatCount, surfaceFormats.data()) != VK_SUCCESS) {
+		if (vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, windowSurface, &formatCount, surfaceFormats.data()) != VK_SUCCESS) {
 			std::cerr << "failed to get supported surface formats" << std::endl;
 		}
 
 		return surfaceFormats;
 	}
 
-	std::vector<VkPresentModeKHR> PhysicalDevice::GetSupportedPresentModesForSurface(VkSurfaceKHR& windowSurface) {
+	std::vector<VkPresentModeKHR> PhysicalDevice::GetSupportedPresentModesForSurface(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface) {
 		uint32_t presentModeCount;
-		if (vkGetPhysicalDeviceSurfacePresentModesKHR(_handle, windowSurface, &presentModeCount, nullptr) != VK_SUCCESS || presentModeCount == 0) {
+		if (vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, windowSurface, &presentModeCount, nullptr) != VK_SUCCESS || presentModeCount == 0) {
 			std::cerr << "failed to get number of supported presentation modes" << std::endl;
 			exit(1);
 		}
 
 		std::vector<VkPresentModeKHR> presentModes(presentModeCount);
-		if (vkGetPhysicalDeviceSurfacePresentModesKHR(_handle, windowSurface, &presentModeCount, presentModes.data()) != VK_SUCCESS) {
+		if (vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, windowSurface, &presentModeCount, presentModes.data()) != VK_SUCCESS) {
 			std::cerr << "failed to get supported presentation modes" << std::endl;
 			exit(1);
 		}

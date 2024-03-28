@@ -38,6 +38,6 @@ namespace Engine::Scenes
 		/**
 		 * @brief Constructor for a default material. Creates a material named "DefaultMaterial".
 		 */
-		Material(VkDevice& logicalDevice, Vulkan::PhysicalDevice& physicalDevice);
+		Material(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice);
 	};
 }

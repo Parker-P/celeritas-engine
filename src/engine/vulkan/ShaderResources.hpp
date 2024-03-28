@@ -12,6 +12,12 @@ namespace Engine::Vulkan
 	class DescriptorSetLayout
 	{
 	public:
+
+		/**
+		 * @brief To make it more recognizable when debugging.
+		 */
+		std::string _name = "";
+
 		/**
 		 * @brief ID used to make the pipeline layout and the order the descriptor sets are bound to the pipeline (via vkBindDescriptorSets) match.
 		 * In shaders, this corresponds to the "set" decorator when defining an input variable, like in this line of GLSL:

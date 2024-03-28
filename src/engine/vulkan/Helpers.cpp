@@ -19,13 +19,13 @@
 
 namespace Engine::Vulkan
 {
-	Image SolidColorImage(VkDevice logicalDevice, PhysicalDevice physicalDevice, unsigned char r, unsigned char g, unsigned char b, unsigned char a)
+	Image SolidColorImage(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, unsigned char r, unsigned char g, unsigned char b, unsigned char a)
 	{
 		Image image;
 
 		image._sizeBytes = 4;
 		image._pData = malloc(image._sizeBytes);
-		unsigned char imageData[4] = { r,g,b,a };
+		unsigned char imageData[4] = { r, g, b, a };
 		memcpy(image._pData, imageData, image._sizeBytes);
 
 		auto& imageCreateInfo = image._createInfo;
@@ -46,7 +46,7 @@ namespace Engine::Vulkan
 		VkMemoryAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = reqs.size;
-		allocInfo.memoryTypeIndex = physicalDevice.GetMemoryTypeIndex(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(physicalDevice, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		VkDeviceMemory mem;
 		vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &mem);
@@ -86,57 +86,57 @@ namespace Engine::Vulkan
 		return image;
 	}
 
-	void CopyBufferToDeviceMemory(VkDevice logicalDevice, PhysicalDevice& physicalDevice, VkCommandPool commandPool, Queue& queue, Buffer& buffer)
+	void CopyBufferToDeviceMemory(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool commandPool, VkQueue queue, VkBuffer buffer, void* pData, size_t sizeBytes)
 	{
 		// Create a temporary buffer.
 		Buffer stagingBuffer{};
 		stagingBuffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		stagingBuffer._createInfo.size = buffer._sizeBytes;
+		stagingBuffer._createInfo.size = sizeBytes;
 		stagingBuffer._createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 		vkCreateBuffer(logicalDevice, &stagingBuffer._createInfo, nullptr, &stagingBuffer._buffer);
 
 		// Allocate memory for the buffer.
 		VkMemoryRequirements requirements{};
 		vkGetBufferMemoryRequirements(logicalDevice, stagingBuffer._buffer, &requirements);
-		stagingBuffer._gpuMemory = physicalDevice.AllocateMemory(logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+		stagingBuffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
 		// Map memory to the correct GPU and CPU ranges for the buffer.
 		vkBindBufferMemory(logicalDevice, stagingBuffer._buffer, stagingBuffer._gpuMemory, 0);
-		vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, buffer._sizeBytes, 0, &stagingBuffer._cpuMemory);
-		memcpy(stagingBuffer._cpuMemory, buffer._pData, buffer._sizeBytes);
+		vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, sizeBytes, 0, &stagingBuffer._cpuMemory);
+		memcpy(stagingBuffer._cpuMemory, pData, sizeBytes);
 
 		auto copyCommandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
 		StartRecording(copyCommandBuffer);
 
 		VkBufferCopy copyRegion = {};
-		copyRegion.size = buffer._sizeBytes;
-		vkCmdCopyBuffer(copyCommandBuffer, stagingBuffer._buffer, buffer._buffer, 1, &copyRegion);
+		copyRegion.size = sizeBytes;
+		vkCmdCopyBuffer(copyCommandBuffer, stagingBuffer._buffer, buffer, 1, &copyRegion);
 
 		StopRecording(copyCommandBuffer);
-		ExecuteCommands(copyCommandBuffer, queue._handle);
+		ExecuteCommands(copyCommandBuffer, queue);
 
 		vkFreeCommandBuffers(logicalDevice, commandPool, 1, &copyCommandBuffer);
 		vkDestroyBuffer(logicalDevice, stagingBuffer._buffer, nullptr);
 	}
 
-	void CopyImageToDeviceMemory(VkDevice logicalDevice, PhysicalDevice& physicalDevice, VkCommandPool commandPool, Queue& queue, Image& image, int width, int height, int depth)
+	void CopyImageToDeviceMemory(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue, VkImage& image, int width, int height, int depth, void* pData, size_t sizeBytes)
 	{
 		// Create a temporary buffer.
 		Buffer stagingBuffer{};
 		stagingBuffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		stagingBuffer._createInfo.size = image._sizeBytes;
+		stagingBuffer._createInfo.size = sizeBytes;
 		stagingBuffer._createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 		vkCreateBuffer(logicalDevice, &stagingBuffer._createInfo, nullptr, &stagingBuffer._buffer);
 
 		// Allocate memory for the buffer.
 		VkMemoryRequirements requirements{};
 		vkGetBufferMemoryRequirements(logicalDevice, stagingBuffer._buffer, &requirements);
-		stagingBuffer._gpuMemory = physicalDevice.AllocateMemory(logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+		stagingBuffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
 		// Map memory to the correct GPU and CPU ranges for the buffer.
 		vkBindBufferMemory(logicalDevice, stagingBuffer._buffer, stagingBuffer._gpuMemory, 0);
-		vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, image._sizeBytes, 0, &stagingBuffer._cpuMemory);
-		memcpy(stagingBuffer._cpuMemory, image._pData, image._sizeBytes);
+		vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, sizeBytes, 0, &stagingBuffer._cpuMemory);
+		memcpy(stagingBuffer._cpuMemory, pData, sizeBytes);
 
 		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
 		StartRecording(commandBuffer);
@@ -145,11 +145,10 @@ namespace Engine::Vulkan
 		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		barrier.srcAccessMask = VK_ACCESS_NONE;
 		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.oldLayout = image._currentLayout;
+		barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		barrier.image = image._image;
+		barrier.image = image;
 		barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
-		image._currentLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
 		VkBufferImageCopy copyInfo{};
@@ -158,16 +157,40 @@ namespace Engine::Vulkan
 		copyInfo.imageExtent = { (uint32_t)width, (uint32_t)height, (uint32_t)depth };
 		copyInfo.imageOffset = { 0,0,0 };
 		copyInfo.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-		vkCmdCopyBufferToImage(commandBuffer, stagingBuffer._buffer, image._image, image._currentLayout, 1, &copyInfo);
+		vkCmdCopyBufferToImage(commandBuffer, stagingBuffer._buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyInfo);
 
 		StopRecording(commandBuffer);
-		ExecuteCommands(commandBuffer, queue._handle);
+		ExecuteCommands(commandBuffer, queue);
 
 		vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
 		vkDestroyBuffer(logicalDevice, stagingBuffer._buffer, nullptr);
 	}
 
-	void StartRecording(VkCommandBuffer commandBuffer)
+	VkCommandPool CreateCommandPool(VkDevice& logicalDevice, int& queueFamilyIndex)
+	{
+		VkCommandPoolCreateInfo poolCreateInfo = {};
+		poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		poolCreateInfo.queueFamilyIndex = queueFamilyIndex;
+		poolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+		VkCommandPool outPool;
+		vkCreateCommandPool(logicalDevice, &poolCreateInfo, nullptr, &outPool);
+		return outPool;
+	}
+
+	int FindQueueFamilyIndex(VkPhysicalDevice& physicalDevice, VkQueueFlagBits queueFlags)
+	{
+		auto queueFamilyProperties = PhysicalDevice::GetAllQueueFamilyProperties(physicalDevice);
+
+		for (uint32_t queueFamilyIndex = 0; queueFamilyIndex < queueFamilyProperties.size(); queueFamilyIndex++) {
+			if (queueFamilyProperties[queueFamilyIndex].queueCount > 0 && queueFamilyProperties[queueFamilyIndex].queueFlags & queueFlags) {
+				return queueFamilyIndex;
+			}
+		}
+
+		return -1;
+	}
+
+	void StartRecording(VkCommandBuffer& commandBuffer)
 	{
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -176,12 +199,12 @@ namespace Engine::Vulkan
 		vkBeginCommandBuffer(commandBuffer, &beginInfo);
 	}
 
-	void Engine::Vulkan::StopRecording(VkCommandBuffer commandBuffer)
+	void Engine::Vulkan::StopRecording(VkCommandBuffer& commandBuffer)
 	{
 		vkEndCommandBuffer(commandBuffer);
 	}
 
-	void ExecuteCommands(VkCommandBuffer commandBuffer, VkQueue queue)
+	void ExecuteCommands(VkCommandBuffer& commandBuffer, VkQueue& queue)
 	{
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -191,7 +214,7 @@ namespace Engine::Vulkan
 		vkQueueWaitIdle(queue);
 	}
 
-	VkCommandBuffer CreateCommandBuffer(VkDevice logicalDevice, VkCommandPool commandPool)
+	VkCommandBuffer CreateCommandBuffer(VkDevice& logicalDevice, VkCommandPool& commandPool)
 	{
 		VkCommandBufferAllocateInfo cmdBufInfo = {};
 		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;

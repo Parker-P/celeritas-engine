@@ -88,7 +88,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Constructor.
 		 */
-		CubicalEnvironmentMap(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice);
+		CubicalEnvironmentMap(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice);
 
 		/**
 		 * Loads an environment map from a spherical HDRi file and converts it to a cubical map.
@@ -104,12 +104,12 @@ namespace Engine::Scenes
 		/**
 		 * @brief Creates the vulkan image that will be sampled in the shaders.
 		 */
-		void CreateImage(VulkanContext& context, Vulkan::PhysicalDevice& physicalDevice);
+		void CreateImage(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue);
 
 		/**
 		 * @brief Copies all the face's data to the main cubemap image.
 		 */
-		void CopyFacesToImage(VkDevice logicalDevice, Vulkan::PhysicalDevice& physicalDevice, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue);
+		void CopyFacesToImage(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkCommandBuffer& commandBuffer, VkQueue& queue);
 
 		/**
 		 * @brief Writes each cube map face's image to 6 separate files.
@@ -121,7 +121,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief See IPipelineable.
 		 */
-		virtual Vulkan::ShaderResources CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts) override;
+		virtual Vulkan::ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts) override;
 
 		/**
 		 * @brief See IPipelineable.
@@ -133,7 +133,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Physical device.
 		 */
-		Vulkan::PhysicalDevice _physicalDevice{};
+		VkPhysicalDevice _physicalDevice{};
 
 		/**
 		 * @brief Logical device.

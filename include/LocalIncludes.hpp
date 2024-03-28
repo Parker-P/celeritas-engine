@@ -18,7 +18,7 @@
 #include "engine/scenes/Vertex.hpp"
 #include "engine/vulkan/ShaderResources.hpp"
 #include "engine/structural/IPipelineable.hpp"
-#include "engine/structural/Drawable.hpp"
+#include "engine/structural/IDrawable.hpp"
 #include "engine/scenes/PointLight.hpp"
 #include "utils/BoxBlur.hpp"
 #include "engine/scenes/CubicalEnvironmentMap.hpp"

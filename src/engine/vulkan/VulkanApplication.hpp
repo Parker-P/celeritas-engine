@@ -40,7 +40,7 @@ namespace Engine::Vulkan
 		 * @brief Represents the physical GPU. This is mostly used for querying the GPU about its hardware properties so that we know
 		 * how to handle memory.
 		 */
-		PhysicalDevice _physicalDevice;
+		VkPhysicalDevice _physicalDevice;
 
 		/**
 		 * @brief Represents the GPU and its inner workings at the logical level.
@@ -52,11 +52,6 @@ namespace Engine::Vulkan
 		 * Error reporting is set by enabling validation layers.
 		 */
 		VkDebugReportCallbackEXT _callback;
-
-		/**
-		 * @brief Queue that supports graphics operations and presentation.
-		 */
-		Queue _queue;
 
 		/**
 		 * @brief Semaphore that will be used by Vulkan to signal when an image has finished
@@ -253,6 +248,10 @@ namespace Engine::Vulkan
 
 		// Vulkan commands.
 		VkCommandPool _commandPool;
+		VkQueue _queue;
+		int _queueFamilyIndex;
+
+		VkCommandBuffer _graphicsCommandBuffer;
 		std::vector<VkCommandBuffer> _drawCommandBuffers;
 
 		// Game.
@@ -334,26 +333,20 @@ namespace Engine::Vulkan
 		/**
 		 * @brief Creates the Vulkan instance that is the root container for all the Vulkan components that will be created.
 		 */
-		void CreateInstance();
-
-		void CreateWindowSurface();
+		VkInstance CreateInstance();
 
 		/**
-		 * @brief Finds the index of a queue family whose queues can contain command buffers that hold
-		 * Vulkan commands that draw to the window surface.
+		 * @brief The window surface is a handle that Vulkan uses to know to which window its framebuffers will be shown.
 		 */
-		void FindQueueFamilyIndex();
+		VkSurfaceKHR CreateWindowSurface(VkInstance& instance);
 
-		/**
-		 * @brief Creates the logical device.
-		 */
-		void CreateLogicalDevice();
+		VkPhysicalDevice CreatePhysicalDevice(VkInstance instance);
 
-		void CreateDebugCallback();
+		VkDevice CreateLogicalDevice(VkPhysicalDevice& physicalDevice, const std::vector<VkDeviceQueueCreateInfo>& queueCreateInfos);
+
+		void CreateDebugCallback(VkInstance& instance);
 
 		void CreateSemaphores();
-
-		void CreateCommandPool();
 
 		void LoadScene();
 

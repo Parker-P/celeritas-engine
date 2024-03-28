@@ -23,7 +23,7 @@ namespace Engine::Scenes
 		_pScene = scene;
 	}
 
-	Vulkan::ShaderResources Mesh::CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
+	Vulkan::ShaderResources Mesh::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
 		auto descriptorSetID = 3;
 
@@ -46,9 +46,9 @@ namespace Engine::Scenes
 		}
 
 		// Send the textures to the GPU.
-		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, graphicsQueue, albedoMap, albedoMap._createInfo.extent.width, albedoMap._createInfo.extent.height, albedoMap._createInfo.extent.depth);
-		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, graphicsQueue, roughnessMap, roughnessMap._createInfo.extent.width, roughnessMap._createInfo.extent.height, roughnessMap._createInfo.extent.depth);
-		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, graphicsQueue, metalnessMap, metalnessMap._createInfo.extent.width, metalnessMap._createInfo.extent.height, metalnessMap._createInfo.extent.depth);
+		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, graphicsQueue, albedoMap._image, albedoMap._createInfo.extent.width, albedoMap._createInfo.extent.height, albedoMap._createInfo.extent.depth, albedoMap._pData, albedoMap._sizeBytes);
+		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, graphicsQueue, albedoMap._image, roughnessMap._createInfo.extent.width, roughnessMap._createInfo.extent.height, roughnessMap._createInfo.extent.depth, roughnessMap._pData, roughnessMap._sizeBytes);
+		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, graphicsQueue, albedoMap._image, metalnessMap._createInfo.extent.width, metalnessMap._createInfo.extent.height, metalnessMap._createInfo.extent.depth, metalnessMap._pData, metalnessMap._sizeBytes);
 
 		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
 		StartRecording(commandBuffer);
@@ -88,7 +88,11 @@ namespace Engine::Scenes
 		}
 
 		StopRecording(commandBuffer);
-		ExecuteCommands(commandBuffer, graphicsQueue._handle);
+		ExecuteCommands(commandBuffer, graphicsQueue);
+
+		_images.push_back(albedoMap);
+		_images.push_back(roughnessMap);
+		_images.push_back(metalnessMap);
 
 		VkDescriptorPool descriptorPool{};
 		VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3 } };
@@ -133,5 +137,16 @@ namespace Engine::Scenes
 	void Mesh::Update()
 	{
 		// TODO
+	}
+
+	void Mesh::Draw(VkPipelineLayout pipelineLayout, VkCommandBuffer drawCommandBuffer)
+	{
+		VkDescriptorSet sets[] = { _shaderResources[3][0] };
+		vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 3, 1, sets, 0, nullptr);
+
+		VkDeviceSize offset = 0;
+		vkCmdBindVertexBuffers(drawCommandBuffer, 0, 1, &_vertices._vertexBuffer._buffer, &offset);
+		vkCmdBindIndexBuffer(drawCommandBuffer, _faceIndices._indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdDrawIndexed(drawCommandBuffer, (uint32_t)_faceIndices._indexData.size(), 1, 0, 0, 0);
 	}
 }

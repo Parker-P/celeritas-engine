@@ -33,7 +33,7 @@ namespace Engine::Scenes
 		_up = glm::vec3(0.0f, 1.0f, 0.0f);
 	}
 
-	Vulkan::ShaderResources Camera::CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
+	Vulkan::ShaderResources Camera::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
 		using namespace Engine::Vulkan;
 
@@ -50,7 +50,7 @@ namespace Engine::Scenes
 		// Allocate memory for the buffer.
 		VkMemoryRequirements requirements{};
 		vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
-		buffer._gpuMemory = physicalDevice.AllocateMemory(logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+		buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
 		// Map memory to the correct GPU and CPU ranges for the buffer.
 		vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);

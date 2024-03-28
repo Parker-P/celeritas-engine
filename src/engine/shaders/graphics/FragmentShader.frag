@@ -78,7 +78,7 @@ float RandomFloat(vec2 seed){
 void main() 
 {
 	// Only do the calculations if the pixel is actually visible.
-	if (dot(inDirectionToCamera, inWorldSpaceNormal) > 0.0f) {
+	if (dot(inDirectionToCamera, inWorldSpaceNormal) > -0.1f) {
 
         // Sample the textures that will be used in our Cook-Torrance material model.
 		vec4 albedoMapColor = texture(albedoMap, inUVCoord);
@@ -93,9 +93,9 @@ void main()
         float roughness = (roughnessMapColor.x + roughnessMapColor.y + roughnessMapColor.z) / 3.0f;
         float metalness = (metalnessMapColor.x + metalnessMapColor.y + metalnessMapColor.z) / 3.0f;
 
-        vec4 environmentMapColor = textureLod(environmentMap, reflected.xyz, 7.0f);
+        vec4 environmentMapColor = textureLod(environmentMap, reflected.xyz, 3.0f);
         outColor = normalize(environmentMapColor + albedoMapColor);
-        outColor = albedoMapColor;
+//        outColor = albedoMapColor;
 	}
 	else {
 		outColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);

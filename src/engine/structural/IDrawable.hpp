@@ -6,7 +6,7 @@ namespace Engine::Structural
 	 * @brief Used by deriving classes to mark themselves as a class that is meant to bind drawing resources (vertex buffers, index buffer)
 	 * to a graphics pipeline and send draw commands to the Vulkan API.
 	 */
-	class Drawable
+	class IDrawable
 	{
 
 	public:
@@ -65,7 +65,7 @@ namespace Engine::Structural
 		 * @param queue The queue that will contain a command buffer allocated from the command pool above; the queue will contain Vulkan commands to send the vertex buffer to VRAM.
 		 * @param vertices The vertex information to send to the GPU.
 		 */
-		void CreateVertexBuffer(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& queue, const std::vector<Scenes::Vertex>& vertices);
+		void CreateVertexBuffer(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, const std::vector<Scenes::Vertex>& vertices);
 
 		/**
 		 * @brief Creates a GPU-only index buffer for the Drawable.
@@ -75,6 +75,11 @@ namespace Engine::Structural
 		 * @param queue The queue that will contain a command buffer allocated from the command pool above; the queue will contain Vulkan commands to send the vertex buffer to VRAM.
 		 * @param indices The index information to send to the GPU.
 		 */
-		void CreateIndexBuffer(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& queue, const std::vector<unsigned int>& indices);
+		void CreateIndexBuffer(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, const std::vector<unsigned int>& indices);
+
+		/**
+		 * @brief Deriving classes should implement this method to bind their vertex and index buffers to a graphics pipeline and draw them via Vulkan draw calls.
+		 */
+		virtual void Draw(VkPipelineLayout pipelineLayout, VkCommandBuffer drawCommandBuffer) = 0;
 	};
 }

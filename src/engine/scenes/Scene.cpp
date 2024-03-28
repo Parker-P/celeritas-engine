@@ -17,7 +17,7 @@
 namespace Engine::Scenes
 {
 
-	Scene::Scene(VkDevice& logicalDevice, Vulkan::PhysicalDevice physicalDevice)
+	Scene::Scene(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice)
 	{
 		_materials.push_back(Material(logicalDevice, physicalDevice));
 	}
@@ -42,7 +42,7 @@ namespace Engine::Scenes
 		}
 	}
 
-	Vulkan::ShaderResources Scene::CreateDescriptorSets(Vulkan::PhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, Vulkan::Queue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
+	Vulkan::ShaderResources Scene::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& graphicsQueue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
 		for (auto& gameObject : _gameObjects) {
 			if (gameObject._pMesh != nullptr) {

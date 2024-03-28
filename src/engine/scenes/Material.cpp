@@ -18,7 +18,7 @@ using namespace Engine::Vulkan;
 
 namespace Engine::Scenes 
 {
-    Material::Material(VkDevice& logicalDevice, Vulkan::PhysicalDevice& physicalDevice)
+    Material::Material(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice)
     {
         _name = "DefaultMaterial";
 
