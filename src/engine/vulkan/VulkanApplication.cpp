@@ -372,10 +372,10 @@ namespace Engine::Vulkan
 	{
 		//auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "cubes.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "directions.glb";
+		auto scenePath = Settings::Paths::ModelsPath() /= "directions.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "f.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "fr.glb";
-		auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "Cube.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb";
