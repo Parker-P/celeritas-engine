@@ -200,6 +200,19 @@ namespace Engine::Scenes
 				gameObject._pMesh = new Scenes::Mesh{ &scene };
 				auto& mesh = gameObject._pMesh;
 
+				bool found = false;
+				if (gltfPrimitive.material >= 0) {
+					for (int i = 0; i < scene._materials.size() && !found; ++i) {
+						if (scene._materials[i]._name == gltfScene.materials[gltfPrimitive.material].name) {
+							mesh->_materialIndex = i;
+							found = true;
+						}
+					}
+					if (!found) {
+						mesh->_materialIndex = 0;
+					}
+				}
+
 				// Gather vertices and face indices.
 				std::vector<Scenes::Vertex> vertices;
 				vertices.resize(vertexPositions.size());
