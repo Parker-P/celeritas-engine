@@ -811,7 +811,7 @@ namespace Engine::Vulkan
 		rasterizationCreateInfo.rasterizerDiscardEnable = VK_FALSE;
 		rasterizationCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
 		rasterizationCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-		rasterizationCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+		rasterizationCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizationCreateInfo.depthBiasEnable = VK_FALSE;
 		rasterizationCreateInfo.depthBiasConstantFactor = 0.0f;
 		rasterizationCreateInfo.depthBiasClamp = 0.0f;
@@ -824,7 +824,7 @@ namespace Engine::Vulkan
 		depthStencilCreateInfo.pNext = nullptr;
 		depthStencilCreateInfo.depthTestEnable = VK_TRUE;
 		depthStencilCreateInfo.depthWriteEnable = VK_TRUE;
-		depthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+		depthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
 		depthStencilCreateInfo.depthBoundsTestEnable = VK_FALSE;
 		depthStencilCreateInfo.stencilTestEnable = VK_FALSE;
 		depthStencilCreateInfo.minDepthBounds = 0.0f;
