@@ -72,17 +72,8 @@ namespace Engine::Vulkan
 		_commandPool = CreateCommandPool(_logicalDevice, _queueFamilyIndex);
 
 		
-		//auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "cubes.glb";
-		auto scenePath = Settings::Paths::ModelsPath() /= "directions.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "Cube.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "monster.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb";
-		_scene = Engine::Scenes::SceneLoader::LoadFile(scenePath, _logicalDevice, _physicalDevice, _commandPool, _queue);
-
+		
+		LoadScene();
 		LoadEnvironmentMap();
 		CreateSwapchain();
 		CreateRenderPass();
@@ -379,7 +370,18 @@ namespace Engine::Vulkan
 
 	void VulkanApplication::LoadScene()
 	{
-		
+		//auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "cubes.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "directions.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "f.glb";
+		auto scenePath = Settings::Paths::ModelsPath() /= "fr.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "Cube.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "monster.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb";
+		_scene = Engine::Scenes::SceneLoader::LoadFile(scenePath, _logicalDevice, _physicalDevice, _commandPool, _queue);
 	}
 
 	void VulkanApplication::LoadEnvironmentMap()

@@ -116,21 +116,23 @@ namespace Engine::Scenes
 				auto& sc = gltfScene.nodes[i].scale;
 				auto& rot = gltfScene.nodes[i].rotation;
 
-				auto translation = glm::mat4x4{
-					glm::vec4(1.0f, 0.0f, 0.0f, 0.0f), // Column 1
-					glm::vec4(0.0f,  1.0f, 0.0f, 0.0f), // Column 2
-					glm::vec4(0.0f,  0.0f, 1.0f, 0.0f), // Column 3
-					glm::vec4(tr[0],  tr[1], tr[2], 1.0f)	// Column 4
-				};
+				auto translation = glm::mat4x4{};
+				if (tr.size() == 3) {
+					auto translation = glm::mat4x4{
+						glm::vec4(1.0f, 0.0f, 0.0f, 0.0f), // Column 1
+						glm::vec4(0.0f,  1.0f, 0.0f, 0.0f), // Column 2
+						glm::vec4(0.0f,  0.0f, 1.0f, 0.0f), // Column 3
+						glm::vec4(tr[0],  tr[1], tr[2], 1.0f)	// Column 4
+					};
+
+					gameObject._transform._matrix *= Math::Transform::GltfToEngine()._matrix * translation;
+				}
 
 				auto r = Math::Transform();
-				r.Rotate(glm::quat{ (float)rot[0], (float)rot[1], (float)rot[2], (float)rot[3] });
-
-				gameObject._transform._matrix = Math::Transform::GltfToEngine()._matrix * translation * r._matrix;
-
-				/*if (translation.size() == 3) {
-					gameObject._transform.SetPosition(glm::vec3{ translation[0], translation[1], translation[2] });
-				}*/
+				if (rot.size() == 4) {
+					r.Rotate(glm::quat{ (float)rot[0], (float)rot[1], (float)rot[2], (float)rot[3] });
+					gameObject._transform._matrix *= Math::Transform::GltfToEngine()._matrix * r._matrix;
+				}
 
 				if (sc.size() == 3) {
 					gameObject._transform.SetScale(glm::vec3{ sc[0], sc[1], sc[2] });
