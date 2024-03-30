@@ -71,11 +71,13 @@ namespace Engine::Scenes
 
 	void GameObject::UpdateShaderResources()
 	{
-
+		_gameObjectData.transform = _transform._matrix;
+		memcpy(_buffers[0]._cpuMemory, &_gameObjectData, sizeof(_gameObjectData));
 	}
 
 	void GameObject::Update()
 	{
 		_pMesh->Update();
+		UpdateShaderResources();
 	}
 }

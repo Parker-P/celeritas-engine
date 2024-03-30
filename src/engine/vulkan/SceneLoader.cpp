@@ -77,9 +77,18 @@ namespace Engine::Scenes
 		return outMaterials;
 	}
 
+	/**
+	 * @brief Makes a column major transformation matrix from a tinygltf vector.
+	 */
+	glm::mat4x4 MakeMatrixFromVector()
+	{
+		return glm::mat4x4{};
+	}
+
 	Scene SceneLoader::LoadFile(std::filesystem::path filePath, VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue)
 	{
-		auto scene = Scenes::Scene(logicalDevice, physicalDevice);
+		auto s = new Scenes::Scene(logicalDevice, physicalDevice);
+		auto& scene = *s;
 		scene._pointLights.push_back(Scenes::PointLight("DefaultLight"));
 
 		tinygltf::Model gltfScene;
@@ -91,7 +100,8 @@ namespace Engine::Scenes
 		std::cout << warn << std::endl;
 		std::cout << err << std::endl;
 
-		scene._materials = LoadMaterials(logicalDevice, physicalDevice, gltfScene);
+		auto materials = LoadMaterials(logicalDevice, physicalDevice, gltfScene);
+		scene._materials.insert(scene._materials.end(), materials.begin(), materials.end());
 
 		for (int i = 0; i < gltfScene.nodes.size(); ++i) {
 			if (gltfScene.nodes[i].mesh < 0) {
@@ -102,16 +112,29 @@ namespace Engine::Scenes
 
 			for (auto& gltfPrimitive : gltfMesh.primitives) {
 				auto gameObject = Scenes::GameObject(gltfScene.nodes[i].name, &scene);
-				auto& position = gltfScene.nodes[i].translation;
-				auto& scale = gltfScene.nodes[i].scale;
+				auto& tr = gltfScene.nodes[i].translation;
+				auto& sc = gltfScene.nodes[i].scale;
+				auto& rot = gltfScene.nodes[i].rotation;
 
-				if (position.size() == 3) {
-					gameObject._transform.SetPosition(glm::vec3{ position[0], position[1], position[2] });
-				}
+				auto translation = glm::mat4x4{
+					glm::vec4(1.0f, 0.0f, 0.0f, 0.0f), // Column 1
+					glm::vec4(0.0f,  1.0f, 0.0f, 0.0f), // Column 2
+					glm::vec4(0.0f,  0.0f, 1.0f, 0.0f), // Column 3
+					glm::vec4(tr[0],  tr[1], tr[2], 1.0f)	// Column 4
+				};
 
-				/*if (scale.size() == 3) {
-					gameObject._transform.SetScale(glm::vec3{ scale[0], scale[1], scale[2] });
+				auto r = Math::Transform();
+				r.Rotate(glm::quat{ (float)rot[0], (float)rot[1], (float)rot[2], (float)rot[3] });
+
+				gameObject._transform._matrix = Math::Transform::GltfToEngine()._matrix * translation * r._matrix;
+
+				/*if (translation.size() == 3) {
+					gameObject._transform.SetPosition(glm::vec3{ translation[0], translation[1], translation[2] });
 				}*/
+
+				if (sc.size() == 3) {
+					gameObject._transform.SetScale(glm::vec3{ sc[0], sc[1], sc[2] });
+				}
 
 				auto faceIndicesAccessorIndex = gltfPrimitive.indices;
 				auto vertexPositionsAccessorIndex = gltfPrimitive.attributes["POSITION"];
@@ -180,8 +203,14 @@ namespace Engine::Scenes
 				vertices.resize(vertexPositions.size());
 				for (int i = 0; i < vertexPositions.size(); ++i) {
 					Scenes::Vertex v;
-					v._position = vertexPositions[i];
-					v._normal = vertexNormals[i];
+
+					// Transform all 3D space vectors into the engine's coordinate system (X Right, Y Up, Z forward).
+					auto position = Math::Transform::GltfToEngine()._matrix * glm::vec4(vertexPositions[i].x, vertexPositions[i].y, vertexPositions[i].z, 1.0f);
+					auto normal = Math::Transform::GltfToEngine()._matrix * glm::vec4(vertexNormals[i].x, vertexNormals[i].y, vertexNormals[i].z, 1.0f);
+
+					// Set the vertex attributes.
+					v._position = glm::vec3(position);
+					v._normal = glm::vec3(normal);
 					v._uvCoord = uvCoords0[i];
 					vertices[i] = v;
 				}

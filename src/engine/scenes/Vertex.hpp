@@ -28,8 +28,7 @@ namespace Engine::Scenes
 		glm::vec3 _normal;
 
 		/**
-		 * @brief Attribute describing the UV coordinates of the vertex. A vertex might be part of a UV seam, so it could have multiple
-		 * UV coordinates.
+		 * @brief Attribute describing the UV coordinates of the vertex in the UV coordinate system, where the origin (U = 0, V = 0) is the bottom left of the 2D space.
 		 */
 		glm::vec2 _uvCoord;
 

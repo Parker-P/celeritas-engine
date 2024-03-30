@@ -38,6 +38,11 @@ namespace Engine::Scenes
 		 */
 		Math::Transform _transform;
 
+		struct
+		{
+			glm::mat4x4 transform;
+		} _gameObjectData;
+
 		/**
 		 * @brief Mesh of this game object.
 		 */

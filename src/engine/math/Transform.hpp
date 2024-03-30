@@ -11,8 +11,8 @@ namespace Engine::Math
 	public:
 
 		/**
-		 * @brief Returns the transform to take another transform from gltf space (X left, Y up, Z forward)
-		 * to engine space (X right, Y up, Z forward).
+		 * @brief Returns the transform to take another transform from right-handed gltf space (X left, Y up, Z forward)
+		 * to left-handed engine space (X right, Y up, Z forward).
 		 */
 		static Transform GltfToEngine() {
 			return Transform(glm::mat4x4{
@@ -69,6 +69,11 @@ namespace Engine::Math
 		 * @param offset
 		 */
 		void Translate(const glm::vec3& offset);
+
+		/**
+		 * @brief Rotate the transform using a quaternion.
+		 */
+		void Rotate(const glm::quat& rotation);
 
 		/**
 		 * @brief Rotate this transform by "angle" (defined in degrees) around "axis" independent of position.
