@@ -381,30 +381,8 @@ namespace Engine::Vulkan
 		CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_renderingFinishedSemaphore));
 	}
 
-	void VulkanApplication::LoadScene()
+	void LoadMaterials(VkDevice& logicalDevice, tinygltf::Model& gltfScene)
 	{
-		_scene = Scenes::Scene(_logicalDevice, _physicalDevice);
-		_scene._pointLights.push_back(Scenes::PointLight("DefaultLight"));
-
-		tinygltf::Model gltfScene;
-		tinygltf::TinyGLTF loader;
-		std::string err;
-		std::string warn;
-
-		//auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb";
-		auto scenePath = Settings::Paths::ModelsPath() /= "cubes.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "Cube.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "monster.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb";
-		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath.string());
-		std::cout << warn << std::endl;
-		std::cout << err << std::endl;
-
-		std::map<unsigned int, unsigned int> loadedMaterialCache; // Gltf material index, index of the materials in scene._materials.
-
 		for (int i = 0; i < gltfScene.materials.size(); ++i) {
 			Scenes::Material m;
 			auto& baseColorTextureIndex = gltfScene.materials[i].pbrMetallicRoughness.baseColorTexture.index;
@@ -468,9 +446,36 @@ namespace Engine::Vulkan
 				m._albedo._sizeBytes = baseColorImageData.size();
 
 				_scene._materials.push_back(m);
-				loadedMaterialCache.emplace(i, (unsigned int)_scene._materials.size() - 1);
 			}
 		}
+	}
+
+	void VulkanApplication::LoadScene()
+	{
+		_scene = Scenes::Scene(_logicalDevice, _physicalDevice);
+		_scene._pointLights.push_back(Scenes::PointLight("DefaultLight"));
+
+		tinygltf::Model gltfScene;
+		tinygltf::TinyGLTF loader;
+		std::string err;
+		std::string warn;
+
+		//auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "cubes.glb";
+		auto scenePath = Settings::Paths::ModelsPath() /= "directions.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "Cube.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "monster.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb";
+		bool ret = loader.LoadBinaryFromFile(&gltfScene, &err, &warn, scenePath.string());
+		std::cout << warn << std::endl;
+		std::cout << err << std::endl;
+
+		std::map<unsigned int, unsigned int> loadedMaterialCache; // Gltf material index, index of the materials in scene._materials.
+
+		LoadMaterials(_logicalDevice, gltfScene);
 
 		for (int i = 0; i < gltfScene.nodes.size(); ++i) {
 			if (gltfScene.nodes[i].mesh < 0) {
@@ -488,9 +493,9 @@ namespace Engine::Vulkan
 					gameObject._transform.SetPosition(glm::vec3{ position[0], position[1], position[2] });
 				}
 
-				if (scale.size() == 3) {
+				/*if (scale.size() == 3) {
 					gameObject._transform.SetScale(glm::vec3{ scale[0], scale[1], scale[2] });
-				}
+				}*/
 
 				auto faceIndicesAccessorIndex = gltfPrimitive.indices;
 				auto vertexPositionsAccessorIndex = gltfPrimitive.attributes["POSITION"];
@@ -553,11 +558,6 @@ namespace Engine::Vulkan
 
 				gameObject._pMesh = new Scenes::Mesh{ &_scene };
 				auto& mesh = gameObject._pMesh;
-
-				// Load material.
-				if (loadedMaterialCache.count(gltfPrimitive.material) > 0) {
-					mesh->_materialIndex = loadedMaterialCache[gltfPrimitive.material];
-				}
 
 				// Gather vertices and face indices.
 				std::vector<Scenes::Vertex> vertices;
