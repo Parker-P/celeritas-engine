@@ -1,21 +1,4 @@
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <string>
-#include <algorithm>
-#include <chrono>
-#include <functional>
-#include <optional>
-#include <filesystem>
-#include <map>
-#include <bitset>
-#include <vulkan/vulkan.h>
-#include <GLFW/glfw3.h>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <tinygltf/tiny_gltf.h>
 #include "LocalIncludes.hpp"
-#include "Helpers.hpp"
 
 namespace Engine::Vulkan
 {

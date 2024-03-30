@@ -30,6 +30,7 @@
     <ClCompile Include="src\engine\vulkan\Buffer.cpp" />
     <ClCompile Include="src\engine\vulkan\Helpers.cpp" />
     <ClCompile Include="src\engine\vulkan\Image.cpp" />
+    <ClCompile Include="src\engine\vulkan\SceneLoader.cpp" />
     <ClCompile Include="src\engine\vulkan\ShaderResources.cpp" />
     <ClCompile Include="src\engine\vulkan\VulkanApplication.cpp" />
     <ClCompile Include="src\engine\vulkan\VulkanContext.cpp" />
@@ -94,6 +95,7 @@
     <ClInclude Include="include\nlohmann\thirdparty\hedley\hedley.hpp" />
     <ClInclude Include="include\nlohmann\thirdparty\hedley\hedley_undef.hpp" />
     <ClInclude Include="include\stb\stb_image_write.h" />
+    <ClInclude Include="include\LocalDependencies.hpp" />
     <ClInclude Include="include\tinygltf\tiny_gltf.h" />
     <ClInclude Include="src\engine\scenes\CubicalEnvironmentMap.hpp" />
     <ClInclude Include="src\engine\scenes\Material.hpp" />
@@ -106,6 +108,7 @@
     <ClInclude Include="src\engine\vulkan\PhysicalDevice.hpp" />
     <ClInclude Include="src\engine\vulkan\Image.hpp" />
     <ClInclude Include="src\engine\vulkan\Queue.hpp" />
+    <ClInclude Include="src\engine\vulkan\SceneLoader.hpp" />
     <ClInclude Include="src\engine\vulkan\ShaderResources.hpp" />
     <ClInclude Include="src\engine\vulkan\VulkanContext.hpp" />
     <ClInclude Include="src\settings\Paths.hpp" />
@@ -210,6 +213,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalOptions>/NODEFAULTLIB:MSVCRT</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -227,6 +231,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalOptions>/NODEFAULTLIB:MSVCRT</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -248,6 +253,7 @@
       <AdditionalLibraryDirectories>$(VK_SDK_PATH)\Lib;$(ProjectDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(ProjectDir)bin\$(Configuration)\$(TargetName)$(TargetExt)</OutputFile>
+      <AdditionalOptions>/NODEFAULTLIB:MSVCRT</AdditionalOptions>
     </Link>
     <PreBuildEvent>
       <Command>
@@ -278,6 +284,7 @@ $(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\graphics\FragmentS
       <OutputFile>$(ProjectDir)bin\$(Configuration)\$(TargetName)$(TargetExt)</OutputFile>
       <AdditionalLibraryDirectories>$(VK_SDK_PATH)\Lib;$(ProjectDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>assimp-vc142-mtd.lib;vulkan-1.lib;glfw3.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/NODEFAULTLIB:MSVCRT</AdditionalOptions>
     </Link>
     <PostBuildEvent>
       <Command>$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\graphics\VertexShader.vert" -o "$(SolutionDir)src\engine\shaders\graphics\VertexShader.spv"

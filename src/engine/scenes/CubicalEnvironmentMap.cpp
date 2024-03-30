@@ -1,19 +1,5 @@
 #define GLFW_INCLUDE_VULKAN
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <string>
-#include <algorithm>
-#include <chrono>
-#include <functional>
-#include <optional>
-#include <filesystem>
-#include <map>
-#include <bitset>
 #include <stb/stb_image.h>
-#include <stb/stb_image_write.h>
-#include <GLFW/glfw3.h>
-#include <glm/gtc/matrix_transform.hpp>
 #include "LocalIncludes.hpp"
 
 using namespace Engine::Vulkan;
@@ -368,8 +354,7 @@ namespace Engine::Scenes
 		_hdriSizePixels.height = height;
 
 		if (nullptr == _hdriImageData) {
-			std::cout << "failed loading image " << imageFilePath.string() << std::endl;
-			std::exit(-1);
+			Utils::Exit(1, "failed loading hdri image");
 		}
 
 		auto imageLength = width * height * 4;

@@ -1,3 +1,5 @@
+#include "LocalDependencies.hpp"
+
 #include "utils/Json.h"
 #include "engine/vulkan/VulkanContext.hpp"
 #include "structural/IUpdatable.hpp"
@@ -28,4 +30,5 @@
 #include "engine/scenes/Camera.hpp"
 #include "engine/scenes/Mesh.hpp"
 #include "engine/vulkan/Helpers.hpp"
+#include "engine/vulkan/SceneLoader.hpp"
 #include "engine/vulkan/VulkanApplication.hpp"
