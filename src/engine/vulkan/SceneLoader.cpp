@@ -114,10 +114,10 @@ namespace Engine::Scenes
 						glm::vec4(1.0f, 0.0f, 0.0f, 0.0f), // Column 1
 						glm::vec4(0.0f,  1.0f, 0.0f, 0.0f), // Column 2
 						glm::vec4(0.0f,  0.0f, 1.0f, 0.0f), // Column 3
-						glm::vec4(tr[0],  tr[1], tr[2], 1.0f)	// Column 4
+						glm::vec4(-tr[0],  tr[1], tr[2], 1.0f)	// Column 4
 					};
 
-					gameObject._transform._matrix *= Math::Transform::GltfToEngine()._matrix * translation;
+					gameObject._transform._matrix *= translation;
 				}
 
 				auto r = Math::Transform();
