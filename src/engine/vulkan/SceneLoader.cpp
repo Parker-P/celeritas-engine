@@ -122,13 +122,13 @@ namespace Engine::Scenes
 
 				auto r = Math::Transform();
 				if (rot.size() == 4) {
-					r.Rotate(glm::quat{ (float)rot[0], (float)rot[1], (float)rot[2], (float)rot[3] });
+					r.Rotate(glm::quat{ -(float)rot[0], (float)rot[1], (float)rot[2], (float)rot[3] });
 					gameObject._transform._matrix *= Math::Transform::GltfToEngine()._matrix * r._matrix;
 				}
 
-				if (sc.size() == 3) {
+				/*if (sc.size() == 3) {
 					gameObject._transform.SetScale(glm::vec3{ sc[0], sc[1], sc[2] });
-				}
+				}*/
 
 				auto faceIndicesAccessorIndex = gltfPrimitive.indices;
 				auto vertexPositionsAccessorIndex = gltfPrimitive.attributes["POSITION"];
