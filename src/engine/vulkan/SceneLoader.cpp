@@ -122,8 +122,8 @@ namespace Engine::Scenes
 
 				auto r = Math::Transform();
 				if (rot.size() == 4) {
-					r.Rotate(glm::quat{ -(float)rot[0], (float)rot[1], (float)rot[2], (float)rot[3] });
-					gameObject._transform._matrix *= Math::Transform::GltfToEngine()._matrix * r._matrix;
+					r.Rotate(glm::quat{ -(float)rot[3], (float)rot[0], (float)rot[1], (float)rot[2] });
+					gameObject._transform._matrix *=  r._matrix;
 				}
 
 				/*if (sc.size() == 3) {
@@ -212,8 +212,8 @@ namespace Engine::Scenes
 					Scenes::Vertex v;
 
 					// Transform all 3D space vectors into the engine's coordinate system (X Right, Y Up, Z forward).
-					auto position = Math::Transform::GltfToEngine()._matrix * glm::vec4(vertexPositions[i].x, vertexPositions[i].y, vertexPositions[i].z, 1.0f);
-					auto normal = Math::Transform::GltfToEngine()._matrix * glm::vec4(vertexNormals[i].x, vertexNormals[i].y, vertexNormals[i].z, 1.0f);
+					auto position = Math::Transform::GltfToEngine()._matrix * glm::vec4(vertexPositions[i], 1.0f);
+					auto normal = Math::Transform::GltfToEngine()._matrix * glm::vec4(vertexNormals[i], 1.0f);;
 
 					// Set the vertex attributes.
 					v._position = glm::vec3(position);
