@@ -96,17 +96,18 @@ namespace Engine::Scenes
 		scene._materials.insert(scene._materials.end(), materials.begin(), materials.end());
 
 		for (int i = 0; i < gltfScene.nodes.size(); ++i) {
-			if (gltfScene.nodes[i].mesh < 0) {
+			auto& gltfNode = gltfScene.nodes[i];
+			if (gltfNode.mesh < 0) {
 				continue;
 			}
 
-			auto& gltfMesh = gltfScene.meshes[gltfScene.nodes[i].mesh];
+			auto& gltfMesh = gltfScene.meshes[gltfNode.mesh];
 
 			for (auto& gltfPrimitive : gltfMesh.primitives) {
-				auto gameObject = Scenes::GameObject(gltfScene.nodes[i].name, &scene);
-				auto& tr = gltfScene.nodes[i].translation;
-				auto& sc = gltfScene.nodes[i].scale;
-				auto& rot = gltfScene.nodes[i].rotation;
+				auto gameObject = Scenes::GameObject(gltfNode.name, &scene);
+				auto& tr = gltfNode.translation;
+				auto& sc = gltfNode.scale;
+				auto& rot = gltfNode.rotation;
 
 				auto translation = glm::mat4x4{};
 				if (tr.size() == 3) {
@@ -212,12 +213,17 @@ namespace Engine::Scenes
 					Scenes::Vertex v;
 
 					// Transform all 3D space vectors into the engine's coordinate system (X Right, Y Up, Z forward).
-					auto position = Math::Transform::GltfToEngine()._matrix * glm::vec4(vertexPositions[i], 1.0f);
-					auto normal = Math::Transform::GltfToEngine()._matrix * glm::vec4(vertexNormals[i], 1.0f);;
+					/*auto position = Math::Transform::GltfToEngine()._matrix * glm::vec4(vertexPositions[i], 1.0f);
+					auto normal = Math::Transform::GltfToEngine()._matrix * glm::vec4(vertexNormals[i], 1.0f);;*/
+
+					vertexPositions[i].x = -vertexPositions[i].x;
+					vertexNormals[i].x = -vertexNormals[i].x;
 
 					// Set the vertex attributes.
-					v._position = glm::vec3(position);
-					v._normal = glm::vec3(normal);
+					/*v._position = glm::vec3(position);
+					v._normal = glm::vec3(normal);*/
+					v._position = vertexPositions[i];
+					v._normal = vertexNormals[i];
 					v._uvCoord = uvCoords0[i];
 					vertices[i] = v;
 				}
