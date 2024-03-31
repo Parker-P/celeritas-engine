@@ -58,7 +58,7 @@ void main()
 
 	// Remember that the next stages are going to divide each component of gl_position by its w component, meaning that
 	// gl_position = vec4(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w, gl_position.w / gl_position.w)
-	gl_Position = vec4(xCoord, yCoord, zCoord * cameraSpacePosition.z, cameraSpacePosition.z);
+	gl_Position = vec4(xCoord, yCoord, zCoord, cameraSpacePosition.z);
 	
 	// Forward the uv coordinate of the vertex to the fragment stage.
 	outUVCoord = inUv;

@@ -77,14 +77,6 @@ namespace Engine::Scenes
 		return outMaterials;
 	}
 
-	/**
-	 * @brief Makes a column major transformation matrix from a tinygltf vector.
-	 */
-	glm::mat4x4 MakeMatrixFromVector()
-	{
-		return glm::mat4x4{};
-	}
-
 	Scene SceneLoader::LoadFile(std::filesystem::path filePath, VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue)
 	{
 		auto s = new Scenes::Scene(logicalDevice, physicalDevice);
