@@ -73,7 +73,6 @@ namespace Engine::Scenes
 
 		for (auto& child : _pChildren) {
 			auto childResources = child->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
-			_shaderResources.MergeResources(childResources);
 		}
 
 		return _shaderResources;
@@ -113,6 +112,8 @@ namespace Engine::Scenes
 
 	void GameObject::Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer)
 	{
+		vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &_shaderResources[1][0], 0, nullptr);
+
 		if (_pMesh != nullptr) {
 			_pMesh->Draw(pipelineLayout, drawCommandBuffer);
 		}

@@ -1065,7 +1065,6 @@ namespace Engine::Vulkan
 			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
 
 			for (auto& gameObject : _scene._pRootGameObject->_pChildren) {
-				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 1, 1, &gameObject->_shaderResources[1][0], 0, nullptr);
 				gameObject->Draw(_graphicsPipeline._layout, _drawCommandBuffers[i]);
 			}
 
