@@ -76,7 +76,11 @@ namespace Engine::Vulkan
 		CreateSwapchain();
 		CreateRenderPass();
 		CreateFramebuffers();
-		CreatePipelineLayout();
+
+		auto descriptorSetLayouts = CreateDescriptorSetLayouts();
+		_graphicsPipeline._layout = CreatePipelineLayout(descriptorSetLayouts);
+		CreateShaderResources(descriptorSetLayouts);
+
 		CreateGraphicsPipeline();
 		AllocateDrawCommandBuffers();
 		RecordDrawCommands();
@@ -957,34 +961,22 @@ namespace Engine::Vulkan
 		};
 	}
 
-	void VulkanApplication::CreatePipelineLayout()
+	VkPipelineLayout VulkanApplication::CreatePipelineLayout(std::vector<DescriptorSetLayout>& descriptorSetLayouts)
 	{
-		auto layouts = CreateDescriptorSetLayouts();
-
-		auto& shaderResources = _graphicsPipeline._shaderResources;
-		auto cameraResources = _mainCamera.CreateDescriptorSets(_physicalDevice, _logicalDevice, _commandPool, _queue, layouts);
-		shaderResources.MergeResources(cameraResources);
-		_mainCamera.UpdateShaderResources();
-
-		auto sceneResources = _scene.CreateDescriptorSets(_physicalDevice, _logicalDevice, _commandPool, _queue, layouts);
-		shaderResources.MergeResources(sceneResources);
-		_scene.UpdateShaderResources();
-
 		// Select the layout from each descriptor set to create a layout-only vector.
-		std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
-		//std::transform(shaderResources._data.begin(), shaderResources._data.end(), std::back_inserter(layouts), [](const std::pair<PipelineLayout, VkDescriptorSet>& res) { return res.first._layout; });
-
-		std::transform(shaderResources._data.begin(), shaderResources._data.end(), std::back_inserter(descriptorSetLayouts),
-			[](const std::pair<DescriptorSetLayout, std::vector<VkDescriptorSet>>& pair) {
-				return pair.first._layout;
+		std::vector<VkDescriptorSetLayout> layouts;
+		std::transform(descriptorSetLayouts.begin(), descriptorSetLayouts.end(), std::back_inserter(layouts),
+			[](const DescriptorSetLayout& l) {
+				return l._layout;
 			});
 
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutCreateInfo.setLayoutCount = (uint32_t)descriptorSetLayouts.size();
-		pipelineLayoutCreateInfo.pSetLayouts = descriptorSetLayouts.data();
-
-		CheckResult(vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_graphicsPipeline._layout));
+		pipelineLayoutCreateInfo.setLayoutCount = (uint32_t)layouts.size();
+		pipelineLayoutCreateInfo.pSetLayouts = layouts.data();
+		VkPipelineLayout outLayout;
+		CheckResult(vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &outLayout));
+		return outLayout;
 	}
 
 	void VulkanApplication::AllocateDrawCommandBuffers()
@@ -999,6 +991,18 @@ namespace Engine::Vulkan
 		allocInfo.commandBufferCount = (uint32_t)_renderPass._colorImages.size();
 
 		CheckResult(vkAllocateCommandBuffers(_logicalDevice, &allocInfo, _drawCommandBuffers.data()));
+	}
+
+	void VulkanApplication::CreateShaderResources(std::vector<DescriptorSetLayout>& descriptorSetLayouts)
+	{
+		auto& shaderResources = _graphicsPipeline._shaderResources;
+		auto cameraResources = _mainCamera.CreateDescriptorSets(_physicalDevice, _logicalDevice, _commandPool, _queue, descriptorSetLayouts);
+		shaderResources.MergeResources(cameraResources);
+		_mainCamera.UpdateShaderResources();
+
+		auto sceneResources = _scene.CreateDescriptorSets(_physicalDevice, _logicalDevice, _commandPool, _queue, descriptorSetLayouts);
+		shaderResources.MergeResources(sceneResources);
+		_scene.UpdateShaderResources();
 	}
 
 	void VulkanApplication::RecordDrawCommands()

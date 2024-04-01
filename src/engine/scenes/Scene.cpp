@@ -35,6 +35,7 @@ namespace Engine::Scenes
 		for (auto& gameObject : _pRootGameObject->_pChildren) {
 			if (gameObject->_pMesh != nullptr) {
 				auto gameObjectResources = gameObject->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+				_shaderResources.MergeResources(gameObjectResources);
 			}
 		}
 

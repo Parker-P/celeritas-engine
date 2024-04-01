@@ -68,8 +68,10 @@ namespace Engine::Scenes
 		_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
 
 		for (auto& child : _pChildren) {
-			child->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
-			child->_pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+			auto childResources = child->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+			auto meshResources = child->_pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+			_shaderResources.MergeResources(childResources);
+			_shaderResources.MergeResources(meshResources);
 		}
 
 		return _shaderResources;

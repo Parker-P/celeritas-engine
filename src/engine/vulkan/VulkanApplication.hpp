@@ -388,14 +388,19 @@ namespace Engine::Vulkan
 		void CreateGraphicsPipeline();
 
 		/**
-		 * @brief Creates the layouts of each descriptor set used in the shaders.
+		 * @brief Creates the layouts of all descriptor sets used in the shaders.
 		 */
 		std::vector<Vulkan::DescriptorSetLayout> CreateDescriptorSetLayouts();
 
 		/**
 		 * @brief Creates the pipeline layout. See _graphicsPipeline._layout.
 		 */
-		void CreatePipelineLayout();
+		VkPipelineLayout CreatePipelineLayout(std::vector<DescriptorSetLayout>& descriptorSetLayouts);
+
+		/**
+		 * @brief Creates shader resources.
+		 */
+		void CreateShaderResources(std::vector<DescriptorSetLayout>& descriptorSetLayouts);
 
 		/**
 		 * @brief Creates one command buffer for each image in the swapchain (amount depends on present mode).
