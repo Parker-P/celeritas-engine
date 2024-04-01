@@ -67,7 +67,7 @@ namespace Engine::Scenes
 
 		auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
 		_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
-		
+
 		auto meshResources = _pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
 		_shaderResources.MergeResources(meshResources);
 
@@ -94,14 +94,21 @@ namespace Engine::Scenes
 
 	void GameObject::UpdateShaderResources()
 	{
-		//_gameObjectData.transform = _transform._matrix;
-		//memcpy(_buffers[0]._cpuMemory, &_gameObjectData, sizeof(_gameObjectData));
+		_gameObjectData.transform = GetWorldSpaceTransform()._matrix;
+		memcpy(_buffers[0]._cpuMemory, &_gameObjectData, sizeof(_gameObjectData));
 	}
 
 	void GameObject::Update()
 	{
-		_pMesh->Update();
-		//UpdateShaderResources();
+		if (_pMesh != nullptr) {
+			_pMesh->Update();
+		}
+
+		UpdateShaderResources();
+
+		for (auto& child : _pChildren) {
+			child->Update();
+		}
 	}
 
 	void GameObject::Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer)

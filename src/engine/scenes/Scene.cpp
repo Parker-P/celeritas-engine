@@ -25,9 +25,9 @@ namespace Engine::Scenes
 			light.Update();
 		}
 
-		/*for (auto& gameObject : _gameObjects) {
-			gameObject.Update();
-		}*/
+		for (auto& gameObject : _pRootGameObject->_pChildren) {
+			gameObject->Update();
+		}
 	}
 
 	Vulkan::ShaderResources Scene::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
