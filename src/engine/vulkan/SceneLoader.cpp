@@ -140,7 +140,7 @@ namespace Engine::Scenes
 			std::vector<glm::vec2> uvCoords0(uvCoords0Count);
 			memcpy(uvCoords0.data(), gltfScene.buffers[uvCoords0BufferIndex].data.data() + uvCoords0BufferOffset, uvCoords0BufferSize);
 
-			auto mesh = new Scenes::Mesh{ &scene };
+			auto mesh = new Scenes::Mesh();
 
 			bool found = false;
 			if (gltfPrimitive.material >= 0) {
@@ -229,28 +229,34 @@ namespace Engine::Scenes
 		std::vector<Node*> children;
 	};
 
-	void ProcessNode(Node node, tinygltf::Model& gltfScene, Scene& scene, VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue)
+	GameObject* ProcessNode(Node node, tinygltf::Model& gltfScene, Scene& scene, VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue)
 	{
 		auto& gltfNode = gltfScene.nodes[node.gltfSceneIndex];
-		auto gameObject = Scenes::GameObject(gltfNode.name, &scene);
+		auto gameObject = new Scenes::GameObject(gltfNode.name, &scene);
 		auto gltfNodeTransform = GetGltfNodeTransform(gltfNode);
-		gameObject._transform = gltfNodeTransform._matrix;
+		gameObject->_transform = gltfNodeTransform._matrix;
 
 		auto gltfMesh = gltfScene.meshes[gltfNode.mesh];
-		gameObject._pMesh = ProcessMesh(gltfMesh, gltfScene, scene, logicalDevice, physicalDevice, commandPool, queue);
-		scene._gameObjects.push_back(gameObject);
-		gameObject._pMesh->_gameObjectIndex = (int)scene._gameObjects.size() - 1;
+		gameObject->_pMesh = ProcessMesh(gltfMesh, gltfScene, scene, logicalDevice, physicalDevice, commandPool, queue);
+		gameObject->_pMesh->_pGameObject = gameObject;
+		return gameObject;
 	}
 
-	void ProcessNodeHierarchy(Node root, tinygltf::Model& gltfScene, Scene& scene, VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue)
+	GameObject* ProcessNodeHierarchy(Node root, tinygltf::Model& gltfScene, Scene& scene, VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue)
 	{
+		GameObject* outGameObject;
 		if (root.gltfSceneIndex >= 0) {
-			ProcessNode(root, gltfScene, scene, logicalDevice, physicalDevice, commandPool, queue);
+			outGameObject = ProcessNode(root, gltfScene, scene, logicalDevice, physicalDevice, commandPool, queue);
+		}
+		else {
+			outGameObject = new GameObject("Root", &scene);
 		}
 		
 		for (int i = 0; i < root.children.size(); ++i) {
-			ProcessNodeHierarchy(*root.children[i], gltfScene, scene, logicalDevice, physicalDevice, commandPool, queue);
+			auto child = ProcessNodeHierarchy(*root.children[i], gltfScene, scene, logicalDevice, physicalDevice, commandPool, queue);
+			outGameObject->_pChildren.push_back(child);
 		}
+		return outGameObject;
 	}
 
 	Node* FindExisting(Node* parent, int indexToFind)
@@ -339,7 +345,7 @@ namespace Engine::Scenes
 		// Creates a hierarchy of nodes from the flat list of nodes that tinygltf's loader filled.
 		// This is done because the transforms of each node are relative to the parent, and having a tree-like structure makes it much easier to apply transforms hierarchically.
 		Node* rootNode = CreateNodeHierarchy(gltfScene);
-		ProcessNodeHierarchy(*rootNode, gltfScene, scene, logicalDevice, physicalDevice, commandPool, queue);
+		scene._pRootGameObject = ProcessNodeHierarchy(*rootNode, gltfScene, scene, logicalDevice, physicalDevice, commandPool, queue);
 		DestroyNodeHierarchy(rootNode);
 		rootNode = nullptr;
 

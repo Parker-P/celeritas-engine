@@ -80,6 +80,6 @@ namespace Engine::Structural
 		/**
 		 * @brief Deriving classes should implement this method to bind their vertex and index buffers to a graphics pipeline and draw them via Vulkan draw calls.
 		 */
-		virtual void Draw(VkPipelineLayout pipelineLayout, VkCommandBuffer drawCommandBuffer) = 0;
+		virtual void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer) = 0;
 	};
 }

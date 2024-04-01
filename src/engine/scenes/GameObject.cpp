@@ -66,11 +66,17 @@ namespace Engine::Scenes
 
 		auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
 		_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
+
+		for (auto& child : _pChildren) {
+			child->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+			child->_pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+		}
+
 		return _shaderResources;
 	}
 
 
-	Math::Transform GameObject::GetWorldSpaceTransform()
+	/*Math::Transform GameObject::GetWorldSpaceTransform()
 	{
 		Math::Transform outTransform;
 		GameObject current = *this;
@@ -80,7 +86,7 @@ namespace Engine::Scenes
 			outTransform._matrix *= current._transform._matrix;
 		}
 		return outTransform;
-	}
+	}*/
 
 	void GameObject::UpdateShaderResources()
 	{
@@ -92,5 +98,16 @@ namespace Engine::Scenes
 	{
 		_pMesh->Update();
 		//UpdateShaderResources();
+	}
+
+	void GameObject::Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer)
+	{
+		if (_pMesh != nullptr) {
+			_pMesh->Draw(pipelineLayout, drawCommandBuffer);
+		}
+
+		for (int i = 0; i < _pChildren.size(); ++i) {
+			_pChildren[i]->Draw(pipelineLayout, drawCommandBuffer);
+		}
 	}
 }

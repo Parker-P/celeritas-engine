@@ -82,7 +82,7 @@ namespace Engine::Vulkan
 			auto it = std::find_if(_data.begin(), _data.end(), [index](const auto& pair) { return pair.first._id == index; });
 
 			if (it == _data.end()) {
-				exit(1);
+				Utils::Exit(1, "index not found");
 			}
 
 			return it->second;

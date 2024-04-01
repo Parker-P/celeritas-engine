@@ -20,7 +20,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Game object hierarchy.
 		 */
-		GameObject _rootGameObject;
+		GameObject* _pRootGameObject;
 
 		/**
 		 * @brief Collection of materials.

@@ -5,30 +5,26 @@ using namespace Engine::Vulkan;
 
 namespace Engine::Scenes
 {
-	Mesh::Mesh(Scene* scene)
-	{
-		_pScene = scene;
-	}
-
 	Vulkan::ShaderResources Mesh::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
 		auto descriptorSetID = 3;
 
 		// Get the textures to send to the shaders.
-		auto defaultMaterial = _pScene->DefaultMaterial();
+		auto pScene = _pGameObject->_pScene;
+		auto defaultMaterial = pScene->DefaultMaterial();
 		Vulkan::Image albedoMap = defaultMaterial._albedo;
 		Vulkan::Image roughnessMap = defaultMaterial._roughness;
 		Vulkan::Image metalnessMap = defaultMaterial._metalness;
 
 		if (_materialIndex >= 0) {
-			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._albedo._image) {
-				albedoMap = _pScene->_materials[_materialIndex]._albedo;
+			if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._albedo._image) {
+				albedoMap = pScene->_materials[_materialIndex]._albedo;
 			}
-			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._roughness._image) {
-				roughnessMap = _pScene->_materials[_materialIndex]._roughness;
+			if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._roughness._image) {
+				roughnessMap = pScene->_materials[_materialIndex]._roughness;
 			}
-			if (VK_NULL_HANDLE != _pScene->_materials[_materialIndex]._metalness._image) {
-				metalnessMap = _pScene->_materials[_materialIndex]._metalness;
+			if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._metalness._image) {
+				metalnessMap = pScene->_materials[_materialIndex]._metalness;
 			}
 		}
 
@@ -126,7 +122,7 @@ namespace Engine::Scenes
 		// TODO
 	}
 
-	void Mesh::Draw(VkPipelineLayout pipelineLayout, VkCommandBuffer drawCommandBuffer)
+	void Mesh::Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer)
 	{
 		VkDescriptorSet sets[] = { _shaderResources[3][0] };
 		vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 3, 1, sets, 0, nullptr);

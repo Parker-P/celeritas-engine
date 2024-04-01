@@ -7,7 +7,7 @@ namespace Engine::Scenes
 	/**
 	 * @brief Represents a physical object in a celeritas-engine scene.
 	 */
-	class GameObject : public ::Structural::IUpdatable, public Structural::IPipelineable
+	class GameObject : public ::Structural::IUpdatable, public Structural::IPipelineable, public Structural::IDrawable
 	{
 	public:
 
@@ -29,9 +29,24 @@ namespace Engine::Scenes
 		std::string _name;
 
 		/**
-		 * @brief Scene this game object belongs to.
+		 * @brief Pointer to the scene so you can use _materialIndex and _gameObjectIndex from this class.
 		 */
-		Scene* _pScene = nullptr;
+		Scenes::Scene* _pScene;
+
+		/**
+		 * @brief Parent game object pointer.
+		 */
+		GameObject* _pParent = nullptr;
+
+		/**
+		 * @brief Child game object pointers.
+		 */
+		std::vector<GameObject*> _pChildren;
+
+		/**
+		 * @brief Mesh of this game object.
+		 */
+		Mesh* _pMesh = nullptr;
 
 		/**
 		 * @brief Transform relative to the parent gameobject.
@@ -42,21 +57,6 @@ namespace Engine::Scenes
 		{
 			glm::mat4x4 transform;
 		} _gameObjectData;
-
-		/**
-		 * @brief Mesh of this game object.
-		 */
-		Mesh* _pMesh = nullptr;
-
-		/**
-		 * @brief Parent game object index.
-		 */
-		GameObject* _parent;
-
-		/**
-		 * @brief Child game object indices.
-		 */
-		std::vector<GameObject*> _children;
 
 		/**
 		 * @brief See IPipelinable.
@@ -78,5 +78,10 @@ namespace Engine::Scenes
 		 * @brief Updates per-frame game-object-related information.
 		 */
 		virtual void Update() override;
+
+		/**
+		 * @brief See IDrawable.
+		 */
+		virtual void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer) override;
 	};
 }

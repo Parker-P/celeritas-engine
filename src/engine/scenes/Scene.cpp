@@ -7,6 +7,7 @@ namespace Engine::Scenes
 	Scene::Scene(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice)
 	{
 		_materials.push_back(Material(logicalDevice, physicalDevice));
+		_pRootGameObject = new GameObject("Root", this);
 	}
 
 	Material Scene::DefaultMaterial()
@@ -24,25 +25,16 @@ namespace Engine::Scenes
 			light.Update();
 		}
 
-		for (auto& gameObject : _gameObjects) {
+		/*for (auto& gameObject : _gameObjects) {
 			gameObject.Update();
-		}
+		}*/
 	}
 
 	Vulkan::ShaderResources Scene::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
-		for (auto& gameObject : _gameObjects) {
-			if (gameObject._pMesh != nullptr) {
-				auto gameObjectResources = gameObject.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
-				auto meshResources = gameObject._pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
-				_shaderResources.MergeResources(gameObjectResources);
-				_shaderResources.MergeResources(meshResources);
-
-				gameObject.UpdateShaderResources();
-				gameObject._pMesh->UpdateShaderResources();
-
-				//descriptorSets.insert(descriptorSets.end(), goSets.begin(), goSets.end());
-				//descriptorSets.insert(descriptorSets.end(), meshSets.begin(), meshSets.end());
+		for (auto& gameObject : _pRootGameObject->_pChildren) {
+			if (gameObject->_pMesh != nullptr) {
+				auto gameObjectResources = gameObject->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
 			}
 		}
 
@@ -50,8 +42,6 @@ namespace Engine::Scenes
 			auto lightResources = light.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
 			_shaderResources.MergeResources(lightResources);
 			light.UpdateShaderResources();
-
-			//descriptorSets.insert(descriptorSets.end(), lightSets.begin(), lightSets.end());
 		}
 
 		auto environmentMapResources = _environmentMap.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
