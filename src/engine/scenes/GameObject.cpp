@@ -14,10 +14,11 @@ namespace Engine::Scenes
 	Vulkan::ShaderResources GameObject::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
 		auto descriptorSetID = 1;
+		auto globalTransform = GetWorldSpaceTransform();
 
 		// Create a temporary buffer.
 		Buffer buffer{};
-		auto bufferSizeBytes = sizeof(_transform._matrix);
+		auto bufferSizeBytes = sizeof(_localTransform._matrix);
 		buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		buffer._createInfo.size = bufferSizeBytes;
 		buffer._createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
@@ -31,7 +32,7 @@ namespace Engine::Scenes
 		// Map memory to the correct GPU and CPU ranges for the buffer.
 		vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
 		vkMapMemory(logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
-		memcpy(buffer._cpuMemory, &_transform._matrix, bufferSizeBytes);
+		memcpy(buffer._cpuMemory, &globalTransform._matrix, bufferSizeBytes);
 
 		_buffers.push_back(buffer);
 
@@ -66,29 +67,30 @@ namespace Engine::Scenes
 
 		auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
 		_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
+		
+		auto meshResources = _pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+		_shaderResources.MergeResources(meshResources);
 
 		for (auto& child : _pChildren) {
 			auto childResources = child->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
-			auto meshResources = child->_pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
 			_shaderResources.MergeResources(childResources);
-			_shaderResources.MergeResources(meshResources);
 		}
 
 		return _shaderResources;
 	}
 
 
-	/*Math::Transform GameObject::GetWorldSpaceTransform()
+	Math::Transform GameObject::GetWorldSpaceTransform()
 	{
 		Math::Transform outTransform;
 		GameObject current = *this;
-		outTransform._matrix *= current._transform._matrix;
-		while (current._parentIndex >= 0) {
-			current = _pScene->_gameObjects[current._parentIndex];
-			outTransform._matrix *= current._transform._matrix;
+		outTransform._matrix *= current._localTransform._matrix;
+		while (current._pParent != nullptr) {
+			current = *current._pParent;
+			outTransform._matrix *= current._localTransform._matrix;
 		}
 		return outTransform;
-	}*/
+	}
 
 	void GameObject::UpdateShaderResources()
 	{

@@ -51,7 +51,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Transform relative to the parent gameobject.
 		 */
-		Math::Transform _transform;
+		Math::Transform _localTransform;
 
 		struct
 		{

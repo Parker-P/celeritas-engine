@@ -234,7 +234,7 @@ namespace Engine::Scenes
 		auto& gltfNode = gltfScene.nodes[node.gltfSceneIndex];
 		auto gameObject = new Scenes::GameObject(gltfNode.name, &scene);
 		auto gltfNodeTransform = GetGltfNodeTransform(gltfNode);
-		gameObject->_transform = gltfNodeTransform._matrix;
+		gameObject->_localTransform = gltfNodeTransform._matrix;
 
 		auto gltfMesh = gltfScene.meshes[gltfNode.mesh];
 		gameObject->_pMesh = ProcessMesh(gltfMesh, gltfScene, scene, logicalDevice, physicalDevice, commandPool, queue);

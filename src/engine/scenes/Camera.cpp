@@ -88,7 +88,7 @@ namespace Engine::Scenes
 		_cameraData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(globalSettings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(globalSettings._windowHeight);
 		_cameraData.nearClipDistance = _nearClippingDistance;
 		_cameraData.farClipDistance = _farClippingDistance;
-		_cameraData.transform = _transform.Position();
+		_cameraData.transform = _localTransform.Position();
 
 		memcpy(_buffers[0]._cpuMemory, &_cameraData, sizeof(_cameraData));
 	}
@@ -113,27 +113,27 @@ namespace Engine::Scenes
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_W)) {
-			_transform.Translate(_transform.Forward() * 0.009f * (float)time._deltaTime);
+			_localTransform.Translate(_localTransform.Forward() * 0.009f * (float)time._deltaTime);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_A)) {
-			_transform.Translate(-_transform.Right() * 0.009f * (float)time._deltaTime);
+			_localTransform.Translate(-_localTransform.Right() * 0.009f * (float)time._deltaTime);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_S)) {
-			_transform.Translate(-_transform.Forward() * 0.009f * (float)time._deltaTime);
+			_localTransform.Translate(-_localTransform.Forward() * 0.009f * (float)time._deltaTime);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_D)) {
-			_transform.Translate(_transform.Right() * 0.009f * (float)time._deltaTime);
+			_localTransform.Translate(_localTransform.Right() * 0.009f * (float)time._deltaTime);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_SPACE)) {
-			_transform.Translate(_transform.Up() * 0.009f * (float)time._deltaTime);
+			_localTransform.Translate(_localTransform.Up() * 0.009f * (float)time._deltaTime);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_LEFT_CONTROL)) {
-			_transform.Translate(-_transform.Up() * 0.009f * (float)time._deltaTime);
+			_localTransform.Translate(-_localTransform.Up() * 0.009f * (float)time._deltaTime);
 		}
 
 		float _deltaYaw = (_yaw - _lastYaw);
@@ -145,22 +145,22 @@ namespace Engine::Scenes
 		_lastRoll = _roll;
 
 		// First apply roll rotation.
-		_transform.Rotate(_transform.Forward(), _deltaRoll);
+		_localTransform.Rotate(_localTransform.Forward(), _deltaRoll);
 
 		// Transform the up vector according to delta roll but not delta pitch, so the
 		// up vector is not affected by looking up and down, but it is by rolling the camera
 		// left and right.
-		auto axis = _transform.Forward(); // This gets the pitch-independent forward vector.
+		auto axis = _localTransform.Forward(); // This gets the pitch-independent forward vector.
 		auto angleRadians = glm::radians(_deltaRoll);
 		auto cosine = cos(angleRadians / 2.0f);
 		auto sine = sin(angleRadians / 2.0f);
 		_up = glm::quat(cosine, axis.x * sine, axis.y * sine, axis.z * sine) * _up;
 
 		// Then apply yaw rotation.
-		_transform.Rotate(_up, _deltaYaw);
+		_localTransform.Rotate(_up, _deltaYaw);
 
 		// Then pitch.
-		_transform.Rotate(_transform.Right(), _deltaPitch);
+		_localTransform.Rotate(_localTransform.Right(), _deltaPitch);
 
 		// Vulkan's coordinate system is: X points to the right, Y points down, Z points into the screen.
 		// Vulkan's viewport coordinate system is right handed and we are doing all our calculations assuming 
@@ -175,7 +175,7 @@ namespace Engine::Scenes
 		// somewhat in the upper area of its screen. If we want to see vertex V as if we viewed it from the camera, we would have to move
 		// vertex V 10 units forward from its current position. If instead of moving the camera BACK 10 units we move vertex V FORWARD 10 units, 
 		// we get the exact same effect as if we actually had a camera and moved it backwards.
-		_view._matrix = glm::inverse(_transform._matrix);
+		_view._matrix = glm::inverse(_localTransform._matrix);
 
 		float _deltaScrollY = ((float)input._scrollY - _lastScrollY);
 		_horizontalFov -= _deltaScrollY;
