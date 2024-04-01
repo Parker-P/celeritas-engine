@@ -13,6 +13,8 @@ namespace Engine::Scenes
 
 	public:
 
+		Mesh() = default;
+
 		/**
 		 * @brief Constructor.
 		 * @param scene Pointer to the scene the mesh belongs to.

@@ -69,6 +69,19 @@ namespace Engine::Scenes
 		return _shaderResources;
 	}
 
+
+	Math::Transform GameObject::GetWorldSpaceTransform()
+	{
+		Math::Transform outTransform;
+		GameObject current = *this;
+		outTransform._matrix *= current._transform._matrix;
+		while (current._parentIndex >= 0) {
+			current = _pScene->_gameObjects[current._parentIndex];
+			outTransform._matrix *= current._transform._matrix;
+		}
+		return outTransform;
+	}
+
 	void GameObject::UpdateShaderResources()
 	{
 		//_gameObjectData.transform = _transform._matrix;

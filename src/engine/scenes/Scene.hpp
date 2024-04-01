@@ -18,9 +18,9 @@ namespace Engine::Scenes
 		std::vector<PointLight> _pointLights;
 
 		/**
-		 * @brief Collection of game objects.
+		 * @brief Game object hierarchy.
 		 */
-		std::vector<GameObject> _gameObjects;
+		GameObject _rootGameObject;
 
 		/**
 		 * @brief Collection of materials.

@@ -34,7 +34,7 @@ namespace Engine::Scenes
 		Scene* _pScene = nullptr;
 
 		/**
-		 * @brief Object-to-world transform.
+		 * @brief Transform relative to the parent gameobject.
 		 */
 		Math::Transform _transform;
 
@@ -49,9 +49,25 @@ namespace Engine::Scenes
 		Mesh* _pMesh = nullptr;
 
 		/**
+		 * @brief Parent game object index.
+		 */
+		GameObject* _parent;
+
+		/**
+		 * @brief Child game object indices.
+		 */
+		std::vector<GameObject*> _children;
+
+		/**
 		 * @brief See IPipelinable.
 		 */
 		virtual Vulkan::ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts) override;
+
+		/**
+		 * @brief Calculates the world space transform based on the hierarchy of parents.
+		 * @return 
+		 */
+		Math::Transform GetWorldSpaceTransform();
 
 		/**
 		 * @brief See IPipelinable.
