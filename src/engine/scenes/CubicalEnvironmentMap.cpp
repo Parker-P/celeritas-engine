@@ -1,5 +1,6 @@
 #define GLFW_INCLUDE_VULKAN
 #include <stb/stb_image.h>
+#include <stb/stb_image_write.h>
 #include "LocalIncludes.hpp"
 
 using namespace Engine::Vulkan;
@@ -16,7 +17,7 @@ namespace Engine::Scenes
 	}
 
 	// Returns the 0-based component index into an image data array given the pixel coordinates of the image.
-	// Assumes that X and Y both start from 0, and the maximum X can be is equal to imageWidthPixels-1.
+	// Assumes that X and Y both start from 0, at the top left corner of the image, and the maximum X can be is equal to imageWidthPixels-1.
 	int CartesianToComponentIndex(int x, int y, int imageWidthPixels) {
 		return (x + (y * imageWidthPixels)) * 4;
 	}
@@ -337,6 +338,108 @@ namespace Engine::Scenes
 		return outImage;
 	}
 
+	std::vector<unsigned char> PadImage(std::vector<unsigned char> image, int widthPixels, int heightPixels, int padAmountPixels)
+	{
+		if (padAmountPixels > std::min(widthPixels, heightPixels)) {
+			Utils::Logger::Log("padding cannot exceed smallest image dimension");
+			return std::vector<unsigned char>();
+		}
+
+		int newWidthPixels = 0, newHeightPixels = 0;
+		newWidthPixels = widthPixels + (padAmountPixels * 2);
+		newHeightPixels = heightPixels + (padAmountPixels * 2);
+		std::vector<unsigned char> outImage(newWidthPixels * newHeightPixels * 4);
+
+		// Fill the output image with the original image data.
+		for (int y = 0; y < heightPixels; ++y) {
+			for (int x = 0; x < widthPixels; ++x) {
+				auto oldImageComponentIndex = CartesianToComponentIndex(x, y, widthPixels);
+				auto outImageComponentIndex = CartesianToComponentIndex(x + padAmountPixels, y + padAmountPixels, newWidthPixels);
+				outImage[outImageComponentIndex] = image[oldImageComponentIndex];
+				outImage[outImageComponentIndex + 1] = image[oldImageComponentIndex + 1];
+				outImage[outImageComponentIndex + 2] = image[oldImageComponentIndex + 2];
+				outImage[outImageComponentIndex + 3] = image[oldImageComponentIndex + 3];
+			}
+		}
+
+		// Pad the upper and lower portions of the image by mirroring "padAmountPixels" from the upper and lower borders.
+		for (int yUpper = 0, yLower = heightPixels - 1, rowSampled = 0; rowSampled < padAmountPixels; ++yUpper, --yLower, ++rowSampled) {
+			int yNewUpper = padAmountPixels - rowSampled - 1;
+			int yNewLower = heightPixels + padAmountPixels + rowSampled;
+
+			for (int x = 0; x < widthPixels; ++x) {
+
+				// Mirror the upper pixel.
+				auto indexOfColorToCopy = CartesianToComponentIndex(x, yUpper, widthPixels);
+				auto indexOfOutImage = CartesianToComponentIndex(x + padAmountPixels, yNewUpper, newWidthPixels);
+				outImage[indexOfOutImage] = image[indexOfColorToCopy];
+				outImage[indexOfOutImage + 1] = image[indexOfColorToCopy + 1];
+				outImage[indexOfOutImage + 2] = image[indexOfColorToCopy + 2];
+				outImage[indexOfOutImage + 3] = image[indexOfColorToCopy + 3];
+
+				// Mirror the lower pixel.
+				indexOfColorToCopy = CartesianToComponentIndex(x, yLower, widthPixels);
+				indexOfOutImage = CartesianToComponentIndex(x + padAmountPixels, yNewLower, newWidthPixels);
+				outImage[indexOfOutImage] = image[indexOfColorToCopy];
+				outImage[indexOfOutImage + 1] = image[indexOfColorToCopy + 1];
+				outImage[indexOfOutImage + 2] = image[indexOfColorToCopy + 2];
+				outImage[indexOfOutImage + 3] = image[indexOfColorToCopy + 3];
+			}
+		}
+
+		// Pad the left and right portions of the image by mirroring "padAmountPixels" from the left and right borders.
+		for (int y = 0; y < newHeightPixels; ++y) {
+			for (int xLeft = padAmountPixels, xRight = widthPixels + padAmountPixels - 1, columnSampled = 0; columnSampled < padAmountPixels; ++xLeft, --xRight, ++columnSampled) {
+				int xNewLeft = padAmountPixels - columnSampled - 1;
+				int xNewRight = widthPixels + padAmountPixels + columnSampled;
+
+				// Mirror the left pixel.
+				auto sourceIndex = CartesianToComponentIndex(xLeft, y, newWidthPixels);
+				auto destinationIndex = CartesianToComponentIndex(xNewLeft, y, newWidthPixels);
+				outImage[destinationIndex] = outImage[sourceIndex];
+				outImage[destinationIndex + 1] = outImage[sourceIndex + 1];
+				outImage[destinationIndex + 2] = outImage[sourceIndex + 2];
+				outImage[destinationIndex + 3] = outImage[sourceIndex + 3];
+
+				// Mirror the right pixel.
+				sourceIndex = CartesianToComponentIndex(xRight, y, newWidthPixels);
+				destinationIndex = CartesianToComponentIndex(xNewRight, y, newWidthPixels);
+				outImage[destinationIndex] = outImage[sourceIndex];
+				outImage[destinationIndex + 1] = outImage[sourceIndex + 1];
+				outImage[destinationIndex + 2] = outImage[sourceIndex + 2];
+				outImage[destinationIndex + 3] = outImage[sourceIndex + 3];
+			}
+		}
+
+		return outImage;
+	}
+
+	std::vector<unsigned char> GetImageArea(std::vector<unsigned char> image, int widthPixels, int heightPixels, int xStart, int xFinish, int yStart, int yFinish)
+	{
+		if (xStart < 0 || yStart < 0 || xFinish > widthPixels || yFinish > heightPixels || xStart >= xFinish || yStart >= yFinish) {
+			Utils::Logger::Log("invalid image range");
+			return std::vector<unsigned char>();
+		}
+
+		auto newWidthPixels = xFinish - xStart;
+		auto newHeightPixels = yFinish - yStart;
+		std::vector<unsigned char> outImage(newWidthPixels * newHeightPixels * 4);
+
+		// Fill the output image with the original image data.
+		for (int y = yStart, newY = 0; y < newHeightPixels; ++y, ++newY) {
+			for (int x = xStart, newX = 0; x < newWidthPixels; ++x, ++newX) {
+				auto oldImageComponentIndex = CartesianToComponentIndex(x, y, widthPixels);
+				auto outImageComponentIndex = CartesianToComponentIndex(newX, newY, newWidthPixels);
+				outImage[outImageComponentIndex] = image[oldImageComponentIndex];
+				outImage[outImageComponentIndex + 1] = image[oldImageComponentIndex + 1];
+				outImage[outImageComponentIndex + 2] = image[oldImageComponentIndex + 2];
+				outImage[outImageComponentIndex + 3] = image[oldImageComponentIndex + 3];
+			}
+		}
+
+		return outImage;
+	}
+
 	void CubicalEnvironmentMap::LoadFromSphericalHDRI(std::filesystem::path imageFilePath)
 	{
 		int wantedComponents = 4;
@@ -377,21 +480,42 @@ namespace Engine::Scenes
 		auto faces = { &_front, &_right, &_back, &_left, &_upper, &_lower };
 		for (auto resolution = _faceSizePixels, radius = 2; resolution > 1; resolution /= 2, radius *= 2) {
 
+			int j = 0;
 			for (auto face : faces) {
 				std::vector<unsigned char> tmp;
 				auto halfResolution = resolution / 2;
 				tmp = ResizeImage((*face)[mipmapIndex - 1], resolution, resolution, halfResolution, halfResolution);
-				auto blurredImageData = blurrer.Run(_physicalDevice, _logicalDevice, tmp.data(), halfResolution, halfResolution, radius);
+
+				int paddingAmountPixels = (int)((halfResolution / 100.0f) * 5.0f);
+				auto paddedResolution = halfResolution + (paddingAmountPixels * 2);
+				tmp = PadImage(tmp, halfResolution, halfResolution, paddingAmountPixels);
+
+				auto path = Settings::Paths::TexturesPath() /= "env_map\\face_" + std::to_string(j) + "_" + std::to_string(mipmapIndex) + ".png";
+				stbi_write_png(path.string().c_str(), paddedResolution, paddedResolution, 4, tmp.data(), paddedResolution * 4);
+
+				auto blurredImageData = blurrer.Run(_physicalDevice, _logicalDevice, tmp.data(), paddedResolution, paddedResolution, radius);
 
 				if (blurredImageData == nullptr) {
-					std::cout << "failed blurring image\n";
-					std::exit(-1);
+					Utils::Exit(1, "failed blurring image\n");
 				}
+
+				memcpy(tmp.data(), blurredImageData, paddedResolution * paddedResolution * 4);
+				tmp = GetImageArea(tmp, paddedResolution, paddedResolution, paddingAmountPixels, halfResolution, paddingAmountPixels, halfResolution);
 
 				auto sizeBytes = (halfResolution) * (halfResolution) * 4;
 				(*face).push_back(std::vector<unsigned char>());
 				(*face)[mipmapIndex].resize(sizeBytes);
-				memcpy((*face)[mipmapIndex].data(), blurredImageData, sizeBytes);
+				memcpy((*face)[mipmapIndex].data(), tmp.data(), sizeBytes);
+				//free(blurredImageData);
+
+				if (!std::filesystem::exists(Settings::Paths::TexturesPath() /= "env_map")) {
+					std::filesystem::create_directories(Settings::Paths::TexturesPath() /= "env_map");
+				}
+
+				path = Settings::Paths::TexturesPath() /= "env_map\\face_" + std::to_string(j) + "_" + std::to_string(mipmapIndex) + ".png";
+				auto ptr = (*face)[mipmapIndex].data();
+				stbi_write_png(path.string().c_str(), halfResolution, halfResolution, 4, ptr, halfResolution * 4);
+				++j;
 			}
 
 			mipmapIndex++;
@@ -399,22 +523,6 @@ namespace Engine::Scenes
 
 		//WriteImagesToFiles(Settings::Paths::TexturesPath());
 		blurrer.Destroy();
-
-		/*for (int i = 0; i < blurredFaceImages.size(); ++i) {
-			char* buf = (char*)malloc(64);
-			if (buf == nullptr) {
-				continue;
-			}
-
-			if (_itoa_s(i, buf, 64, 10)) {
-				free(buf);
-				continue;
-			}
-
-			auto path = Settings::Paths::TexturesPath() /= std::string("front_") + std::string(buf) + std::string(".png");
-			free(buf);
-			stbi_write_png(path.string().c_str(), _faceSizePixels, _faceSizePixels, 4, blurredFaceImages[i], _faceSizePixels * 4);
-		}*/
 
 		//Utils::Logger::Log("Environment map " + imageFilePath.string() + " loaded.");
 	}
