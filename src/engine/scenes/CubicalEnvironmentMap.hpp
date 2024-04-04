@@ -57,7 +57,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Data loaded from the HDRi image file.
 		 */
-		unsigned char* _hdriImageData = 0;
+		std::vector<std::vector<unsigned char>> _hdriImageData;
 
 		/**
 		 * @brief Width and height of the loaded HDRi image.
@@ -143,7 +143,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Internal method for code-shortening.
 		 */
-		std::vector<unsigned char> GenerateFaceImage(CubeMapFace face);
+		std::vector<unsigned char> GenerateFaceImage(CubeMapFace face, int mipIndex);
 	};
 }
 

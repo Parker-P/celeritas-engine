@@ -75,7 +75,7 @@ namespace Engine::Scenes
 		return outImageData;
 	}
 
-	std::vector<unsigned char> CubicalEnvironmentMap::GenerateFaceImage(CubeMapFace face)
+	std::vector<unsigned char> CubicalEnvironmentMap::GenerateFaceImage(CubeMapFace face, int mipIndex)
 	{
 		// The world space unit vector that points in the positive X direction of the image (must be left to right), as if the image was placed in the 3D world on a square plane.
 		glm::vec3 imageXWorldSpace;
@@ -86,8 +86,13 @@ namespace Engine::Scenes
 		// The origin of the image (must be the bottom left corner) in world space, as if the image was placed in the 3D world on a square plane.
 		glm::vec3 imageOriginWorldSpace;
 
+		auto sizePixels = _faceSizePixels;
+		for (int i = 0; i < mipIndex; ++i) {
+			sizePixels /= 2;
+		}
+
 		std::vector<unsigned char> outImage;
-		outImage.resize(_faceSizePixels * _faceSizePixels * 4);
+		outImage.resize(sizePixels * sizePixels * 4);
 
 		switch (face) {
 		case CubeMapFace::FRONT:
@@ -122,13 +127,13 @@ namespace Engine::Scenes
 			break;
 		}
 
-		for (auto y = 0; y < _faceSizePixels; ++y) {
-			for (auto x = 0; x < _faceSizePixels; ++x) {
+		for (auto y = 0; y < sizePixels; ++y) {
+			for (auto x = 0; x < sizePixels; ++x) {
 
 				// First we calculate the cartesian coordinate of the pixel of the cube map's face we are considering, in world space.
 				glm::vec3 cartesianCoordinatesOnFace;
-				cartesianCoordinatesOnFace = imageOriginWorldSpace + (imageXWorldSpace * ((1.0f / _faceSizePixels) * x));
-				cartesianCoordinatesOnFace += -imageYWorldSpace * ((1.0f / _faceSizePixels) * y);
+				cartesianCoordinatesOnFace = imageOriginWorldSpace + (imageXWorldSpace * ((1.0f / sizePixels) * x));
+				cartesianCoordinatesOnFace += -imageYWorldSpace * ((1.0f / sizePixels) * y);
 
 				// Then we get the cartesian coordinates on the sphere from the cartesian coordinates on the face. You can
 				// imagine a cube that contains a sphere of exactly the same radius. Only the sphere's poles and sides will
@@ -218,23 +223,23 @@ namespace Engine::Scenes
 
 				// This calculates at which pixel from the left (for U) and from the top (for V)
 				// we need to fetch from the spherical HDRi.
-				int pixelNumberU = (int)ceil(uCoordinate * _hdriSizePixels.width);
-				int pixelNumberV = (int)ceil((1.0f - vCoordinate) * _hdriSizePixels.height);
+				int pixelNumberU = (int)ceil(uCoordinate * sizePixels);
+				int pixelNumberV = (int)ceil((1.0f - vCoordinate) * sizePixels);
 
 				// This calculates the index into the spherical HDRi image accounting for 2 things:
 				// 1) the pixel numbers calculated above
 				// 2) the fact that each pixel is actually stored in 4 separate cells that represent
 				//    each channel of each individual pixel. The channels used are always 4 (RGBA).
-				int componentIndex = (pixelNumberU * 4) + ((_hdriSizePixels.width * 4) * (pixelNumberV - 1));
+				int componentIndex = (pixelNumberU * 4) + ((sizePixels * 4) * (pixelNumberV - 1));
 
 				// Fetch the channels from the spherical HDRi based on the calculations made above.
-				auto red = _hdriImageData[componentIndex];
-				auto green = _hdriImageData[componentIndex + 1];
-				auto blue = _hdriImageData[componentIndex + 2];
-				auto alpha = _hdriImageData[componentIndex + 3];
+				auto red = _hdriImageData[mipIndex][componentIndex];
+				auto green = _hdriImageData[mipIndex][componentIndex + 1];
+				auto blue = _hdriImageData[mipIndex][componentIndex + 2];
+				auto alpha = _hdriImageData[mipIndex][componentIndex + 3];
 
 				// Assign the color fetched from the HDRi to the cube map face's image we want to generate.
-				int faceComponentIndex = (x + (_faceSizePixels * y)) * 4;
+				int faceComponentIndex = (x + (sizePixels * y)) * 4;
 				outImage[faceComponentIndex] = red;
 				outImage[faceComponentIndex + 1] = green;
 				outImage[faceComponentIndex + 2] = blue;
@@ -426,8 +431,8 @@ namespace Engine::Scenes
 		std::vector<unsigned char> outImage(newWidthPixels * newHeightPixels * 4);
 
 		// Fill the output image with the original image data.
-		for (int y = yStart, newY = 0; y < newHeightPixels; ++y, ++newY) {
-			for (int x = xStart, newX = 0; x < newWidthPixels; ++x, ++newX) {
+		for (int y = yStart, newY = 0; newY < newHeightPixels; ++y, ++newY) {
+			for (int x = xStart, newX = 0; newX < newWidthPixels; ++x, ++newX) {
 				auto oldImageComponentIndex = CartesianToComponentIndex(x, y, widthPixels);
 				auto outImageComponentIndex = CartesianToComponentIndex(newX, newY, newWidthPixels);
 				outImage[outImageComponentIndex] = image[oldImageComponentIndex];
@@ -452,77 +457,90 @@ namespace Engine::Scenes
 		// for each pixel: red, green, blue and alpha.
 		// The image's pixels are read and stored left to right, top to bottom, relative to the image.
 		// Each pixel's component is an unsigned char.
-		_hdriImageData = stbi_load(imageFilePath.string().c_str(), &width, &height, &componentsDetected, wantedComponents);
+		auto mipCount = 1;
+		for (auto resolution = _faceSizePixels; resolution > 1; resolution /= 2, ++mipCount) {}
+
+		_hdriImageData.resize(mipCount);
+		auto lodZero = stbi_load(imageFilePath.string().c_str(), &width, &height, &componentsDetected, wantedComponents);
+		auto sizeBytes = width * height * 4;
+		_hdriImageData[0].resize(sizeBytes);
+		memcpy(_hdriImageData[0].data(), lodZero, sizeBytes);
 		_hdriSizePixels.width = width;
 		_hdriSizePixels.height = height;
 
-		if (nullptr == _hdriImageData) {
-			Utils::Exit(1, "failed loading hdri image");
-		}
-
-		auto imageLength = width * height * 4;
-		auto pixelCount = width * height;
-
-		//auto debugImage = std::vector<unsigned char>(imageLength);
-
-		// Now we start sampling the spherical HDRi for each individual pixel of each
-		// face of the cube map we want to generate.
-		_front.push_back(GenerateFaceImage(CubeMapFace::FRONT));
-		_right.push_back(GenerateFaceImage(CubeMapFace::RIGHT));
-		_back.push_back(GenerateFaceImage(CubeMapFace::BACK));
-		_left.push_back(GenerateFaceImage(CubeMapFace::LEFT));
-		_upper.push_back(GenerateFaceImage(CubeMapFace::UPPER));
-		_lower.push_back(GenerateFaceImage(CubeMapFace::LOWER));
-
 		Utils::BoxBlur blurrer;
-		auto mipmapIndex = 1;
-		auto resolution = _faceSizePixels;
-		auto faces = { &_front, &_right, &_back, &_left, &_upper, &_lower };
-		for (auto resolution = _faceSizePixels, radius = 2; resolution > 1; resolution /= 2, radius *= 2) {
+		for (int resolution = _faceSizePixels, radius = 2, i = 1; resolution > 1; resolution /= 2, radius *= 2, ++i) {
+			auto halfResolution = resolution / 2;
+			auto tmp = ResizeImage(_hdriImageData[i-1], resolution, resolution, halfResolution, halfResolution);
 
-			int j = 0;
-			for (auto face : faces) {
-				std::vector<unsigned char> tmp;
-				auto halfResolution = resolution / 2;
-				tmp = ResizeImage((*face)[mipmapIndex - 1], resolution, resolution, halfResolution, halfResolution);
+			int paddingAmountPixels = (int)((halfResolution / 100.0f) * 5.0f);
+			auto paddedResolution = halfResolution + (paddingAmountPixels * 2);
+			tmp = PadImage(tmp, halfResolution, halfResolution, paddingAmountPixels);
 
-				int paddingAmountPixels = (int)((halfResolution / 100.0f) * 5.0f);
-				auto paddedResolution = halfResolution + (paddingAmountPixels * 2);
-				tmp = PadImage(tmp, halfResolution, halfResolution, paddingAmountPixels);
+			auto blurredImageData = blurrer.Run(_physicalDevice, _logicalDevice, tmp.data(), paddedResolution, paddedResolution, radius);
 
-				auto path = Settings::Paths::TexturesPath() /= "env_map\\face_" + std::to_string(j) + "_" + std::to_string(mipmapIndex) + ".png";
-				stbi_write_png(path.string().c_str(), paddedResolution, paddedResolution, 4, tmp.data(), paddedResolution * 4);
-
-				auto blurredImageData = blurrer.Run(_physicalDevice, _logicalDevice, tmp.data(), paddedResolution, paddedResolution, radius);
-
-				if (blurredImageData == nullptr) {
-					Utils::Exit(1, "failed blurring image\n");
-				}
-
-				memcpy(tmp.data(), blurredImageData, paddedResolution * paddedResolution * 4);
-				tmp = GetImageArea(tmp, paddedResolution, paddedResolution, paddingAmountPixels, halfResolution, paddingAmountPixels, halfResolution);
-
-				auto sizeBytes = (halfResolution) * (halfResolution) * 4;
-				(*face).push_back(std::vector<unsigned char>());
-				(*face)[mipmapIndex].resize(sizeBytes);
-				memcpy((*face)[mipmapIndex].data(), tmp.data(), sizeBytes);
-				//free(blurredImageData);
-
-				if (!std::filesystem::exists(Settings::Paths::TexturesPath() /= "env_map")) {
-					std::filesystem::create_directories(Settings::Paths::TexturesPath() /= "env_map");
-				}
-
-				path = Settings::Paths::TexturesPath() /= "env_map\\face_" + std::to_string(j) + "_" + std::to_string(mipmapIndex) + ".png";
-				auto ptr = (*face)[mipmapIndex].data();
-				stbi_write_png(path.string().c_str(), halfResolution, halfResolution, 4, ptr, halfResolution * 4);
-				++j;
-			}
-
-			mipmapIndex++;
+			memcpy(tmp.data(), blurredImageData, paddedResolution * paddedResolution * 4);
+			_hdriImageData[i] = GetImageArea(tmp, paddedResolution, paddedResolution, paddingAmountPixels, halfResolution + paddingAmountPixels, paddingAmountPixels, halfResolution + paddingAmountPixels);
+		
+			_front.push_back(GenerateFaceImage(CubeMapFace::FRONT, i));
+			_right.push_back(GenerateFaceImage(CubeMapFace::RIGHT, i));
+			_back.push_back(GenerateFaceImage(CubeMapFace::BACK, i));
+			_left.push_back(GenerateFaceImage(CubeMapFace::LEFT, i));
+			_upper.push_back(GenerateFaceImage(CubeMapFace::UPPER, i));
+			_lower.push_back(GenerateFaceImage(CubeMapFace::LOWER, i));
 		}
+		
+		blurrer.Destroy();
+
+		//Utils::BoxBlur blurrer;
+		//auto mipmapIndex = 1;
+		//auto resolution = _faceSizePixels;
+		//auto faces = { &_front, &_right, &_back, &_left, &_upper, &_lower };
+		//for (auto resolution = _faceSizePixels, radius = 2; resolution > 1; resolution /= 2, radius *= 2) {
+
+		//	int j = 0;
+		//	for (auto face : faces) {
+		//		std::vector<unsigned char> tmp;
+		//		auto halfResolution = resolution / 2;
+		//		tmp = ResizeImage((*face)[mipmapIndex - 1], resolution, resolution, halfResolution, halfResolution);
+
+		//		int paddingAmountPixels = (int)((halfResolution / 100.0f) * 5.0f);
+		//		auto paddedResolution = halfResolution + (paddingAmountPixels * 2);
+		//		tmp = PadImage(tmp, halfResolution, halfResolution, paddingAmountPixels);
+
+		//		auto path = Settings::Paths::TexturesPath() /= "env_map\\face_" + std::to_string(j) + "_" + std::to_string(mipmapIndex) + ".png";
+		//		stbi_write_png(path.string().c_str(), paddedResolution, paddedResolution, 4, tmp.data(), paddedResolution * 4);
+
+		//		auto blurredImageData = blurrer.Run(_physicalDevice, _logicalDevice, tmp.data(), paddedResolution, paddedResolution, radius);
+
+		//		if (blurredImageData == nullptr) {
+		//			Utils::Exit(1, "failed blurring image\n");
+		//		}
+
+		//		memcpy(tmp.data(), blurredImageData, paddedResolution * paddedResolution * 4);
+		//		tmp = GetImageArea(tmp, paddedResolution, paddedResolution, paddingAmountPixels, halfResolution + paddingAmountPixels, paddingAmountPixels, halfResolution + paddingAmountPixels);
+
+		//		auto sizeBytes = (halfResolution) * (halfResolution) * 4;
+		//		(*face).push_back(std::vector<unsigned char>());
+		//		(*face)[mipmapIndex].resize(sizeBytes);
+		//		memcpy((*face)[mipmapIndex].data(), tmp.data(), sizeBytes);
+		//		//free(blurredImageData);
+
+		//		if (!std::filesystem::exists(Settings::Paths::TexturesPath() /= "env_map")) {
+		//			std::filesystem::create_directories(Settings::Paths::TexturesPath() /= "env_map");
+		//		}
+
+		//		path = Settings::Paths::TexturesPath() /= "env_map\\face_" + std::to_string(j) + "_" + std::to_string(mipmapIndex) + ".png";
+		//		auto ptr = (*face)[mipmapIndex].data();
+		//		stbi_write_png(path.string().c_str(), halfResolution, halfResolution, 4, ptr, halfResolution * 4);
+		//		++j;
+		//	}
+
+		//	mipmapIndex++;
+		//}
 
 		//WriteImagesToFiles(Settings::Paths::TexturesPath());
-		blurrer.Destroy();
+		
 
 		//Utils::Logger::Log("Environment map " + imageFilePath.string() + " loaded.");
 	}
