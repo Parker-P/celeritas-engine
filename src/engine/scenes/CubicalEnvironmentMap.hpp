@@ -143,7 +143,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Internal method for code-shortening.
 		 */
-		std::vector<unsigned char> GenerateFaceImage(CubeMapFace face, int mipIndex);
+		std::vector<unsigned char> GenerateFaceImage(CubeMapFace face, int mipIndex, int width, int height);
 	};
 }
 
