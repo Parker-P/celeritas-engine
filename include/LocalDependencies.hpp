@@ -8,6 +8,7 @@
 #include <optional>
 #include <filesystem>
 #include <map>
+#include <thread>
 #include <bitset>
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>

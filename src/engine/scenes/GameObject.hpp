@@ -41,12 +41,17 @@ namespace Engine::Scenes
 		/**
 		 * @brief Child game object pointers.
 		 */
-		std::vector<GameObject*> _pChildren;
+		std::vector<GameObject*> _children;
 
 		/**
 		 * @brief Mesh of this game object.
 		 */
 		Mesh* _pMesh = nullptr;
+
+		/**
+		 * @brief Body for physics simulation.
+		 */
+		Physics::Body _body;
 
 		/**
 		 * @brief Transform relative to the parent gameobject.

@@ -2,9 +2,6 @@
 
 namespace Engine::Scenes
 {
-	// Forward declarations for the compiler.
-	//class Scene;
-
 	/**
 	 * @brief Represents a collection of vertices and face indices as triangles.
 	 */
@@ -34,6 +31,8 @@ namespace Engine::Scenes
 		 * @brief See Pipelinable.
 		 */
 		virtual void UpdateShaderResources() override;
+
+		void ApplyForce(const glm::vec3& force);
 
 		/**
 		* @brief See IUpdatable.

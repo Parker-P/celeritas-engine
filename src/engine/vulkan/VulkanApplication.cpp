@@ -95,13 +95,38 @@ namespace Engine::Vulkan
 		return rotation * vectorToRotate;
 	}
 
+	void VulkanApplication::PhysicsUpdate()
+	{
+		while (!glfwWindowShouldClose(_pWindow)) {
+			auto& time = Time::Instance();
+			time.PhysicsUpdate();
+
+			for (auto& gameObject : _scene._pRootGameObject->_children) {
+				if (gameObject->_pMesh == nullptr) {
+					continue;
+				}
+
+				if (gameObject->_name == "falling") {
+					if (gameObject->_body._pMesh == nullptr) {
+						gameObject->_body._pMesh = gameObject->_pMesh;
+					}
+					gameObject->_body.PhysicsUpdate();
+				}
+			}
+		}
+	}
+
 	void VulkanApplication::MainLoop()
 	{
+		std::thread physicsThread(&VulkanApplication::PhysicsUpdate, this);
+
 		while (!glfwWindowShouldClose(_pWindow)) {
 			Update();
 			Draw();
 			glfwPollEvents();
 		}
+
+		physicsThread.join();
 	}
 
 	void VulkanApplication::Update()
@@ -378,6 +403,7 @@ namespace Engine::Vulkan
 		//auto scenePath = Settings::Paths::ModelsPath() /= "f.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "fr.glb";
 		auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "collision.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "hierarchy.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "primitives.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "translation.glb";
@@ -1064,7 +1090,7 @@ namespace Engine::Vulkan
 			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
 			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
 
-			for (auto& gameObject : _scene._pRootGameObject->_pChildren) {
+			for (auto& gameObject : _scene._pRootGameObject->_children) {
 				gameObject->Draw(_graphicsPipeline._layout, _drawCommandBuffers[i]);
 			}
 

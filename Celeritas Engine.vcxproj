@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\engine\physics\Body.cpp" />
     <ClCompile Include="src\engine\scenes\CubicalEnvironmentMap.cpp" />
     <ClCompile Include="src\engine\scenes\Camera.cpp" />
     <ClCompile Include="src\engine\scenes\GameObject.cpp" />
@@ -36,6 +37,7 @@
     <ClCompile Include="src\engine\vulkan\VulkanContext.cpp" />
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\engine\vulkan\PhysicalDevice.cpp" />
+    <ClCompile Include="src\structural\IPhysicsUpdatable.hpp" />
     <ClCompile Include="src\utils\Json.cpp" />
     <ClCompile Include="src\game\input\KeyBinds.cpp" />
     <ClCompile Include="src\engine\scenes\Mesh.cpp" />
@@ -101,6 +103,7 @@
     <ClInclude Include="src\engine\scenes\Material.hpp" />
     <ClInclude Include="src\engine\scenes\PointLight.hpp" />
     <ClInclude Include="src\engine\scenes\Vertex.hpp" />
+    <ClInclude Include="src\engine\physics\Body.hpp" />
     <ClInclude Include="src\engine\structural\IDrawable.hpp" />
     <ClInclude Include="src\engine\structural\IPipelineable.hpp" />
     <ClInclude Include="src\engine\vulkan\Helpers.hpp" />

@@ -25,14 +25,14 @@ namespace Engine::Scenes
 			light.Update();
 		}
 
-		for (auto& gameObject : _pRootGameObject->_pChildren) {
+		for (auto& gameObject : _pRootGameObject->_children) {
 			gameObject->Update();
 		}
 	}
 
 	Vulkan::ShaderResources Scene::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
 	{
-		for (auto& gameObject : _pRootGameObject->_pChildren) {
+		for (auto& gameObject : _pRootGameObject->_children) {
 			if (gameObject->_pMesh != nullptr) {
 				auto gameObjectResources = gameObject->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
 				_shaderResources.MergeResources(gameObjectResources);

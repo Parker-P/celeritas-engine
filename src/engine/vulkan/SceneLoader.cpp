@@ -255,7 +255,7 @@ namespace Engine::Scenes
 		for (int i = 0; i < root.children.size(); ++i) {
 			auto child = ProcessNodeHierarchy(*root.children[i], gltfScene, scene, logicalDevice, physicalDevice, commandPool, queue);
 			child->_pParent = outGameObject;
-			outGameObject->_pChildren.push_back(child);
+			outGameObject->_children.push_back(child);
 		}
 		return outGameObject;
 	}

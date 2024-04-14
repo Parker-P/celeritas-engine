@@ -71,7 +71,7 @@ namespace Engine::Scenes
 		auto meshResources = _pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
 		_shaderResources.MergeResources(meshResources);
 
-		for (auto& child : _pChildren) {
+		for (auto& child : _children) {
 			auto childResources = child->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
 		}
 
@@ -105,7 +105,7 @@ namespace Engine::Scenes
 
 		UpdateShaderResources();
 
-		for (auto& child : _pChildren) {
+		for (auto& child : _children) {
 			child->Update();
 		}
 	}
@@ -118,8 +118,8 @@ namespace Engine::Scenes
 			_pMesh->Draw(pipelineLayout, drawCommandBuffer);
 		}
 
-		for (int i = 0; i < _pChildren.size(); ++i) {
-			_pChildren[i]->Draw(pipelineLayout, drawCommandBuffer);
+		for (int i = 0; i < _children.size(); ++i) {
+			_children[i]->Draw(pipelineLayout, drawCommandBuffer);
 		}
 	}
 }

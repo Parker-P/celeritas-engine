@@ -295,6 +295,11 @@ namespace Engine::Vulkan
 		virtual void Update() override;
 
 		/**
+		 * @brief Physics simulation root call, performing updates on all objects that extend IBody.
+		 */
+		virtual void PhysicsUpdate();
+
+		/**
 		 * GLFW callback for when the window is resized.
 		 * @param window
 		 * @param width
