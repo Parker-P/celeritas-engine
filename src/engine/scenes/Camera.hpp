@@ -90,6 +90,6 @@ namespace Engine::Scenes
 		/**
 		 * @brief See IUpdatable.
 		 */
-		void Update() override;
+		void Update(VulkanContext& vkContext) override;
 	};
 }

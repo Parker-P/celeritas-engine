@@ -76,7 +76,7 @@ namespace Engine::Scenes
 		memcpy(_buffers[0]._cpuMemory, &_lightData, sizeof(_lightData));
 	}
 
-	void PointLight::Update() {
+	void PointLight::Update(VulkanContext& vkContext) {
 		auto& input = Input::KeyboardMouse::Instance();
 
 		if (input.IsKeyHeldDown(GLFW_KEY_UP)) {

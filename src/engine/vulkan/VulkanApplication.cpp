@@ -119,9 +119,16 @@ namespace Engine::Vulkan
 	void VulkanApplication::MainLoop()
 	{
 		std::thread physicsThread(&VulkanApplication::PhysicsUpdate, this);
+		VulkanContext vkContext;
+		vkContext._instance = _instance;
+		vkContext._logicalDevice = _logicalDevice;
+		vkContext._physicalDevice = _physicalDevice;
+		vkContext._commandPool = _commandPool;
+		vkContext._queue = _queue;
+		vkContext._queueFamilyIndex = _queueFamilyIndex;
 
 		while (!glfwWindowShouldClose(_pWindow)) {
-			Update();
+			Update(vkContext);
 			Draw();
 			glfwPollEvents();
 		}
@@ -129,12 +136,13 @@ namespace Engine::Vulkan
 		physicsThread.join();
 	}
 
-	void VulkanApplication::Update()
+	void VulkanApplication::Update(VulkanContext& vkContext)
 	{
 		Time::Instance().Update();
 		_input.Update();
-		_mainCamera.Update();
-		_scene.Update();
+
+		_mainCamera.Update(vkContext);
+		_scene.Update(vkContext);
 	}
 
 	void VulkanApplication::OnWindowResized(GLFWwindow* window, int width, int height)
@@ -402,8 +410,8 @@ namespace Engine::Vulkan
 		//auto scenePath = Settings::Paths::ModelsPath() /= "directions.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "f.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "fr.glb";
-		auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "collision.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
+		auto scenePath = Settings::Paths::ModelsPath() /= "collision.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "hierarchy.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "primitives.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "translation.glb";
@@ -421,10 +429,10 @@ namespace Engine::Vulkan
 	void VulkanApplication::LoadEnvironmentMap()
 	{
 		_scene._environmentMap = Engine::Scenes::CubicalEnvironmentMap::CubicalEnvironmentMap(_physicalDevice, _logicalDevice);
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Waterfall.hdr");
+		_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Waterfall.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Debug.png");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ModernBuilding.hdr");
-		_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.png");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "garden.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ItalianFlag.png");

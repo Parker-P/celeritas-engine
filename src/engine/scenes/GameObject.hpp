@@ -7,7 +7,7 @@ namespace Engine::Scenes
 	/**
 	 * @brief Represents a physical object in a celeritas-engine scene.
 	 */
-	class GameObject : public ::Structural::IUpdatable, public Structural::IPipelineable, public Structural::IDrawable
+	class GameObject : public Structural::IVulkanUpdatable, public Structural::IPipelineable, public Structural::IDrawable
 	{
 	public:
 
@@ -82,7 +82,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Updates per-frame game-object-related information.
 		 */
-		virtual void Update() override;
+		virtual void Update(VulkanContext& vkContext) override;
 
 		/**
 		 * @brief See IDrawable.

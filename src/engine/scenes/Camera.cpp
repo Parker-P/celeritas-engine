@@ -93,7 +93,7 @@ namespace Engine::Scenes
 		memcpy(_buffers[0]._cpuMemory, &_cameraData, sizeof(_cameraData));
 	}
 
-	void Camera::Update()
+	void Camera::Update(VulkanContext& vkContext)
 	{
 		auto& input = Input::KeyboardMouse::Instance();
 		auto& time = Time::Instance();
@@ -113,27 +113,27 @@ namespace Engine::Scenes
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_W)) {
-			_localTransform.Translate(_localTransform.Forward() * 0.3f * (float)time._deltaTime);
+			_localTransform.Translate(_localTransform.Forward() * 0.05f * (float)time._deltaTime);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_A)) {
-			_localTransform.Translate(-_localTransform.Right() * 0.3f * (float)time._deltaTime);
+			_localTransform.Translate(-_localTransform.Right() * 0.05f * (float)time._deltaTime);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_S)) {
-			_localTransform.Translate(-_localTransform.Forward() * 0.3f * (float)time._deltaTime);
+			_localTransform.Translate(-_localTransform.Forward() * 0.05f * (float)time._deltaTime);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_D)) {
-			_localTransform.Translate(_localTransform.Right() * 0.3f * (float)time._deltaTime);
+			_localTransform.Translate(_localTransform.Right() * 0.05f * (float)time._deltaTime);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_SPACE)) {
-			_localTransform.Translate(_localTransform.Up() * 0.3f * (float)time._deltaTime);
+			_localTransform.Translate(_localTransform.Up() * 0.05f * (float)time._deltaTime);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_LEFT_CONTROL)) {
-			_localTransform.Translate(-_localTransform.Up() * 0.3f * (float)time._deltaTime);
+			_localTransform.Translate(-_localTransform.Up() * 0.05f * (float)time._deltaTime);
 		}
 
 		float _deltaYaw = (_yaw - _lastYaw);

@@ -5,7 +5,7 @@ namespace Engine::Scenes
 	/**
 	 * @brief Represents a collection of vertices and face indices as triangles.
 	 */
-	class Mesh : public ::Structural::IUpdatable, public Engine::Structural::IDrawable, public Structural::IPipelineable
+	class Mesh : public Structural::IVulkanUpdatable, public Engine::Structural::IDrawable, public Structural::IPipelineable
 	{
 
 	public:
@@ -37,7 +37,7 @@ namespace Engine::Scenes
 		/**
 		* @brief See IUpdatable.
 		*/
-		virtual void Update() override;
+		virtual void Update(VulkanContext& vkContext) override;
 
 		/**
 		 * @brief See IDrawable.

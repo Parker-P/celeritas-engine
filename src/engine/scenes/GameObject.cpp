@@ -97,16 +97,16 @@ namespace Engine::Scenes
 		memcpy(_buffers[0]._cpuMemory, &_gameObjectData, sizeof(_gameObjectData));
 	}
 
-	void GameObject::Update()
+	void GameObject::Update(VulkanContext& vkContext)
 	{
 		if (_pMesh != nullptr) {
-			_pMesh->Update();
+			_pMesh->Update(vkContext);
 		}
 
 		UpdateShaderResources();
 
 		for (auto& child : _children) {
-			child->Update();
+			child->Update(vkContext);
 		}
 	}
 

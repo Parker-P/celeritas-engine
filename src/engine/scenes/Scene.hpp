@@ -8,7 +8,7 @@ namespace Engine::Scenes
 	/**
 	 * @brief Represents a celeritas-engine scene.
 	 */
-	class Scene : public ::Structural::IUpdatable, public Structural::IPipelineable
+	class Scene : public Structural::IVulkanUpdatable, public Structural::IPipelineable
 	{
 
 	public:
@@ -52,7 +52,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Updates all scene-related data.
 		 */
-		virtual void Update() override;
+		virtual void Update(VulkanContext& vkContext) override;
 
 		/**
 		 * @brief See IPipelinable.

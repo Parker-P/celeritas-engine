@@ -5,7 +5,7 @@ namespace Engine::Scenes
 	/**
 	 * @brief Represents an infinitesimally small light source.
 	 */
-	class PointLight : public ::Structural::IUpdatable, public Engine::Structural::IPipelineable
+	class PointLight : public Structural::IVulkanUpdatable, public Engine::Structural::IPipelineable
 	{
 	public:
 
@@ -57,6 +57,6 @@ namespace Engine::Scenes
 		/**
 		 * @brief See IUpdatable.
 		 */
-		void Update() override;
+		void Update(VulkanContext& vkContext) override;
 	};
 }

@@ -117,9 +117,11 @@ namespace Engine::Scenes
 		// TODO
 	}
 
-	void Mesh::Update()
+	void Mesh::Update(VulkanContext& vkContext)
 	{
-		// TODO
+		auto& vkBuffer = _vertices._vertexBuffer._buffer;
+		auto& vertexData = _vertices._vertexData;
+		Vulkan::CopyBufferToDeviceMemory(vkContext._logicalDevice, vkContext._physicalDevice, vkContext._commandPool, vkContext._queue, vkBuffer, vertexData.data(), Utils::GetVectorSizeInBytes(vertexData));
 	}
 
 	void Mesh::Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer)

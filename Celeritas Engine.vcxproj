@@ -37,7 +37,6 @@
     <ClCompile Include="src\engine\vulkan\VulkanContext.cpp" />
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\engine\vulkan\PhysicalDevice.cpp" />
-    <ClCompile Include="src\structural\IPhysicsUpdatable.hpp" />
     <ClCompile Include="src\utils\Json.cpp" />
     <ClCompile Include="src\game\input\KeyBinds.cpp" />
     <ClCompile Include="src\engine\scenes\Mesh.cpp" />
@@ -106,6 +105,7 @@
     <ClInclude Include="src\engine\physics\Body.hpp" />
     <ClInclude Include="src\engine\structural\IDrawable.hpp" />
     <ClInclude Include="src\engine\structural\IPipelineable.hpp" />
+    <ClInclude Include="src\engine\structural\IVulkanUpdatable.hpp" />
     <ClInclude Include="src\engine\vulkan\Helpers.hpp" />
     <ClInclude Include="src\engine\vulkan\Buffer.hpp" />
     <ClInclude Include="src\engine\vulkan\PhysicalDevice.hpp" />
@@ -118,6 +118,7 @@
     <ClInclude Include="src\engine\scenes\Camera.hpp" />
     <ClInclude Include="src\engine\scenes\GameObject.hpp" />
     <ClInclude Include="src\engine\input\Input.hpp" />
+    <ClInclude Include="src\structural\IPhysicsUpdatable.hpp" />
     <ClInclude Include="src\structural\IUpdatable.hpp" />
     <ClInclude Include="src\utils\Json.h" />
     <ClInclude Include="src\game\input\KeyBinds.hpp" />

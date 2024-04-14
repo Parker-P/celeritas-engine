@@ -19,14 +19,14 @@ namespace Engine::Scenes
 		return _materials[0];
 	}
 
-	void Scene::Update()
+	void Scene::Update(VulkanContext& vkContext)
 	{
 		for (auto& light : _pointLights) {
-			light.Update();
+			light.Update(vkContext);
 		}
 
 		for (auto& gameObject : _pRootGameObject->_children) {
-			gameObject->Update();
+			gameObject->Update(vkContext);
 		}
 	}
 
