@@ -106,12 +106,16 @@ namespace Engine::Vulkan
 					continue;
 				}
 
-				if (gameObject->_name == "falling") {
-					if (gameObject->_body._pMesh == nullptr) {
-						gameObject->_body._pMesh = gameObject->_pMesh;
-					}
-					gameObject->_body.PhysicsUpdate();
+				if (gameObject->_name != "falling") {
+					continue;
 				}
+
+				auto& body = gameObject->_body;
+				if (!body._isInitialized) {
+					body.Initialize(gameObject->_pMesh);
+				}
+
+				body.PhysicsUpdate();
 			}
 		}
 	}
