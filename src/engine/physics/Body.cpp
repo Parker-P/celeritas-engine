@@ -11,36 +11,37 @@ namespace Engine::Physics
 	{
 		auto& time = Time::Instance();
 		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
-
-		auto vertexToForcePosition = position - _pMesh->_vertices._vertexData[0]._position;
-		auto normalizedVertexToForcePosition = glm::normalize(vertexToForcePosition);
-		auto scaleFactor = glm::dot(normalizedVertexToForcePosition, force);
-		auto effectiveForce = force * scaleFactor;
 		auto vertexCount = _pMesh->_vertices._vertexData.size();
 
 		for (int i = 0; i < vertexCount; ++i) {
-			auto scaleFactor = -glm::dot(glm::normalize((position - _pMesh->_vertices._vertexData[i]._position)), force);
-			auto effectiveForce = force * scaleFactor;
-			_forces[i].x = (_forces[i].x + effectiveForce.x) * 0.5f;
-			_forces[i].y = (_forces[i].y + effectiveForce.y) * 0.5f;
-			_forces[i].z = (_forces[i].z + effectiveForce.z) * 0.5f;
+			auto dst = _pMesh->_vertices._vertexData[i]._position;
+			auto src = position;
+			auto effectiveForce = glm::normalize(dst - src);
+			auto scaleFactor = glm::dot(effectiveForce, force);
+			effectiveForce *= scaleFactor;
+			bool forceIsZero = _forces[i] == glm::vec3(0.0f, 0.0f, 0.0f);
+			_forces[i] += effectiveForce;
+			_forces[i] = forceIsZero ? _forces[i] : _forces[i] * 0.5f;
 
 			for (int j = 0; j < vertexCount; ++j) {
 				if (i == j) {
 					continue;
 				}
-				auto dst = _pMesh->_vertices._vertexData[i]._position;
-				auto src = _pMesh->_vertices._vertexData[j]._position;
+				dst = _pMesh->_vertices._vertexData[i]._position;
+				src = _pMesh->_vertices._vertexData[j]._position;
+				effectiveForce = glm::normalize(dst - src);
 				scaleFactor = glm::dot(glm::normalize(dst - src), _forces[i]);
-				_forces[j].x = (_forces[j].x + effectiveForce.x) * 0.5f;
-				_forces[j].y = (_forces[j].y + effectiveForce.y) * 0.5f;
-				_forces[j].z = (_forces[j].z + effectiveForce.z) * 0.5f;
+				effectiveForce *= scaleFactor;
+				forceIsZero = _forces[j] == glm::vec3(0.0f, 0.0f, 0.0f);
+				_forces[j] += effectiveForce;
+				_forces[j] = forceIsZero ? _forces[j] : _forces[j] * 0.5f;
 			}
 		}
 
-
-		/*_velocities[i] += _forces[i] * deltaTimeSeconds;
-		_pMesh->_vertices._vertexData[i]._position += _velocities[i] * deltaTimeSeconds;*/
+		for (int i = 0; i < vertexCount; ++i) {
+			_velocities[i] += _forces[i] * deltaTimeSeconds;
+			_pMesh->_vertices._vertexData[i]._position += _velocities[i] * deltaTimeSeconds;
+		}
 	}
 
 	void Body::AddForce(const glm::vec3& force)
@@ -57,12 +58,7 @@ namespace Engine::Physics
 			_pMesh->_vertices._vertexData[i]._position += _velocities[i] * deltaTimeSeconds;
 		}
 
-		/*system("cls");
-		std::cout << "Delta time " << (float)time._deltaTime << "\n";
-		std::cout << "Physics delta time in seconds " << deltaTimeSeconds << "\n";
-		std::cout << "Force " << force << "\n";
-		std::cout << "Velocity " << _velocity << "\n";
-		std::cout << "Position " << _pMesh->_pGameObject->_localTransform.Position() << "\n";*/
+		
 	}
 
 	void Body::Initialize(Engine::Scenes::Mesh* pMesh)
@@ -82,9 +78,19 @@ namespace Engine::Physics
 	void Body::PhysicsUpdate()
 	{
 		//AddForce(glm::vec3(0.0f, -0.3f, 0.0f));
-		auto pos = _pMesh->_vertices._vertexData[0]._position;
-		pos.x += 4;
-		AddForceAtPosition(glm::vec3(0.0f, 1.0f, 0.0f), pos);
+		//auto offset = glm::normalize(_pMesh->_vertices._vertexData[0]._position - _pMesh->_vertices._vertexData[1]._position);
+		auto offset = glm::vec3(1.0f, 0.0f, 0.0f);
+		//offset *= 4;
+		auto pos = _pMesh->_vertices._vertexData[0]._position + offset;
+		AddForceAtPosition(glm::vec3(0.0f, 0.3f, 0.0f), pos);
+
+		system("cls");
+		auto vert0 = _pMesh->_vertices._vertexData[0]._position;
+		auto vert1 = _pMesh->_vertices._vertexData[1]._position;
+		auto vert2 = _pMesh->_vertices._vertexData[2]._position;
+		std::cout << "Vert 0->1: " << glm::length(vert1-vert0) << "\n";
+		std::cout << "Vert 1->2: " << glm::length(vert2-vert1) << "\n";
+		std::cout << "Vert 2->0: " << glm::length(vert2-vert0) << "\n";
 
 		//std::cout << "Time " << (float)Time::Instance()._physicsDeltaTime << " velocity " << _velocity.y << "\n";
 	}

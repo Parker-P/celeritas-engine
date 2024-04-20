@@ -415,7 +415,8 @@ namespace Engine::Vulkan
 		//auto scenePath = Settings::Paths::ModelsPath() /= "f.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "fr.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
-		auto scenePath = Settings::Paths::ModelsPath() /= "collision.glb";
+		//auto scenePath = Settings::Paths::ModelsPath() /= "collision.glb";
+		auto scenePath = Settings::Paths::ModelsPath() /= "forces.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "hierarchy.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "primitives.glb";
 		//auto scenePath = Settings::Paths::ModelsPath() /= "translation.glb";
