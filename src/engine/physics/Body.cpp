@@ -54,53 +54,39 @@ namespace Engine::Physics
 		}
 
 		int start = 0;
-		int end = (int)transmittedForces.size() - 1;
-		bool first = true;
+		int end = (int)transmittedForces.size();
 
-	transmissionCalculation:
-		for (int i = start;; ++i) {
-			auto transmitterIndex = transmittedForces[i]._receiverVertexIndex;
+		for (; start < end;) {
+			auto transmitterIndex = transmittedForces[start]._receiverVertexIndex;
 			auto receivers = _neighbors[transmitterIndex];
 			for (auto receiverIndex : receivers) {
 
-				// If transmittedForces contains the current neighbor as a transmitter vertex, then the force has already been accounted for.
-				auto res = std::find_if(transmittedForces.begin() + start, transmittedForces.begin() + end, [receiverIndex](const TransmittedForce& tf) {
-					if (tf._transmitterVertexIndex == receiverIndex) { return true; }
-					else { return false; } });
+				// If transmittedForces contains the current receiver as a transmitter vertex, then the force has already been accounted for.
+				auto res = std::find_if(transmittedForces.begin() + start, transmittedForces.begin() + end, [receiverIndex, transmitterIndex](const TransmittedForce& tf) {
+					if (tf._transmitterVertexIndex == receiverIndex && tf._receiverVertexIndex == transmitterIndex) { return true; } return false; });
 
 				if (res != transmittedForces.end()) {
 					continue;
 				}
 
-				// Calculate the last force transmitted where neighbor(in the transmittedForces) is the current vertex
+				// Calculate the last force transmitted where the receiver (in the transmittedForces) is the current transmitter.
 				auto lastTransmission = std::find_if(transmittedForces.begin() + start, transmittedForces.begin() + end, [transmitterIndex](const TransmittedForce& tf) {
 					if (tf._receiverVertexIndex == transmitterIndex) { return true; }
 					else { return false; } });
 
-				auto transmittedForce = CalculateTransmittedForce(vertices[transmitterIndex]._position, vertices[receiverIndex]._position, lastTransmission->_force);
+				auto transmittedForce = CalculateTransmittedForce(vertices[transmitterIndex]._position, lastTransmission->_force, vertices[receiverIndex]._position);
 
-				if (transmittedForce == glm::vec3(0.0f, 0.0f, 0.0f)) {
+				if (transmittedForce.x == 0.0f && transmittedForce.y == 0.0f && transmittedForce.z == 0.0f) {
 					continue;
 				}
 
 				_forces[receiverIndex] += transmittedForce;
-				transmittedForces.push_back({ transmitterIndex, receiverIndex, transmittedForce });
+				transmittedForces.push_back({ (int)transmitterIndex, (int)receiverIndex, transmittedForce });
 
-				if (first) {
-					start = (int)transmittedForces.size() - 1;
-					first = false;
-				}
+				end = (int)transmittedForces.size();
 			}
 
-			if (i == end) {
-				end = (int)transmittedForces.size() - 1;
-				break;
-			}
-		}
-
-		if (start != end) {
-			// Cleanup the transmittedForces to save space for large meshes.
-			goto transmissionCalculation;
+			start = (int)transmittedForces.size() - 1;
 		}
 	}
 
@@ -129,19 +115,36 @@ namespace Engine::Physics
 		auto size = _pMesh->_vertices._vertexData.size();
 		_velocities.resize(size);
 		_forces.resize(size);
-		
+
 		auto& vertices = _pMesh->_vertices._vertexData;
 		auto& faceIndices = _pMesh->_faceIndices._indexData;
-		for (int i = 0; i < faceIndices.size(); ++i) {
-			auto result = std::find_if(_neighbors.begin(), _neighbors.end(), [i, faceIndices](const std::pair<int, std::vector<int>>& current) {
-				if (current.first == faceIndices[i]) {
-					return true;
-				}
-				return false;
-				});
+		for (int i = 0; i < faceIndices.size(); i += 3) {
+			auto index1 = faceIndices[i];
+			auto index2 = faceIndices[i + 1];
+			auto index3 = faceIndices[i + 2];
 
-			if (result == _neighbors.end()) {
-				_neighbors.emplace()
+			if (_neighbors.find(index1) == _neighbors.end()) {
+				std::vector<unsigned int> n = { index2, index3 };
+				_neighbors.emplace(index1, n);
+			}
+			else {
+				_neighbors[index1].insert(_neighbors[index1].end(), { index2, index3 });
+			}
+
+			if (_neighbors.find(index2) == _neighbors.end()) {
+				std::vector<unsigned int> n = { index1, index3 };
+				_neighbors.emplace(index2, n);
+			}
+			else {
+				_neighbors[index2].insert(_neighbors[index2].end(), { index1, index3 });
+			}
+
+			if (_neighbors.find(index3) == _neighbors.end()) {
+				std::vector<unsigned int> n = { index1, index2 };
+				_neighbors.emplace(index3, n);
+			}
+			else {
+				_neighbors[index3].insert(_neighbors[index3].end(), { index1, index2 });
 			}
 		}
 

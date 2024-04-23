@@ -35,7 +35,7 @@ namespace Engine::Physics
 		/**
 		 * @brief Map where the key is the index of a vertex in _pMesh, and the value is a list of vertex indices directly connected to the vertex represented by the key.
 		 */
-		std::map<int, std::vector<int>> _neighbors;
+		std::map<unsigned int, std::vector<unsigned int>> _neighbors;
 
 		/**
 		 * @brief Constructor.
