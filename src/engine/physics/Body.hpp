@@ -33,7 +33,12 @@ namespace Engine::Physics
 		Engine::Scenes::Mesh* _pMesh;
 
 		/**
-		 * @brief .
+		 * @brief Map where the key is the index of a vertex in _pMesh, and the value is a list of vertex indices directly connected to the vertex represented by the key.
+		 */
+		std::map<int, std::vector<int>> _neighbors;
+
+		/**
+		 * @brief Constructor.
 		 */
 		Body() = default;
 
@@ -60,5 +65,16 @@ namespace Engine::Physics
 		 * @brief See IPhysicsUpdatable.
 		 */
 		void PhysicsUpdate() override;
+
+	private:
+
+		/**
+		 * @brief Calculates the force that "force" transmits to "receiverPosition" from "transmitterPosition".
+		 * Imagine a microscopic scenario where a molecule M1 has an unbreakable bond to another molecule M2.
+		 * As soon as M1 moves, it will transmit some force (depending on the direction of movement) to molecule M2.
+		 * In this scenario, "transmitterPosition" is the position of M1, "force" represents the movement of M1, and "receiverPosition"
+		 * represents M2's position. This function calculates the movement of M2 caused by the movement of M1.
+		 */
+		glm::vec3 CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition);
 	};
 }

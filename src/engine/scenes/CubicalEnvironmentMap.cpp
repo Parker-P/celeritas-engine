@@ -493,7 +493,7 @@ namespace Engine::Scenes
 
 		blurrer.Destroy();
 
-		WriteImagesToFiles(Settings::Paths::TexturesPath()/"env_map");
+		//WriteImagesToFiles(Settings::Paths::TexturesPath()/"env_map");
 
 		//Utils::Logger::Log("Environment map " + imageFilePath.string() + " loaded.");
 	}
