@@ -116,7 +116,6 @@ namespace Engine::Physics
 		_velocities.resize(size);
 		_forces.resize(size);
 
-		auto& vertices = _pMesh->_vertices._vertexData;
 		auto& faceIndices = _pMesh->_faceIndices._indexData;
 		for (int i = 0; i < faceIndices.size(); i += 3) {
 			auto index1 = faceIndices[i];
