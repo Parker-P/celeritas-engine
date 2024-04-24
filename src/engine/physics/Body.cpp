@@ -40,13 +40,14 @@ namespace Engine::Physics
 	void Body::AddForceAtPosition(const glm::vec3& force, const glm::vec3& position)
 	{
 		auto& time = Time::Instance();
-		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
+		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f * /*FOR DEBUG -->*/ 0.1f;
 		auto vertexCount = _pMesh->_vertices._vertexData.size();
 		auto& vertices = _pMesh->_vertices._vertexData;
 
 		std::vector<TransmittedForce> transmittedForces;
 		for (int i = 0; i < vertexCount; ++i) {
 			auto transmittedForce = CalculateTransmittedForce(position, force, vertices[i]._position);
+			_forces[i] += transmittedForce;
 			if (transmittedForce.x == 0.0f && transmittedForce.y == 0.0f && transmittedForce.z == 0.0f) {
 				continue;
 			}
@@ -55,8 +56,10 @@ namespace Engine::Physics
 
 		int start = 0;
 		int end = (int)transmittedForces.size();
+		int forcesAdded;
 
 		for (; start < end;) {
+			forcesAdded = 0;
 			auto transmitterIndex = transmittedForces[start]._receiverVertexIndex;
 			auto receivers = _neighbors[transmitterIndex];
 			for (auto receiverIndex : receivers) {
@@ -82,11 +85,18 @@ namespace Engine::Physics
 
 				_forces[receiverIndex] += transmittedForce;
 				transmittedForces.push_back({ (int)transmitterIndex, (int)receiverIndex, transmittedForce });
+				++forcesAdded;
 
 				end = (int)transmittedForces.size();
 			}
 
-			start = (int)transmittedForces.size() - 1;
+			start = end - forcesAdded;
+		}
+
+		for (int i = 0; i < vertexCount; ++i) {
+			auto velocityIncrement = (_forces[i] * deltaTimeSeconds);
+			_velocities[i] += velocityIncrement;
+			vertices[i]._position += _velocities[i] * deltaTimeSeconds;
 		}
 	}
 
@@ -157,7 +167,9 @@ namespace Engine::Physics
 		auto offset = glm::vec3(1.0f, 0.0f, 0.0f);
 		//offset *= 4;
 		auto pos = _pMesh->_vertices._vertexData[0]._position + offset;
-		AddForceAtPosition(glm::vec3(0.0f, 1.0f, 0.0f), pos);
+		AddForceAtPosition(glm::vec3(0.0f, .1f, 0.0f), pos);
+
+
 
 		system("cls");
 		auto vert0 = _pMesh->_vertices._vertexData[0]._position;
