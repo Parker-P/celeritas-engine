@@ -121,7 +121,9 @@ namespace Engine::Scenes
 	{
 		auto& vkBuffer = _vertices._vertexBuffer._buffer;
 		auto& vertexData = _vertices._vertexData;
-		Vulkan::CopyBufferToDeviceMemory(vkContext._logicalDevice, vkContext._physicalDevice, vkContext._commandPool, vkContext._queue, vkBuffer, vertexData.data(), Utils::GetVectorSizeInBytes(vertexData));
+		
+		// Update the Vulkan-only visible memory that is mapped to the GPU so that the updated data is also visible in the vertex shader.
+		memcpy(_vertices._vertexBuffer._cpuMemory, _vertices._vertexData.data(), Utils::GetVectorSizeInBytes(_vertices._vertexData));
 	}
 
 	void Mesh::Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer)

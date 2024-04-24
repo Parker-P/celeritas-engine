@@ -37,10 +37,18 @@ namespace Engine::Physics
 		return effectiveForce *= scaleFactor;
 	}
 
+	bool IsVectorZero(const glm::vec3& vector, float tolerance = 0.0f)
+	{
+		return (vector.x >= -tolerance && vector.x <= tolerance &&
+			vector.y >= -tolerance && vector.y <= tolerance &&
+			vector.z >= -tolerance && vector.z <= tolerance);
+	}
+
 	void Body::AddForceAtPosition(const glm::vec3& force, const glm::vec3& position)
 	{
 		auto& time = Time::Instance();
-		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f * /*FOR DEBUG -->*/ 0.1f;
+		//float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f * /*FOR DEBUG -->*/ 0.1f;
+		float deltaTimeSeconds = 0.1f;
 		auto vertexCount = _pMesh->_vertices._vertexData.size();
 		auto& vertices = _pMesh->_vertices._vertexData;
 
@@ -48,7 +56,7 @@ namespace Engine::Physics
 		for (int i = 0; i < vertexCount; ++i) {
 			auto transmittedForce = CalculateTransmittedForce(position, force, vertices[i]._position);
 			_forces[i] += transmittedForce;
-			if (transmittedForce.x == 0.0f && transmittedForce.y == 0.0f && transmittedForce.z == 0.0f) {
+			if (IsVectorZero(transmittedForce)) {
 				continue;
 			}
 			transmittedForces.push_back({ -1, i, transmittedForce });
@@ -72,14 +80,14 @@ namespace Engine::Physics
 					continue;
 				}
 
-				// Calculate the last force transmitted where the receiver (in the transmittedForces) is the current transmitter.
+				// Retrieve the last force transmitted where the receiver (in the transmittedForces) was the same as the current transmitter.
 				auto lastTransmission = std::find_if(transmittedForces.begin() + start, transmittedForces.begin() + end, [transmitterIndex](const TransmittedForce& tf) {
 					if (tf._receiverVertexIndex == transmitterIndex) { return true; }
 					else { return false; } });
 
 				auto transmittedForce = CalculateTransmittedForce(vertices[transmitterIndex]._position, lastTransmission->_force, vertices[receiverIndex]._position);
 
-				if (transmittedForce.x == 0.0f && transmittedForce.y == 0.0f && transmittedForce.z == 0.0f) {
+				if (IsVectorZero(transmittedForce, 0.001f)) {
 					continue;
 				}
 
@@ -167,17 +175,23 @@ namespace Engine::Physics
 		auto offset = glm::vec3(1.0f, 0.0f, 0.0f);
 		//offset *= 4;
 		auto pos = _pMesh->_vertices._vertexData[0]._position + offset;
-		AddForceAtPosition(glm::vec3(0.0f, .1f, 0.0f), pos);
 
+		auto& input = Input::KeyboardMouse::Instance();
+		if (input.WasKeyPressed(GLFW_KEY_UP)) {
+			AddForceAtPosition(glm::vec3(0.0f, 1.0f, 0.0f), pos);
+		}
 
+		if (input.WasKeyPressed(GLFW_KEY_DOWN)) {
+			AddForceAtPosition(glm::vec3(0.0f, -1.0f, 0.0f), pos);
+		}
 
-		system("cls");
+		/*system("cls");
 		auto vert0 = _pMesh->_vertices._vertexData[0]._position;
 		auto vert1 = _pMesh->_vertices._vertexData[1]._position;
 		auto vert2 = _pMesh->_vertices._vertexData[2]._position;
 		std::cout << "Vert 0->1: " << glm::length(vert1 - vert0) << "\n";
 		std::cout << "Vert 1->2: " << glm::length(vert2 - vert1) << "\n";
-		std::cout << "Vert 2->0: " << glm::length(vert2 - vert0) << "\n";
+		std::cout << "Vert 2->0: " << glm::length(vert2 - vert0) << "\n";*/
 
 		//std::cout << "Time " << (float)Time::Instance()._physicsDeltaTime << " velocity " << _velocity.y << "\n";
 	}

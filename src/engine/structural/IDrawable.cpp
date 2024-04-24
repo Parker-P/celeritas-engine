@@ -19,7 +19,9 @@ namespace Engine::Structural
 		// Allocate memory for the buffer.
 		VkMemoryRequirements requirements{};
 		vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
-		buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, (VkMemoryPropertyFlagBits)(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT));
+
+		vkMapMemory(logicalDevice, buffer._gpuMemory, 0, Utils::GetVectorSizeInBytes(vertices), 0, &buffer._cpuMemory);
 
 		// Map memory to the correct GPU and CPU ranges for the buffer.
 		vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
