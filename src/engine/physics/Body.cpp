@@ -52,6 +52,10 @@ namespace Engine::Physics
 		auto vertexCount = _pMesh->_vertices._vertexData.size();
 		auto& vertices = _pMesh->_vertices._vertexData;
 
+		for (int i = 0; i < _forces.size(); ++i) {
+			_forces[i] = glm::vec3(0.0f, 0.0f, 0.0f);
+		}
+
 		std::vector<TransmittedForce> transmittedForces;
 		for (int i = 0; i < vertexCount; ++i) {
 			auto transmittedForce = CalculateTransmittedForce(position, force, vertices[i]._position);
@@ -172,7 +176,7 @@ namespace Engine::Physics
 	{
 		//AddForce(glm::vec3(0.0f, -0.3f, 0.0f));
 		//auto offset = glm::normalize(_pMesh->_vertices._vertexData[0]._position - _pMesh->_vertices._vertexData[1]._position);
-		auto offset = glm::vec3(1.0f, 0.0f, 0.0f);
+		auto offset = glm::vec3(1.0f, 1.0f, 0.0f);
 		//offset *= 4;
 		auto pos = _pMesh->_vertices._vertexData[0]._position + offset;
 
