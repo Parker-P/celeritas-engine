@@ -52,10 +52,6 @@ namespace Engine::Physics
 		auto vertexCount = _pMesh->_vertices._vertexData.size();
 		auto& vertices = _pMesh->_vertices._vertexData;
 
-		for (int i = 0; i < _forces.size(); ++i) {
-			_forces[i] = glm::vec3(0.0f, 0.0f, 0.0f);
-		}
-
 		std::vector<TransmittedForce> transmittedForces;
 		for (int i = 0; i < vertexCount; ++i) {
 			auto transmittedForce = CalculateTransmittedForce(position, force, vertices[i]._position);
@@ -109,6 +105,9 @@ namespace Engine::Physics
 			auto velocityIncrement = (_forces[i] * deltaTimeSeconds);
 			_velocities[i] += velocityIncrement;
 			vertices[i]._position += _velocities[i] * deltaTimeSeconds;
+			_forces[i].x = 0.0f;
+			_forces[i].y = 0.0f;
+			_forces[i].z = 0.0f;
 		}
 	}
 
@@ -182,11 +181,11 @@ namespace Engine::Physics
 
 		auto& input = Input::KeyboardMouse::Instance();
 		if (input.WasKeyPressed(GLFW_KEY_UP)) {
-			AddForceAtPosition(glm::vec3(0.0f, 1.0f, 0.0f), pos);
+			AddForceAtPosition(glm::vec3(0.0f, 12.0f, 0.0f), pos);
 		}
 
 		if (input.WasKeyPressed(GLFW_KEY_DOWN)) {
-			AddForceAtPosition(glm::vec3(0.0f, -1.0f, 0.0f), pos);
+			AddForceAtPosition(glm::vec3(0.0f, -12.0f, 0.0f), pos);
 		}
 
 		/*system("cls");
