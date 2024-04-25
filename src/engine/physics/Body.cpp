@@ -44,6 +44,90 @@ namespace Engine::Physics
 			vector.z >= -tolerance && vector.z <= tolerance);
 	}
 
+	//void Body::AddForceAtPosition(const glm::vec3& force, const glm::vec3& position)
+	//{
+	//	auto& time = Time::Instance();
+	//	//float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f * /*FOR DEBUG -->*/ 0.1f;
+	//	float deltaTimeSeconds = 0.1f;
+	//	auto vertexCount = _pMesh->_vertices._vertexData.size();
+	//	auto& vertices = _pMesh->_vertices._vertexData;
+
+	//	std::vector<TransmittedForce> transmittedForces;
+	//	for (int i = 0; i < vertexCount; ++i) {
+	//		auto transmittedForce = CalculateTransmittedForce(position, force, vertices[i]._position);
+	//		_forces[i] += transmittedForce;
+	//		if (IsVectorZero(transmittedForce)) {
+	//			continue;
+	//		}
+	//		transmittedForces.push_back({ -1, i, transmittedForce });
+	//	}
+
+	//	int start = 0;
+	//	int end = (int)transmittedForces.size();
+	//	int forcesAdded;
+
+	//	for (; start < end;) {
+	//		forcesAdded = 0;
+	//		auto transmitterIndex = transmittedForces[start]._receiverVertexIndex;
+	//		auto receivers = _neighbors[transmitterIndex];
+	//		for (auto receiverIndex : receivers) {
+
+	//			// If transmittedForces contains the current receiver as a transmitter vertex, then the force has already been accounted for.
+	//			auto res = std::find_if(transmittedForces.begin() + start, transmittedForces.begin() + end, [receiverIndex, transmitterIndex](const TransmittedForce& tf) {
+	//				if (tf._transmitterVertexIndex == receiverIndex && tf._receiverVertexIndex == transmitterIndex) { return true; } return false; });
+
+	//			if (res != transmittedForces.end()) {
+	//				continue;
+	//			}
+
+	//			// Retrieve the last force transmitted where the receiver (in the transmittedForces) was the same as the current transmitter.
+	//			auto lastTransmission = std::find_if(transmittedForces.begin() + start, transmittedForces.begin() + end, [transmitterIndex](const TransmittedForce& tf) {
+	//				if (tf._receiverVertexIndex == transmitterIndex) { return true; }
+	//				else { return false; } });
+
+	//			auto transmittedForce = CalculateTransmittedForce(vertices[transmitterIndex]._position, lastTransmission->_force, vertices[receiverIndex]._position);
+
+	//			if (IsVectorZero(transmittedForce, 0.001f)) {
+	//				continue;
+	//			}
+
+	//			_forces[receiverIndex] += transmittedForce;
+	//			transmittedForces.push_back({ (int)transmitterIndex, (int)receiverIndex, transmittedForce });
+	//			++forcesAdded;
+
+	//			end = (int)transmittedForces.size();
+	//		}
+
+	//		start = end - forcesAdded;
+	//	}
+
+	//	for (int i = 0; i < vertexCount; ++i) {
+	//		auto velocityIncrement = (_forces[i] * deltaTimeSeconds);
+	//		_velocities[i] += velocityIncrement;
+	//		vertices[i]._position += _velocities[i] * deltaTimeSeconds;
+	//		_forces[i].x = 0.0f;
+	//		_forces[i].y = 0.0f;
+	//		_forces[i].z = 0.0f;
+	//	}
+	//}
+
+	glm::vec3 Body::GetCenterOfMass()
+	{
+		auto& vertices = _pMesh->_vertices._vertexData;
+		int vertexCount = (int)vertices.size();
+		float totalX = 0.0f;
+		float totalY = 0.0f;
+		float totalZ = 0.0f;
+
+		for (int i = 0; i < vertexCount; ++i) {
+			totalX += vertices[i]._position.x;
+			totalY += vertices[i]._position.y;
+			totalZ += vertices[i]._position.z;
+		}
+
+		return glm::vec3(totalX / vertexCount, totalY / vertexCount, totalZ / vertexCount);
+	}
+
 	void Body::AddForceAtPosition(const glm::vec3& force, const glm::vec3& position)
 	{
 		auto& time = Time::Instance();
@@ -52,63 +136,19 @@ namespace Engine::Physics
 		auto vertexCount = _pMesh->_vertices._vertexData.size();
 		auto& vertices = _pMesh->_vertices._vertexData;
 
-		std::vector<TransmittedForce> transmittedForces;
+		auto centerOfMassPosition = GetCenterOfMass();
+		glm::vec3 comTranslationForce = CalculateTransmittedForce(position, force, centerOfMassPosition);
+		glm::vec3 comRotationForce;
+		auto positionToCom = centerOfMassPosition - position;
+		auto perp = glm::cross(positionToCom, force);
+		auto comPerpendicularDirection = glm::normalize(glm::cross(positionToCom, perp));
+
 		for (int i = 0; i < vertexCount; ++i) {
 			auto transmittedForce = CalculateTransmittedForce(position, force, vertices[i]._position);
-			_forces[i] += transmittedForce;
-			if (IsVectorZero(transmittedForce)) {
-				continue;
-			}
-			transmittedForces.push_back({ -1, i, transmittedForce });
+			glm::vec3 comPerpendicularDirection = 
 		}
 
-		int start = 0;
-		int end = (int)transmittedForces.size();
-		int forcesAdded;
-
-		for (; start < end;) {
-			forcesAdded = 0;
-			auto transmitterIndex = transmittedForces[start]._receiverVertexIndex;
-			auto receivers = _neighbors[transmitterIndex];
-			for (auto receiverIndex : receivers) {
-
-				// If transmittedForces contains the current receiver as a transmitter vertex, then the force has already been accounted for.
-				auto res = std::find_if(transmittedForces.begin() + start, transmittedForces.begin() + end, [receiverIndex, transmitterIndex](const TransmittedForce& tf) {
-					if (tf._transmitterVertexIndex == receiverIndex && tf._receiverVertexIndex == transmitterIndex) { return true; } return false; });
-
-				if (res != transmittedForces.end()) {
-					continue;
-				}
-
-				// Retrieve the last force transmitted where the receiver (in the transmittedForces) was the same as the current transmitter.
-				auto lastTransmission = std::find_if(transmittedForces.begin() + start, transmittedForces.begin() + end, [transmitterIndex](const TransmittedForce& tf) {
-					if (tf._receiverVertexIndex == transmitterIndex) { return true; }
-					else { return false; } });
-
-				auto transmittedForce = CalculateTransmittedForce(vertices[transmitterIndex]._position, lastTransmission->_force, vertices[receiverIndex]._position);
-
-				if (IsVectorZero(transmittedForce, 0.001f)) {
-					continue;
-				}
-
-				_forces[receiverIndex] += transmittedForce;
-				transmittedForces.push_back({ (int)transmitterIndex, (int)receiverIndex, transmittedForce });
-				++forcesAdded;
-
-				end = (int)transmittedForces.size();
-			}
-
-			start = end - forcesAdded;
-		}
-
-		for (int i = 0; i < vertexCount; ++i) {
-			auto velocityIncrement = (_forces[i] * deltaTimeSeconds);
-			_velocities[i] += velocityIncrement;
-			vertices[i]._position += _velocities[i] * deltaTimeSeconds;
-			_forces[i].x = 0.0f;
-			_forces[i].y = 0.0f;
-			_forces[i].z = 0.0f;
-		}
+		int x = 1;
 	}
 
 	void Body::AddForce(const glm::vec3& force)

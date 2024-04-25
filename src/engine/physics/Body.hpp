@@ -43,6 +43,11 @@ namespace Engine::Physics
 		Body() = default;
 
 		/**
+		 * @brief Calculates and returns the center of mass based on the mass of each of its vertices.
+		 */
+		glm::vec3 GetCenterOfMass();
+
+		/**
 		 * @brief Applies a force to the mesh.
 		 * @param force The force to be applies.
 		 * @param position The position from which the force will be applied to the mesh in local space.
