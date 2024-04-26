@@ -18,14 +18,14 @@ namespace Engine::Physics
 		bool _isInitialized = false;
 
 		/**
-		 * @brief The velocity vector of each vertex of the mesh of this physics body in units per second.
+		 * @brief The velocity vector of this physics body in units per second.
 		 */
-		std::vector<glm::vec3> _velocities;
+		glm::vec3 _velocity;
 
 		/**
-		 * @brief The force acting on each vertex of the mesh at a specific point in time in Newtons.
+		 * @brief The angular velocity in radians per second.
 		 */
-		std::vector<glm::vec3> _forces;
+		glm::vec3 _angularVelocity;
 
 		/**
 		 * @brief Mesh used to update the physics simulation.
