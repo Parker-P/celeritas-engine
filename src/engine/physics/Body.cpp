@@ -29,19 +29,22 @@ namespace Engine::Physics
 		glm::vec3 _force;
 	};
 
-
-	glm::vec3 Body::CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition)
-	{
-		auto effectiveForce = glm::normalize(receiverPosition - transmitterPosition);
-		auto scaleFactor = glm::dot(effectiveForce, force);
-		return effectiveForce * scaleFactor;
-	}
-
 	bool IsVectorZero(const glm::vec3& vector, float tolerance = 0.0f)
 	{
 		return (vector.x >= -tolerance && vector.x <= tolerance &&
 			vector.y >= -tolerance && vector.y <= tolerance &&
 			vector.z >= -tolerance && vector.z <= tolerance);
+	}
+
+	glm::vec3 Body::CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition)
+	{
+		if (IsVectorZero(receiverPosition - transmitterPosition, 0.001f)) {
+			return force;
+		}
+
+		auto effectiveForce = glm::normalize(receiverPosition - transmitterPosition);
+		auto scaleFactor = glm::dot(effectiveForce, force);
+		return effectiveForce * scaleFactor;
 	}
 
 	//void Body::AddForceAtPosition(const glm::vec3& force, const glm::vec3& position)
@@ -191,44 +194,47 @@ body.angularVelocity += rotationAxis * rotationDelta
 To find the new rotation of the body for the current physics update, you just rotate the object around rotationAxis by rotationDelta (which will be in radians) for which you already have a function to do so.
 	*/
 
-	void Body::AddForceAtPosition(const glm::vec3& force, const glm::vec3& position)
+	void Body::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication)
 	{
 		auto& time = Time::Instance();
 		float deltaTimeSeconds = 0.1f;
 		auto vertexCount = _pMesh->_vertices._vertexData.size();
 		auto& vertices = _pMesh->_vertices._vertexData;
+		auto worldSpaceTransform = _pMesh->_pGameObject->GetWorldSpaceTransform();
 
 		// First calculate the translation component of the force to apply.
-		auto centerOfMassPosition = GetCenterOfMass();
-		glm::vec3 translationForce = CalculateTransmittedForce(position, force, centerOfMassPosition);
+		auto worldSpaceCom = glm::vec3(worldSpaceTransform._matrix * glm::vec4(GetCenterOfMass(), 0.0f));
+		auto worldSpacePointOfApplication = glm::vec3(worldSpaceTransform._matrix * glm::vec4(pointOfApplication, 0.0f));
+		glm::vec3 translationForce = CalculateTransmittedForce(worldSpacePointOfApplication, force, worldSpaceCom);
+		glm::vec3 translationDelta = translationForce * deltaTimeSeconds;
+		_velocity += translationDelta;
+		_pMesh->_pGameObject->_localTransform.Translate(translationDelta);
 
 		// Now calculate the rotation component.
-		auto positionToCom = centerOfMassPosition - position;
-		auto rotationAxis = glm::normalize(glm::cross(positionToCom, force));
+		auto positionToCom = worldSpaceCom - worldSpacePointOfApplication;
+		if (IsVectorZero(positionToCom, 0.001f)) {
+			return;
+		}
+
+		auto rotationAxis = -glm::normalize(glm::cross(positionToCom, force));
 		auto comPerpendicularDirection = glm::normalize(glm::cross(positionToCom, rotationAxis));
 		auto rotationalForce = force * glm::dot(comPerpendicularDirection, force);
 
 		// Calculate rotational inertia.
-		auto rotationalInertia = 0.0f;
-		for (int i = 0; i < vertexCount; ++i) {
-			// This can be greatly simplified with some trigonometry.
-			auto comToVertexDirection = glm::normalize(centerOfMassPosition - vertices[i]._position);
-			auto cathetus = comToVertexDirection * glm::dot(rotationAxis, comToVertexDirection);
-			auto endPosition = centerOfMassPosition + cathetus;
-			auto perpDistance = glm::length(endPosition - vertices[i]._position);
-			rotationalInertia += (/*vertex.mass **/ perpDistance); // Mass still to be accounted for.
-		}
+		auto rotationalInertia = 1.0f;
+		//for (int i = 0; i < vertexCount; ++i) {
+		//	// This can be greatly simplified with some trigonometry.
+		//	auto comToVertexDirection = glm::normalize(centerOfMassPosition - vertices[i]._position);
+		//	auto cathetus = comToVertexDirection * glm::dot(rotationAxis, comToVertexDirection);
+		//	auto endPosition = centerOfMassPosition + cathetus;
+		//	auto perpDistance = glm::length(endPosition - vertices[i]._position);
+		//	rotationalInertia += (/*vertex.mass **/ perpDistance); // Mass still to be accounted for.
+		//}
 
-		auto angularAcceleration = glm::cross(rotationalForce, -positionToCom) / rotationalInertia;
+		auto angularAcceleration = glm::cross(rotationalForce, positionToCom) / rotationalInertia;
 		auto rotationDelta = angularAcceleration * deltaTimeSeconds;
-		auto translationDelta = translationForce * deltaTimeSeconds;
 		_angularVelocity += rotationDelta;
-		_velocity += translationDelta;
-
-		_pMesh->_pGameObject->_localTransform.Translate(translationDelta);
 		_pMesh->_pGameObject->_localTransform.Rotate(rotationAxis, glm::degrees(glm::length(translationDelta)));
-
-		int x = 1;
 	}
 
 	void Body::AddForce(const glm::vec3& force)
@@ -248,7 +254,7 @@ To find the new rotation of the body for the current physics update, you just ro
 
 		_pMesh = pMesh;
 		auto& faceIndices = _pMesh->_faceIndices._indexData;
-		
+
 		for (int i = 0; i < faceIndices.size(); i += 3) {
 			auto index1 = faceIndices[i];
 			auto index2 = faceIndices[i + 1];
@@ -292,11 +298,11 @@ To find the new rotation of the body for the current physics update, you just ro
 
 		auto& input = Input::KeyboardMouse::Instance();
 		if (input.WasKeyPressed(GLFW_KEY_UP)) {
-			AddForceAtPosition(glm::vec3(0.0f, 1.0f, 0.0f), GetCenterOfMass());
+			AddForceAtPosition(glm::vec3(0.0f, 1.0f, 0.0f), pos);
 		}
 
 		if (input.WasKeyPressed(GLFW_KEY_DOWN)) {
-			AddForceAtPosition(glm::vec3(0.0f, -1.0f, 0.0f), GetCenterOfMass());
+			AddForceAtPosition(glm::vec3(0.0f, -1.0f, 0.0f), pos);
 		}
 
 		/*system("cls");
