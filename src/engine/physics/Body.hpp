@@ -20,12 +20,12 @@ namespace Engine::Physics
 		/**
 		 * @brief The velocity vector of this physics body in units per second.
 		 */
-		glm::vec3 _velocity;
+		glm::vec3 _velocity = glm::vec3(0.0f, 0.0f, 0.0f);
 
 		/**
 		 * @brief The angular velocity in radians per second.
 		 */
-		glm::vec3 _angularVelocity;
+		glm::vec3 _angularVelocity = glm::vec3(0.0f, 0.0f, 0.0f);;
 
 		/**
 		 * @brief Mesh used to update the physics simulation.

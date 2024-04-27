@@ -55,6 +55,10 @@ namespace Engine::Math
 
 	void Transform::Rotate(const glm::vec3& axis, const float& angleDegrees)
 	{
+		if (angleDegrees == 0.0f) {
+			return;
+		}
+
 		// Construct a quaternion to rotate any point or vector around the chosen axis by the angle provided.
 		auto angleRadians = glm::radians(angleDegrees);
 		auto cosine = cos(angleRadians / 2.0f);

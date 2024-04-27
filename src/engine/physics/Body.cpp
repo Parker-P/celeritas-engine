@@ -197,18 +197,18 @@ To find the new rotation of the body for the current physics update, you just ro
 	void Body::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication)
 	{
 		auto& time = Time::Instance();
-		float deltaTimeSeconds = 0.1f;
+		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
 		auto vertexCount = _pMesh->_vertices._vertexData.size();
 		auto& vertices = _pMesh->_vertices._vertexData;
-		auto worldSpaceTransform = _pMesh->_pGameObject->GetWorldSpaceTransform();
+		auto worldSpaceTransform = glm::mat3x3(_pMesh->_pGameObject->GetWorldSpaceTransform()._matrix);
 
 		// First calculate the translation component of the force to apply.
-		auto worldSpaceCom = glm::vec3(worldSpaceTransform._matrix * glm::vec4(GetCenterOfMass(), 0.0f));
-		auto worldSpacePointOfApplication = glm::vec3(worldSpaceTransform._matrix * glm::vec4(pointOfApplication, 0.0f));
+		auto worldSpaceCom = worldSpaceTransform * GetCenterOfMass();
+		auto worldSpacePointOfApplication = worldSpaceTransform * pointOfApplication;
+
 		glm::vec3 translationForce = CalculateTransmittedForce(worldSpacePointOfApplication, force, worldSpaceCom);
 		glm::vec3 translationDelta = translationForce * deltaTimeSeconds;
 		_velocity += translationDelta;
-		_pMesh->_pGameObject->_localTransform.Translate(translationDelta);
 
 		// Now calculate the rotation component.
 		auto positionToCom = worldSpaceCom - worldSpacePointOfApplication;
@@ -217,24 +217,39 @@ To find the new rotation of the body for the current physics update, you just ro
 		}
 
 		auto rotationAxis = -glm::normalize(glm::cross(positionToCom, force));
+		if (glm::isnan(rotationAxis.x) || glm::isnan(rotationAxis.y) || glm::isnan(rotationAxis.x)) {
+			return;
+		}
+
 		auto comPerpendicularDirection = glm::normalize(glm::cross(positionToCom, rotationAxis));
-		auto rotationalForce = force * glm::dot(comPerpendicularDirection, force);
+		auto rotationalForce = comPerpendicularDirection * glm::dot(comPerpendicularDirection, force);
 
 		// Calculate rotational inertia.
 		auto rotationalInertia = 1.0f;
-		//for (int i = 0; i < vertexCount; ++i) {
-		//	// This can be greatly simplified with some trigonometry.
-		//	auto comToVertexDirection = glm::normalize(centerOfMassPosition - vertices[i]._position);
-		//	auto cathetus = comToVertexDirection * glm::dot(rotationAxis, comToVertexDirection);
-		//	auto endPosition = centerOfMassPosition + cathetus;
-		//	auto perpDistance = glm::length(endPosition - vertices[i]._position);
-		//	rotationalInertia += (/*vertex.mass **/ perpDistance); // Mass still to be accounted for.
-		//}
+		for (int i = 0; i < vertexCount; ++i) {
+			// This can be greatly simplified with some trigonometry.
+			auto worldSpaceVertexPosition = worldSpaceTransform * vertices[i]._position;
+
+			if (worldSpaceVertexPosition == worldSpaceCom) {
+				continue;
+			}
+
+			auto comToVertexDirection = glm::normalize(worldSpaceVertexPosition - worldSpaceCom);
+			auto cathetus = comToVertexDirection * glm::dot(rotationAxis, comToVertexDirection);
+
+			if (IsVectorZero(cathetus), 0.001f) {
+				rotationalInertia += (/*vertex.mass **/ glm::length(worldSpaceVertexPosition - worldSpaceCom));
+				continue;
+			}
+
+			auto endPosition = worldSpaceCom + cathetus;
+			auto perpDistance = glm::length(endPosition - worldSpaceVertexPosition);
+			rotationalInertia += (/*vertex.mass **/ perpDistance); // Mass still to be accounted for.
+		}
 
 		auto angularAcceleration = glm::cross(rotationalForce, positionToCom) / rotationalInertia;
 		auto rotationDelta = angularAcceleration * deltaTimeSeconds;
 		_angularVelocity += rotationDelta;
-		_pMesh->_pGameObject->_localTransform.Rotate(rotationAxis, glm::degrees(glm::length(translationDelta)));
 	}
 
 	void Body::AddForce(const glm::vec3& force)
@@ -293,17 +308,32 @@ To find the new rotation of the body for the current physics update, you just ro
 		//AddForce(glm::vec3(0.0f, -0.3f, 0.0f));
 		//auto offset = glm::normalize(_pMesh->_vertices._vertexData[0]._position - _pMesh->_vertices._vertexData[1]._position);
 		auto offset = glm::vec3(1.0f, 1.0f, 0.0f);
+		auto gravityForce = glm::vec3(0.0f, -9.81f, 0.0f);
+		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
 		//offset *= 4;
-		auto pos = _pMesh->_vertices._vertexData[0]._position + offset;
+		//auto pos = _pMesh->_vertices._vertexData[0]._position + offset;
+
+		auto rotationAxis = glm::vec3(0.0f, 0.0f, 1.0f);
+		auto worldSpaceTransform = _pMesh->_pGameObject->GetWorldSpaceTransform();
+		auto worldSpaceCom = glm::mat3x3(worldSpaceTransform._matrix) * GetCenterOfMass();
+		auto comPerpendicularDirection = glm::normalize(glm::cross(-worldSpaceCom, rotationAxis));
+		auto rotationalForce = 5.0f * comPerpendicularDirection;
+		//auto pos = _pMesh->_vertices._vertexData[0]._position + offset;
 
 		auto& input = Input::KeyboardMouse::Instance();
-		if (input.WasKeyPressed(GLFW_KEY_UP)) {
-			AddForceAtPosition(glm::vec3(0.0f, 1.0f, 0.0f), pos);
+		//AddForce(gravityForce);
+
+		if (input.IsKeyHeldDown(GLFW_KEY_UP)) {
+			AddForceAtPosition(rotationalForce, _pMesh->_vertices._vertexData[0]._position);
 		}
 
-		if (input.WasKeyPressed(GLFW_KEY_DOWN)) {
-			AddForceAtPosition(glm::vec3(0.0f, -1.0f, 0.0f), pos);
+		if (input.IsKeyHeldDown(GLFW_KEY_DOWN)) {
+			AddForceAtPosition(-rotationalForce, _pMesh->_vertices._vertexData[0]._position);
 		}
+
+
+		_pMesh->_pGameObject->_localTransform.Rotate(glm::normalize(_angularVelocity), glm::degrees(glm::length(_angularVelocity * deltaTimeSeconds)));
+		_pMesh->_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
 
 		/*system("cls");
 		auto vert0 = _pMesh->_vertices._vertexData[0]._position;
