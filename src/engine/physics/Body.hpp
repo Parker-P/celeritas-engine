@@ -6,6 +6,79 @@ namespace Engine::Scenes { class Mesh; }
 namespace Engine::Physics
 {
 	/**
+	 * @brief Represents a three-dimensional bounding box.
+	 */
+	class BoundingBox
+	{
+	public:
+
+		/**
+		 * @brief Low bound, or more accurately, the position whose components are all the lowest number calculated from a collection of positions.
+		 */
+		glm::vec3 _min;
+
+		/**
+		 * @brief High bound, or more accurately, the position whose components are all the highest number calculated from a collection of positions.
+		 */
+		glm::vec3 _max;
+
+		/**
+		 * @brief Returns the center of the bounding box.
+		 */
+		glm::vec3 GetCenter();
+
+		/**
+		 * @brief Creates a bounding box from a visual mesh.
+		 */
+		static BoundingBox Create(const Scenes::Mesh& mesh);
+	};
+
+	/**
+	 * @brief Represents a vertex in the mesh of a physics body.
+	 */
+	class PhysicsVertex
+	{
+	public:
+
+		/**
+		 * @brief Position in local space.
+		 */
+		glm::vec3 _position;
+
+		/**
+		 * @brief Indices of vertices in the rendered mesh that this physics vertex represents. 
+		 * Rendered meshes might have multiple vertices at the same position, in order to create sharp edges by having orthogonal normals.
+		 * A physics simulation mesh does not need multiple vertices for the same position, but still needs to have a reference to its visual
+		 * counterpart, in order to apply visual changes caused by the physics simulation, so this is the link to the indices of the vertices 
+		 * in the visual mesh that this physics vertex represents.
+		 */
+		std::vector<int> _visualVertexIndices;
+
+		/**
+		 * @brief Mass in kg.
+		 */
+		float _mass;
+	};
+
+	/**
+	 * @brief Physics mesh.
+	 */
+	class PhysicsMesh
+	{
+	public:
+
+		/**
+		 * @brief Vertices that form this mesh.
+		 */
+		std::vector<PhysicsVertex> _vertices;
+
+		/**
+		 * @brief Visual mesh that appears rendered on screen, which this physics mesh class simulates physics for.
+		 */
+		Scenes::Mesh* _pMesh;
+	};
+
+	/**
 	 * @brief Base class for a body that performs physics simulation.
 	 */
 	class Body : public ::Structural::IPhysicsUpdatable
@@ -25,17 +98,17 @@ namespace Engine::Physics
 		/**
 		 * @brief The angular velocity in radians per second.
 		 */
-		glm::vec3 _angularVelocity = glm::vec3(0.0f, 0.0f, 0.0f);;
+		glm::vec3 _angularVelocity = glm::vec3(0.0f, 0.0f, 0.0f);
 
 		/**
-		 * @brief Mesh used to update the physics simulation.
+		 * @brief Physics mesh used as a bridge between this physics body and its visual counterpart.
 		 */
-		Engine::Scenes::Mesh* _pMesh;
+		PhysicsMesh _mesh;
 
 		/**
 		 * @brief Map where the key is the index of a vertex in _pMesh, and the value is a list of vertex indices directly connected to the vertex represented by the key.
 		 */
-		std::map<unsigned int, std::vector<unsigned int>> _neighbors;
+		//std::map<unsigned int, std::vector<unsigned int>> _neighbors;
 
 		/**
 		 * @brief Constructor.
@@ -64,7 +137,7 @@ namespace Engine::Physics
 		 * @brief Call this before starting the PhysicsUpdate loop.
 		 * @param _pMesh
 		 */
-		void Initialize(Engine::Scenes::Mesh* pMesh);
+		void Initialize(Scenes::Mesh* pMesh, const float& mass = 1.0f);
 
 		/**
 		 * @brief See IPhysicsUpdatable.

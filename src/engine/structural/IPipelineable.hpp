@@ -15,12 +15,12 @@ namespace Engine::Structural
 	public:
 
 		/**
-		 * @brief Buffers to be used in descriptors that go in _descriptors.
+		 * @brief Buffers to be used in descriptors for shader resources.
 		 */
 		std::vector<Vulkan::Buffer> _buffers;
 
 		/**
-		 * @brief Images to be used in descriptors that go in _descriptors.
+		 * @brief Images to be used in descriptors for shader resources.
 		 */
 		std::vector<Vulkan::Image> _images;
 

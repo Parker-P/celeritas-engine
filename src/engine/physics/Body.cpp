@@ -7,27 +7,43 @@ namespace Engine::Physics
 		return stream << "(" << vector.x << ", " << vector.y << ", " << vector.z << ")";
 	}
 
-	/**
-	 * @brief Class that represents the transmission of force from a vertex to another vertex, both in the body's mesh.
-	 */
-	class TransmittedForce
+	glm::vec3 BoundingBox::GetCenter()
 	{
-	public:
-		/**
-		 * @brief Index of the vertex in the mesh from which the force is transmitted.
-		 */
-		int _transmitterVertexIndex;
+		return glm::vec3((_min.x + _max.x) * 0.5f, (_min.y + _max.y) * 0.5f, (_min.z + _max.z) * 0.5f);
+	}
 
-		/**
-		 * @brief Index of the vertex in the mesh that receives the force from the transmitter.
-		 */
-		int _receiverVertexIndex;
+	BoundingBox BoundingBox::Create(const Scenes::Mesh& mesh)
+	{
+		auto& vertices = mesh._vertices._vertexData;
+		BoundingBox boundingBox;
 
-		/**
-		 * @brief The force transmitted from _sourceVertexIndex.
-		 */
-		glm::vec3 _force;
-	};
+		if (vertices.size() <= 0) {
+			return boundingBox;
+		}
+
+		float minimumX = vertices[0]._position.x;
+		float minimumY = vertices[0]._position.y;
+		float minimumZ = vertices[0]._position.z;
+
+		float maximumX = minimumX;
+		float maximumY = minimumY;
+		float maximumZ = maximumZ;
+
+		for (int i = 0; i < vertices.size(); ++i) {
+			minimumX = std::min(minimumX, vertices[i]._position.x);
+			minimumY = std::min(minimumY, vertices[i]._position.y);
+			minimumZ = std::min(minimumZ, vertices[i]._position.z);
+
+			maximumX = std::max(maximumX, vertices[i]._position.x);
+			maximumY = std::max(maximumY, vertices[i]._position.y);
+			maximumZ = std::max(maximumZ, vertices[i]._position.z);
+		}
+
+		boundingBox._min = glm::vec3(minimumX, minimumY, minimumZ);
+		boundingBox._max = glm::vec3(maximumX, maximumY, maximumZ);
+
+		return boundingBox;
+	}
 
 	bool IsVectorZero(const glm::vec3& vector, float tolerance = 0.0f)
 	{
@@ -47,73 +63,6 @@ namespace Engine::Physics
 		return effectiveForce * scaleFactor;
 	}
 
-	//void Body::AddForceAtPosition(const glm::vec3& force, const glm::vec3& position)
-	//{
-	//	auto& time = Time::Instance();
-	//	//float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f * /*FOR DEBUG -->*/ 0.1f;
-	//	float deltaTimeSeconds = 0.1f;
-	//	auto vertexCount = _pMesh->_vertices._vertexData.size();
-	//	auto& vertices = _pMesh->_vertices._vertexData;
-
-	//	std::vector<TransmittedForce> transmittedForces;
-	//	for (int i = 0; i < vertexCount; ++i) {
-	//		auto transmittedForce = CalculateTransmittedForce(position, force, vertices[i]._position);
-	//		_forces[i] += transmittedForce;
-	//		if (IsVectorZero(transmittedForce)) {
-	//			continue;
-	//		}
-	//		transmittedForces.push_back({ -1, i, transmittedForce });
-	//	}
-
-	//	int start = 0;
-	//	int end = (int)transmittedForces.size();
-	//	int forcesAdded;
-
-	//	for (; start < end;) {
-	//		forcesAdded = 0;
-	//		auto transmitterIndex = transmittedForces[start]._receiverVertexIndex;
-	//		auto receivers = _neighbors[transmitterIndex];
-	//		for (auto receiverIndex : receivers) {
-
-	//			// If transmittedForces contains the current receiver as a transmitter vertex, then the force has already been accounted for.
-	//			auto res = std::find_if(transmittedForces.begin() + start, transmittedForces.begin() + end, [receiverIndex, transmitterIndex](const TransmittedForce& tf) {
-	//				if (tf._transmitterVertexIndex == receiverIndex && tf._receiverVertexIndex == transmitterIndex) { return true; } return false; });
-
-	//			if (res != transmittedForces.end()) {
-	//				continue;
-	//			}
-
-	//			// Retrieve the last force transmitted where the receiver (in the transmittedForces) was the same as the current transmitter.
-	//			auto lastTransmission = std::find_if(transmittedForces.begin() + start, transmittedForces.begin() + end, [transmitterIndex](const TransmittedForce& tf) {
-	//				if (tf._receiverVertexIndex == transmitterIndex) { return true; }
-	//				else { return false; } });
-
-	//			auto transmittedForce = CalculateTransmittedForce(vertices[transmitterIndex]._position, lastTransmission->_force, vertices[receiverIndex]._position);
-
-	//			if (IsVectorZero(transmittedForce, 0.001f)) {
-	//				continue;
-	//			}
-
-	//			_forces[receiverIndex] += transmittedForce;
-	//			transmittedForces.push_back({ (int)transmitterIndex, (int)receiverIndex, transmittedForce });
-	//			++forcesAdded;
-
-	//			end = (int)transmittedForces.size();
-	//		}
-
-	//		start = end - forcesAdded;
-	//	}
-
-	//	for (int i = 0; i < vertexCount; ++i) {
-	//		auto velocityIncrement = (_forces[i] * deltaTimeSeconds);
-	//		_velocities[i] += velocityIncrement;
-	//		vertices[i]._position += _velocities[i] * deltaTimeSeconds;
-	//		_forces[i].x = 0.0f;
-	//		_forces[i].y = 0.0f;
-	//		_forces[i].z = 0.0f;
-	//	}
-	//}
-
 	glm::vec3 Body::GetCenterOfMass()
 	{
 		auto& vertices = _pMesh->_vertices._vertexData;
@@ -131,80 +80,17 @@ namespace Engine::Physics
 		return glm::vec3(totalX / vertexCount, totalY / vertexCount, totalZ / vertexCount);
 	}
 
-	/*
-	* To find the rotation component you need to find an axis of rotation and derive the magnitude of the rotation from the force you want to apply.
-
-The magnitude of rotation (angular velocity) depends on the distance from the point of application to the center of mass, and the rotational inertia.
-
-Start with finding the axis. If:
-P = position of application of force
-F = force vector
-COM = position of the center of mass
-
-You can calculate it like this:
-comDirection = COM - P
-rotationAxis = Normalize(Cross(comDirection, F))
-
-Now that you have the rotation axis, you need to calculate the magnitude of the force that will cause the angular velocity to change, also known as torque, at the point of application of the force.
-
-To do this you need to figure out what the rotational inertia is, i.e. the resistance to the force trying to start or stop rotation.
-
-The rotational inertia of a single point is its mass times the closest distance from it to the axis of rotation.
-
-Because inertia is an extensive property (a physical property that depends on the size of the object), the total rotational inertia is the sum of the inertia of all points.
-
-In your case, you will exclude the point of application of force, as it could be any point, inside or outside the object.
-
-For rigidbodies, the angular velocity around the center of mass will always be the same for any point of the body.
-Same goes for translational velocity; it will always be the same across all points of the body.
-This is because rigid bodies cannot deform, so each point of the body is always at the exact same position with respect to the other points, which means that the distance between each point needs to be constant, so they must all move by the exact same amount.
-
-To calculate the rotational inertia of the body, you can do the following:
-
-rotationalInertia = 0
-foreach(vertex in vertices) {
-	comToVertex = COM - vertex.position
-	cathetus = Dot(rotationAxis, comToVertex)
-	endPosition = COM + cathetus
-	perpDistance = VectorLength(endPosition - vertex.position)
-	rotationalInertia += (vertex.mass * perpDistance)
-}
-
-Now you know by how much our rotational force is opposed when it's applied.
-
-You also need to know the rotational force.
-The rotational force is essentially the part of the force applied to the object that causes it to rotate, which is always perpendicular to the direction to the center of mass from the point on which the force is applied.
-We can calculate this as follows:
-
-rotationalForce = F * Dot(Normalize(comDirection), F)
-
-Now you can calculate the angular acceleration.
-Angular acceleration, as for regular acceleration, is just the force without taking mass into account.
-
-Torque is just the cross product of the rotational force and the vector that goes from the center of mass to the point of application of the force.
-Inertia opposes torque, so to find the acceleration you just divide the torque by the inertia.
-
-angularAcceleration = Cross(rotationalForce, P - COM) / rotationalInertia
-
-Now you add the rotational acceleration (multiplied by delta time) to the angular velocity of the body.
-
-rotationDelta = angularAcceleration * deltaTime
-body.angularVelocity += rotationAxis * rotationDelta
-
-To find the new rotation of the body for the current physics update, you just rotate the object around rotationAxis by rotationDelta (which will be in radians) for which you already have a function to do so.
-	*/
-
 	void Body::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication)
 	{
 		auto& time = Time::Instance();
 		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
 		auto vertexCount = _pMesh->_vertices._vertexData.size();
 		auto& vertices = _pMesh->_vertices._vertexData;
-		auto worldSpaceTransform = glm::mat3x3(_pMesh->_pGameObject->GetWorldSpaceTransform()._matrix);
+		auto worldSpaceTransform = _pMesh->_pGameObject->GetWorldSpaceTransform()._matrix;
 
 		// First calculate the translation component of the force to apply.
-		auto worldSpaceCom = worldSpaceTransform * GetCenterOfMass();
-		auto worldSpacePointOfApplication = worldSpaceTransform * pointOfApplication;
+		auto worldSpaceCom = glm::vec3(worldSpaceTransform * glm::vec4(GetCenterOfMass(), 1.0f));
+		auto worldSpacePointOfApplication = glm::vec3(worldSpaceTransform * glm::vec4(pointOfApplication, 1.0f));
 
 		glm::vec3 translationForce = CalculateTransmittedForce(worldSpacePointOfApplication, force, worldSpaceCom);
 		glm::vec3 translationDelta = translationForce * deltaTimeSeconds;
@@ -227,8 +113,7 @@ To find the new rotation of the body for the current physics update, you just ro
 		// Calculate rotational inertia.
 		auto rotationalInertia = 1.0f;
 		for (int i = 0; i < vertexCount; ++i) {
-			// This can be greatly simplified with some trigonometry.
-			auto worldSpaceVertexPosition = worldSpaceTransform * vertices[i]._position;
+			auto worldSpaceVertexPosition = glm::vec3(worldSpaceTransform * glm::vec4(vertices[i]._position, 1.0f));
 
 			if (worldSpaceVertexPosition == worldSpaceCom) {
 				continue;
@@ -261,15 +146,22 @@ To find the new rotation of the body for the current physics update, you just ro
 		_pMesh->_pGameObject->_localTransform.Translate(translationDelta);
 	}
 
-	void Body::Initialize(Engine::Scenes::Mesh* pMesh)
+	void Body::Initialize(Scenes::Mesh* pMesh, const float& mass)
 	{
 		if (pMesh == nullptr) {
 			return;
 		}
 
-		_pMesh = pMesh;
-		auto& faceIndices = _pMesh->_faceIndices._indexData;
 
+		_pMesh = pMesh;
+
+		auto& vertices = _pMesh->_vertices._vertexData;
+
+		for (int i = 0; i < vertices.size(); ++i) {
+
+		}
+
+		/*auto& faceIndices = _pMesh->_faceIndices._indexData;
 		for (int i = 0; i < faceIndices.size(); i += 3) {
 			auto index1 = faceIndices[i];
 			auto index2 = faceIndices[i + 1];
@@ -298,7 +190,7 @@ To find the new rotation of the body for the current physics update, you just ro
 			else {
 				_neighbors[index3].insert(_neighbors[index3].end(), { index1, index2 });
 			}
-		}
+		}*/
 
 		_isInitialized = true;
 	}
