@@ -317,18 +317,18 @@ To find the new rotation of the body for the current physics update, you just ro
 		auto worldSpaceTransform = _pMesh->_pGameObject->GetWorldSpaceTransform();
 		auto worldSpaceCom = glm::mat3x3(worldSpaceTransform._matrix) * GetCenterOfMass();
 		auto comPerpendicularDirection = glm::normalize(glm::cross(-worldSpaceCom, rotationAxis));
-		auto rotationalForce = 5.0f * comPerpendicularDirection;
+		auto rotationalForce = 2.0f * comPerpendicularDirection;
 		//auto pos = _pMesh->_vertices._vertexData[0]._position + offset;
 
 		auto& input = Input::KeyboardMouse::Instance();
 		//AddForce(gravityForce);
 
 		if (input.IsKeyHeldDown(GLFW_KEY_UP)) {
-			AddForceAtPosition(rotationalForce, _pMesh->_vertices._vertexData[0]._position);
+			AddForceAtPosition(-gravityForce, _pMesh->_vertices._vertexData[0]._position);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_DOWN)) {
-			AddForceAtPosition(-rotationalForce, _pMesh->_vertices._vertexData[0]._position);
+			AddForceAtPosition(gravityForce, _pMesh->_vertices._vertexData[0]._position);
 		}
 
 
