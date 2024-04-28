@@ -44,15 +44,6 @@ namespace Engine::Physics
 		 * @brief Position in local space.
 		 */
 		glm::vec3 _position;
-
-		/**
-		 * @brief Indices of vertices in the rendered mesh that this physics vertex represents. 
-		 * Rendered meshes might have multiple vertices at the same position, in order to create sharp edges by having orthogonal normals.
-		 * A physics simulation mesh does not need multiple vertices for the same position, but still needs to have a reference to its visual
-		 * counterpart, in order to apply visual changes caused by the physics simulation, so this is the link to the indices of the vertices 
-		 * in the visual mesh that this physics vertex represents.
-		 */
-		std::vector<int> _visualVertexIndices;
 	};
 
 	/**
@@ -101,6 +92,16 @@ namespace Engine::Physics
 		float _mass;
 
 		/**
+		 * @brief If this is set to true, _overriddenCenterOfMass will be used as center of mass.
+		 */
+		bool _isCenterOfMassOverridden;
+
+		/**
+		 * @brief Overridden center of mass in local space.
+		 */
+		glm::vec3 _overriddenCenterOfMass;
+
+		/**
 		 * @brief Physics mesh used as a bridge between this physics body and its visual counterpart.
 		 */
 		PhysicsMesh _mesh;
@@ -116,7 +117,7 @@ namespace Engine::Physics
 		RigidBody() = default;
 
 		/**
-		 * @brief Calculates and returns the center of mass based on the mass of each of its vertices in local space.
+		 * @brief Returns the center of mass based on the position of each of its vertices in local space.
 		 */
 		glm::vec3 GetCenterOfMass();
 
@@ -137,7 +138,7 @@ namespace Engine::Physics
 		 * @brief Call this before starting the PhysicsUpdate loop.
 		 * @param _pMesh
 		 */
-		void Initialize(Scenes::Mesh* pMesh, const float& mass = 1.0f);
+		void Initialize(Scenes::Mesh* pMesh, const float& mass = 1.0f, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = glm::vec3(0.0f));
 
 		/**
 		 * @brief See IPhysicsUpdatable.

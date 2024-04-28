@@ -369,7 +369,13 @@
     <ClInclude Include="include\LocalDependencies.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine\physics\Body.hpp">
+    <ClInclude Include="src\engine\physics\RigidBody.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\engine\structural\IVulkanUpdatable.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\structural\IPhysicsUpdatable.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -449,10 +455,7 @@
     <ClCompile Include="src\engine\vulkan\SceneLoader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\engine\physics\Body.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\structural\IPhysicsUpdatable.hpp">
+    <ClCompile Include="src\engine\physics\RigidBody.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

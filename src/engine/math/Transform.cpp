@@ -30,6 +30,23 @@ namespace Engine::Math
 		_matrix[3][2] += offset.z;
 	}
 
+	void Transform::RotateAroundPosition(const glm::vec3& position, const glm::vec3& axis, const float& angleRadians)
+	{
+		if (angleRadians == 0) { return; }
+
+		auto rotation = MakeQuaternionRotation(axis, angleRadians);
+		auto currentPosition = Position();
+		SetPosition(position + (rotation * (currentPosition - position)));
+		Rotate(rotation);
+	}
+
+	glm::quat Transform::MakeQuaternionRotation(const glm::vec3& axis, const float& angleRadians) 
+	{
+		auto cosine = cos(angleRadians / 2.0f);
+		auto sine = sin(angleRadians / 2.0f);
+		return glm::quat(cosine, axis.x * sine, axis.y * sine, axis.z * sine);
+	}
+
 	void Transform::Rotate(const glm::quat& rotation)
 	{
 		// Rotate each individual axis of the transformation by the quaternion.
@@ -53,18 +70,16 @@ namespace Engine::Math
 		_matrix[2][2] = newZ.z;
 	}
 
+	void Transform::RotateR(const glm::vec3& axis, const float& angleRadians)
+	{
+		if (angleRadians == 0.0f) { return; }
+		Rotate(MakeQuaternionRotation(axis, angleRadians));
+	}
+
 	void Transform::Rotate(const glm::vec3& axis, const float& angleDegrees)
 	{
-		if (angleDegrees == 0.0f) {
-			return;
-		}
-
-		// Construct a quaternion to rotate any point or vector around the chosen axis by the angle provided.
-		auto angleRadians = glm::radians(angleDegrees);
-		auto cosine = cos(angleRadians / 2.0f);
-		auto sine = sin(angleRadians / 2.0f);
-		glm::quat rotation(cosine, axis.x * sine, axis.y * sine, axis.z * sine);
-		Rotate(rotation);
+		if (angleDegrees == 0.0f) { return; }
+		RotateR(axis, glm::radians(angleDegrees));
 	}
 
 	void Transform::SetPosition(const glm::vec3& position)
@@ -72,11 +87,6 @@ namespace Engine::Math
 		_matrix[3][0] = position.x;
 		_matrix[3][1] = position.y;
 		_matrix[3][2] = position.z;
-	}
-
-	glm::vec3 Transform::Scale()
-	{
-		return _scale;
 	}
 
 	void Transform::SetScale(const glm::vec3& scale)

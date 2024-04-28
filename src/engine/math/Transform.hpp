@@ -71,17 +71,33 @@ namespace Engine::Math
 		void Translate(const glm::vec3& offset);
 
 		/**
+		 * @brief Creates a quaternion from an axis and an angle.
+		 */
+		static glm::quat MakeQuaternionRotation(const glm::vec3& axis, const float& angleRadians);
+
+		/**
 		 * @brief Rotate the transform using a quaternion.
 		 */
 		void Rotate(const glm::quat& rotation);
 
 		/**
-		 * @brief Rotate this transform by "angle" (defined in degrees) around "axis" independent of position.
-		 * @param axis
-		 * @param angleDegrees
+		 * @brief Rotate this transform by "angle" (defined in radians) around "axis" independent of position.
+		 */
+		void RotateR(const glm::vec3& axis, const float& angleRadians);
+
+		/**
+		 * @brief Rotate this transform by "angle" (defined in radians) around "axis" independent of position.
 		 */
 		void Rotate(const glm::vec3& axis, const float& angleDegrees);
 
+		/**
+		 * @brief Rotate this transform by "angleRadians" around "axis" and "position". The position must be relative to the current transform's origin a.k.a. local space.
+		 */
+		void RotateAroundPosition(const glm::vec3& position, const glm::vec3& axis, const float& angleRadians);
+
+		/**
+		 * @brief Returns the first 3 components of the fourth column of the transformation matrix, which represent translation, as a 3D vector.
+		 */
 		glm::vec3 Position();
 
 		/**
@@ -89,8 +105,6 @@ namespace Engine::Math
 		 * @param position Three-dimentional position.
 		 */
 		void SetPosition(const glm::vec3& position);
-
-		glm::vec3 Scale();
 
 		/**
 		 * @brief Sets the homogeneous column of the transform matrix, used for position.

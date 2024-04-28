@@ -27,7 +27,7 @@ namespace Engine::Physics
 
 		float maximumX = minimumX;
 		float maximumY = minimumY;
-		float maximumZ = maximumZ;
+		float maximumZ = minimumZ;
 
 		for (int i = 0; i < vertices.size(); ++i) {
 			minimumX = std::min(minimumX, vertices[i]._position.x);
@@ -65,7 +65,11 @@ namespace Engine::Physics
 
 	glm::vec3 RigidBody::GetCenterOfMass()
 	{
-		auto& vertices = _mesh._pMesh->_vertices._vertexData;
+		if (_isCenterOfMassOverridden) {
+			return _overriddenCenterOfMass;
+		}
+
+		auto& vertices = _mesh._vertices;
 		int vertexCount = (int)vertices.size();
 		float totalX = 0.0f;
 		float totalY = 0.0f;
@@ -112,26 +116,27 @@ namespace Engine::Physics
 		auto rotationalForce = comPerpendicularDirection * glm::dot(comPerpendicularDirection, force);
 
 		// Calculate or approximate rotational inertia.
-		auto rotationalInertia = _mass;
-		//for (int i = 0; i < vertexCount; ++i) {
-		//	auto worldSpaceVertexPosition = glm::vec3(worldSpaceTransform * glm::vec4(vertices[i]._position, 1.0f));
+		auto rotationalInertia = 0.0f;
+		auto singleVertexMass = _mass / vertexCount;
+		for (int i = 0; i < vertexCount; ++i) {
+			auto worldSpaceVertexPosition = glm::vec3(worldSpaceTransform * glm::vec4(vertices[i]._position, 1.0f));
 
-		//	if (worldSpaceVertexPosition == worldSpaceCom) {
-		//		continue;
-		//	}
+			if (worldSpaceVertexPosition == worldSpaceCom) {
+				continue;
+			}
 
-		//	auto comToVertexDirection = glm::normalize(worldSpaceVertexPosition - worldSpaceCom);
-		//	auto cathetus = comToVertexDirection * glm::dot(rotationAxis, comToVertexDirection);
+			auto comToVertexDirection = glm::normalize(worldSpaceVertexPosition - worldSpaceCom);
+			auto cathetus = comToVertexDirection * glm::dot(rotationAxis, comToVertexDirection);
 
-		//	if (IsVectorZero(cathetus), 0.001f) {
-		//		rotationalInertia += (/*vertex.mass **/ glm::length(worldSpaceVertexPosition - worldSpaceCom));
-		//		continue;
-		//	}
+			if (IsVectorZero(cathetus), 0.001f) {
+				rotationalInertia += (/*vertex.mass **/ glm::length(worldSpaceVertexPosition - worldSpaceCom));
+				continue;
+			}
 
-		//	auto endPosition = worldSpaceCom + cathetus;
-		//	auto perpDistance = glm::length(endPosition - worldSpaceVertexPosition);
-		//	rotationalInertia += (/*vertex.mass **/ perpDistance); // Mass still to be accounted for.
-		//}
+			auto endPosition = worldSpaceCom + cathetus;
+			auto perpDistance = glm::length(endPosition - worldSpaceVertexPosition);
+			rotationalInertia += (singleVertexMass * (perpDistance * perpDistance));
+		}
 
 		auto angularAcceleration = glm::cross(rotationalForce, positionToCom) / rotationalInertia;
 		auto rotationDelta = angularAcceleration * deltaTimeSeconds;
@@ -147,19 +152,21 @@ namespace Engine::Physics
 		_mesh._pMesh->_pGameObject->_localTransform.Translate(translationDelta);
 	}
 
-	void RigidBody::Initialize(Scenes::Mesh* pMesh, const float& mass)
+	void RigidBody::Initialize(Scenes::Mesh* pMesh, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass)
 	{
-		if (pMesh == nullptr) {
+		if (pMesh == nullptr || mass <= 0.001f) {
 			return;
 		}
 
-
-		_pMesh = pMesh;
-
-		auto& vertices = _pMesh->_vertices._vertexData;
+		_mass = mass;
+		_mesh._pMesh = pMesh;
+		_isCenterOfMassOverridden = overrideCenterOfMass;
+		_overriddenCenterOfMass = overriddenCenterOfMass;
+		auto& vertices = pMesh->_vertices._vertexData;
+		_mesh._vertices.resize(vertices.size());
 
 		for (int i = 0; i < vertices.size(); ++i) {
-
+			_mesh._vertices[i]._position = vertices[i]._position;
 		}
 
 		/*auto& faceIndices = _pMesh->_faceIndices._indexData;
@@ -203,29 +210,28 @@ namespace Engine::Physics
 		auto offset = glm::vec3(1.0f, 1.0f, 0.0f);
 		auto gravityForce = glm::vec3(0.0f, -9.81f, 0.0f);
 		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
-		//offset *= 4;
-		//auto pos = _pMesh->_vertices._vertexData[0]._position + offset;
 
 		auto rotationAxis = glm::vec3(0.0f, 0.0f, 1.0f);
 		auto worldSpaceTransform = _mesh._pMesh->_pGameObject->GetWorldSpaceTransform();
-		auto worldSpaceCom = glm::mat3x3(worldSpaceTransform._matrix) * GetCenterOfMass();
-		auto comPerpendicularDirection = glm::normalize(glm::cross(-worldSpaceCom, rotationAxis));
-		auto rotationalForce = 2.0f * comPerpendicularDirection;
-		//auto pos = _pMesh->_vertices._vertexData[0]._position + offset;
+		auto centerOfMass = GetCenterOfMass();
+		auto worldSpaceCom = glm::vec3(worldSpaceTransform._matrix * glm::vec4(centerOfMass, 1.0f));
+		auto worldSpaceVertPosition = glm::vec3(worldSpaceTransform._matrix * glm::vec4(_mesh._pMesh->_vertices._vertexData[0]._position, 1.0f));
+		auto comPerpendicularDirection = glm::normalize(glm::cross(worldSpaceVertPosition - worldSpaceCom, rotationAxis));
+		auto rotationalForce = 10.0f * comPerpendicularDirection;
 
 		auto& input = Input::KeyboardMouse::Instance();
 		//AddForce(gravityForce);
 
 		if (input.IsKeyHeldDown(GLFW_KEY_UP)) {
-			AddForceAtPosition(-gravityForce, _mesh._pMesh->_vertices._vertexData[0]._position);
+			AddForceAtPosition(-rotationalForce, _mesh._pMesh->_vertices._vertexData[0]._position);
 		}
 
 		if (input.IsKeyHeldDown(GLFW_KEY_DOWN)) {
-			AddForceAtPosition(gravityForce, _mesh._pMesh->_vertices._vertexData[0]._position);
+			AddForceAtPosition(rotationalForce, _mesh._pMesh->_vertices._vertexData[0]._position);
 		}
 
 
-		_mesh._pMesh->_pGameObject->_localTransform.Rotate(glm::normalize(_angularVelocity), glm::degrees(glm::length(_angularVelocity * deltaTimeSeconds)));
+		_mesh._pMesh->_pGameObject->_localTransform.RotateAroundPosition(centerOfMass, glm::normalize(_angularVelocity), glm::length(_angularVelocity * deltaTimeSeconds));
 		_mesh._pMesh->_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
 
 		/*system("cls");

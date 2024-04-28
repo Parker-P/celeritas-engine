@@ -51,7 +51,7 @@ namespace Engine::Scenes
 		/**
 		 * @brief Body for physics simulation.
 		 */
-		Physics::Body _body;
+		Physics::RigidBody _body;
 
 		/**
 		 * @brief Transform relative to the parent gameobject.

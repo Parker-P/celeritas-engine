@@ -112,7 +112,7 @@ namespace Engine::Vulkan
 
 				auto& body = gameObject->_body;
 				if (!body._isInitialized) {
-					body.Initialize(gameObject->_pMesh);
+					body.Initialize(gameObject->_pMesh, 15.0f, true, glm::vec3(-0.7f, -0.5f, 0.0f));
 				}
 
 				body.PhysicsUpdate();
