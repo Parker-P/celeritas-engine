@@ -29,7 +29,7 @@
 #include "engine/scenes/CubicalEnvironmentMap.hpp"
 #include "engine/scenes/Scene.hpp"
 #include "engine/vulkan/Helpers.hpp"
-#include "engine/physics/Body.hpp"
+#include "engine/physics/RigidBody.hpp"
 #include "engine/scenes/GameObject.hpp"
 #include "engine/scenes/Camera.hpp"
 #include "engine/scenes/Mesh.hpp"

@@ -53,11 +53,6 @@ namespace Engine::Physics
 		 * in the visual mesh that this physics vertex represents.
 		 */
 		std::vector<int> _visualVertexIndices;
-
-		/**
-		 * @brief Mass in kg.
-		 */
-		float _mass;
 	};
 
 	/**
@@ -81,7 +76,7 @@ namespace Engine::Physics
 	/**
 	 * @brief Base class for a body that performs physics simulation.
 	 */
-	class Body : public ::Structural::IPhysicsUpdatable
+	class RigidBody : public ::Structural::IPhysicsUpdatable
 	{
 	public:
 		
@@ -101,6 +96,11 @@ namespace Engine::Physics
 		glm::vec3 _angularVelocity = glm::vec3(0.0f, 0.0f, 0.0f);
 
 		/**
+		 * @brief Mass in kg.
+		 */
+		float _mass;
+
+		/**
 		 * @brief Physics mesh used as a bridge between this physics body and its visual counterpart.
 		 */
 		PhysicsMesh _mesh;
@@ -113,7 +113,7 @@ namespace Engine::Physics
 		/**
 		 * @brief Constructor.
 		 */
-		Body() = default;
+		RigidBody() = default;
 
 		/**
 		 * @brief Calculates and returns the center of mass based on the mass of each of its vertices in local space.
