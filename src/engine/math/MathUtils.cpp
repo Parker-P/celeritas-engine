@@ -6,7 +6,7 @@ namespace Engine::Math
 	bool IsRayIntersectingTriangle(glm::vec3 rayOrigin, glm::vec3 rayVector, const glm::vec3& v1, const glm::vec3& v2, const glm::vec3& v3, glm::vec3& outIntersectionPoint)
 	{
 		/**
-		 * This is an implementation of the Trumbore-Moller ray-triangle intersection algorithm.
+		 * This is an implementation of the Trumbore-Moller ray-triangle intersection algorithm, source is under the docs folder.
 		 *
 		 * Say that you have a triangle v1, v2, v3, and you want to know if a vector R with origin O intersects said triangle.
 		 *
