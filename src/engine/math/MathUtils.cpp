@@ -57,7 +57,7 @@ namespace Engine::Math
 		 * So now the equation becomes:
 		 * (O + s * R) = v1 + (w2 * e2) + (w3 * e3)
 		 *
-		 * They now observed that they had 3 unknowns: the scalars for the triangle-space coordinates (w2 and w3) and the scalar for ray R (s).
+		 * They now still had 3 unknowns, of which one simpler: the scalars for the triangle-space coordinates (w2 and w3) and the scalar for ray R (s).
 		 * If they could solve this equation, they could use w2 and w3 to know whether the point is inside the triangle, and s to calculate the intersection position.
 		 *
 		 * To simplify this further, they decomposed this equation into 3 equations by rewriting each vector quantity into its individual components (x,y,z),
@@ -69,9 +69,9 @@ namespace Engine::Math
 		 * (Oz + s * Rz) = v1z + (w2 * e2z) + (w3 * e3z)
 		 *
 		 * Notice how each equation contains only one component of each vector quantity, and the unknown scalar values are the same in each equation,
-		 * because a scalar affects all components of a vector equally.
+		 * because a scalar affects all components of a vector equally, so the equations are still valid.
 		 *
-		 * By following the matrix multiplcation rules in reverse, they came up with the following, equivalent, matrix multiplication:
+		 * By following the matrix multiplcation rules in reverse, they came up with the following, equivalent, matrix multiplication equation:
 		 * | e2x  e3x  Rx |   | w2 |   |v1x - Ox|
 		 * | e2y  e3y  Ry | * | w3 | = |v1y - Oy|
 		 * | e2z  e3z  Rz |   | s  |   |v1z - Oz|
@@ -81,7 +81,7 @@ namespace Engine::Math
 		 *
 		 * Obviously dividing by a matrix is not a defined operation, but it is possible to multiply by its inverse.
 		 * The equation, therefore becomes:
-		 * x = inverse(A) * b (order switched because of the row-column rule for matrix multiplcation).
+		 * x = inverse(A) * b (order switched because glm uses column-major order for matrix multiplication).
 		 *
 		 * Lets write it down:
 		 * | w2 |           | e2x  e3x  Rx |    |v1x - Ox|

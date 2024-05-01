@@ -7,57 +7,71 @@ Watch this video if it's still up: https://www.youtube.com/watch?v=kYB8IZa5AuE
 
 ROW MAJOR AND COLUMN MAJOR ORDER
 
-In all resources online you will almost never find anyone that mentions that row major and
-column major order determines the order in which you multiply the transformation matrices together (because once you know it it sounds
-so trivial that you shouldn't even mention it, but for someone who is learning this makes a huge difference).
+In all resources online you will almost never find anyone that mentions the importance of this concept when designing/choosing a way to implement 
+coordinate systems in game engines.
+Row major and column major order determine the order in which you multiply the transformation matrices together.
+
 Lets say you have a point p, that transformation matrix R rotates your point 90 degrees around the X axis of the origin and matrix T 
-translates your point by 3 units along the X axis. 
+translates your point by 3 units along the X axis.
+
 If the transformation matrices are in row major order, multiplying them one after the other (so doing p * R * T) will first apply 
 rotation then translation, whereas if the matrices are in column major order, doing R * T * p will apply translation first, then rotation.
+
 Notice how we place point p to the right of the transformation matrices when in column major order.
 What are column major and row major order? All resources online tell you that it's just about how the values in the matrix are stored in
 memory: your values will be stored in memory in a way that makes row elements contiguous if in row major order, whereas your column
 elements will be contiguous if in column major order. Lets say you have a 2x2 matrix where row1 = 4,7 and row2 = 8,1.
 In row major order, a matrix will be stored as an array like this: {4,7,8,1}.
 The same matrix in column major order would be stored like this: {4,8,7,1}.
+
 This however is not nearly as important as knowing what each row and each column represents in row and column major orders.
-When in row major order, the ROWS of your matrix will represent the individual coordinate components of ONE point/vector, 
-whereas when in column major order the COLUMNS of your matrix will represent the individual coordinate components of a point/vector.
+When in row major order, the ROWS of your transformation matrix will represent the individual coordinate system's axes, 
+whereas when in column major order the COLUMNS of your matrix will represent the individual coordinate system's axes.
 So writing a point like this: [ 2 6 1 ]
 and writing a point like this:
 2
 6
 1
 doesn't look like a big deal but it actually is. It means that if you want to apply transformations to it, you will have to think about
-the order in which you apply them, because matrix multiplication is non commutative. When you multiply two matrices you multiply
-each element of each column of the left hand side matrix with each element of each row of the right hand side matrix and sum up the
-results. That's why it's a big deal. Search for matrix multiplication to get a refresher on it.
-Almost all tutorials out there don't mention this, or if they mention it it's in a very unclear way and they miss to explain the real
-reason column major and row major are a thing: it's the order in which you multiply things together.
+the order in which you apply them, because matrix multiplication is non commutative.
+
+When you multiply two matrices you multiply each element of each column of the left hand side matrix with each element of each row of the 
+right hand side matrix and sum up the results. That's why it's a big deal. Search for matrix multiplication to get a refresher on it.
+Almost all tutorials out there don't mention this, or if they mention it it's in a very unclear way and they miss to explain the important
+part about column major and row major order: it's the order in which you multiply transforms together, and what each row/column represents
+in the transform.
 Of course transposing a row major matrix will make it column major and vice versa. Matrix transposition is just literally turning its
 rows into columns or the other way around.
 
 HOMOGENEOUS COORDINATES
 
-Homogeneous coordinates are extremely poorly explained in almost all tutorials. People explain what they are and give you examples but
-they fail to explain you why they were invented in the first place. Homogeneous coordinates were invented because when applying
-transformation matrices to VECTORS (yes, vectors and not points) it wasn't possible to preserve their direction. If you think about it, 
-a point in 3D space is a position relative to the origin, whereas a vector is actually a direction connecting the origin and another
-point. So a vector connects 2 points whereas a point is just a singular entity, it's just a point in space that has its coordinates
+Homogeneous coordinates are also extremely poorly explained in almost all tutorials. People explain what they are and give you examples but
+they fail to explain you why they were invented in the first place. 
+
+Homogeneous coordinates were invented because when applying transformation matrices to VECTORS (yes, vectors and not points) it wasn't possible 
+to preserve their direction. If you think about it, a point in 3D space is a position relative to the origin, whereas a vector is actually a direction 
+connecting the origin and another point. So a vector connects 2 points whereas a point is just a singular entity, it's just a point in space that has its coordinates
 defined with respect to the origin.
+
 What is unfortunate is that these two concepts are written the same way. For example if you take point (3,5) in space, (you
 can surely already picture it in your head), just imagine a point in space, a literal dot. If you move the point 2 units right,
 you get (5,5). Perfect, easy. Now take VECTOR (3,5). Imagine this vector as a physical arrow going from the origin to point (3,5). If
 you apply the same transformation to the vector, well, you get the same result, it's just (5,5). But if you picture the 2 vectors before
 and after, they are two very different arrows pointing in very different directions. Remember, picture two arrows: one that goes from the
-origin to point (3,5) and one that goes from the origin to point (5,5). Lets say this vector represents a vertex normal. You wouldn't
+origin to point (3,5) and one that goes from the origin to point (5,5). 
+
+Lets say this vector represents a vertex normal. You wouldn't
 want the normal to change direction just because you applied translation to it right? This is what homogeneous coordinates solve for us,
 they allow us to distinguish between points and vectors by using a zero and a one. When a tuple represents a point in space, you use a 1,
-when a tuple represents a vector you use a 0. 0 and 1 is like saying false and true respectively. The key question to ask is:
+when a tuple represents a vector you use a 0. 0 and 1 is like saying false and true respectively. 
+
+The key question to ask is:
 do I want translation to be applied to this tuple? If 1 (true) then that tuple represents a point, otherwise it represents a vector.
 This is the whole point of homogeneous coordinates, to allow you to distinguish between point and vector in space. Why? Because if
 you translate the final point of a vector (meaning the destination, the position in space where the arrow points to) you get a different
-arrow, and you don't want that. This doesn't apply to rotation and scale of course because when you rotate and scale that is what you are
+arrow, and you don't want that. 
+
+This doesn't apply to rotation and scale of course because when you rotate and scale that is what you are
 trying to do, you are literally trying to change its length and direction, it's intentional. Whereas when translating it (picture you
 physically grabbing the vector's arrow and moving to another point in space) you don't want it to change is length or direction.
 This means that applying translation to a vector with homogeneous coordinates has literally ZERO effect on the vector, it just remains
@@ -66,7 +80,7 @@ To visualize it, watch this video if it's still up: https://www.youtube.com/watc
 Having said this, this is how you interpret a 3D transformation, provided that the image is still online:
 https://www.researchgate.net/profile/Alexandre-Campo/publication/315552592/figure/fig2/AS:705739689566214@1545272862838/Homogeneous-Transformation-Matrix-a-and-Global-Homogeneous-Transformation-Matrix-b.ppm
 
-WHAT TRANSFORMATION MATRICES AND COORDINATES SYSTEMS ARE USED IN A 3D GAME:
+WHAT TRANSFORMATION MATRICES AND COORDINATES SYSTEMS ARE USED FOR IN A 3D GAME:
 
 Model matrix: allows you to position a point in space relative to the world coordinates.
 World coordinates are at the bedrock of your game world. The 3D positions of all objects are ultimately specified in world space, 
@@ -77,15 +91,14 @@ such as X = east, Y = north, Z = up.
 Local coordinates are attached to an object (there is one local coordinate space for each object). The axes may represent 
 something meaningful to the object, for instance X = forward, Y = left, Z = up for an object such as a character, vehicle, 
 gun, etc. that has an inherent orientation. As the object moves around, the relationship between local and world space 
-(as expressed by a transformation matrix) will change. For instance if you flip your car upside down, its local Z axis 
-("up" in local space) will now be pointing "down" in world space. To go from local coordinates to world coordinates
-you use 
+(as expressed by a transformation matrix) will change. For instance if you flip your car upside down, its local Y axis 
+("up" in local space) will now be pointing "down" in world space.
 
 View matrix: this transformation matrix will position points in space in such a way that it makes it look as though you were
 looking at them from a different angle.
 Camera or view coordinates are local coordinates attached to the camera. This is still a 3D coordinate system, without 
 any projection or anything, but with the axes aligned to match the screen orientation: usually X = right, Y = up, Z = backward. 
-The transformation from world to view space is often known as the "view matrix"
+The transformation from world to view space is often known as the "view matrix".
 
 Projection matrices: projection matrices are the most complex mathematically speaking, because they are derived in a way that takes
 into account many many factors. These matrices are used to transform a point in 3D space to a point in 2D space on your screen.
@@ -95,17 +108,18 @@ There are 3 different coordinate systems that a projection matrix can map to:
 
 Clip space coordinates are the coordinates output by a vertex shader: coordinates to which the projection matrix has been applied, 
 but not the perspective divide. This is a 4D (homogeneous) space. (World, local, and view space are 3D with an implicit w = 1.) 
-It's so named because this is the space in which view frustum clipping and culling takes place (conceptually, at least).
+It's named so because this is the space in which view frustum clipping and culling takes place (conceptually, at least).
 
 Normalized device coordinates, also commonly known as "screen space" although that term is a little loose, are what you get after 
 applying the perspective divide to clip space coordinates. The 3D coordinates now represent the 2D positions of points on screen, 
 with X and Y in [−1, 1], together with the depth within the depth buffer range, Z in [0, 1] for D3D or [−1, 1] for OpenGL. The
  axis orientation is X = right, Y = up, and Z can be either forward or backward depending on the depth buffer configuration.
 
-Device coordinates are 2D pixel coordinates within the render target, with (0, 0) in the upper-left corner, X = right, Y = down. 
+Device coordinates are 2D pixel coordinates within the frame buffer (the final image shown on screen), with (0, 0) in the upper-left 
+corner, X = right, Y = down. 
 One arrives at device coordinates by applying the viewport transform to the normalized device coordinates; the viewport controls 
-at what pixel offset and resolution the image appears in the render target. One thing that's important to note is that device 
-coordinates are not integer values; they aren't indices of pixels. They're a continuous 2D coordinate system, using pixel-sized 
+at what pixel offset and resolution the image appears in the final image. One thing that's important to note is that device 
+coordinates are not integer values; they aren't indices of pixels; they're a continuous 2D coordinate system, using pixel-sized 
 units, but in which fractional (subpixel) values are perfectly valid. Pixel centers lie at 0.5 offsets (like 0.5, 1.5, 2.5, ...) 
 in this coordinate system.
 
