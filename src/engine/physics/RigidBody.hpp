@@ -107,6 +107,11 @@ namespace Engine::Physics
 		PhysicsMesh _mesh;
 
 		/**
+		 * @brief Physics update implementation for this specific rigidbody.
+		 */
+		void(*_updateImplementation)(Scenes::GameObject&);
+
+		/**
 		 * @brief Map where the key is the index of a vertex in _pMesh, and the value is a list of vertex indices directly connected to the vertex represented by the key.
 		 */
 		//std::map<unsigned int, std::vector<unsigned int>> _neighbors;
@@ -125,14 +130,15 @@ namespace Engine::Physics
 		 * @brief Applies a force to the mesh.
 		 * @param force The force to be applies.
 		 * @param pointOfApplication The position from which the force will be applied to the mesh in local space.
+		 * @param ignoreTranslation The translation component that the force exerts on the body will be ignored.
 		 */
-		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication);
+		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool ignoreTranslation = false);
 
 		/**
 		 * @brief Applies a force to the mesh.
-		 * @param force The force to be applies.
+		 * @param force The force to be applied.
 		 */
-		void AddForce(const glm::vec3& force);
+		void AddForce(const glm::vec3& force, bool ignoreMass = false);
 
 		/**
 		 * @brief Call this before starting the PhysicsUpdate loop.

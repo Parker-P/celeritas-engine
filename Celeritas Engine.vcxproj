@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\engine\math\MathUtils.cpp" />
     <ClCompile Include="src\engine\physics\RigidBody.cpp" />
     <ClCompile Include="src\engine\scenes\CubicalEnvironmentMap.cpp" />
     <ClCompile Include="src\engine\scenes\Camera.cpp" />
@@ -35,6 +36,7 @@
     <ClCompile Include="src\engine\vulkan\ShaderResources.cpp" />
     <ClCompile Include="src\engine\vulkan\VulkanApplication.cpp" />
     <ClCompile Include="src\engine\vulkan\VulkanContext.cpp" />
+    <ClCompile Include="src\game\scripts\CollisionTest.hpp" />
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\engine\vulkan\PhysicalDevice.cpp" />
     <ClCompile Include="src\utils\Json.cpp" />
@@ -98,6 +100,7 @@
     <ClInclude Include="include\stb\stb_image_write.h" />
     <ClInclude Include="include\LocalDependencies.hpp" />
     <ClInclude Include="include\tinygltf\tiny_gltf.h" />
+    <ClInclude Include="src\engine\math\MathUtils.hpp" />
     <ClInclude Include="src\engine\scenes\CubicalEnvironmentMap.hpp" />
     <ClInclude Include="src\engine\scenes\Material.hpp" />
     <ClInclude Include="src\engine\scenes\PointLight.hpp" />

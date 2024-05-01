@@ -1,10 +1,11 @@
 #pragma warning(disable:4005)
 #define GLFW_INCLUDE_VULKAN
-#define STB_IMAGE_IMPLEMENTATION
+//#define STB_IMAGE_IMPLEMENTATION
+//#define STB_IMAGE_WRITE_IMPLEMENTATION
 #define TINYGLTF_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #define _CRT_SECURE_NO_WARNINGS
 #include "LocalIncludes.hpp"
+#include "game/scripts/CollisionTest.hpp"
 
 namespace Engine::Vulkan
 {
@@ -106,13 +107,17 @@ namespace Engine::Vulkan
 					continue;
 				}
 
-				if (gameObject->_name != "falling") {
+				if (gameObject->_name != "falling" && gameObject->_name != "ground") {
 					continue;
+				}
+
+				if (gameObject->_name == "falling") {
+
 				}
 
 				auto& body = gameObject->_body;
 				if (!body._isInitialized) {
-					body.Initialize(gameObject->_pMesh, 15.0f, true, glm::vec3(-0.7f, -0.5f, 0.0f));
+					body.Initialize(gameObject->_pMesh, 15.0f);
 				}
 
 				body.PhysicsUpdate();
