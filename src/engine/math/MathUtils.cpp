@@ -6,12 +6,14 @@ namespace Engine::Math
 	bool IsRayIntersectingTriangle(glm::vec3 rayOrigin, glm::vec3 rayVector, const glm::vec3& v1, const glm::vec3& v2, const glm::vec3& v3, glm::vec3& outIntersectionPoint)
 	{
 		/**
-		 * This is an implementation of the Trumbore-Moller ray-triangle intersection algorithm. The source paper on the study is under the docs folder.
+		 * This is an implementation of the Trumbore-Moller ray-triangle intersection algorithm, source paper on the study is under the docs folder.
 		 *
 		 * In summary, the algorithm is based around the idea of creating a transformation matrix to create a new ad-hoc coordinate system so it's easier
 		 * to calculate the point of intersection. In code, this is not apparent, as the algorithm also uses some careful and clever optimizations based on
 		 * linear algebra concepts after some careful observations that Trumbore and Moller made when analyzing the math involved.
 		 * The paper shows how these optimizations were derived at section 2.5 and 2.6.
+		 *
+		 * This implementation is copy-pasted from Wikipedia, but it's pretty much exactly the same as the one in the original paper.
 		 */
 
 		constexpr float epsilon = std::numeric_limits<float>::epsilon();
