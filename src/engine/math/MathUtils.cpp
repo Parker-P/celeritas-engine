@@ -13,6 +13,8 @@ namespace Engine::Math
 		 * linear algebra concepts after some careful observations that Trumbore and Moller made when analyzing the math involved.
 		 * The paper shows how these optimizations were derived at section 2.5 and 2.6.
 		 *
+		 * After an initial implementation I made myself from their theory, I decided to take their implementation directly, as it uses some extra optimizations
+		 * as described above.
 		 * This implementation is copy-pasted from Wikipedia, but it's pretty much exactly the same as the one in the original paper.
 		 */
 
@@ -40,15 +42,15 @@ namespace Engine::Math
 		if (v < 0 || u + v > 1)
 			return false;
 
-		// At this stage we can compute t to find out where the intersection point is on the line.
+		// At this stage we can compute t to find out where the intersection point is along the ray.
 		float t = inverseDeterminant * dot(edge2, sCrossE1);
 
-		if (t > epsilon) // ray intersection
+		if (t > epsilon)
 		{
 			outIntersectionPoint = rayOrigin + rayVector * t;
 			return true;
 		}
-		else // This means that there is a line intersection but not a ray intersection.
+		else // This means that the origin of the ray is inside the triangle.
 			return false;
 	}
 }
