@@ -88,14 +88,6 @@ namespace Engine::Vulkan
 		CreateSemaphores();
 	}
 
-	glm::vec3 RotateVector(glm::vec3 vectorToRotate, glm::vec3 axis, float angleDegrees) {
-		auto angleRadians = glm::radians(angleDegrees);
-		auto cosine = cos(angleRadians / 2.0f);
-		auto sine = sin(angleRadians / 2.0f);
-		glm::quat rotation(cosine, axis.x * sine, axis.y * sine, axis.z * sine);
-		return rotation * vectorToRotate;
-	}
-
 	void VulkanApplication::PhysicsUpdate()
 	{
 		while (!glfwWindowShouldClose(_pWindow)) {
@@ -111,15 +103,16 @@ namespace Engine::Vulkan
 					continue;
 				}
 
-				if (gameObject->_name == "falling") {
-
-				}
-
 				auto& body = gameObject->_body;
-				if (!body._isInitialized) {
-					body.Initialize(gameObject->_pMesh, 15.0f);
+				if (gameObject->_name == "falling" && !gameObject->_body._isInitialized) {
+					body._updateImplementation = Game::Falling;
 				}
 
+				if (gameObject->_name == "ground" && !gameObject->_body._isInitialized) {
+					body._updateImplementation = Game::Ground;
+				}
+
+				body.Initialize(gameObject->_pMesh);
 				body.PhysicsUpdate();
 			}
 		}

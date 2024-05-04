@@ -1,4 +1,5 @@
 #include "LocalIncludes.hpp"
+#include "engine/math/MathUtils.hpp"
 
 namespace Engine::Physics
 {
@@ -154,6 +155,44 @@ namespace Engine::Physics
 		_mesh._pMesh->_pGameObject->_localTransform.Translate(translationDelta);
 	}
 
+	std::vector<glm::vec3> GetContactPoints(const RigidBody& other, const RigidBody& current) 
+	{
+		std::vector<glm::vec3> outContactPoints;
+		auto worldSpaceOther = other._mesh._pMesh->_pGameObject->GetWorldSpaceTransform();
+		auto worldSpaceCurrent = current._mesh._pMesh->_pGameObject->GetWorldSpaceTransform();
+
+		for (int i = 0; i < other._mesh._faceIndices.size(); i+=3) {
+			for (int j = 0; j < current._mesh._faceIndices.size(); j+=3) {
+				glm::vec3 intersectionPoint1;
+				glm::vec3 intersectionPoint2;
+				glm::vec3 intersectionPoint3;
+				auto originE1Other = other._mesh._vertices[other._mesh._faceIndices[i]];
+				auto originE2Other = other._mesh._vertices[other._mesh._faceIndices[i]];
+				auto originE3Other = other._mesh._vertices[other._mesh._faceIndices[i]];
+			}
+		}
+		return outContactPoints;
+	}
+
+	std::vector<glm::vec3> RecursivelyDetectCollisions(const Scenes::GameObject& root, const RigidBody& current)
+	{
+		std::vector<glm::vec3> outContactPoints;
+		auto& body = root._body;
+		if (body._isInitialized && body._mesh._vertices.size() > 2) {
+			auto contactPoints = GetContactPoints(body, current);
+			outContactPoints.insert(outContactPoints.end(), contactPoints.begin(), contactPoints.end());
+		}
+		return outContactPoints;
+	}
+
+	std::vector<glm::vec3> RigidBody::GetContactPoints()
+	{
+		std::vector<glm::vec3> outContactPoints;
+		auto contactPoints = RecursivelyDetectCollisions(*_mesh._pMesh->_pGameObject->_pScene->_pRootGameObject, *this);
+		outContactPoints.insert(outContactPoints.end(), contactPoints.begin(), contactPoints.end());
+		return outContactPoints;
+	}
+
 	void RigidBody::Initialize(Scenes::Mesh* pMesh, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass)
 	{
 		if (pMesh == nullptr || mass <= 0.001f) {
@@ -165,11 +204,15 @@ namespace Engine::Physics
 		_isCenterOfMassOverridden = overrideCenterOfMass;
 		_overriddenCenterOfMass = overriddenCenterOfMass;
 		auto& vertices = pMesh->_vertices._vertexData;
+		auto& indices = pMesh->_faceIndices._indexData;
 		_mesh._vertices.resize(vertices.size());
 
+		// TODO: Decide how you want to initialize your physics mesh.
 		for (int i = 0; i < vertices.size(); ++i) {
 			_mesh._vertices[i]._position = vertices[i]._position;
 		}
+
+		memcpy(_mesh._faceIndices.data(), indices.data(), Utils::GetVectorSizeInBytes(indices));
 
 		_isInitialized = true;
 	}
@@ -177,7 +220,7 @@ namespace Engine::Physics
 	void RigidBody::PhysicsUpdate()
 	{
 		if (_updateImplementation) {
-			//_updateImplementation();
+			_updateImplementation(*_mesh._pMesh->_pGameObject);
 		}
 
 		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;

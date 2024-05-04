@@ -16,6 +16,8 @@ namespace Engine::Math
 		 * After an initial implementation I made myself from their theory, I decided to take their implementation directly, as it uses some extra optimizations
 		 * as described above.
 		 * This implementation is copy-pasted from Wikipedia, but it's pretty much exactly the same as the one in the original paper.
+		 * 
+		 * The only addition to make the function more useful would be to add the ability to choose whether to ignore back-facing triangles.
 		 */
 
 		constexpr float epsilon = std::numeric_limits<float>::epsilon();
@@ -29,7 +31,7 @@ namespace Engine::Math
 		if (determinant > -epsilon && determinant < epsilon)
 			return false;    // This ray is parallel to this triangle.
 
-		float inverseDeterminant = 1.0 / determinant;
+		float inverseDeterminant = 1.0f / determinant;
 		glm::vec3 s = rayOrigin - v1;
 		float u = inverseDeterminant * dot(s, rayCrossE2);
 

@@ -59,6 +59,11 @@ namespace Engine::Physics
 		std::vector<PhysicsVertex> _vertices;
 
 		/**
+		 * @brief Face indices.
+		 */
+		std::vector<unsigned int> _faceIndices;
+
+		/**
 		 * @brief Visual mesh that appears rendered on screen, which this physics mesh class simulates physics for.
 		 */
 		Scenes::Mesh* _pMesh;
@@ -139,6 +144,11 @@ namespace Engine::Physics
 		 * @param force The force to be applied.
 		 */
 		void AddForce(const glm::vec3& force, bool ignoreMass = false);
+
+		/**
+		 * @brief .
+		 */
+		std::vector<glm::vec3> GetContactPoints();
 
 		/**
 		 * @brief Call this before starting the PhysicsUpdate loop.
