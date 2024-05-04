@@ -163,12 +163,22 @@ namespace Engine::Physics
 
 		for (int i = 0; i < other._mesh._faceIndices.size(); i+=3) {
 			for (int j = 0; j < current._mesh._faceIndices.size(); j+=3) {
+
+				auto v1Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i]]._position, 1.0f));
+				auto v2Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i]]._position, 1.0f));
+				auto v3Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i]]._position, 1.0f));
+
+				auto v1 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(current._mesh._vertices[current._mesh._faceIndices[j]]._position, 1.0f));
+				auto v2 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(current._mesh._vertices[current._mesh._faceIndices[j]]._position, 1.0f));
+				auto v3 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(current._mesh._vertices[current._mesh._faceIndices[j]]._position, 1.0f));
+
 				glm::vec3 intersectionPoint1;
 				glm::vec3 intersectionPoint2;
 				glm::vec3 intersectionPoint3;
-				auto originE1Other = other._mesh._vertices[other._mesh._faceIndices[i]];
-				auto originE2Other = other._mesh._vertices[other._mesh._faceIndices[i]];
-				auto originE3Other = other._mesh._vertices[other._mesh._faceIndices[i]];
+				
+				Math::IsRayIntersectingTriangle(v1Other, v2Other - v1Other, v1, v2, v3, intersectionPoint1);
+				Math::IsRayIntersectingTriangle(v1Other, v3Other - v1Other, v1, v2, v3, intersectionPoint2);
+				Math::IsRayIntersectingTriangle(v1Other, v2Other - v3Other, v1, v2, v3, intersectionPoint3);
 			}
 		}
 		return outContactPoints;
