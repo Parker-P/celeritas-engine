@@ -145,6 +145,8 @@ namespace Engine::Physics
 		 */
 		void AddForce(const glm::vec3& force, bool ignoreMass = false);
 
+		std::vector<glm::vec3> GetContactPoints(const RigidBody& other);
+
 		/**
 		 * @brief .
 		 */

@@ -36,7 +36,7 @@
     <ClCompile Include="src\engine\vulkan\ShaderResources.cpp" />
     <ClCompile Include="src\engine\vulkan\VulkanApplication.cpp" />
     <ClCompile Include="src\engine\vulkan\VulkanContext.cpp" />
-    <ClCompile Include="src\game\scripts\CollisionTest.hpp" />
+    <ClCompile Include="src\game\scripts\CollisionTest.cpp" />
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\engine\vulkan\PhysicalDevice.cpp" />
     <ClCompile Include="src\utils\Json.cpp" />
@@ -117,6 +117,7 @@
     <ClInclude Include="src\engine\vulkan\SceneLoader.hpp" />
     <ClInclude Include="src\engine\vulkan\ShaderResources.hpp" />
     <ClInclude Include="src\engine\vulkan\VulkanContext.hpp" />
+    <ClInclude Include="src\game\scripts\CollisionTest.hpp" />
     <ClInclude Include="src\settings\Paths.hpp" />
     <ClInclude Include="src\engine\scenes\Camera.hpp" />
     <ClInclude Include="src\engine\scenes\GameObject.hpp" />

@@ -155,51 +155,90 @@ namespace Engine::Physics
 		_mesh._pMesh->_pGameObject->_localTransform.Translate(translationDelta);
 	}
 
-	std::vector<glm::vec3> GetContactPoints(const RigidBody& other, const RigidBody& current) 
+	std::vector<glm::vec3> RigidBody::GetContactPoints(const RigidBody& other)
 	{
 		std::vector<glm::vec3> outContactPoints;
 		auto worldSpaceOther = other._mesh._pMesh->_pGameObject->GetWorldSpaceTransform();
-		auto worldSpaceCurrent = current._mesh._pMesh->_pGameObject->GetWorldSpaceTransform();
+		auto worldSpaceCurrent = _mesh._pMesh->_pGameObject->GetWorldSpaceTransform();
 
-		for (int i = 0; i < other._mesh._faceIndices.size(); i+=3) {
-			for (int j = 0; j < current._mesh._faceIndices.size(); j+=3) {
+		for (int i = 0; i < other._mesh._faceIndices.size(); i += 3) {
+			for (int j = 0; j < _mesh._faceIndices.size(); j += 3) {
 
 				auto v1Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i]]._position, 1.0f));
-				auto v2Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i]]._position, 1.0f));
-				auto v3Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i]]._position, 1.0f));
+				auto v2Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i + 1]]._position, 1.0f));
+				auto v3Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i + 2]]._position, 1.0f));
 
-				auto v1 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(current._mesh._vertices[current._mesh._faceIndices[j]]._position, 1.0f));
-				auto v2 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(current._mesh._vertices[current._mesh._faceIndices[j]]._position, 1.0f));
-				auto v3 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(current._mesh._vertices[current._mesh._faceIndices[j]]._position, 1.0f));
+				auto v1 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j]]._position, 1.0f));
+				auto v2 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j + 1]]._position, 1.0f));
+				auto v3 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j + 2]]._position, 1.0f));
 
 				glm::vec3 intersectionPoint1;
 				glm::vec3 intersectionPoint2;
 				glm::vec3 intersectionPoint3;
-				
-				Math::IsRayIntersectingTriangle(v1Other, v2Other - v1Other, v1, v2, v3, intersectionPoint1);
-				Math::IsRayIntersectingTriangle(v1Other, v3Other - v1Other, v1, v2, v3, intersectionPoint2);
-				Math::IsRayIntersectingTriangle(v1Other, v2Other - v3Other, v1, v2, v3, intersectionPoint3);
+
+				if (Math::IsRayIntersectingTriangle(v1Other, v2Other - v1Other, v1, v2, v3, intersectionPoint1)) {
+					outContactPoints.push_back(intersectionPoint1);
+				}
+
+				if (Math::IsRayIntersectingTriangle(v1Other, v3Other - v1Other, v1, v2, v3, intersectionPoint2)) {
+					outContactPoints.push_back(intersectionPoint2);
+				}
+
+				if (Math::IsRayIntersectingTriangle(v3Other, v2Other - v3Other, v1, v2, v3, intersectionPoint3)) {
+					outContactPoints.push_back(intersectionPoint3);
+				}
 			}
 		}
 		return outContactPoints;
 	}
 
-	std::vector<glm::vec3> RecursivelyDetectCollisions(const Scenes::GameObject& root, const RigidBody& current)
+	/*std::vector<glm::vec3> RecursivelyDetectCollisions(const Scenes::GameObject& root, const RigidBody& current)
 	{
 		std::vector<glm::vec3> outContactPoints;
 		auto& body = root._body;
+		for (int i = 0; i < root._children.size(); ++i) {
+
+		}
 		if (body._isInitialized && body._mesh._vertices.size() > 2) {
 			auto contactPoints = GetContactPoints(body, current);
 			outContactPoints.insert(outContactPoints.end(), contactPoints.begin(), contactPoints.end());
 		}
 		return outContactPoints;
+	}*/
+
+	std::vector< Scenes::GameObject*> GetAllGameObjects(Scenes::GameObject* pRoot)
+	{
+		std::vector<Scenes::GameObject*> outGameObjects;
+		outGameObjects.push_back(pRoot);
+		for (int i = 0; i < pRoot->_children.size(); ++i) {
+			auto objects = GetAllGameObjects(pRoot->_children[i]);
+			outGameObjects.insert(outGameObjects.end(), objects.begin(), objects.end());
+		}
+		return outGameObjects;
+	}
+
+	std::vector<Scenes::GameObject*> GetOtherGameObjects(Scenes::GameObject* pGameObject)
+	{
+		auto allGameObjects = GetAllGameObjects(pGameObject->_pScene->_pRootGameObject);
+		for (int i = 0; i < allGameObjects.size(); ++i) {
+			if (pGameObject == allGameObjects[i]) {
+				allGameObjects.erase(allGameObjects.begin() + i);
+			}
+		}
+		return allGameObjects;
 	}
 
 	std::vector<glm::vec3> RigidBody::GetContactPoints()
 	{
+		auto otherGameObjects = GetOtherGameObjects(_mesh._pMesh->_pGameObject);
 		std::vector<glm::vec3> outContactPoints;
-		auto contactPoints = RecursivelyDetectCollisions(*_mesh._pMesh->_pGameObject->_pScene->_pRootGameObject, *this);
-		outContactPoints.insert(outContactPoints.end(), contactPoints.begin(), contactPoints.end());
+		for (int i = 0; i < otherGameObjects.size(); ++i) {
+			if (otherGameObjects[i]->_body._mesh._pMesh == nullptr) {
+				continue;
+			}
+			auto contactPoints = GetContactPoints(otherGameObjects[i]->_body);
+			outContactPoints.insert(outContactPoints.end(), contactPoints.begin(), contactPoints.end());
+		}
 		return outContactPoints;
 	}
 
@@ -216,6 +255,7 @@ namespace Engine::Physics
 		auto& vertices = pMesh->_vertices._vertexData;
 		auto& indices = pMesh->_faceIndices._indexData;
 		_mesh._vertices.resize(vertices.size());
+		_mesh._faceIndices.resize(indices.size());
 
 		// TODO: Decide how you want to initialize your physics mesh.
 		for (int i = 0; i < vertices.size(); ++i) {

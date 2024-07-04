@@ -16,7 +16,6 @@
 
 namespace Utils
 {
-
 	// All the data that this boxblur application needs to do its thing.
 	class BoxBlur
 	{
