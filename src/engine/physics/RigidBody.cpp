@@ -192,20 +192,6 @@ namespace Engine::Physics
 		return outContactPoints;
 	}
 
-	/*std::vector<glm::vec3> RecursivelyDetectCollisions(const Scenes::GameObject& root, const RigidBody& current)
-	{
-		std::vector<glm::vec3> outContactPoints;
-		auto& body = root._body;
-		for (int i = 0; i < root._children.size(); ++i) {
-
-		}
-		if (body._isInitialized && body._mesh._vertices.size() > 2) {
-			auto contactPoints = GetContactPoints(body, current);
-			outContactPoints.insert(outContactPoints.end(), contactPoints.begin(), contactPoints.end());
-		}
-		return outContactPoints;
-	}*/
-
 	std::vector< Scenes::GameObject*> GetAllGameObjects(Scenes::GameObject* pRoot)
 	{
 		std::vector<Scenes::GameObject*> outGameObjects;
@@ -269,6 +255,10 @@ namespace Engine::Physics
 
 	void RigidBody::PhysicsUpdate()
 	{
+		if (_isCollidable) {
+
+		}
+
 		if (_updateImplementation) {
 			_updateImplementation(*_mesh._pMesh->_pGameObject);
 		}

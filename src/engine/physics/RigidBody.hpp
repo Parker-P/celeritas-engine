@@ -82,6 +82,11 @@ namespace Engine::Physics
 		bool _isInitialized = false;
 
 		/**
+		 * @brief True if collision detection and resolution is enabled for the body.
+		 */
+		bool _isCollidable = false;
+
+		/**
 		 * @brief The velocity vector of this physics body in units per second.
 		 */
 		glm::vec3 _velocity = glm::vec3(0.0f, 0.0f, 0.0f);
