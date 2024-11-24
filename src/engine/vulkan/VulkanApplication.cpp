@@ -3664,7 +3664,7 @@ namespace Engine
 	/**
 	 * @brief Represents a physical object in a celeritas-engine scene.
 	 */
-	class GameObject : public Structural::IVulkanUpdatable, public Structural::IPipelineable, public Structural::IDrawable
+	class GameObject : public IVulkanUpdatable, public IPipelineable, public IDrawable
 	{
 	public:
 
@@ -3674,7 +3674,7 @@ namespace Engine
 			_pScene = pScene;
 		}
 
-		Vulkan::ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
+		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts)
 		{
 			auto descriptorSetID = 1;
 			auto globalTransform = GetWorldSpaceTransform();
@@ -3865,7 +3865,7 @@ namespace Engine
 			_up = glm::vec3(0.0f, 1.0f, 0.0f);
 		}
 
-		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
+		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts)
 		{
 			using namespace Engine::Vulkan;
 
@@ -4051,16 +4051,16 @@ namespace Engine
 		 */
 		GameObject* _pGameObject = nullptr;
 
-		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
+		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts)
 		{
 			auto descriptorSetID = 3;
 
 			// Get the textures to send to the shaders.
 			auto pScene = _pGameObject->_pScene;
 			auto defaultMaterial = pScene->DefaultMaterial();
-			Vulkan::Image albedoMap = defaultMaterial._albedo;
-			Vulkan::Image roughnessMap = defaultMaterial._roughness;
-			Vulkan::Image metalnessMap = defaultMaterial._metalness;
+			Image albedoMap = defaultMaterial._albedo;
+			Image roughnessMap = defaultMaterial._roughness;
+			Image metalnessMap = defaultMaterial._metalness;
 
 			if (_materialIndex >= 0) {
 				if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._albedo._image) {
