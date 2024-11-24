@@ -3688,7 +3688,12 @@ namespace Engine
 		/**
 		 * @brief Object-to-world transform.
 		 */
-		Math::Transform _transform;
+		Transform _transform;
+
+		/**
+		 * @brief Transform relative to the parent gameobject.
+		 */
+		Transform _localTransform;
 
 		/**
 		 * @brief Mesh of this game object.
