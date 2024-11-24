@@ -2758,7 +2758,7 @@ namespace Engine
 
 			blurrer.Destroy();
 
-			//WriteImagesToFiles(Settings::Paths::TexturesPath()/"env_map");
+			//WriteImagesToFiles(Paths::TexturesPath()/"env_map");
 
 			//Logger::Log("Environment map " + imageFilePath.string() + " loaded.");
 		}
@@ -3627,7 +3627,7 @@ namespace Engine
 				_mesh._vertices[i]._position = vertices[i]._position;
 			}
 
-			memcpy(_mesh._faceIndices.data(), indices.data(), Utils::GetVectorSizeInBytes(indices));
+			memcpy(_mesh._faceIndices.data(), indices.data(), GetVectorSizeInBytes(indices));
 
 			_isInitialized = true;
 		}
@@ -3667,6 +3667,33 @@ namespace Engine
 	class GameObject : public IVulkanUpdatable, public IPipelineable, public IDrawable
 	{
 	public:
+
+		/**
+		 * @brief Constructor.
+		 * @param name Name of the game object.
+		 * @param pScene Scene the game object belongs to.
+		 */
+		GameObject(const std::string& name, Scene* pScene);
+
+		/**
+		 * @brief Name of the game object.
+		 */
+		std::string _name;
+
+		/**
+		 * @brief Scene this game object belongs to.
+		 */
+		Scene* _pScene = nullptr;
+
+		/**
+		 * @brief Object-to-world transform.
+		 */
+		Math::Transform _transform;
+
+		/**
+		 * @brief Mesh of this game object.
+		 */
+		Mesh* _pMesh = nullptr;
 
 		GameObject(const std::string& name, Scene* pScene)
 		{
@@ -3740,7 +3767,6 @@ namespace Engine
 
 			return _shaderResources;
 		}
-
 
 		Transform GetWorldSpaceTransform()
 		{
@@ -3867,8 +3893,6 @@ namespace Engine
 
 		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts)
 		{
-			using namespace Engine::Vulkan;
-
 			auto descriptorSetID = 0;
 
 			// Create a temporary buffer.
@@ -3927,11 +3951,11 @@ namespace Engine
 
 		void UpdateShaderResources()
 		{
-			auto& globalSettings = Settings::GlobalSettings::Instance();
+			auto& globalSettings = GlobalInstance();
 
 			_cameraData.worldToCamera = _view._matrix;
 			_cameraData.tanHalfHorizontalFov = tan(glm::radians(_horizontalFov / 2.0f));
-			_cameraData.aspectRatio = Utils::Converter::Convert<uint32_t, float>(globalSettings._windowWidth) / Utils::Converter::Convert<uint32_t, float>(globalSettings._windowHeight);
+			_cameraData.aspectRatio = Converter::Convert<uint32_t, float>(globalSettings._windowWidth) / Converter::Convert<uint32_t, float>(globalSettings._windowHeight);
 			_cameraData.nearClipDistance = _nearClippingDistance;
 			_cameraData.farClipDistance = _farClippingDistance;
 			_cameraData.transform = _localTransform.Position();
@@ -3943,7 +3967,7 @@ namespace Engine
 		{
 			auto& input = Input::Instance();
 			auto& time = Time::Instance();
-			auto mouseSens = Settings::GlobalSettings::Instance()._mouseSensitivity;
+			auto mouseSens = GlobalInstance()._mouseSensitivity;
 			_yaw += (float)input._deltaMouseX * mouseSens;
 
 			if ((_pitch + (input._deltaMouseY * mouseSens)) > -90 && (_pitch + (input._deltaMouseY * mouseSens)) < 90) {
@@ -4786,7 +4810,7 @@ namespace Engine
 
 		// Game.
 		KeyboardMouse& _input = Input::Instance();
-		GlobalSettings& _settings = GlobalSettings::Instance();
+		GlobalSettings& _settings = GlobalInstance();
 		Scene _scene;
 		Camera _mainCamera;
 
@@ -5118,8 +5142,8 @@ namespace Engine
 		}
 
 		windowMinimized = false;
-		GlobalSettings::Instance()._windowWidth = width;
-		GlobalSettings::Instance()._windowHeight = height;
+		GlobalInstance()._windowWidth = width;
+		GlobalInstance()._windowHeight = height;
 	}
 
 	void VulkanApplication::WindowSizeChanged()
@@ -5368,25 +5392,25 @@ namespace Engine
 
 	void VulkanApplication::LoadScene()
 	{
-		//auto scenePath = Settings::Paths::ModelsPath() /= "MaterialSphere.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "cubes.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "directions.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "f.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "fr.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5k.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "collision.glb";
+		//auto scenePath = Paths::ModelsPath() /= "MaterialSphere.glb";
+		//auto scenePath = Paths::ModelsPath() /= "cubes.glb";
+		//auto scenePath = Paths::ModelsPath() /= "directions.glb";
+		//auto scenePath = Paths::ModelsPath() /= "f.glb";
+		//auto scenePath = Paths::ModelsPath() /= "fr.glb";
+		//auto scenePath = Paths::ModelsPath() /= "mp5k.glb";
+		//auto scenePath = Paths::ModelsPath() /= "collision.glb";
 		auto scenePath = Paths::ModelsPath() /= "forces.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "hierarchy.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "primitives.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "translation.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "mp5ktest.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "rotation.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "clipping.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "Cube.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "SampleMap.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "monster.glb";
-		//auto scenePath = Settings::Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb";
+		//auto scenePath = Paths::ModelsPath() /= "hierarchy.glb";
+		//auto scenePath = Paths::ModelsPath() /= "primitives.glb";
+		//auto scenePath = Paths::ModelsPath() /= "translation.glb";
+		//auto scenePath = Paths::ModelsPath() /= "mp5ktest.glb";
+		//auto scenePath = Paths::ModelsPath() /= "rotation.glb";
+		//auto scenePath = Paths::ModelsPath() /= "clipping.glb";
+		//auto scenePath = Paths::ModelsPath() /= "Cube.glb";
+		//auto scenePath = Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
+		//auto scenePath = Paths::ModelsPath() /= "SampleMap.glb";
+		//auto scenePath = Paths::ModelsPath() /= "monster.glb";
+		//auto scenePath = Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb";
 		_scene = SceneLoader::LoadFile(scenePath, _logicalDevice, _physicalDevice, _commandPool, _queue);
 	}
 
@@ -5394,16 +5418,16 @@ namespace Engine
 	{
 		_scene._environmentMap = CubicalEnvironmentMap(_physicalDevice, _logicalDevice);
 		_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Waterfall.hdr");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Debug.png");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ModernBuilding.hdr");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.png");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Workshop.hdr");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "garden.hdr");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "ItalianFlag.png");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "TestPng.png");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "EnvMap.png");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "texture.jpg");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Settings::Paths::TexturesPath() /= "Test1.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Debug.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "ModernBuilding.hdr");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Workshop.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Workshop.hdr");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "garden.hdr");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "ItalianFlag.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "TestPng.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "EnvMap.png");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "texture.jpg");
+		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Test1.png");
 
 		_scene._environmentMap.CreateImage(_logicalDevice, _physicalDevice, _commandPool, _queue);
 	}
@@ -5440,7 +5464,7 @@ namespace Engine
 
 	VkExtent2D VulkanApplication::ChooseFramebufferSize(const VkSurfaceCapabilitiesKHR& surfaceCapabilities)
 	{
-		auto& settings = GlobalSettings::Instance();
+		auto& settings = GlobalInstance();
 
 		if (surfaceCapabilities.currentExtent.width == -1) {
 			VkExtent2D swapChainExtent = {};
