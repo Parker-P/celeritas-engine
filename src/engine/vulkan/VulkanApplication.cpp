@@ -3276,14 +3276,14 @@ namespace Engine
 		/**
 		 * @brief Creates a bounding box from a visual mesh.
 		 */
-		static BoundingBox Create(const Scenes::Mesh& mesh);
+		static BoundingBox Create(const Mesh& mesh);
 
 		glm::vec3 GetCenter()
 		{
 			return glm::vec3((_min.x + _max.x) * 0.5f, (_min.y + _max.y) * 0.5f, (_min.z + _max.z) * 0.5f);
 		}
 
-		BoundingBox Create(const Scenes::Mesh& mesh)
+		BoundingBox Create(const Mesh& mesh)
 		{
 			auto& vertices = mesh._vertices._vertexData;
 			BoundingBox boundingBox;
@@ -3350,13 +3350,13 @@ namespace Engine
 		/**
 		 * @brief Visual mesh that appears rendered on screen, which this physics mesh class simulates physics for.
 		 */
-		Scenes::Mesh* _pMesh;
+		Mesh* _pMesh;
 	};
 
 	/**
 	 * @brief Base class for a body that performs physics simulation.
 	 */
-	class RigidBody : public ::Structural::IPhysicsUpdatable
+	class RigidBody : public IPhysicsUpdatable
 	{
 	public:
 
@@ -3403,7 +3403,7 @@ namespace Engine
 		/**
 		 * @brief Physics update implementation for this specific rigidbody.
 		 */
-		void(*_updateImplementation)(Scenes::GameObject&);
+		void(*_updateImplementation)(GameObject&);
 
 		/**
 		 * @brief Map where the key is the index of a vertex in _pMesh, and the value is a list of vertex indices directly connected to the vertex represented by the key.
@@ -3555,15 +3555,15 @@ namespace Engine
 					glm::vec3 intersectionPoint2;
 					glm::vec3 intersectionPoint3;
 
-					if (Math::IsRayIntersectingTriangle(v1Other, v2Other - v1Other, v1, v2, v3, intersectionPoint1)) {
+					if (IsRayIntersectingTriangle(v1Other, v2Other - v1Other, v1, v2, v3, intersectionPoint1)) {
 						outContactPoints.push_back(intersectionPoint1);
 					}
 
-					if (Math::IsRayIntersectingTriangle(v1Other, v3Other - v1Other, v1, v2, v3, intersectionPoint2)) {
+					if (IsRayIntersectingTriangle(v1Other, v3Other - v1Other, v1, v2, v3, intersectionPoint2)) {
 						outContactPoints.push_back(intersectionPoint2);
 					}
 
-					if (Math::IsRayIntersectingTriangle(v3Other, v2Other - v3Other, v1, v2, v3, intersectionPoint3)) {
+					if (IsRayIntersectingTriangle(v3Other, v2Other - v3Other, v1, v2, v3, intersectionPoint3)) {
 						outContactPoints.push_back(intersectionPoint3);
 					}
 				}
@@ -3571,9 +3571,9 @@ namespace Engine
 			return outContactPoints;
 		}
 
-		std::vector< Scenes::GameObject*> GetAllGameObjects(Scenes::GameObject* pRoot)
+		std::vector< GameObject*> GetAllGameObjects(GameObject* pRoot)
 		{
-			std::vector<Scenes::GameObject*> outGameObjects;
+			std::vector<GameObject*> outGameObjects;
 			outGameObjects.push_back(pRoot);
 			for (int i = 0; i < pRoot->_children.size(); ++i) {
 				auto objects = GetAllGameObjects(pRoot->_children[i]);
@@ -3582,7 +3582,7 @@ namespace Engine
 			return outGameObjects;
 		}
 
-		std::vector<Scenes::GameObject*> GetOtherGameObjects(Scenes::GameObject* pGameObject)
+		std::vector<GameObject*> GetOtherGameObjects(GameObject* pGameObject)
 		{
 			auto allGameObjects = GetAllGameObjects(pGameObject->_pScene->_pRootGameObject);
 			for (int i = 0; i < allGameObjects.size(); ++i) {
@@ -3744,7 +3744,7 @@ namespace Engine
 
 		Transform GetWorldSpaceTransform()
 		{
-			Math::Transform outTransform;
+			Transform outTransform;
 			GameObject current = *this;
 			outTransform._matrix *= current._localTransform._matrix;
 			while (current._pParent != nullptr) {
@@ -4169,7 +4169,7 @@ namespace Engine
 			auto& vertexData = _vertices._vertexData;
 
 			// Update the Vulkan-only visible memory that is mapped to the GPU so that the updated data is also visible in the vertex shader.
-			memcpy(_vertices._vertexBuffer._cpuMemory, _vertices._vertexData.data(), Utils::GetVectorSizeInBytes(_vertices._vertexData));
+			memcpy(_vertices._vertexBuffer._cpuMemory, _vertices._vertexData.data(), GetVectorSizeInBytes(_vertices._vertexData));
 		}
 
 		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer)
@@ -4192,7 +4192,7 @@ namespace Engine
 			std::vector<Material> outMaterials;
 
 			for (int i = 0; i < gltfScene.materials.size(); ++i) {
-				Scenes::Material m;
+				Material m;
 				auto& baseColorTextureIndex = gltfScene.materials[i].pbrMetallicRoughness.baseColorTexture.index;
 				m._name = gltfScene.materials[i].name;
 
@@ -4222,9 +4222,9 @@ namespace Engine
 					VkMemoryAllocateInfo allocInfo{};
 					allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 					allocInfo.allocationSize = reqs.size;
-					allocInfo.memoryTypeIndex = GetMemoryTypeIndex(physicalDevice, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+					allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(physicalDevice, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 					VkDeviceMemory mem;
-					CheckResult(vkPhysicalDevice::AllocateMemory(logicalDevice, &allocInfo, nullptr, &mem));
+					CheckResult(vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &mem));
 					CheckResult(vkBindImageMemory(logicalDevice, m._albedo._image, mem, 0));
 
 					auto& imageViewCreateInfo = m._albedo._viewCreateInfo;
@@ -4323,7 +4323,7 @@ namespace Engine
 				std::vector<glm::vec2> uvCoords0(uvCoords0Count);
 				memcpy(uvCoords0.data(), gltfScene.buffers[uvCoords0BufferIndex].data.data() + uvCoords0BufferOffset, uvCoords0BufferSize);
 
-				auto mesh = new Scenes::Mesh();
+				auto mesh = new Mesh();
 
 				bool found = false;
 				if (gltfPrimitive.material >= 0) {
@@ -4339,14 +4339,14 @@ namespace Engine
 				}
 
 				// Gather vertices and face indices.
-				std::vector<Scenes::Vertex> vertices;
+				std::vector<Vertex> vertices;
 				vertices.resize(vertexPositions.size());
 				for (int i = 0; i < vertexPositions.size(); ++i) {
-					Scenes::Vertex v;
+					Vertex v;
 
 					// Transform all 3D space vectors into the engine's coordinate system (X Right, Y Up, Z forward).
-					/*auto position = Math::GltfToEngine()._matrix * glm::vec4(vertexPositions[i], 1.0f);
-					auto normal = Math::GltfToEngine()._matrix * glm::vec4(vertexNormals[i], 1.0f);;*/
+					/*auto position = GltfToEngine()._matrix * glm::vec4(vertexPositions[i], 1.0f);
+					auto normal = GltfToEngine()._matrix * glm::vec4(vertexNormals[i], 1.0f);;*/
 
 					vertexPositions[i].x = -vertexPositions[i].x;
 					vertexNormals[i].x = -vertexNormals[i].x;
@@ -4374,7 +4374,7 @@ namespace Engine
 
 		Transform GetGltfNodeTransform(tinygltf::Node& gltfNode)
 		{
-			Math::Transform outTransform;
+			Transform outTransform;
 			auto& tr = gltfNode.translation;
 			auto& sc = gltfNode.scale;
 			auto& rot = gltfNode.rotation;
@@ -4391,7 +4391,7 @@ namespace Engine
 				outTransform._matrix *= translation;
 			}
 
-			auto r = Math::Transform();
+			auto r = Transform();
 			if (rot.size() == 4) {
 				r.Rotate(glm::quat{ -(float)rot[3], (float)rot[0], (float)rot[1], (float)rot[2] });
 				outTransform._matrix *= r._matrix;
@@ -4415,7 +4415,7 @@ namespace Engine
 		GameObject* ProcessNode(Node node, tinygltf::Model& gltfScene, Scene& scene, VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue)
 		{
 			auto& gltfNode = gltfScene.nodes[node.gltfSceneIndex];
-			auto gameObject = new Scenes::GameObject(gltfNode.name, &scene);
+			auto gameObject = new GameObject(gltfNode.name, &scene);
 			auto gltfNodeTransform = GetGltfNodeTransform(gltfNode);
 			gameObject->_localTransform = gltfNodeTransform._matrix;
 
@@ -4967,8 +4967,8 @@ namespace Engine
 		class GameObject;
 	}
 
-	void Falling(GameObject& gameObject);
-	void Ground(GameObject& gameObject);
+	/*void Falling(GameObject& gameObject);
+	void Ground(GameObject& gameObject);*/
 
 	bool windowResized = false;
 	bool windowMinimized = false;
