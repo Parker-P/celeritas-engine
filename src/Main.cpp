@@ -25,6 +25,9 @@
 #include <Json.h>
 
 namespace Engine {
+
+	using namespace Engine;
+
 	bool windowResized = false;
 	bool windowMinimized = false;
 
@@ -188,6 +191,92 @@ namespace Engine {
 
 		static void Log(const std::wstring message) {
 			std::wcout << message << std::endl;
+		}
+	};
+
+	class File {
+	public:
+		/**
+		 * @brief Reads an ASCII or UNICODE text file.
+		 * @param absolutePath
+		 * @return The text the file contains as a std::string.
+		 */
+		static inline std::string ReadAllText(std::filesystem::path absolutePath) {
+			std::fstream textFile{ absolutePath, std::ios::in };
+			std::string fileText{};
+
+			if (textFile.is_open()) {
+				char nextChar = textFile.get();
+
+				while (nextChar >= 0) {
+					fileText += nextChar;
+					nextChar = textFile.get();
+				}
+			}
+			return fileText;
+		}
+	};
+
+	class Converter {
+	public:
+
+		/**
+		 * @brief Convert values. Returns the converted value.
+		 * @param value
+		 * @return
+		 */
+		template <typename FromType, typename ToType>
+		static inline ToType Convert(FromType value) {
+			return Convert<ToType>(value);
+		}
+
+		/**
+		 * @brief Converts uint32_t to float.
+		 * @param value
+		 * @return
+		 */
+		template<>
+		static inline float Convert(uint32_t value) {
+			int intermediateValue = 0;
+			for (unsigned short i = 32; i > 0; --i) {
+				unsigned char ithBitFromRight = ((uint32_t)value >> i) & 1;
+				intermediateValue |= (ithBitFromRight << i);
+			}
+			return static_cast<float>(intermediateValue);
+		}
+
+		/**
+		 * @brief Converts string to bool.
+		 * @param value
+		 * @return true if the value is either "true" (case insensitive) or 1, false otherwise.
+		 */
+		template<>
+		static inline bool Convert(std::string value) {
+			std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return std::tolower(c); });
+			if (value == "true" || value == "1") {
+				return true;
+			}
+			return false;
+		}
+
+		/**
+		 * @brief Converts string to int.
+		 * @param value
+		 * @return
+		 */
+		template<>
+		static inline int Convert(std::string value) {
+			return std::stoi(value);
+		}
+
+		/**
+		 * @brief Converts string to float.
+		 * @param value
+		 * @return
+		 */
+		template<>
+		static inline float Convert(std::string value) {
+			return std::stof(value);
 		}
 	};
 
@@ -693,6 +782,62 @@ namespace Engine {
 		uint32_t _familyIndex;
 	};
 
+	
+
+	VkCommandPool CreateCommandPool(VkDevice& logicalDevice, int& queueFamilyIndex) {
+		VkCommandPoolCreateInfo poolCreateInfo = {};
+		poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		poolCreateInfo.queueFamilyIndex = queueFamilyIndex;
+		poolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+		VkCommandPool outPool;
+		vkCreateCommandPool(logicalDevice, &poolCreateInfo, nullptr, &outPool);
+		return outPool;
+	}
+
+	int FindQueueFamilyIndex(VkPhysicalDevice& physicalDevice, VkQueueFlagBits queueFlags) {
+		auto queueFamilyProperties = PhysicalDevice::GetAllQueueFamilyProperties(physicalDevice);
+
+		for (uint32_t queueFamilyIndex = 0; queueFamilyIndex < queueFamilyProperties.size(); queueFamilyIndex++) {
+			if (queueFamilyProperties[queueFamilyIndex].queueCount > 0 && queueFamilyProperties[queueFamilyIndex].queueFlags & queueFlags) {
+				return queueFamilyIndex;
+			}
+		}
+
+		return -1;
+	}
+
+	void StartRecording(VkCommandBuffer& commandBuffer) {
+		VkCommandBufferBeginInfo beginInfo{};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		vkResetCommandBuffer(commandBuffer, 0);
+		vkBeginCommandBuffer(commandBuffer, &beginInfo);
+	}
+
+	void StopRecording(VkCommandBuffer& commandBuffer) {
+		vkEndCommandBuffer(commandBuffer);
+	}
+
+	void ExecuteCommands(VkCommandBuffer& commandBuffer, VkQueue& queue) {
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &commandBuffer;
+		vkQueueSubmit(queue, 1, &submitInfo, nullptr);
+		vkQueueWaitIdle(queue);
+	}
+
+	VkCommandBuffer CreateCommandBuffer(VkDevice& logicalDevice, VkCommandPool& commandPool) {
+		VkCommandBufferAllocateInfo cmdBufInfo = {};
+		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		cmdBufInfo.commandPool = commandPool;
+		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		cmdBufInfo.commandBufferCount = 1;
+		VkCommandBuffer commandBuffer;
+		vkAllocateCommandBuffers(logicalDevice, &cmdBufInfo, &commandBuffer);
+		return commandBuffer;
+	}
+
 	class Buffer {
 	public:
 		VkBufferCreateInfo _createInfo{};
@@ -726,7 +871,85 @@ namespace Engine {
 			_pData = pData;
 			_sizeBytes = sizeBytes;
 		}
+
+		static void CopyToDeviceMemory(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool commandPool, VkQueue queue, VkBuffer buffer, void* pData, size_t sizeBytes) {
+			// Create a temporary buffer.
+			Buffer stagingBuffer{};
+			stagingBuffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			stagingBuffer._createInfo.size = sizeBytes;
+			stagingBuffer._createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+			vkCreateBuffer(logicalDevice, &stagingBuffer._createInfo, nullptr, &stagingBuffer._buffer);
+
+			// Allocate memory for the buffer.
+			VkMemoryRequirements requirements{};
+			vkGetBufferMemoryRequirements(logicalDevice, stagingBuffer._buffer, &requirements);
+			stagingBuffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+			// Map memory to the correct GPU and CPU ranges for the buffer.
+			vkBindBufferMemory(logicalDevice, stagingBuffer._buffer, stagingBuffer._gpuMemory, 0);
+			vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, sizeBytes, 0, &stagingBuffer._cpuMemory);
+			memcpy(stagingBuffer._cpuMemory, pData, sizeBytes);
+
+			auto copyCommandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
+			StartRecording(copyCommandBuffer);
+
+			VkBufferCopy copyRegion = {};
+			copyRegion.size = sizeBytes;
+			vkCmdCopyBuffer(copyCommandBuffer, stagingBuffer._buffer, buffer, 1, &copyRegion);
+
+			StopRecording(copyCommandBuffer);
+			ExecuteCommands(copyCommandBuffer, queue);
+
+			vkFreeCommandBuffers(logicalDevice, commandPool, 1, &copyCommandBuffer);
+			vkDestroyBuffer(logicalDevice, stagingBuffer._buffer, nullptr);
+		}
 	};
+
+	void CopyImageToDeviceMemory(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue, VkImage& image, int width, int height, int depth, void* pData, size_t sizeBytes) {
+		// Create a temporary buffer.
+		Buffer stagingBuffer{};
+		stagingBuffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		stagingBuffer._createInfo.size = sizeBytes;
+		stagingBuffer._createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		vkCreateBuffer(logicalDevice, &stagingBuffer._createInfo, nullptr, &stagingBuffer._buffer);
+
+		// Allocate memory for the buffer.
+		VkMemoryRequirements requirements{};
+		vkGetBufferMemoryRequirements(logicalDevice, stagingBuffer._buffer, &requirements);
+		stagingBuffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+		// Map memory to the correct GPU and CPU ranges for the buffer.
+		vkBindBufferMemory(logicalDevice, stagingBuffer._buffer, stagingBuffer._gpuMemory, 0);
+		vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, sizeBytes, 0, &stagingBuffer._cpuMemory);
+		memcpy(stagingBuffer._cpuMemory, pData, sizeBytes);
+
+		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
+		StartRecording(commandBuffer);
+
+		VkImageMemoryBarrier barrier{};
+		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		barrier.srcAccessMask = VK_ACCESS_NONE;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		barrier.image = image;
+		barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
+		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+		VkBufferImageCopy copyInfo{};
+		copyInfo.bufferImageHeight = height;
+		copyInfo.bufferRowLength = width;
+		copyInfo.imageExtent = { (uint32_t)width, (uint32_t)height, (uint32_t)depth };
+		copyInfo.imageOffset = { 0,0,0 };
+		copyInfo.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+		vkCmdCopyBufferToImage(commandBuffer, stagingBuffer._buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyInfo);
+
+		StopRecording(commandBuffer);
+		ExecuteCommands(commandBuffer, queue);
+
+		vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
+		vkDestroyBuffer(logicalDevice, stagingBuffer._buffer, nullptr);
+	}
 
 	inline std::string Format(float value) {
 		return (value >= 0.0f) ? " " + std::to_string(value) : std::to_string(value);
@@ -747,92 +970,6 @@ namespace Engine {
 	inline std::ostream& operator<< (std::ostream& stream, const glm::vec3&& vector) {
 		return stream << "(" << vector.x << ", " << vector.y << ", " << vector.z << ")";
 	}
-
-	class Converter {
-	public:
-
-		/**
-		 * @brief Convert values. Returns the converted value.
-		 * @param value
-		 * @return
-		 */
-		template <typename FromType, typename ToType>
-		static inline ToType Convert(FromType value) {
-			return Convert<ToType>(value);
-		}
-
-		/**
-		 * @brief Converts uint32_t to float.
-		 * @param value
-		 * @return
-		 */
-		template<>
-		static inline float Convert(uint32_t value) {
-			int intermediateValue = 0;
-			for (unsigned short i = 32; i > 0; --i) {
-				unsigned char ithBitFromRight = ((uint32_t)value >> i) & 1;
-				intermediateValue |= (ithBitFromRight << i);
-			}
-			return static_cast<float>(intermediateValue);
-		}
-
-		/**
-		 * @brief Converts string to bool.
-		 * @param value
-		 * @return true if the value is either "true" (case insensitive) or 1, false otherwise.
-		 */
-		template<>
-		static inline bool Convert(std::string value) {
-			std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return std::tolower(c); });
-			if (value == "true" || value == "1") {
-				return true;
-			}
-			return false;
-		}
-
-		/**
-		 * @brief Converts string to int.
-		 * @param value
-		 * @return
-		 */
-		template<>
-		static inline int Convert(std::string value) {
-			return std::stoi(value);
-		}
-
-		/**
-		 * @brief Converts string to float.
-		 * @param value
-		 * @return
-		 */
-		template<>
-		static inline float Convert(std::string value) {
-			return std::stof(value);
-		}
-	};
-
-	class File {
-	public:
-		/**
-		 * @brief Reads an ASCII or UNICODE text file.
-		 * @param absolutePath
-		 * @return The text the file contains as a std::string.
-		 */
-		static inline std::string ReadAllText(std::filesystem::path absolutePath) {
-			std::fstream textFile{ absolutePath, std::ios::in };
-			std::string fileText{};
-
-			if (textFile.is_open()) {
-				char nextChar = textFile.get();
-
-				while (nextChar >= 0) {
-					fileText += nextChar;
-					nextChar = textFile.get();
-				}
-			}
-			return fileText;
-		}
-	};
 
 	inline void Exit(int errorCode, const char* message) {
 		Logger::Log(message);
@@ -966,21 +1103,6 @@ namespace Engine {
 		}
 	};
 
-	/**
-	 * @brief A queue is an ordered collection of commands that gets passed into a command buffer.
-	 */
-	struct Queue {
-		/**
-		 * @brief Identifier for Vulkan.
-		 */
-		VkQueue _handle;
-
-		/**
-		 * @brief A queue family index enables Vulkan to group queues that serve similar purposes (a.k.a. have the same properties).
-		 */
-		uint32_t _familyIndex;
-	};
-
 	class Image {
 	public:
 		VkImageCreateInfo _createInfo{};
@@ -1000,6 +1122,72 @@ namespace Engine {
 		Image(void* pData, size_t sizeBytes) {
 			_pData = pData;
 			_sizeBytes = sizeBytes;
+		}
+
+		static Image SolidColor(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
+			Image image;
+
+			image._sizeBytes = 4;
+			image._pData = malloc(image._sizeBytes);
+			unsigned char imageData[4] = { r, g, b, a };
+			memcpy(image._pData, imageData, image._sizeBytes);
+
+			auto& imageCreateInfo = image._createInfo;
+			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+			imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+			imageCreateInfo.extent = { 1, 1, 1 };
+			imageCreateInfo.mipLevels = 1;
+			imageCreateInfo.arrayLayers = 1;
+			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+			imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+			vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, &image._image);
+
+			VkMemoryRequirements reqs;
+			vkGetImageMemoryRequirements(logicalDevice, image._image, &reqs);
+
+			VkMemoryAllocateInfo allocInfo{};
+			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+			allocInfo.allocationSize = reqs.size;
+			allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(physicalDevice, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+			VkDeviceMemory mem;
+			vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &mem);
+			vkBindImageMemory(logicalDevice, image._image, mem, 0);
+
+			auto& imageViewCreateInfo = image._viewCreateInfo;
+			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			imageViewCreateInfo.image = image._image;
+			imageViewCreateInfo.format = imageCreateInfo.format;
+			imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+			imageViewCreateInfo.subresourceRange.levelCount = 1;
+			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			imageViewCreateInfo.subresourceRange.layerCount = 1;
+			imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			vkCreateImageView(logicalDevice, &imageViewCreateInfo, nullptr, &image._view);
+
+			auto& samplerCreateInfo = image._samplerCreateInfo;
+			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+			samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+			samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.anisotropyEnable = VK_FALSE;
+			samplerCreateInfo.maxAnisotropy = 1.0f;
+			samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+			samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+			samplerCreateInfo.compareEnable = VK_FALSE;
+			samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+			samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+			samplerCreateInfo.mipLodBias = 0.0f;
+			samplerCreateInfo.minLod = 0.0f;
+			samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
+			vkCreateSampler(logicalDevice, &samplerCreateInfo, nullptr, &image._sampler);
+
+			return image;
 		}
 	};
 
@@ -1038,9 +1226,9 @@ namespace Engine {
 		Material(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice) {
 			_name = "DefaultMaterial";
 
-			_albedo = SolidColorImage(logicalDevice, physicalDevice, 255, 0, 255, 255);
-			_roughness = SolidColorImage(logicalDevice, physicalDevice, 125, 125, 125, 255);
-			_metalness = SolidColorImage(logicalDevice, physicalDevice, 125, 125, 125, 255);
+			_albedo = Image::SolidColor(logicalDevice, physicalDevice, 255, 0, 255, 255);
+			_roughness = Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
+			_metalness = Image::SolidColor(logicalDevice, physicalDevice, 125, 125, 125, 255);
 		}
 	};
 
@@ -1283,7 +1471,7 @@ namespace Engine {
 			// Send the buffer to GPU.
 			buffer._pData = (void*)vertices.data();
 			buffer._sizeBytes = bufferSizeBytes;
-			CopyBufferToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
+			Buffer::CopyToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
 		}
 
 		void CreateIndexBuffer(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, const std::vector<unsigned int>& indices) {
@@ -1308,7 +1496,7 @@ namespace Engine {
 			// TODO: send the buffer to GPU.
 			buffer._pData = (void*)indices.data();
 			buffer._sizeBytes = bufferSizeBytes;
-			CopyBufferToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
+			Buffer::CopyToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
 		}
 
 		/**
@@ -2963,350 +3151,314 @@ namespace Engine {
 
 	// Forward declarations for the compiler.
 	class GameObject;
+	class Scene;
+	class RigidBody;
+	class Mesh;
 
 	/**
-	 * @brief Represents a celeritas-engine scene.
+	 * @brief Represents a physical object in a celeritas-engine scene.
 	 */
-	class Scene : public IVulkanUpdatable, public IPipelineable {
-
+	class GameObject : public IVulkanUpdatable, public IPipelineable, public IDrawable {
 	public:
-		/**
-		 * @brief Collection of point lights.
-		 */
-		std::vector<PointLight> _pointLights;
 
 		/**
-		 * @brief Game object hierarchy.
+		 * @brief Name of the game object.
 		 */
-		GameObject* _pRootGameObject;
+		std::string _name;
 
 		/**
-		 * @brief Collection of materials.
+		 * @brief Pointer to the scene so you can use _materialIndex and _gameObjectIndex from this class.
 		 */
-		std::vector<Material> _materials;
+		Scene* _pScene;
 
 		/**
-		 * @brief Environment map used for image-based lighting.
+		 * @brief Parent game object pointer.
 		 */
-		CubicalEnvironmentMap _environmentMap;
+		GameObject* _pParent = nullptr;
 
 		/**
-		 * @brief Default constructor.
+		 * @brief Child game object pointers.
 		 */
-		Scene() = default;
+		std::vector<GameObject*> _children;
 
-		Scene(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice) {
-			_materials.push_back(Material(logicalDevice, physicalDevice));
-			_pRootGameObject = new GameObject("Root", this);
-		}
+		/**
+		 * @brief Mesh of this game object.
+		 */
+		Mesh* _pMesh = nullptr;
 
-		Material DefaultMaterial() {
-			if (_materials.size() <= 0) {
-				std::cout << "a scene object should always have at least a default material" << std::endl;
-				std::exit(1);
-			}
-			return _materials[0];
-		}
+		/**
+		 * @brief Body for physics simulation.
+		 */
+		RigidBody _body;
 
-		void Update(VulkanContext& vkContext) {
-			for (auto& light : _pointLights) {
-				light.Update(vkContext);
-			}
+		/**
+		 * @brief Transform relative to the parent gameobject.
+		 */
+		Transform _localTransform;
 
-			for (auto& gameObject : _pRootGameObject->_children) {
-				gameObject->Update(vkContext);
-			}
+		struct {
+			glm::mat4x4 transform;
+		} _gameObjectData;
+
+		GameObject() = default;
+
+		GameObject(const std::string& name, Scene* pScene) {
+			_name = name;
+			_pScene = pScene;
 		}
 
 		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
-			for (auto& gameObject : _pRootGameObject->_children) {
-				if (gameObject->_pMesh != nullptr) {
-					auto gameObjectResources = gameObject->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
-					_shaderResources.MergeResources(gameObjectResources);
+			auto descriptorSetID = 1;
+			auto globalTransform = GetWorldSpaceTransform();
+
+			// Create a temporary buffer.
+			Buffer buffer{};
+			auto bufferSizeBytes = sizeof(_localTransform._matrix);
+			buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			buffer._createInfo.size = bufferSizeBytes;
+			buffer._createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+			vkCreateBuffer(logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
+
+			// Allocate memory for the buffer.
+			VkMemoryRequirements requirements{};
+			vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
+			buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+			// Map memory to the correct GPU and CPU ranges for the buffer.
+			vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
+			vkMapMemory(logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
+			memcpy(buffer._cpuMemory, &globalTransform._matrix, bufferSizeBytes);
+
+			_buffers.push_back(buffer);
+
+			VkDescriptorPool descriptorPool{};
+			VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 } };
+			VkDescriptorPoolCreateInfo createInfo = {};
+			createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+			createInfo.maxSets = (uint32_t)1;
+			createInfo.poolSizeCount = (uint32_t)1;
+			createInfo.pPoolSizes = poolSizes;
+			vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
+
+			// Create the descriptor set.
+			VkDescriptorSetAllocateInfo allocInfo = {};
+			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+			allocInfo.descriptorPool = descriptorPool;
+			allocInfo.descriptorSetCount = (uint32_t)1;
+			allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
+			VkDescriptorSet descriptorSet;
+			vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
+
+			// Update the descriptor set's data.
+			VkDescriptorBufferInfo bufferInfo{ buffer._buffer, 0, buffer._createInfo.size };
+			VkWriteDescriptorSet writeInfo = {};
+			writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeInfo.dstSet = descriptorSet;
+			writeInfo.descriptorCount = 1;
+			writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			writeInfo.pBufferInfo = &bufferInfo;
+			writeInfo.dstBinding = 0;
+			vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
+
+			auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
+			_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
+
+			auto meshResources = _pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+			_shaderResources.MergeResources(meshResources);
+
+			for (auto& child : _children) {
+				auto childResources = child->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+			}
+
+			return _shaderResources;
+		}
+
+		Transform GetWorldSpaceTransform() {
+			Transform outTransform;
+			GameObject current = *this;
+			outTransform._matrix *= current._localTransform._matrix;
+			while (current._pParent != nullptr) {
+				current = *current._pParent;
+				outTransform._matrix *= current._localTransform._matrix;
+			}
+			return outTransform;
+		}
+
+		void UpdateShaderResources() {
+			_gameObjectData.transform = GetWorldSpaceTransform()._matrix;
+			memcpy(_buffers[0]._cpuMemory, &_gameObjectData, sizeof(_gameObjectData));
+		}
+
+		void Update(VulkanContext& vkContext) {
+			if (_pMesh != nullptr) {
+				_pMesh->Update(vkContext);
+			}
+
+			UpdateShaderResources();
+
+			for (auto& child : _children) {
+				child->Update(vkContext);
+			}
+		}
+
+		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer) {
+			vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &_shaderResources[1][0], 0, nullptr);
+
+			if (_pMesh != nullptr) {
+				_pMesh->Draw(pipelineLayout, drawCommandBuffer);
+			}
+
+			for (int i = 0; i < _children.size(); ++i) {
+				_children[i]->Draw(pipelineLayout, drawCommandBuffer);
+			}
+		}
+	};
+
+	/**
+	 * @brief Represents a collection of vertices and face indices as triangles.
+	 */
+	class Mesh : public IVulkanUpdatable, public IDrawable, public IPipelineable {
+
+	public:
+
+		Mesh() = default;
+
+		/**
+		 * @brief Index into the materials list in the Scene this mesh belongs to. A scene shoud always have a default material defined at index 0. See the Material and Scene classes.
+		 */
+		int _materialIndex = 0;
+
+		/**
+		 * @brief Index into the game objects list in the Scene this mesh belongs to. See the GameObject and Scene classes.
+		 */
+		GameObject* _pGameObject = nullptr;
+
+		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
+			auto descriptorSetID = 3;
+
+			// Get the textures to send to the shaders.
+			auto pScene = _pGameObject->_pScene;
+			auto defaultMaterial = pScene->DefaultMaterial();
+			Image albedoMap = defaultMaterial._albedo;
+			Image roughnessMap = defaultMaterial._roughness;
+			Image metalnessMap = defaultMaterial._metalness;
+
+			if (_materialIndex >= 0) {
+				if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._albedo._image) {
+					albedoMap = pScene->_materials[_materialIndex]._albedo;
+				}
+				if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._roughness._image) {
+					roughnessMap = pScene->_materials[_materialIndex]._roughness;
+				}
+				if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._metalness._image) {
+					metalnessMap = pScene->_materials[_materialIndex]._metalness;
 				}
 			}
 
-			for (auto& light : _pointLights) {
-				auto lightResources = light.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
-				_shaderResources.MergeResources(lightResources);
-				light.UpdateShaderResources();
+			// Send the textures to the GPU.
+			CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, albedoMap._createInfo.extent.width, albedoMap._createInfo.extent.height, albedoMap._createInfo.extent.depth, albedoMap._pData, albedoMap._sizeBytes);
+			CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, roughnessMap._createInfo.extent.width, roughnessMap._createInfo.extent.height, roughnessMap._createInfo.extent.depth, roughnessMap._pData, roughnessMap._sizeBytes);
+			CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, metalnessMap._createInfo.extent.width, metalnessMap._createInfo.extent.height, metalnessMap._createInfo.extent.depth, metalnessMap._pData, metalnessMap._sizeBytes);
+
+			auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
+			StartRecording(commandBuffer);
+
+			// Transition the images to shader read layout.
+			{
+				VkImageMemoryBarrier barrier{};
+				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+				barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+				barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+				barrier.oldLayout = albedoMap._currentLayout;
+				barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				barrier.image = albedoMap._image;
+				barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
+				albedoMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+				barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+				barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+				barrier.oldLayout = roughnessMap._currentLayout;
+				barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				barrier.image = roughnessMap._image;
+				barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
+				roughnessMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+				barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+				barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+				barrier.oldLayout = metalnessMap._currentLayout;
+				barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				barrier.image = metalnessMap._image;
+				barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
+				metalnessMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 			}
 
-			auto environmentMapResources = _environmentMap.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
-			_shaderResources.MergeResources(environmentMapResources);
+			StopRecording(commandBuffer);
+			ExecuteCommands(commandBuffer, queue);
+
+			_images.push_back(albedoMap);
+			_images.push_back(roughnessMap);
+			_images.push_back(metalnessMap);
+
+			VkDescriptorPool descriptorPool{};
+			VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3 } };
+			VkDescriptorPoolCreateInfo createInfo = {};
+			createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+			createInfo.maxSets = (uint32_t)1;
+			createInfo.poolSizeCount = (uint32_t)1;
+			createInfo.pPoolSizes = poolSizes;
+			vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
+
+			VkDescriptorSetAllocateInfo allocInfo = {};
+			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+			allocInfo.descriptorPool = descriptorPool;
+			allocInfo.descriptorSetCount = (uint32_t)1;
+			allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
+			VkDescriptorSet descriptorSet;
+			vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
+
+			VkDescriptorImageInfo imageInfo[3];
+			imageInfo[0] = { albedoMap._sampler, albedoMap._view, albedoMap._currentLayout };
+			imageInfo[1] = { roughnessMap._sampler, roughnessMap._view, roughnessMap._currentLayout };
+			imageInfo[2] = { metalnessMap._sampler, metalnessMap._view, metalnessMap._currentLayout };
+			VkWriteDescriptorSet writeInfo = {};
+			writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeInfo.dstSet = descriptorSet;
+			writeInfo.descriptorCount = 3;
+			writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			writeInfo.pImageInfo = imageInfo;
+			writeInfo.dstBinding = 0;
+			vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
+
+			auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
+			_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
 			return _shaderResources;
 		}
 
 		void UpdateShaderResources() {
 			// TODO
 		}
-	};
 
-	void CheckResult(VkResult result) {
-		if (result != VK_SUCCESS) {
-			std::string message = "ERROR: code " + std::to_string(result);
-			Exit(result, message.c_str());
-		}
-	}
+		void Update(VulkanContext& vkContext) {
+			auto& vkBuffer = _vertices._vertexBuffer._buffer;
+			auto& vertexData = _vertices._vertexData;
 
-	Image SolidColorImage(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
-		Image image;
-
-		image._sizeBytes = 4;
-		image._pData = malloc(image._sizeBytes);
-		unsigned char imageData[4] = { r, g, b, a };
-		memcpy(image._pData, imageData, image._sizeBytes);
-
-		auto& imageCreateInfo = image._createInfo;
-		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-		imageCreateInfo.extent = { 1, 1, 1 };
-		imageCreateInfo.mipLevels = 1;
-		imageCreateInfo.arrayLayers = 1;
-		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-		vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, &image._image);
-
-		VkMemoryRequirements reqs;
-		vkGetImageMemoryRequirements(logicalDevice, image._image, &reqs);
-
-		VkMemoryAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocInfo.allocationSize = reqs.size;
-		allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(physicalDevice, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-		VkDeviceMemory mem;
-		vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &mem);
-		vkBindImageMemory(logicalDevice, image._image, mem, 0);
-
-		auto& imageViewCreateInfo = image._viewCreateInfo;
-		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		imageViewCreateInfo.image = image._image;
-		imageViewCreateInfo.format = imageCreateInfo.format;
-		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-		imageViewCreateInfo.subresourceRange.levelCount = 1;
-		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-		imageViewCreateInfo.subresourceRange.layerCount = 1;
-		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		vkCreateImageView(logicalDevice, &imageViewCreateInfo, nullptr, &image._view);
-
-		auto& samplerCreateInfo = image._samplerCreateInfo;
-		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-		samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerCreateInfo.anisotropyEnable = VK_FALSE;
-		samplerCreateInfo.maxAnisotropy = 1.0f;
-		samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-		samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-		samplerCreateInfo.compareEnable = VK_FALSE;
-		samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-		samplerCreateInfo.mipLodBias = 0.0f;
-		samplerCreateInfo.minLod = 0.0f;
-		samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
-		vkCreateSampler(logicalDevice, &samplerCreateInfo, nullptr, &image._sampler);
-
-		return image;
-	}
-
-	void CopyBufferToDeviceMemory(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool commandPool, VkQueue queue, VkBuffer buffer, void* pData, size_t sizeBytes) {
-		// Create a temporary buffer.
-		Buffer stagingBuffer{};
-		stagingBuffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		stagingBuffer._createInfo.size = sizeBytes;
-		stagingBuffer._createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		vkCreateBuffer(logicalDevice, &stagingBuffer._createInfo, nullptr, &stagingBuffer._buffer);
-
-		// Allocate memory for the buffer.
-		VkMemoryRequirements requirements{};
-		vkGetBufferMemoryRequirements(logicalDevice, stagingBuffer._buffer, &requirements);
-		stagingBuffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
-		// Map memory to the correct GPU and CPU ranges for the buffer.
-		vkBindBufferMemory(logicalDevice, stagingBuffer._buffer, stagingBuffer._gpuMemory, 0);
-		vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, sizeBytes, 0, &stagingBuffer._cpuMemory);
-		memcpy(stagingBuffer._cpuMemory, pData, sizeBytes);
-
-		auto copyCommandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
-		StartRecording(copyCommandBuffer);
-
-		VkBufferCopy copyRegion = {};
-		copyRegion.size = sizeBytes;
-		vkCmdCopyBuffer(copyCommandBuffer, stagingBuffer._buffer, buffer, 1, &copyRegion);
-
-		StopRecording(copyCommandBuffer);
-		ExecuteCommands(copyCommandBuffer, queue);
-
-		vkFreeCommandBuffers(logicalDevice, commandPool, 1, &copyCommandBuffer);
-		vkDestroyBuffer(logicalDevice, stagingBuffer._buffer, nullptr);
-	}
-
-	void CopyImageToDeviceMemory(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue, VkImage& image, int width, int height, int depth, void* pData, size_t sizeBytes) {
-		// Create a temporary buffer.
-		Buffer stagingBuffer{};
-		stagingBuffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		stagingBuffer._createInfo.size = sizeBytes;
-		stagingBuffer._createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		vkCreateBuffer(logicalDevice, &stagingBuffer._createInfo, nullptr, &stagingBuffer._buffer);
-
-		// Allocate memory for the buffer.
-		VkMemoryRequirements requirements{};
-		vkGetBufferMemoryRequirements(logicalDevice, stagingBuffer._buffer, &requirements);
-		stagingBuffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
-		// Map memory to the correct GPU and CPU ranges for the buffer.
-		vkBindBufferMemory(logicalDevice, stagingBuffer._buffer, stagingBuffer._gpuMemory, 0);
-		vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, sizeBytes, 0, &stagingBuffer._cpuMemory);
-		memcpy(stagingBuffer._cpuMemory, pData, sizeBytes);
-
-		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
-		StartRecording(commandBuffer);
-
-		VkImageMemoryBarrier barrier{};
-		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		barrier.srcAccessMask = VK_ACCESS_NONE;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		barrier.image = image;
-		barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
-		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-		VkBufferImageCopy copyInfo{};
-		copyInfo.bufferImageHeight = height;
-		copyInfo.bufferRowLength = width;
-		copyInfo.imageExtent = { (uint32_t)width, (uint32_t)height, (uint32_t)depth };
-		copyInfo.imageOffset = { 0,0,0 };
-		copyInfo.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-		vkCmdCopyBufferToImage(commandBuffer, stagingBuffer._buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyInfo);
-
-		StopRecording(commandBuffer);
-		ExecuteCommands(commandBuffer, queue);
-
-		vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
-		vkDestroyBuffer(logicalDevice, stagingBuffer._buffer, nullptr);
-	}
-
-	VkCommandPool CreateCommandPool(VkDevice& logicalDevice, int& queueFamilyIndex) {
-		VkCommandPoolCreateInfo poolCreateInfo = {};
-		poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		poolCreateInfo.queueFamilyIndex = queueFamilyIndex;
-		poolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-		VkCommandPool outPool;
-		vkCreateCommandPool(logicalDevice, &poolCreateInfo, nullptr, &outPool);
-		return outPool;
-	}
-
-	int FindQueueFamilyIndex(VkPhysicalDevice& physicalDevice, VkQueueFlagBits queueFlags) {
-		auto queueFamilyProperties = PhysicalDevice::GetAllQueueFamilyProperties(physicalDevice);
-
-		for (uint32_t queueFamilyIndex = 0; queueFamilyIndex < queueFamilyProperties.size(); queueFamilyIndex++) {
-			if (queueFamilyProperties[queueFamilyIndex].queueCount > 0 && queueFamilyProperties[queueFamilyIndex].queueFlags & queueFlags) {
-				return queueFamilyIndex;
-			}
+			// Update the Vulkan-only visible memory that is mapped to the GPU so that the updated data is also visible in the vertex shader.
+			memcpy(_vertices._vertexBuffer._cpuMemory, _vertices._vertexData.data(), GetVectorSizeInBytes(_vertices._vertexData));
 		}
 
-		return -1;
-	}
+		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer) {
+			VkDescriptorSet sets[] = { _shaderResources[3][0] };
+			vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 3, 1, sets, 0, nullptr);
 
-	void StartRecording(VkCommandBuffer& commandBuffer) {
-		VkCommandBufferBeginInfo beginInfo{};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-		vkResetCommandBuffer(commandBuffer, 0);
-		vkBeginCommandBuffer(commandBuffer, &beginInfo);
-	}
-
-	void StopRecording(VkCommandBuffer& commandBuffer) {
-		vkEndCommandBuffer(commandBuffer);
-	}
-
-	void ExecuteCommands(VkCommandBuffer& commandBuffer, VkQueue& queue) {
-		VkSubmitInfo submitInfo{};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandBuffer;
-		vkQueueSubmit(queue, 1, &submitInfo, nullptr);
-		vkQueueWaitIdle(queue);
-	}
-
-	VkCommandBuffer CreateCommandBuffer(VkDevice& logicalDevice, VkCommandPool& commandPool) {
-		VkCommandBufferAllocateInfo cmdBufInfo = {};
-		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cmdBufInfo.commandPool = commandPool;
-		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		cmdBufInfo.commandBufferCount = 1;
-		VkCommandBuffer commandBuffer;
-		vkAllocateCommandBuffers(logicalDevice, &cmdBufInfo, &commandBuffer);
-		return commandBuffer;
-	}
-
-	/**
-	 * @brief Represents a three-dimensional bounding box.
-	 */
-	class BoundingBox {
-	public:
-
-		/**
-		 * @brief Low bound, or more accurately, the position whose components are all the lowest number calculated from a collection of positions.
-		 */
-		glm::vec3 _min;
-
-		/**
-		 * @brief High bound, or more accurately, the position whose components are all the highest number calculated from a collection of positions.
-		 */
-		glm::vec3 _max;
-
-		/**
-		 * @brief Returns the center of the bounding box.
-		 */
-		glm::vec3 GetCenter();
-
-		/**
-		 * @brief Creates a bounding box from a visual mesh.
-		 */
-		static BoundingBox Create(const Mesh& mesh);
-
-		glm::vec3 GetCenter() {
-			return glm::vec3((_min.x + _max.x) * 0.5f, (_min.y + _max.y) * 0.5f, (_min.z + _max.z) * 0.5f);
-		}
-
-		BoundingBox Create(const Mesh& mesh) {
-			auto& vertices = mesh._vertices._vertexData;
-			BoundingBox boundingBox;
-
-			if (vertices.size() <= 0) {
-				return boundingBox;
-			}
-
-			float minimumX = vertices[0]._position.x;
-			float minimumY = vertices[0]._position.y;
-			float minimumZ = vertices[0]._position.z;
-
-			float maximumX = minimumX;
-			float maximumY = minimumY;
-			float maximumZ = minimumZ;
-
-			for (int i = 0; i < vertices.size(); ++i) {
-				minimumX = std::min(minimumX, vertices[i]._position.x);
-				minimumY = std::min(minimumY, vertices[i]._position.y);
-				minimumZ = std::min(minimumZ, vertices[i]._position.z);
-
-				maximumX = std::max(maximumX, vertices[i]._position.x);
-				maximumY = std::max(maximumY, vertices[i]._position.y);
-				maximumZ = std::max(maximumZ, vertices[i]._position.z);
-			}
-
-			boundingBox._min = glm::vec3(minimumX, minimumY, minimumZ);
-			boundingBox._max = glm::vec3(maximumX, maximumY, maximumZ);
-
-			return boundingBox;
+			VkDeviceSize offset = 0;
+			vkCmdBindVertexBuffers(drawCommandBuffer, 0, 1, &_vertices._vertexBuffer._buffer, &offset);
+			vkCmdBindIndexBuffer(drawCommandBuffer, _faceIndices._indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdDrawIndexed(drawCommandBuffer, (uint32_t)_faceIndices._indexData.size(), 1, 0, 0, 0);
 		}
 	};
 
@@ -3404,11 +3556,6 @@ namespace Engine {
 		  * @brief Constructor.
 		  */
 		RigidBody() = default;
-
-		/**
-		 * @brief Returns the center of mass based on the position of each of its vertices in local space.
-		 */
-		glm::vec3 GetCenterOfMass();
 
 		/*inline std::ostream& operator<< (std::ostream& stream, const glm::vec3& vector)
 		{
@@ -3625,177 +3772,153 @@ namespace Engine {
 			_mesh._pMesh->_pGameObject->_localTransform.RotateAroundPosition(GetCenterOfMass(), glm::normalize(_angularVelocity), glm::length(_angularVelocity) * deltaTimeSeconds);
 			_mesh._pMesh->_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
 		}
-
-	private:
-
-		/**
-		 * @brief Calculates the force that "force" transmits to "receiverPosition" from "transmitterPosition".
-		 * Imagine a microscopic scenario where a molecule M1 has an unbreakable bond to another molecule M2.
-		 * As soon as M1 moves, it will transmit some force (depending on the direction of movement) to molecule M2.
-		 * In this scenario, "transmitterPosition" is the position of M1, "force" represents the movement of M1, and "receiverPosition"
-		 * represents M2's position. This function calculates the movement of M2 caused by the movement of M1.
-		 */
-		glm::vec3 CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition);
 	};
 
-	class Mesh;
-
 	/**
-	 * @brief Represents a physical object in a celeritas-engine scene.
+	 * @brief Represents a celeritas-engine scene.
 	 */
-	class GameObject : public IVulkanUpdatable, public IPipelineable, public IDrawable {
+	class Scene : public IVulkanUpdatable, public IPipelineable {
+
 	public:
+		/**
+		 * @brief Collection of point lights.
+		 */
+		std::vector<PointLight> _pointLights;
 
 		/**
-		 * @brief Name of the game object.
+		 * @brief Game object hierarchy.
 		 */
-		std::string _name;
+		GameObject* _pRootGameObject;
 
 		/**
-		 * @brief Pointer to the scene so you can use _materialIndex and _gameObjectIndex from this class.
+		 * @brief Collection of materials.
 		 */
-		Scene* _pScene;
+		std::vector<Material> _materials;
 
 		/**
-		 * @brief Parent game object pointer.
+		 * @brief Environment map used for image-based lighting.
 		 */
-		GameObject* _pParent = nullptr;
+		CubicalEnvironmentMap _environmentMap;
 
 		/**
-		 * @brief Child game object pointers.
+		 * @brief Default constructor.
 		 */
-		std::vector<GameObject*> _children;
+		Scene() = default;
 
-		/**
-		 * @brief Mesh of this game object.
-		 */
-		Mesh* _pMesh = nullptr;
-
-		/**
-		 * @brief Body for physics simulation.
-		 */
-		RigidBody _body;
-
-		/**
-		 * @brief Transform relative to the parent gameobject.
-		 */
-		Transform _localTransform;
-
-		struct {
-			glm::mat4x4 transform;
-		} _gameObjectData;
-
-		GameObject() = default;
-
-		GameObject(const std::string& name, Scene* pScene) {
-			_name = name;
-			_pScene = pScene;
+		Scene(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice) {
+			_materials.push_back(Material(logicalDevice, physicalDevice));
+			_pRootGameObject = new GameObject("Root", this);
 		}
 
-		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
-			auto descriptorSetID = 1;
-			auto globalTransform = GetWorldSpaceTransform();
-
-			// Create a temporary buffer.
-			Buffer buffer{};
-			auto bufferSizeBytes = sizeof(_localTransform._matrix);
-			buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-			buffer._createInfo.size = bufferSizeBytes;
-			buffer._createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-			vkCreateBuffer(logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
-
-			// Allocate memory for the buffer.
-			VkMemoryRequirements requirements{};
-			vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
-			buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
-			// Map memory to the correct GPU and CPU ranges for the buffer.
-			vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
-			vkMapMemory(logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
-			memcpy(buffer._cpuMemory, &globalTransform._matrix, bufferSizeBytes);
-
-			_buffers.push_back(buffer);
-
-			VkDescriptorPool descriptorPool{};
-			VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 } };
-			VkDescriptorPoolCreateInfo createInfo = {};
-			createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-			createInfo.maxSets = (uint32_t)1;
-			createInfo.poolSizeCount = (uint32_t)1;
-			createInfo.pPoolSizes = poolSizes;
-			vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
-
-			// Create the descriptor set.
-			VkDescriptorSetAllocateInfo allocInfo = {};
-			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-			allocInfo.descriptorPool = descriptorPool;
-			allocInfo.descriptorSetCount = (uint32_t)1;
-			allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
-			VkDescriptorSet descriptorSet;
-			vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
-
-			// Update the descriptor set's data.
-			VkDescriptorBufferInfo bufferInfo{ buffer._buffer, 0, buffer._createInfo.size };
-			VkWriteDescriptorSet writeInfo = {};
-			writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeInfo.dstSet = descriptorSet;
-			writeInfo.descriptorCount = 1;
-			writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			writeInfo.pBufferInfo = &bufferInfo;
-			writeInfo.dstBinding = 0;
-			vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
-
-			auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
-			_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
-
-			auto meshResources = _pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
-			_shaderResources.MergeResources(meshResources);
-
-			for (auto& child : _children) {
-				auto childResources = child->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+		Material DefaultMaterial() {
+			if (_materials.size() <= 0) {
+				std::cout << "a scene object should always have at least a default material" << std::endl;
+				std::exit(1);
 			}
-
-			return _shaderResources;
-		}
-
-		Transform GetWorldSpaceTransform() {
-			Transform outTransform;
-			GameObject current = *this;
-			outTransform._matrix *= current._localTransform._matrix;
-			while (current._pParent != nullptr) {
-				current = *current._pParent;
-				outTransform._matrix *= current._localTransform._matrix;
-			}
-			return outTransform;
-		}
-
-		void UpdateShaderResources() {
-			_gameObjectData.transform = GetWorldSpaceTransform()._matrix;
-			memcpy(_buffers[0]._cpuMemory, &_gameObjectData, sizeof(_gameObjectData));
+			return _materials[0];
 		}
 
 		void Update(VulkanContext& vkContext) {
-			if (_pMesh != nullptr) {
-				_pMesh->Update(vkContext);
+			for (auto& light : _pointLights) {
+				light.Update(vkContext);
 			}
 
-			UpdateShaderResources();
-
-			for (auto& child : _children) {
-				child->Update(vkContext);
+			for (auto& gameObject : _pRootGameObject->_children) {
+				gameObject->Update(vkContext);
 			}
 		}
 
-		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer) {
-			vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &_shaderResources[1][0], 0, nullptr);
-
-			if (_pMesh != nullptr) {
-				_pMesh->Draw(pipelineLayout, drawCommandBuffer);
+		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
+			for (auto& gameObject : _pRootGameObject->_children) {
+				if (gameObject->_pMesh != nullptr) {
+					auto gameObjectResources = gameObject->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+					_shaderResources.MergeResources(gameObjectResources);
+				}
 			}
 
-			for (int i = 0; i < _children.size(); ++i) {
-				_children[i]->Draw(pipelineLayout, drawCommandBuffer);
+			for (auto& light : _pointLights) {
+				auto lightResources = light.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+				_shaderResources.MergeResources(lightResources);
+				light.UpdateShaderResources();
 			}
+
+			auto environmentMapResources = _environmentMap.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+			_shaderResources.MergeResources(environmentMapResources);
+			return _shaderResources;
+		}
+
+		void UpdateShaderResources() {
+			// TODO
+		}
+	};
+
+	void CheckResult(VkResult result) {
+		if (result != VK_SUCCESS) {
+			std::string message = "ERROR: code " + std::to_string(result);
+			Exit(result, message.c_str());
+		}
+	}
+
+	/**
+	 * @brief Represents a three-dimensional bounding box.
+	 */
+	class BoundingBox {
+	public:
+
+		/**
+		 * @brief Low bound, or more accurately, the position whose components are all the lowest number calculated from a collection of positions.
+		 */
+		glm::vec3 _min;
+
+		/**
+		 * @brief High bound, or more accurately, the position whose components are all the highest number calculated from a collection of positions.
+		 */
+		glm::vec3 _max;
+
+		/**
+		 * @brief Returns the center of the bounding box.
+		 */
+		glm::vec3 GetCenter();
+
+		/**
+		 * @brief Creates a bounding box from a visual mesh.
+		 */
+		static BoundingBox Create(const Mesh& mesh);
+
+		glm::vec3 GetCenter() {
+			return glm::vec3((_min.x + _max.x) * 0.5f, (_min.y + _max.y) * 0.5f, (_min.z + _max.z) * 0.5f);
+		}
+
+		BoundingBox Create(const Mesh& mesh) {
+			auto& vertices = mesh._vertices._vertexData;
+			BoundingBox boundingBox;
+
+			if (vertices.size() <= 0) {
+				return boundingBox;
+			}
+
+			float minimumX = vertices[0]._position.x;
+			float minimumY = vertices[0]._position.y;
+			float minimumZ = vertices[0]._position.z;
+
+			float maximumX = minimumX;
+			float maximumY = minimumY;
+			float maximumZ = minimumZ;
+
+			for (int i = 0; i < vertices.size(); ++i) {
+				minimumX = std::min(minimumX, vertices[i]._position.x);
+				minimumY = std::min(minimumY, vertices[i]._position.y);
+				minimumZ = std::min(minimumZ, vertices[i]._position.z);
+
+				maximumX = std::max(maximumX, vertices[i]._position.x);
+				maximumY = std::max(maximumY, vertices[i]._position.y);
+				maximumZ = std::max(maximumZ, vertices[i]._position.z);
+			}
+
+			boundingBox._min = glm::vec3(minimumX, minimumY, minimumZ);
+			boundingBox._max = glm::vec3(maximumX, maximumY, maximumZ);
+
+			return boundingBox;
 		}
 	};
 
@@ -4028,154 +4151,6 @@ namespace Engine {
 			_lastScrollY = (float)input._scrollY;
 
 			UpdateShaderResources();
-		}
-	};
-
-	/**
-	 * @brief Represents a collection of vertices and face indices as triangles.
-	 */
-	class Mesh : public IVulkanUpdatable, public IDrawable, public IPipelineable {
-
-	public:
-
-		Mesh() = default;
-
-		/**
-		 * @brief Index into the materials list in the Scene this mesh belongs to. A scene shoud always have a default material defined at index 0. See the Material and Scene classes.
-		 */
-		int _materialIndex = 0;
-
-		/**
-		 * @brief Index into the game objects list in the Scene this mesh belongs to. See the GameObject and Scene classes.
-		 */
-		GameObject* _pGameObject = nullptr;
-
-		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
-			auto descriptorSetID = 3;
-
-			// Get the textures to send to the shaders.
-			auto pScene = _pGameObject->_pScene;
-			auto defaultMaterial = pScene->DefaultMaterial();
-			Image albedoMap = defaultMaterial._albedo;
-			Image roughnessMap = defaultMaterial._roughness;
-			Image metalnessMap = defaultMaterial._metalness;
-
-			if (_materialIndex >= 0) {
-				if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._albedo._image) {
-					albedoMap = pScene->_materials[_materialIndex]._albedo;
-				}
-				if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._roughness._image) {
-					roughnessMap = pScene->_materials[_materialIndex]._roughness;
-				}
-				if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._metalness._image) {
-					metalnessMap = pScene->_materials[_materialIndex]._metalness;
-				}
-			}
-
-			// Send the textures to the GPU.
-			CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, albedoMap._createInfo.extent.width, albedoMap._createInfo.extent.height, albedoMap._createInfo.extent.depth, albedoMap._pData, albedoMap._sizeBytes);
-			CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, roughnessMap._createInfo.extent.width, roughnessMap._createInfo.extent.height, roughnessMap._createInfo.extent.depth, roughnessMap._pData, roughnessMap._sizeBytes);
-			CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, metalnessMap._createInfo.extent.width, metalnessMap._createInfo.extent.height, metalnessMap._createInfo.extent.depth, metalnessMap._pData, metalnessMap._sizeBytes);
-
-			auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
-			StartRecording(commandBuffer);
-
-			// Transition the images to shader read layout.
-			{
-				VkImageMemoryBarrier barrier{};
-				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-				barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-				barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-				barrier.oldLayout = albedoMap._currentLayout;
-				barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				barrier.image = albedoMap._image;
-				barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
-				albedoMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-				barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-				barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-				barrier.oldLayout = roughnessMap._currentLayout;
-				barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				barrier.image = roughnessMap._image;
-				barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
-				roughnessMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-				barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-				barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-				barrier.oldLayout = metalnessMap._currentLayout;
-				barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				barrier.image = metalnessMap._image;
-				barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
-				metalnessMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-			}
-
-			StopRecording(commandBuffer);
-			ExecuteCommands(commandBuffer, queue);
-
-			_images.push_back(albedoMap);
-			_images.push_back(roughnessMap);
-			_images.push_back(metalnessMap);
-
-			VkDescriptorPool descriptorPool{};
-			VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3 } };
-			VkDescriptorPoolCreateInfo createInfo = {};
-			createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-			createInfo.maxSets = (uint32_t)1;
-			createInfo.poolSizeCount = (uint32_t)1;
-			createInfo.pPoolSizes = poolSizes;
-			vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
-
-			VkDescriptorSetAllocateInfo allocInfo = {};
-			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-			allocInfo.descriptorPool = descriptorPool;
-			allocInfo.descriptorSetCount = (uint32_t)1;
-			allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
-			VkDescriptorSet descriptorSet;
-			vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
-
-			VkDescriptorImageInfo imageInfo[3];
-			imageInfo[0] = { albedoMap._sampler, albedoMap._view, albedoMap._currentLayout };
-			imageInfo[1] = { roughnessMap._sampler, roughnessMap._view, roughnessMap._currentLayout };
-			imageInfo[2] = { metalnessMap._sampler, metalnessMap._view, metalnessMap._currentLayout };
-			VkWriteDescriptorSet writeInfo = {};
-			writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeInfo.dstSet = descriptorSet;
-			writeInfo.descriptorCount = 3;
-			writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			writeInfo.pImageInfo = imageInfo;
-			writeInfo.dstBinding = 0;
-			vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
-
-			auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
-			_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
-			return _shaderResources;
-		}
-
-		void UpdateShaderResources() {
-			// TODO
-		}
-
-		void Update(VulkanContext& vkContext) {
-			auto& vkBuffer = _vertices._vertexBuffer._buffer;
-			auto& vertexData = _vertices._vertexData;
-
-			// Update the Vulkan-only visible memory that is mapped to the GPU so that the updated data is also visible in the vertex shader.
-			memcpy(_vertices._vertexBuffer._cpuMemory, _vertices._vertexData.data(), GetVectorSizeInBytes(_vertices._vertexData));
-		}
-
-		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer) {
-			VkDescriptorSet sets[] = { _shaderResources[3][0] };
-			vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 3, 1, sets, 0, nullptr);
-
-			VkDeviceSize offset = 0;
-			vkCmdBindVertexBuffers(drawCommandBuffer, 0, 1, &_vertices._vertexBuffer._buffer, &offset);
-			vkCmdBindIndexBuffer(drawCommandBuffer, _faceIndices._indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(drawCommandBuffer, (uint32_t)_faceIndices._indexData.size(), 1, 0, 0, 0);
 		}
 	};
 
