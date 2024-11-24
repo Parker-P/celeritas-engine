@@ -19,11 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\engine\vulkan\VulkanApplication.cpp" />
-    <ClCompile Include="src\game\scripts\CollisionTest.cpp" />
     <ClCompile Include="src\Main.cpp" />
-    <ClCompile Include="src\game\input\KeyBinds.cpp" />
-    <ClCompile Include="src\engine\Time.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Includes.hpp" />
@@ -77,11 +73,7 @@
     <ClInclude Include="include\stb\stb_image_write.h" />
     <ClInclude Include="include\LocalDependencies.hpp" />
     <ClInclude Include="include\tinygltf\tiny_gltf.h" />
-    <ClInclude Include="src\game\scripts\CollisionTest.hpp" />
-    <ClInclude Include="src\game\input\KeyBinds.hpp" />
-    <ClInclude Include="src\engine\Time.hpp" />
     <ClInclude Include="include\stb\stb_image.h" />
-    <ClInclude Include="src\engine\vulkan\VulkanApplication.hpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
