@@ -24,61 +24,7 @@ namespace Engine::Scenes
 
 	public:
 
-		/**
-		 * @brief Front face data, including all mipmaps.
-		 */
-		std::vector<std::vector<unsigned char>> _front;
-
-		/**
-		 * @brief Right face data, including all mipmaps.
-		 */
-		std::vector<std::vector<unsigned char>> _right;
-
-		/**
-		 * @brief Back face data, including all mipmaps.
-		 */
-		std::vector<std::vector<unsigned char>> _back;
-
-		/**
-		 * @brief Left face data, including all mipmaps.
-		 */
-		std::vector<std::vector<unsigned char>> _left;
-
-		/**
-		 * @brief Upper face data, including all mipmaps.
-		 */
-		std::vector<std::vector<unsigned char>> _upper;
-
-		/**
-		 * @brief Lower face data, including all mipmaps.
-		 */
-		std::vector<std::vector<unsigned char>> _lower;
-
-		/**
-		 * @brief Data loaded from the HDRi image file.
-		 */
-		std::vector<std::vector<unsigned char>> _hdriImageData;
-
-		/**
-		 * @brief Width and height of the loaded HDRi image.
-		 */
-		VkExtent2D _hdriSizePixels{};
-
-		/**
-		 * @brief Width and height of each face's image.
-		 */
-		int _faceSizePixels = 0;
-
-		/**
-		 * @brief Vulkan handle to the cube map image used in the shaders. This image is meant to contain all the cube map's images as a serialized array of pixels.
-		 * In order to know where, in the array of pixels, each image starts/ends and what format it's in, a sampler and image view are used.
-		 */
-		Vulkan::Image _cubeMapImage{ nullptr, 0 };
-
-		/**
-		 * @brief Number of mipmaps. This is dynamically caluclated.
-		 */
-		int _mipmapCount = 0;
+		
 
 		/**
 		 * @brief Default constructor.

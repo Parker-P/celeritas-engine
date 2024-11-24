@@ -11,82 +11,122 @@ namespace Engine::Scenes
 	{
 	public:
 
-		/**
-		 * @brief Default constructor.
-		 */
-		GameObject() = default;
-
-		/**
-		 * @brief Constructor.
-		 * @param name Name of the game object.
-		 * @param pScene Scene the game object belongs to.
-		 */
-		GameObject(const std::string& name, Scene* pScene);
-
-		/**
-		 * @brief Name of the game object.
-		 */
-		std::string _name;
-
-		/**
-		 * @brief Pointer to the scene so you can use _materialIndex and _gameObjectIndex from this class.
-		 */
-		Scenes::Scene* _pScene;
-
-		/**
-		 * @brief Parent game object pointer.
-		 */
-		GameObject* _pParent = nullptr;
-
-		/**
-		 * @brief Child game object pointers.
-		 */
-		std::vector<GameObject*> _children;
-
-		/**
-		 * @brief Mesh of this game object.
-		 */
-		Mesh* _pMesh = nullptr;
-
-		/**
-		 * @brief Body for physics simulation.
-		 */
-		Physics::RigidBody _body;
-
-		/**
-		 * @brief Transform relative to the parent gameobject.
-		 */
-		Math::Transform _localTransform;
-
-		struct
+		GameObject::GameObject(const std::string& name, Scene* pScene)
 		{
-			glm::mat4x4 transform;
-		} _gameObjectData;
+			_name = name;
+			_pScene = pScene;
+		}
 
-		/**
-		 * @brief See IPipelinable.
-		 */
-		virtual Vulkan::ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts) override;
+		Vulkan::ShaderResources GameObject::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
+		{
+			auto descriptorSetID = 1;
+			auto globalTransform = GetWorldSpaceTransform();
 
-		/**
-		 * @brief Calculates the world space transform based on the hierarchy of parents.
-		 * @return 
-		 */
-		Math::Transform GetWorldSpaceTransform();
+			// Create a temporary buffer.
+			Buffer buffer{};
+			auto bufferSizeBytes = sizeof(_localTransform._matrix);
+			buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			buffer._createInfo.size = bufferSizeBytes;
+			buffer._createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+			vkCreateBuffer(logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
 
-		/**
-		 * @brief See IPipelinable.
-		 */
-		virtual void UpdateShaderResources() override;
+			// Allocate memory for the buffer.
+			VkMemoryRequirements requirements{};
+			vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
+			buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-		/**
-		 * @brief Updates per-frame game-object-related information.
-		 */
-		virtual void Update(VulkanContext& vkContext) override;
+			// Map memory to the correct GPU and CPU ranges for the buffer.
+			vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
+			vkMapMemory(logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
+			memcpy(buffer._cpuMemory, &globalTransform._matrix, bufferSizeBytes);
 
-		/**
-		 * @brief See IDrawable.
-		 */
-		virtual void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer) override;
+			_buffers.push_back(buffer);
+
+			VkDescriptorPool descriptorPool{};
+			VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 } };
+			VkDescriptorPoolCreateInfo createInfo = {};
+			createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+			createInfo.maxSets = (uint32_t)1;
+			createInfo.poolSizeCount = (uint32_t)1;
+			createInfo.pPoolSizes = poolSizes;
+			vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
+
+			// Create the descriptor set.
+			VkDescriptorSetAllocateInfo allocInfo = {};
+			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+			allocInfo.descriptorPool = descriptorPool;
+			allocInfo.descriptorSetCount = (uint32_t)1;
+			allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
+			VkDescriptorSet descriptorSet;
+			vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
+
+			// Update the descriptor set's data.
+			VkDescriptorBufferInfo bufferInfo{ buffer._buffer, 0, buffer._createInfo.size };
+			VkWriteDescriptorSet writeInfo = {};
+			writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeInfo.dstSet = descriptorSet;
+			writeInfo.descriptorCount = 1;
+			writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			writeInfo.pBufferInfo = &bufferInfo;
+			writeInfo.dstBinding = 0;
+			vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
+
+			auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
+			_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
+
+			auto meshResources = _pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+			_shaderResources.MergeResources(meshResources);
+
+			for (auto& child : _children) {
+				auto childResources = child->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+			}
+
+			return _shaderResources;
+		}
+
+
+		Math::Transform GameObject::GetWorldSpaceTransform()
+		{
+			Math::Transform outTransform;
+			GameObject current = *this;
+			outTransform._matrix *= current._localTransform._matrix;
+			while (current._pParent != nullptr) {
+				current = *current._pParent;
+				outTransform._matrix *= current._localTransform._matrix;
+			}
+			return outTransform;
+		}
+
+		void GameObject::UpdateShaderResources()
+		{
+			_gameObjectData.transform = GetWorldSpaceTransform()._matrix;
+			memcpy(_buffers[0]._cpuMemory, &_gameObjectData, sizeof(_gameObjectData));
+		}
+
+		void GameObject::Update(VulkanContext& vkContext)
+		{
+			if (_pMesh != nullptr) {
+				_pMesh->Update(vkContext);
+			}
+
+			UpdateShaderResources();
+
+			for (auto& child : _children) {
+				child->Update(vkContext);
+			}
+		}
+
+		void GameObject::Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer)
+		{
+			vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &_shaderResources[1][0], 0, nullptr);
+
+			if (_pMesh != nullptr) {
+				_pMesh->Draw(pipelineLayout, drawCommandBuffer);
+			}
+
+			for (int i = 0; i < _children.size(); ++i) {
+				_children[i]->Draw(pipelineLayout, drawCommandBuffer);
+			}
+		}
 	};
 }

@@ -18,6 +18,11 @@ namespace Engine::Vulkan
 		size_t _sizeBytes = 0;
 
 		Image() = default;
-		Image(void* pData, size_t sizeBytes);
+
+		Engine::Vulkan::Image::Image(void* pData, size_t sizeBytes)
+		{
+			_pData = pData;
+			_sizeBytes = sizeBytes;
+		}
 	};
 }

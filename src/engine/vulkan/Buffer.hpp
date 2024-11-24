@@ -31,6 +31,11 @@ namespace Engine::Vulkan
 		size_t _sizeBytes = 0;
 
 		Buffer() = default;
-		Buffer(void* pData, size_t sizeBytes);
+
+		Buffer(void* pData, size_t sizeBytes)
+		{
+			_pData = pData;
+			_sizeBytes = sizeBytes;
+		}
 	};
 }

@@ -37,31 +37,55 @@ namespace Engine::Scenes
 		 */
 		Scene() = default;
 
-		/**
-		 * @brief Creates a scene with a default material.
-		 * @param logicalDevice
-		 * @param physicalDevice
-		 */
-		Scene(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice);
+		Scene::Scene(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice)
+		{
+			_materials.push_back(Material(logicalDevice, physicalDevice));
+			_pRootGameObject = new GameObject("Root", this);
+		}
 
-		/**
-		 * @brief Returns the default material in the scene, which is always stored as the first material in the _materials vector.
-		 */
-		Material DefaultMaterial();
+		Material Scene::DefaultMaterial()
+		{
+			if (_materials.size() <= 0) {
+				std::cout << "a scene object should always have at least a default material" << std::endl;
+				std::exit(1);
+			}
+			return _materials[0];
+		}
 
-		/**
-		 * @brief Updates all scene-related data.
-		 */
-		virtual void Update(VulkanContext& vkContext) override;
+		void Scene::Update(VulkanContext& vkContext)
+		{
+			for (auto& light : _pointLights) {
+				light.Update(vkContext);
+			}
 
-		/**
-		 * @brief See IPipelinable.
-		 */
-		Vulkan::ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts);
+			for (auto& gameObject : _pRootGameObject->_children) {
+				gameObject->Update(vkContext);
+			}
+		}
 
-		/**
-		 * @brief See IPipelinable.
-		 */
-		void UpdateShaderResources();
+		Vulkan::ShaderResources Scene::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<Vulkan::DescriptorSetLayout>& layouts)
+		{
+			for (auto& gameObject : _pRootGameObject->_children) {
+				if (gameObject->_pMesh != nullptr) {
+					auto gameObjectResources = gameObject->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+					_shaderResources.MergeResources(gameObjectResources);
+				}
+			}
+
+			for (auto& light : _pointLights) {
+				auto lightResources = light.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+				_shaderResources.MergeResources(lightResources);
+				light.UpdateShaderResources();
+			}
+
+			auto environmentMapResources = _environmentMap.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+			_shaderResources.MergeResources(environmentMapResources);
+			return _shaderResources;
+		}
+
+		void Scene::UpdateShaderResources()
+		{
+			// TODO
+		}
 	};
 }

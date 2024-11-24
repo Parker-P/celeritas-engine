@@ -35,9 +35,13 @@ namespace Engine::Scenes
 		 */
 		Material() = default;
 
-		/**
-		 * @brief Constructor for a default material. Creates a material named "DefaultMaterial".
-		 */
-		Material(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice);
+		Material::Material(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice)
+		{
+			_name = "DefaultMaterial";
+
+			_albedo = SolidColorImage(logicalDevice, physicalDevice, 255, 0, 255, 255);
+			_roughness = SolidColorImage(logicalDevice, physicalDevice, 125, 125, 125, 255);
+			_metalness = SolidColorImage(logicalDevice, physicalDevice, 125, 125, 125, 255);
+		}
 	};
 }

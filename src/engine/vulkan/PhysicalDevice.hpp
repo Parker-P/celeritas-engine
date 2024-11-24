@@ -25,68 +25,147 @@ namespace Engine::Vulkan
          * buffer from the GPU while the buffer is marked HOST_CACHED, you may not be able to get the data or even worse, you may end up reading the wrong chunk of memory.
          * Further read: https://asawicki.info/news_1740_vulkan_memory_types_on_pc_and_how_to_use_them
 		 */
-		static VkDeviceMemory AllocateMemory(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, const VkMemoryRequirements& memoryRequirements, const VkMemoryPropertyFlagBits& memoryType);
+		VkDeviceMemory PhysicalDevice::AllocateMemory(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, const VkMemoryRequirements& memoryRequirements, const VkMemoryPropertyFlagBits& memoryType)
+		{
+			VkMemoryAllocateInfo allocInfo{};
+			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+			allocInfo.allocationSize = memoryRequirements.size;
+			allocInfo.memoryTypeIndex = GetMemoryTypeIndex(physicalDevice, memoryRequirements.memoryTypeBits, memoryType);
 
-		/**
-		 * @brief Queries the device for swapchain support, returns true if swapchains are supported.
-		 * @return
-		 */
-		static bool SupportsSwapchains(VkPhysicalDevice& physicalDevice);
+			VkDeviceMemory handleToAllocatedMemory;
 
-		/**
-		 * @brief Queries the device for surface support for the given queue family and surface.
-		 * @return True if the queue family can contain command buffers which contain commands that will draw
-		 * to the given surface.
-		 */
-		static bool SupportsSurface(VkPhysicalDevice& physicalDevice, int& queueFamilyIndex, VkSurfaceKHR& surface);
+			if (vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &handleToAllocatedMemory) != VK_SUCCESS) {
+				std::cout << "failed allocating memory of size " << allocInfo.allocationSize << std::endl;
+				std::exit(-1);
+			}
 
-		/**
-		 * @brief Queries the physical device to get its memory properties.
-		 * @return
-		 */
-		static VkPhysicalDeviceMemoryProperties GetMemoryProperties(VkPhysicalDevice& physicalDevice);
+			return handleToAllocatedMemory;
+		}
 
-		/**
-		 * @brief Returns the memory type index that Vulkan needs to categorize memory by usage properties.
-		 * Vulkan uses this type index to tell the driver in which portion RAM or VRAM to allocate
-		 * a resource such as an image or buffer.
-		 */
-		static uint32_t GetMemoryTypeIndex(VkPhysicalDevice& physicalDevice, uint32_t typeBits, VkMemoryPropertyFlagBits properties);
+		bool PhysicalDevice::SupportsSwapchains(VkPhysicalDevice& physicalDevice)
+		{
+			uint32_t extensionCount = 0;
+			vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, nullptr);
 
-		/**
-		 * @brief Queries the physical device for queue families, and returns a vector containing
-		 * the properties of all supported queue families.
-		 * @return
-		 */
-		static std::vector<VkQueueFamilyProperties> GetAllQueueFamilyProperties(VkPhysicalDevice& physicalDevice);
+			if (extensionCount == 0) {
+				std::cerr << "physical device doesn't support any extensions" << std::endl;
+				exit(1);
+			}
 
-		/**
-		 * @brief Gets specific queue families that have the given flags set, and that optionally support presentation to a window surface.
-		 * @param queueType The flags that identify the properties of the queues you are looking for. See @see VkQueueFlagBits.
-		 * @param presentSupport Whether or not the queues you want to find need to support presenting to a window surface or not.
-		 * @param surface
-		 */
-		static void GetQueueFamilyIndices(VkPhysicalDevice& physicalDevice, const VkQueueFlagBits& queueFlags, bool needsPresentationSupport = false, const VkSurfaceKHR& surface = VK_NULL_HANDLE);
+			std::vector<VkExtensionProperties> deviceExtensions(extensionCount);
+			vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, deviceExtensions.data());
 
-		/**
-		 * @brief Returns a structure that encapsulates the capabilities of the window surface.
-		 * @param surface The window surface you want to check against.
-		 * @return
-		 */
-		static VkSurfaceCapabilitiesKHR GetSurfaceCapabilities(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface);
+			for (const auto& extension : deviceExtensions) {
+				if (strcmp(extension.extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0) {
+					std::cout << "physical device supports swap chains" << std::endl;
+					return true;
+				}
+			}
 
-		/**
-		 * @brief Returns supported image formats for the given window surface.
-		 * @param windowSurface
-		 * @return
-		 */
-		static std::vector<VkSurfaceFormatKHR> GetSupportedFormatsForSurface(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface);
+			return false;
+		}
 
-		/**
-		 * @brief Returns supported present modes for the given window surface.
-		 * A present mode is the logic according to which framebuffer contents will be drawn to and
-		 * presented to the window, for example the mailbox present mode in Vulkan (triple buffering).
-		 */
-		static std::vector<VkPresentModeKHR> GetSupportedPresentModesForSurface(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface);
+		bool PhysicalDevice::SupportsSurface(VkPhysicalDevice& physicalDevice, int& queueFamilyIndex, VkSurfaceKHR& surface)
+		{
+			VkBool32 presentSupport = false;
+			vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, queueFamilyIndex, surface, &presentSupport);
+			return presentSupport == 0 ? false : true;
+		}
+
+		VkPhysicalDeviceMemoryProperties PhysicalDevice::GetMemoryProperties(VkPhysicalDevice& physicalDevice)
+		{
+			VkPhysicalDeviceMemoryProperties props;
+			vkGetPhysicalDeviceMemoryProperties(physicalDevice, &props);
+			return props;
+		}
+
+		uint32_t PhysicalDevice::GetMemoryTypeIndex(VkPhysicalDevice& physicalDevice, uint32_t typeBits, VkMemoryPropertyFlagBits properties)
+		{
+			auto props = GetMemoryProperties(physicalDevice);
+
+			for (uint32_t i = 0; i < 32; i++) {
+				if ((typeBits & 1) == 1) {
+					if ((props.memoryTypes[i].propertyFlags & properties) == properties) {
+						return i;
+					}
+				}
+				typeBits >>= 1;
+			}
+
+			return -1;
+		}
+
+		std::vector<VkQueueFamilyProperties> PhysicalDevice::GetAllQueueFamilyProperties(VkPhysicalDevice& physicalDevice)
+		{
+			uint32_t queueFamilyCount = 0;
+			vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
+
+			std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+			vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
+
+			return queueFamilies;
+		}
+
+		void PhysicalDevice::GetQueueFamilyIndices(VkPhysicalDevice& physicalDevice, const VkQueueFlagBits& queueFlags, bool needsPresentationSupport, const VkSurfaceKHR& surface)
+		{
+			// Check queue families
+			auto queueFamilyProperties = GetAllQueueFamilyProperties(physicalDevice);
+
+			std::vector<uint32_t> queueFamilyIndices;
+
+			for (uint32_t i = 0; i < queueFamilyProperties.size(); i++) {
+				VkBool32 presentationSupported = false;
+				vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, surface, &presentationSupported);
+
+				if (queueFamilyProperties[i].queueCount > 0 && queueFamilyProperties[i].queueFlags & queueFlags) {
+					if (needsPresentationSupport) {
+						if (presentationSupported) {
+							queueFamilyIndices.push_back(i);
+						}
+					}
+					else {
+						queueFamilyIndices.push_back(i);
+					}
+				}
+			}
+		}
+
+		VkSurfaceCapabilitiesKHR PhysicalDevice::GetSurfaceCapabilities(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface) {
+			VkSurfaceCapabilitiesKHR surfaceCapabilities;
+			if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, windowSurface, &surfaceCapabilities) != VK_SUCCESS) {
+				std::cerr << "failed to acquire presentation surface capabilities" << std::endl;
+			}
+			return surfaceCapabilities;
+		}
+
+		std::vector<VkSurfaceFormatKHR> PhysicalDevice::GetSupportedFormatsForSurface(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface) {
+			uint32_t formatCount;
+			if (vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, windowSurface, &formatCount, nullptr) != VK_SUCCESS || formatCount == 0) {
+				std::cerr << "failed to get number of supported surface formats" << std::endl;
+			}
+
+			std::vector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
+			if (vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, windowSurface, &formatCount, surfaceFormats.data()) != VK_SUCCESS) {
+				std::cerr << "failed to get supported surface formats" << std::endl;
+			}
+
+			return surfaceFormats;
+		}
+
+		std::vector<VkPresentModeKHR> PhysicalDevice::GetSupportedPresentModesForSurface(VkPhysicalDevice& physicalDevice, VkSurfaceKHR& windowSurface) {
+			uint32_t presentModeCount;
+			if (vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, windowSurface, &presentModeCount, nullptr) != VK_SUCCESS || presentModeCount == 0) {
+				std::cerr << "failed to get number of supported presentation modes" << std::endl;
+				exit(1);
+			}
+
+			std::vector<VkPresentModeKHR> presentModes(presentModeCount);
+			if (vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, windowSurface, &presentModeCount, presentModes.data()) != VK_SUCCESS) {
+				std::cerr << "failed to get supported presentation modes" << std::endl;
+				exit(1);
+			}
+
+			return presentModes;
+		}
 	};
 }

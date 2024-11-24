@@ -19,34 +19,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\engine\math\MathUtils.cpp" />
-    <ClCompile Include="src\engine\physics\RigidBody.cpp" />
-    <ClCompile Include="src\engine\scenes\CubicalEnvironmentMap.cpp" />
-    <ClCompile Include="src\engine\scenes\Camera.cpp" />
-    <ClCompile Include="src\engine\scenes\GameObject.cpp" />
-    <ClCompile Include="src\engine\input\Input.cpp" />
-    <ClCompile Include="src\engine\scenes\Material.cpp" />
-    <ClCompile Include="src\engine\scenes\PointLight.cpp" />
-    <ClCompile Include="src\engine\scenes\Vertex.cpp" />
-    <ClCompile Include="src\engine\structural\IDrawable.cpp" />
-    <ClCompile Include="src\engine\vulkan\Buffer.cpp" />
-    <ClCompile Include="src\engine\vulkan\Helpers.cpp" />
-    <ClCompile Include="src\engine\vulkan\Image.cpp" />
-    <ClCompile Include="src\engine\vulkan\SceneLoader.cpp" />
-    <ClCompile Include="src\engine\vulkan\ShaderResources.cpp" />
     <ClCompile Include="src\engine\vulkan\VulkanApplication.cpp" />
-    <ClCompile Include="src\engine\vulkan\VulkanContext.cpp" />
     <ClCompile Include="src\game\scripts\CollisionTest.cpp" />
     <ClCompile Include="src\Main.cpp" />
-    <ClCompile Include="src\engine\vulkan\PhysicalDevice.cpp" />
-    <ClCompile Include="src\utils\Json.cpp" />
     <ClCompile Include="src\game\input\KeyBinds.cpp" />
-    <ClCompile Include="src\engine\scenes\Mesh.cpp" />
-    <ClCompile Include="src\engine\scenes\Scene.cpp" />
-    <ClCompile Include="src\settings\GlobalSettings.cpp" />
     <ClCompile Include="src\engine\Time.cpp" />
-    <ClCompile Include="src\engine\math\Transform.cpp" />
-    <ClCompile Include="src\utils\Logger.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Includes.hpp" />
@@ -100,46 +77,11 @@
     <ClInclude Include="include\stb\stb_image_write.h" />
     <ClInclude Include="include\LocalDependencies.hpp" />
     <ClInclude Include="include\tinygltf\tiny_gltf.h" />
-    <ClInclude Include="src\engine\math\MathUtils.hpp" />
-    <ClInclude Include="src\engine\scenes\CubicalEnvironmentMap.hpp" />
-    <ClInclude Include="src\engine\scenes\Material.hpp" />
-    <ClInclude Include="src\engine\scenes\PointLight.hpp" />
-    <ClInclude Include="src\engine\scenes\Vertex.hpp" />
-    <ClInclude Include="src\engine\physics\RigidBody.hpp" />
-    <ClInclude Include="src\engine\structural\IDrawable.hpp" />
-    <ClInclude Include="src\engine\structural\IPipelineable.hpp" />
-    <ClInclude Include="src\engine\structural\IVulkanUpdatable.hpp" />
-    <ClInclude Include="src\engine\vulkan\Helpers.hpp" />
-    <ClInclude Include="src\engine\vulkan\Buffer.hpp" />
-    <ClInclude Include="src\engine\vulkan\PhysicalDevice.hpp" />
-    <ClInclude Include="src\engine\vulkan\Image.hpp" />
-    <ClInclude Include="src\engine\vulkan\Queue.hpp" />
-    <ClInclude Include="src\engine\vulkan\SceneLoader.hpp" />
-    <ClInclude Include="src\engine\vulkan\ShaderResources.hpp" />
-    <ClInclude Include="src\engine\vulkan\VulkanContext.hpp" />
     <ClInclude Include="src\game\scripts\CollisionTest.hpp" />
-    <ClInclude Include="src\settings\Paths.hpp" />
-    <ClInclude Include="src\engine\scenes\Camera.hpp" />
-    <ClInclude Include="src\engine\scenes\GameObject.hpp" />
-    <ClInclude Include="src\engine\input\Input.hpp" />
-    <ClInclude Include="src\structural\IPhysicsUpdatable.hpp" />
-    <ClInclude Include="src\structural\IUpdatable.hpp" />
-    <ClInclude Include="src\utils\Json.h" />
     <ClInclude Include="src\game\input\KeyBinds.hpp" />
-    <ClInclude Include="src\engine\scenes\Mesh.hpp" />
-    <ClInclude Include="src\engine\scenes\Scene.hpp" />
-    <ClInclude Include="src\settings\GlobalSettings.hpp" />
-    <ClInclude Include="src\structural\Singleton.hpp" />
     <ClInclude Include="src\engine\Time.hpp" />
-    <ClInclude Include="src\engine\math\Transform.hpp" />
     <ClInclude Include="include\stb\stb_image.h" />
-    <ClInclude Include="src\utils\Logger.hpp" />
-    <ClInclude Include="src\utils\Utils.hpp" />
     <ClInclude Include="src\engine\vulkan\VulkanApplication.hpp" />
-    <ClInclude Include="src\utils\BoxBlur.hpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="src\settings\GlobalSettings.json" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

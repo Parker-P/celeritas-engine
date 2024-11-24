@@ -57,25 +57,59 @@ namespace Engine::Structural
 
 		} _faceIndices;
 
-		/**
-		 * @brief Creates a GPU-only vertex buffer for the Drawable.
-		 * @param physicalDevice Needed to bind the buffer to the GPU.
-		 * @param logicalDevice Needed to bind the buffer to the GPU.
-		 * @param commandPool Command pool that will be used to allocate a temporary command buffer to be stored in the queue specified below.
-		 * @param queue The queue that will contain a command buffer allocated from the command pool above; the queue will contain Vulkan commands to send the vertex buffer to VRAM.
-		 * @param vertices The vertex information to send to the GPU.
-		 */
-		void CreateVertexBuffer(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, const std::vector<Scenes::Vertex>& vertices);
+		void IDrawable::CreateVertexBuffer(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, const std::vector<Scenes::Vertex>& vertices)
+		{
+			_vertices._vertexData = vertices;
 
-		/**
-		 * @brief Creates a GPU-only index buffer for the Drawable.
-		 * @param physicalDevice Needed to bind the buffer to the GPU.
-		 * @param logicalDevice Needed to bind the buffer to the GPU.
-		 * @param commandPool Command pool that will be used to allocate a temporary command buffer to be stored in the queue specified below.
-		 * @param queue The queue that will contain a command buffer allocated from the command pool above; the queue will contain Vulkan commands to send the vertex buffer to VRAM.
-		 * @param indices The index information to send to the GPU.
-		 */
-		void CreateIndexBuffer(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, const std::vector<unsigned int>& indices);
+			// Create a temporary buffer.
+			auto& buffer = _vertices._vertexBuffer;
+			auto bufferSizeBytes = Utils::GetVectorSizeInBytes(vertices);
+			buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			buffer._createInfo.size = bufferSizeBytes;
+			buffer._createInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+			vkCreateBuffer(logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
+
+			// Allocate memory for the buffer.
+			VkMemoryRequirements requirements{};
+			vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
+			buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, (VkMemoryPropertyFlagBits)(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT));
+
+			vkMapMemory(logicalDevice, buffer._gpuMemory, 0, Utils::GetVectorSizeInBytes(vertices), 0, &buffer._cpuMemory);
+
+			// Map memory to the correct GPU and CPU ranges for the buffer.
+			vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
+
+			// Send the buffer to GPU.
+			buffer._pData = (void*)vertices.data();
+			buffer._sizeBytes = bufferSizeBytes;
+			CopyBufferToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
+		}
+
+		void IDrawable::CreateIndexBuffer(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, const std::vector<unsigned int>& indices)
+		{
+			_faceIndices._indexData = indices;
+
+			// Create a temporary buffer.
+			auto& buffer = _faceIndices._indexBuffer;
+			auto bufferSizeBytes = Utils::GetVectorSizeInBytes(indices);
+			buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			buffer._createInfo.size = bufferSizeBytes;
+			buffer._createInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+			vkCreateBuffer(logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
+
+			// Allocate memory for the buffer.
+			VkMemoryRequirements requirements{};
+			vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
+			buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+			// Map memory to the correct GPU and CPU ranges for the buffer.
+			vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
+
+			// TODO: send the buffer to GPU.
+			buffer._pData = (void*)indices.data();
+			buffer._sizeBytes = bufferSizeBytes;
+			CopyBufferToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
+		}
 
 		/**
 		 * @brief Deriving classes should implement this method to bind their vertex and index buffers to a graphics pipeline and draw them via Vulkan draw calls.

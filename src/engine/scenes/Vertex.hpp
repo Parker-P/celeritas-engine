@@ -32,11 +32,17 @@ namespace Engine::Scenes
 		 */
 		glm::vec2 _uvCoord;
 
-		/**
-		 * @brief Calculates the offset in bytes of a given attribute given its type.
-		 * @param attributeType
-		 * @return The offset in bytes of the given type within the Vertex class.
-		 */
-		static size_t OffsetOf(const AttributeType& attributeType);
+		size_t Vertex::OffsetOf(const AttributeType& attributeType)
+		{
+			switch (attributeType) {
+			case AttributeType::Position:
+				return 0;
+			case AttributeType::Normal:
+				return sizeof(_position);
+			case AttributeType::UV:
+				return sizeof(_position) + sizeof(_normal);
+			default: return 0;
+			}
+		}
 	};
 }

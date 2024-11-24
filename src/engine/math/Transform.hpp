@@ -28,88 +28,103 @@ namespace Engine::Math
 		 */
 		Transform() = default;
 
-		/**
-		 * @brief Constructs a transform from a matrix. Uses the identity matrix for _scale.
-		 * @param matrix The underlying homogeneous matrix that represents the transform.
-		 */
-		Transform(glm::mat4x4 matrix);
+		Transform::Transform(glm::mat4x4 matrix) : _matrix(matrix) {}
 
-		/**
-		 * @brief The homogeneous transformation matrix for this transform.
-		 */
-		glm::mat4x4 _matrix;
+		glm::vec3 Transform::Right()
+		{
+			glm::vec4 right = _matrix * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+			return glm::vec3(right.x, right.y, right.z);
+		}
 
-		/**
-		 * @brief The scale is stored separately as it would be impossible to tell from _matrix alone as it mixes with rotation values.
-		 */
-		glm::vec3 _scale;
+		glm::vec3 Transform::Up()
+		{
+			glm::vec4 up = _matrix * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
+			return glm::vec3(up.x, up.y, up.z);
+		}
 
-		/**
-		 * @brief Returns a vector in world space that is the world's X axis rotated by the _matrix transformation matrix.
-		 * The function is called "Right" because a camera is always pointing towards the Z axis (in world space)
-		 * so the X axis is to the "right" of the camera.
-		 * @return
-		 */
-		glm::vec3 Right();
+		glm::vec3 Transform::Forward()
+		{
+			glm::vec4 forward = _matrix * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f);
+			return glm::vec3(forward.x, forward.y, forward.z);
+		}
 
-		/**
-		 * @brief Returns a vector in world space that is the world's Y axis rotated by the _rotation transformation matrix.
-		 * @return
-		 */
-		glm::vec3 Up();
+		void Transform::Translate(const glm::vec3& offset)
+		{
+			_matrix[3][0] += offset.x;
+			_matrix[3][1] += offset.y;
+			_matrix[3][2] += offset.z;
+		}
 
-		/**
-		 * @brief Returns a vector in world space that is the world's Z axis rotated by the _rotation transformation matrix.
-		 * @return
-		 */
-		glm::vec3 Forward();
+		void Transform::RotateAroundPosition(const glm::vec3& position, const glm::vec3& axis, const float& angleRadians)
+		{
+			if (angleRadians == 0) { return; }
 
-		/**
-		 * @brief Translate this transform by "offset". This will modify the fourth column of the _matrix member.
-		 * @param offset
-		 */
-		void Translate(const glm::vec3& offset);
+			auto rotation = MakeQuaternionRotation(axis, angleRadians);
+			auto currentPosition = Position();
+			SetPosition(position + (rotation * (currentPosition - position)));
+			Rotate(rotation);
+		}
 
-		/**
-		 * @brief Creates a quaternion from an axis and an angle.
-		 */
-		static glm::quat MakeQuaternionRotation(const glm::vec3& axis, const float& angleRadians);
+		glm::quat Transform::MakeQuaternionRotation(const glm::vec3& axis, const float& angleRadians)
+		{
+			auto cosine = cos(angleRadians / 2.0f);
+			auto sine = sin(angleRadians / 2.0f);
+			return glm::quat(cosine, axis.x * sine, axis.y * sine, axis.z * sine);
+		}
 
-		/**
-		 * @brief Rotate the transform using a quaternion.
-		 */
-		void Rotate(const glm::quat& rotation);
+		void Transform::Rotate(const glm::quat& rotation)
+		{
+			// Rotate each individual axis of the transformation by the quaternion.
+			auto newX = rotation * glm::vec3(_matrix[0][0], _matrix[0][1], _matrix[0][2]);
+			auto newY = rotation * glm::vec3(_matrix[1][0], _matrix[1][1], _matrix[1][2]);
+			auto newZ = rotation * glm::vec3(_matrix[2][0], _matrix[2][1], _matrix[2][2]);
 
-		/**
-		 * @brief Rotate this transform by "angle" (defined in radians) around "axis" independent of position.
-		 */
-		void RotateR(const glm::vec3& axis, const float& angleRadians);
+			// Set the new axes starting with X.
+			_matrix[0][0] = newX.x;
+			_matrix[0][1] = newX.y;
+			_matrix[0][2] = newX.z;
 
-		/**
-		 * @brief Rotate this transform by "angle" (defined in radians) around "axis" independent of position.
-		 */
-		void Rotate(const glm::vec3& axis, const float& angleDegrees);
+			// Then Y.
+			_matrix[1][0] = newY.x;
+			_matrix[1][1] = newY.y;
+			_matrix[1][2] = newY.z;
 
-		/**
-		 * @brief Rotate this transform by "angleRadians" around "axis" and "position". The position must be relative to the current transform's origin a.k.a. local space.
-		 */
-		void RotateAroundPosition(const glm::vec3& position, const glm::vec3& axis, const float& angleRadians);
+			// And finally Z.
+			_matrix[2][0] = newZ.x;
+			_matrix[2][1] = newZ.y;
+			_matrix[2][2] = newZ.z;
+		}
 
-		/**
-		 * @brief Returns the first 3 components of the fourth column of the transformation matrix, which represent translation, as a 3D vector.
-		 */
-		glm::vec3 Position();
+		void Transform::RotateR(const glm::vec3& axis, const float& angleRadians)
+		{
+			if (angleRadians == 0.0f) { return; }
+			Rotate(MakeQuaternionRotation(axis, angleRadians));
+		}
 
-		/**
-		 * @brief Sets the homogeneous column of the transform matrix, used for position.
-		 * @param position Three-dimentional position.
-		 */
-		void SetPosition(const glm::vec3& position);
+		void Transform::Rotate(const glm::vec3& axis, const float& angleDegrees)
+		{
+			if (angleDegrees == 0.0f) { return; }
+			RotateR(axis, glm::radians(angleDegrees));
+		}
 
-		/**
-		 * @brief Sets the homogeneous column of the transform matrix, used for position.
-		 * @param position Three-dimentional position.
-		 */
-		void SetScale(const glm::vec3& scale);
+		void Transform::SetPosition(const glm::vec3& position)
+		{
+			_matrix[3][0] = position.x;
+			_matrix[3][1] = position.y;
+			_matrix[3][2] = position.z;
+		}
+
+		void Transform::SetScale(const glm::vec3& scale)
+		{
+			_scale = scale;
+			_matrix[0][0] *= scale.x;
+			_matrix[1][1] *= scale.y;
+			_matrix[2][2] *= scale.z;
+		}
+
+		glm::vec3 Transform::Position()
+		{
+			return glm::vec3(_matrix[3][0], _matrix[3][1], _matrix[3][2]);
+		}
 	};
 }
