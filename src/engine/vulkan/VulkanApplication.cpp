@@ -3681,24 +3681,41 @@ namespace Engine
 		std::string _name;
 
 		/**
-		 * @brief Scene this game object belongs to.
+		 * @brief Pointer to the scene so you can use _materialIndex and _gameObjectIndex from this class.
 		 */
-		Scene* _pScene = nullptr;
+		Scene* _pScene;
 
 		/**
-		 * @brief Object-to-world transform.
+		 * @brief Parent game object pointer.
 		 */
-		Transform _transform;
+		GameObject* _pParent = nullptr;
+
+		/**
+		 * @brief Child game object pointers.
+		 */
+		std::vector<GameObject*> _children;
+
+		/**
+		 * @brief Mesh of this game object.
+		 */
+		Mesh* _pMesh = nullptr;
+
+		/**
+		 * @brief Body for physics simulation.
+		 */
+		RigidBody _body;
 
 		/**
 		 * @brief Transform relative to the parent gameobject.
 		 */
 		Transform _localTransform;
 
-		/**
-		 * @brief Mesh of this game object.
-		 */
-		Mesh* _pMesh = nullptr;
+		struct
+		{
+			glm::mat4x4 transform;
+		} _gameObjectData;
+
+		GameObject() = default;
 
 		GameObject(const std::string& name, Scene* pScene)
 		{
@@ -4537,7 +4554,7 @@ namespace Engine
 			root = nullptr;
 		}
 
-		static Scene (std::filesystem::path filePath, VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue)
+		static Scene(std::filesystem::path filePath, VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue)
 		{
 			auto s = new Scene(logicalDevice, physicalDevice);
 			auto& scene = *s;
