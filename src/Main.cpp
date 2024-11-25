@@ -3156,313 +3156,6 @@ namespace Engine {
 	class Mesh;
 
 	/**
-	 * @brief Represents a physical object in a celeritas-engine scene.
-	 */
-	class GameObject : public IVulkanUpdatable, public IPipelineable, public IDrawable {
-	public:
-
-		/**
-		 * @brief Name of the game object.
-		 */
-		std::string _name;
-
-		/**
-		 * @brief Pointer to the scene so you can use _materialIndex and _gameObjectIndex from this class.
-		 */
-		Scene* _pScene;
-
-		/**
-		 * @brief Parent game object pointer.
-		 */
-		GameObject* _pParent = nullptr;
-
-		/**
-		 * @brief Child game object pointers.
-		 */
-		std::vector<GameObject*> _children;
-
-		/**
-		 * @brief Mesh of this game object.
-		 */
-		Mesh* _pMesh = nullptr;
-
-		/**
-		 * @brief Body for physics simulation.
-		 */
-		RigidBody _body;
-
-		/**
-		 * @brief Transform relative to the parent gameobject.
-		 */
-		Transform _localTransform;
-
-		struct {
-			glm::mat4x4 transform;
-		} _gameObjectData;
-
-		GameObject() = default;
-
-		GameObject(const std::string& name, Scene* pScene) {
-			_name = name;
-			_pScene = pScene;
-		}
-
-		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
-			auto descriptorSetID = 1;
-			auto globalTransform = GetWorldSpaceTransform();
-
-			// Create a temporary buffer.
-			Buffer buffer{};
-			auto bufferSizeBytes = sizeof(_localTransform._matrix);
-			buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-			buffer._createInfo.size = bufferSizeBytes;
-			buffer._createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-			vkCreateBuffer(logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
-
-			// Allocate memory for the buffer.
-			VkMemoryRequirements requirements{};
-			vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
-			buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
-			// Map memory to the correct GPU and CPU ranges for the buffer.
-			vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
-			vkMapMemory(logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
-			memcpy(buffer._cpuMemory, &globalTransform._matrix, bufferSizeBytes);
-
-			_buffers.push_back(buffer);
-
-			VkDescriptorPool descriptorPool{};
-			VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 } };
-			VkDescriptorPoolCreateInfo createInfo = {};
-			createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-			createInfo.maxSets = (uint32_t)1;
-			createInfo.poolSizeCount = (uint32_t)1;
-			createInfo.pPoolSizes = poolSizes;
-			vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
-
-			// Create the descriptor set.
-			VkDescriptorSetAllocateInfo allocInfo = {};
-			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-			allocInfo.descriptorPool = descriptorPool;
-			allocInfo.descriptorSetCount = (uint32_t)1;
-			allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
-			VkDescriptorSet descriptorSet;
-			vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
-
-			// Update the descriptor set's data.
-			VkDescriptorBufferInfo bufferInfo{ buffer._buffer, 0, buffer._createInfo.size };
-			VkWriteDescriptorSet writeInfo = {};
-			writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeInfo.dstSet = descriptorSet;
-			writeInfo.descriptorCount = 1;
-			writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			writeInfo.pBufferInfo = &bufferInfo;
-			writeInfo.dstBinding = 0;
-			vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
-
-			auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
-			_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
-
-			auto meshResources = _pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
-			_shaderResources.MergeResources(meshResources);
-
-			for (auto& child : _children) {
-				auto childResources = child->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
-			}
-
-			return _shaderResources;
-		}
-
-		Transform GetWorldSpaceTransform() {
-			Transform outTransform;
-			GameObject current = *this;
-			outTransform._matrix *= current._localTransform._matrix;
-			while (current._pParent != nullptr) {
-				current = *current._pParent;
-				outTransform._matrix *= current._localTransform._matrix;
-			}
-			return outTransform;
-		}
-
-		void UpdateShaderResources() {
-			_gameObjectData.transform = GetWorldSpaceTransform()._matrix;
-			memcpy(_buffers[0]._cpuMemory, &_gameObjectData, sizeof(_gameObjectData));
-		}
-
-		void Update(VulkanContext& vkContext) {
-			if (_pMesh != nullptr) {
-				_pMesh->Update(vkContext);
-			}
-
-			UpdateShaderResources();
-
-			for (auto& child : _children) {
-				child->Update(vkContext);
-			}
-		}
-
-		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer) {
-			vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &_shaderResources[1][0], 0, nullptr);
-
-			if (_pMesh != nullptr) {
-				_pMesh->Draw(pipelineLayout, drawCommandBuffer);
-			}
-
-			for (int i = 0; i < _children.size(); ++i) {
-				_children[i]->Draw(pipelineLayout, drawCommandBuffer);
-			}
-		}
-	};
-
-	/**
-	 * @brief Represents a collection of vertices and face indices as triangles.
-	 */
-	class Mesh : public IVulkanUpdatable, public IDrawable, public IPipelineable {
-
-	public:
-
-		Mesh() = default;
-
-		/**
-		 * @brief Index into the materials list in the Scene this mesh belongs to. A scene shoud always have a default material defined at index 0. See the Material and Scene classes.
-		 */
-		int _materialIndex = 0;
-
-		/**
-		 * @brief Index into the game objects list in the Scene this mesh belongs to. See the GameObject and Scene classes.
-		 */
-		GameObject* _pGameObject = nullptr;
-
-		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
-			auto descriptorSetID = 3;
-
-			// Get the textures to send to the shaders.
-			auto pScene = _pGameObject->_pScene;
-			auto defaultMaterial = pScene->DefaultMaterial();
-			Image albedoMap = defaultMaterial._albedo;
-			Image roughnessMap = defaultMaterial._roughness;
-			Image metalnessMap = defaultMaterial._metalness;
-
-			if (_materialIndex >= 0) {
-				if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._albedo._image) {
-					albedoMap = pScene->_materials[_materialIndex]._albedo;
-				}
-				if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._roughness._image) {
-					roughnessMap = pScene->_materials[_materialIndex]._roughness;
-				}
-				if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._metalness._image) {
-					metalnessMap = pScene->_materials[_materialIndex]._metalness;
-				}
-			}
-
-			// Send the textures to the GPU.
-			CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, albedoMap._createInfo.extent.width, albedoMap._createInfo.extent.height, albedoMap._createInfo.extent.depth, albedoMap._pData, albedoMap._sizeBytes);
-			CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, roughnessMap._createInfo.extent.width, roughnessMap._createInfo.extent.height, roughnessMap._createInfo.extent.depth, roughnessMap._pData, roughnessMap._sizeBytes);
-			CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, metalnessMap._createInfo.extent.width, metalnessMap._createInfo.extent.height, metalnessMap._createInfo.extent.depth, metalnessMap._pData, metalnessMap._sizeBytes);
-
-			auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
-			StartRecording(commandBuffer);
-
-			// Transition the images to shader read layout.
-			{
-				VkImageMemoryBarrier barrier{};
-				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-				barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-				barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-				barrier.oldLayout = albedoMap._currentLayout;
-				barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				barrier.image = albedoMap._image;
-				barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
-				albedoMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-				barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-				barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-				barrier.oldLayout = roughnessMap._currentLayout;
-				barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				barrier.image = roughnessMap._image;
-				barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
-				roughnessMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-				barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-				barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-				barrier.oldLayout = metalnessMap._currentLayout;
-				barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				barrier.image = metalnessMap._image;
-				barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
-				metalnessMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-			}
-
-			StopRecording(commandBuffer);
-			ExecuteCommands(commandBuffer, queue);
-
-			_images.push_back(albedoMap);
-			_images.push_back(roughnessMap);
-			_images.push_back(metalnessMap);
-
-			VkDescriptorPool descriptorPool{};
-			VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3 } };
-			VkDescriptorPoolCreateInfo createInfo = {};
-			createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-			createInfo.maxSets = (uint32_t)1;
-			createInfo.poolSizeCount = (uint32_t)1;
-			createInfo.pPoolSizes = poolSizes;
-			vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
-
-			VkDescriptorSetAllocateInfo allocInfo = {};
-			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-			allocInfo.descriptorPool = descriptorPool;
-			allocInfo.descriptorSetCount = (uint32_t)1;
-			allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
-			VkDescriptorSet descriptorSet;
-			vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
-
-			VkDescriptorImageInfo imageInfo[3];
-			imageInfo[0] = { albedoMap._sampler, albedoMap._view, albedoMap._currentLayout };
-			imageInfo[1] = { roughnessMap._sampler, roughnessMap._view, roughnessMap._currentLayout };
-			imageInfo[2] = { metalnessMap._sampler, metalnessMap._view, metalnessMap._currentLayout };
-			VkWriteDescriptorSet writeInfo = {};
-			writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeInfo.dstSet = descriptorSet;
-			writeInfo.descriptorCount = 3;
-			writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			writeInfo.pImageInfo = imageInfo;
-			writeInfo.dstBinding = 0;
-			vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
-
-			auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
-			_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
-			return _shaderResources;
-		}
-
-		void UpdateShaderResources() {
-			// TODO
-		}
-
-		void Update(VulkanContext& vkContext) {
-			auto& vkBuffer = _vertices._vertexBuffer._buffer;
-			auto& vertexData = _vertices._vertexData;
-
-			// Update the Vulkan-only visible memory that is mapped to the GPU so that the updated data is also visible in the vertex shader.
-			memcpy(_vertices._vertexBuffer._cpuMemory, _vertices._vertexData.data(), GetVectorSizeInBytes(_vertices._vertexData));
-		}
-
-		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer) {
-			VkDescriptorSet sets[] = { _shaderResources[3][0] };
-			vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 3, 1, sets, 0, nullptr);
-
-			VkDeviceSize offset = 0;
-			vkCmdBindVertexBuffers(drawCommandBuffer, 0, 1, &_vertices._vertexBuffer._buffer, &offset);
-			vkCmdBindIndexBuffer(drawCommandBuffer, _faceIndices._indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(drawCommandBuffer, (uint32_t)_faceIndices._indexData.size(), 1, 0, 0, 0);
-		}
-	};
-
-	/**
 	 * @brief Represents a vertex in the mesh of a physics body.
 	 */
 	class PhysicsVertex {
@@ -3562,216 +3255,95 @@ namespace Engine {
 			return stream << "(" << vector.x << ", " << vector.y << ", " << vector.z << ")";
 		}*/
 
-		bool IsVectorZero(const glm::vec3& vector, float tolerance = 0.0f) {
-			return (vector.x >= -tolerance && vector.x <= tolerance &&
-				vector.y >= -tolerance && vector.y <= tolerance &&
-				vector.z >= -tolerance && vector.z <= tolerance);
-		}
+		bool IsVectorZero(const glm::vec3& vector, float tolerance = 0.0f);
 
-		glm::vec3 CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition) {
-			if (IsVectorZero(receiverPosition - transmitterPosition, 0.001f)) {
-				return force;
-			}
+		glm::vec3 CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition);
 
-			auto effectiveForce = glm::normalize(receiverPosition - transmitterPosition);
-			auto scaleFactor = glm::dot(effectiveForce, force);
-			return effectiveForce * scaleFactor;
-		}
+		glm::vec3 GetCenterOfMass();
 
-		glm::vec3 GetCenterOfMass() {
-			if (_isCenterOfMassOverridden) {
-				return _overriddenCenterOfMass;
-			}
+		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool ignoreTranslation);
 
-			auto& vertices = _mesh._vertices;
-			int vertexCount = (int)vertices.size();
-			float totalX = 0.0f;
-			float totalY = 0.0f;
-			float totalZ = 0.0f;
+		void AddForce(const glm::vec3& force, bool ignoreMass);
 
-			for (int i = 0; i < vertexCount; ++i) {
-				totalX += vertices[i]._position.x;
-				totalY += vertices[i]._position.y;
-				totalZ += vertices[i]._position.z;
-			}
+		std::vector<glm::vec3> GetContactPoints(const RigidBody& other);
 
-			return glm::vec3(totalX / vertexCount, totalY / vertexCount, totalZ / vertexCount);
-		}
+		std::vector< GameObject*> GetAllGameObjects(GameObject* pRoot);
 
-		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool ignoreTranslation) {
-			auto& time = Time::Instance();
-			float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
-			auto vertexCount = _mesh._pMesh->_vertices._vertexData.size();
-			auto& vertices = _mesh._pMesh->_vertices._vertexData;
-			auto worldSpaceTransform = _mesh._pMesh->_pGameObject->GetWorldSpaceTransform()._matrix;
+		std::vector<GameObject*> GetOtherGameObjects(GameObject* pGameObject);
 
-			// First calculate the translation component of the force to apply.
-			auto worldSpaceCom = glm::vec3(worldSpaceTransform * glm::vec4(GetCenterOfMass(), 1.0f));
-			auto worldSpacePointOfApplication = glm::vec3(worldSpaceTransform * glm::vec4(pointOfApplication, 1.0f));
+		std::vector<glm::vec3> GetContactPoints();
 
-			if (!ignoreTranslation) {
-				glm::vec3 translationForce = CalculateTransmittedForce(worldSpacePointOfApplication, force, worldSpaceCom);
-				glm::vec3 translationAcceleration = translationForce / _mass;
-				glm::vec3 translationDelta = translationForce * deltaTimeSeconds;
-				_velocity += translationDelta;
-			}
+		void Initialize(Mesh* pMesh, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass);
 
-			// Now calculate the rotation component.
-			auto positionToCom = worldSpaceCom - worldSpacePointOfApplication;
-			if (IsVectorZero(positionToCom, 0.001f)) {
-				return;
-			}
+		void PhysicsUpdate();
+	};
 
-			auto rotationAxis = -glm::normalize(glm::cross(positionToCom, force));
-			if (glm::isnan(rotationAxis.x) || glm::isnan(rotationAxis.y) || glm::isnan(rotationAxis.x)) {
-				return;
-			}
+	class Mesh : public IVulkanUpdatable, public IDrawable, public IPipelineable {
 
-			auto comPerpendicularDirection = glm::normalize(glm::cross(positionToCom, rotationAxis));
-			auto rotationalForce = comPerpendicularDirection * glm::dot(comPerpendicularDirection, force);
+	public:
 
-			// Calculate or approximate rotational inertia.
-			auto rotationalInertia = 0.0f;
-			auto singleVertexMass = _mass / vertexCount;
-			for (int i = 0; i < vertexCount; ++i) {
-				auto worldSpaceVertexPosition = glm::vec3(worldSpaceTransform * glm::vec4(vertices[i]._position, 1.0f));
+		Mesh() = default;
+		int _materialIndex = 0;
+		GameObject* _pGameObject = nullptr;
 
-				if (worldSpaceVertexPosition == worldSpaceCom) {
-					continue;
-				}
+		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts);
+		void UpdateShaderResources();
+		void Update(VulkanContext& vkContext);
+		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer);
+	};
 
-				auto comToVertexDirection = glm::normalize(worldSpaceVertexPosition - worldSpaceCom);
-				auto cathetus = comToVertexDirection * glm::dot(rotationAxis, comToVertexDirection);
+	/**
+	 * @brief Represents a physical object in a celeritas-engine scene.
+	 */
+	class GameObject : public IVulkanUpdatable, public IPipelineable, public IDrawable {
+	public:
 
-				if (IsVectorZero(cathetus), 0.001f) {
-					rotationalInertia += (/*vertex.mass **/ glm::length(worldSpaceVertexPosition - worldSpaceCom));
-					continue;
-				}
+		/**
+		 * @brief Name of the game object.
+		 */
+		std::string _name;
 
-				auto endPosition = worldSpaceCom + cathetus;
-				auto perpDistance = glm::length(endPosition - worldSpaceVertexPosition);
-				rotationalInertia += (singleVertexMass * (perpDistance * perpDistance));
-			}
+		/**
+		 * @brief Pointer to the scene so you can use _materialIndex and _gameObjectIndex from this class.
+		 */
+		Scene* _pScene = nullptr;
 
-			auto angularAcceleration = glm::cross(rotationalForce, positionToCom) / rotationalInertia;
-			auto rotationDelta = angularAcceleration * deltaTimeSeconds;
-			_angularVelocity += rotationDelta;
-		}
+		/**
+		 * @brief Parent game object pointer.
+		 */
+		GameObject* _pParent = nullptr;
 
-		void AddForce(const glm::vec3& force, bool ignoreMass) {
-			auto& time = Time::Instance();
-			float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
-			auto translationDelta = ignoreMass ? (force * deltaTimeSeconds) : ((force / _mass) * deltaTimeSeconds);
-			_velocity += translationDelta;
-			_mesh._pMesh->_pGameObject->_localTransform.Translate(translationDelta);
-		}
+		/**
+		 * @brief Child game object pointers.
+		 */
+		std::vector<GameObject*> _children;
 
-		std::vector<glm::vec3> GetContactPoints(const RigidBody& other) {
-			std::vector<glm::vec3> outContactPoints;
-			auto worldSpaceOther = other._mesh._pMesh->_pGameObject->GetWorldSpaceTransform();
-			auto worldSpaceCurrent = _mesh._pMesh->_pGameObject->GetWorldSpaceTransform();
+		/**
+		 * @brief Mesh of this game object.
+		 */
+		Mesh* _pMesh = nullptr;
 
-			for (int i = 0; i < other._mesh._faceIndices.size(); i += 3) {
-				for (int j = 0; j < _mesh._faceIndices.size(); j += 3) {
+		/**
+		 * @brief Body for physics simulation.
+		 */
+		RigidBody _body;
 
-					auto v1Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i]]._position, 1.0f));
-					auto v2Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i + 1]]._position, 1.0f));
-					auto v3Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i + 2]]._position, 1.0f));
+		/**
+		 * @brief Transform relative to the parent gameobject.
+		 */
+		Transform _localTransform;
 
-					auto v1 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j]]._position, 1.0f));
-					auto v2 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j + 1]]._position, 1.0f));
-					auto v3 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j + 2]]._position, 1.0f));
+		struct {
+			glm::mat4x4 transform;
+		} _gameObjectData;
 
-					glm::vec3 intersectionPoint1;
-					glm::vec3 intersectionPoint2;
-					glm::vec3 intersectionPoint3;
-
-					if (IsRayIntersectingTriangle(v1Other, v2Other - v1Other, v1, v2, v3, intersectionPoint1)) {
-						outContactPoints.push_back(intersectionPoint1);
-					}
-
-					if (IsRayIntersectingTriangle(v1Other, v3Other - v1Other, v1, v2, v3, intersectionPoint2)) {
-						outContactPoints.push_back(intersectionPoint2);
-					}
-
-					if (IsRayIntersectingTriangle(v3Other, v2Other - v3Other, v1, v2, v3, intersectionPoint3)) {
-						outContactPoints.push_back(intersectionPoint3);
-					}
-				}
-			}
-			return outContactPoints;
-		}
-
-		std::vector< GameObject*> GetAllGameObjects(GameObject* pRoot) {
-			std::vector<GameObject*> outGameObjects;
-			outGameObjects.push_back(pRoot);
-			for (int i = 0; i < pRoot->_children.size(); ++i) {
-				auto objects = GetAllGameObjects(pRoot->_children[i]);
-				outGameObjects.insert(outGameObjects.end(), objects.begin(), objects.end());
-			}
-			return outGameObjects;
-		}
-
-		std::vector<GameObject*> GetOtherGameObjects(GameObject* pGameObject) {
-			auto allGameObjects = GetAllGameObjects(pGameObject->_pScene->_pRootGameObject);
-			for (int i = 0; i < allGameObjects.size(); ++i) {
-				if (pGameObject == allGameObjects[i]) {
-					allGameObjects.erase(allGameObjects.begin() + i);
-				}
-			}
-			return allGameObjects;
-		}
-
-		std::vector<glm::vec3> GetContactPoints() {
-			auto otherGameObjects = GetOtherGameObjects(_mesh._pMesh->_pGameObject);
-			std::vector<glm::vec3> outContactPoints;
-			for (int i = 0; i < otherGameObjects.size(); ++i) {
-				if (otherGameObjects[i]->_body._mesh._pMesh == nullptr) {
-					continue;
-				}
-				auto contactPoints = GetContactPoints(otherGameObjects[i]->_body);
-				outContactPoints.insert(outContactPoints.end(), contactPoints.begin(), contactPoints.end());
-			}
-			return outContactPoints;
-		}
-
-		void Initialize(Mesh* pMesh, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass) {
-			if (pMesh == nullptr || mass <= 0.001f) {
-				return;
-			}
-
-			_mass = mass;
-			_mesh._pMesh = pMesh;
-			_isCenterOfMassOverridden = overrideCenterOfMass;
-			_overriddenCenterOfMass = overriddenCenterOfMass;
-			auto& vertices = pMesh->_vertices._vertexData;
-			auto& indices = pMesh->_faceIndices._indexData;
-			_mesh._vertices.resize(vertices.size());
-			_mesh._faceIndices.resize(indices.size());
-
-			// TODO: Decide how you want to initialize your physics mesh.
-			for (int i = 0; i < vertices.size(); ++i) {
-				_mesh._vertices[i]._position = vertices[i]._position;
-			}
-
-			memcpy(_mesh._faceIndices.data(), indices.data(), GetVectorSizeInBytes(indices));
-
-			_isInitialized = true;
-		}
-
-		void PhysicsUpdate() {
-			if (_isCollidable) {
-
-			}
-
-			if (_updateImplementation) {
-				_updateImplementation(*_mesh._pMesh->_pGameObject);
-			}
-
-			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
-			_mesh._pMesh->_pGameObject->_localTransform.RotateAroundPosition(GetCenterOfMass(), glm::normalize(_angularVelocity), glm::length(_angularVelocity) * deltaTimeSeconds);
-			_mesh._pMesh->_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
-		}
+		GameObject() = default;
+		GameObject(const std::string& name, Scene* pScene);
+		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts);
+		Transform GetWorldSpaceTransform();
+		void UpdateShaderResources();
+		void Update(VulkanContext& vkContext);
+		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer);
 	};
 
 	/**
@@ -3852,6 +3424,459 @@ namespace Engine {
 		}
 	};
 
+	// GameObject
+	GameObject::GameObject(const std::string& name, Scene* pScene) {
+		_name = name;
+		_pScene = pScene;
+	}
+
+	ShaderResources GameObject::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
+		auto descriptorSetID = 1;
+		auto globalTransform = GetWorldSpaceTransform();
+
+		// Create a temporary buffer.
+		Buffer buffer{};
+		auto bufferSizeBytes = sizeof(_localTransform._matrix);
+		buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		buffer._createInfo.size = bufferSizeBytes;
+		buffer._createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+		vkCreateBuffer(logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
+
+		// Allocate memory for the buffer.
+		VkMemoryRequirements requirements{};
+		vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
+		buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+		// Map memory to the correct GPU and CPU ranges for the buffer.
+		vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
+		vkMapMemory(logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
+		memcpy(buffer._cpuMemory, &globalTransform._matrix, bufferSizeBytes);
+
+		_buffers.push_back(buffer);
+
+		VkDescriptorPool descriptorPool{};
+		VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 } };
+		VkDescriptorPoolCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		createInfo.maxSets = (uint32_t)1;
+		createInfo.poolSizeCount = (uint32_t)1;
+		createInfo.pPoolSizes = poolSizes;
+		vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
+
+		// Create the descriptor set.
+		VkDescriptorSetAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = descriptorPool;
+		allocInfo.descriptorSetCount = (uint32_t)1;
+		allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
+		VkDescriptorSet descriptorSet;
+		vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
+
+		// Update the descriptor set's data.
+		VkDescriptorBufferInfo bufferInfo{ buffer._buffer, 0, buffer._createInfo.size };
+		VkWriteDescriptorSet writeInfo = {};
+		writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeInfo.dstSet = descriptorSet;
+		writeInfo.descriptorCount = 1;
+		writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		writeInfo.pBufferInfo = &bufferInfo;
+		writeInfo.dstBinding = 0;
+		vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
+
+		auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
+		_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
+
+		auto meshResources = _pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+		_shaderResources.MergeResources(meshResources);
+
+		for (auto& child : _children) {
+			auto childResources = child->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+		}
+
+		return _shaderResources;
+	}
+
+	Transform GameObject::GetWorldSpaceTransform() {
+		Transform outTransform;
+		GameObject current = *this;
+		outTransform._matrix *= current._localTransform._matrix;
+		while (current._pParent != nullptr) {
+			current = *current._pParent;
+			outTransform._matrix *= current._localTransform._matrix;
+		}
+		return outTransform;
+	}
+
+	void GameObject::UpdateShaderResources() {
+		_gameObjectData.transform = GetWorldSpaceTransform()._matrix;
+		memcpy(_buffers[0]._cpuMemory, &_gameObjectData, sizeof(_gameObjectData));
+	}
+
+	void GameObject::Update(VulkanContext& vkContext) {
+		if (_pMesh != nullptr) {
+			_pMesh->Update(vkContext);
+		}
+
+		UpdateShaderResources();
+
+		for (auto& child : _children) {
+			child->Update(vkContext);
+		}
+	}
+
+	void GameObject::Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer) {
+		vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &_shaderResources[1][0], 0, nullptr);
+
+		if (_pMesh != nullptr) {
+			_pMesh->Draw(pipelineLayout, drawCommandBuffer);
+		}
+
+		for (int i = 0; i < _children.size(); ++i) {
+			_children[i]->Draw(pipelineLayout, drawCommandBuffer);
+		}
+	}
+
+	// Mesh
+	ShaderResources Mesh::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
+		auto descriptorSetID = 3;
+
+		// Get the textures to send to the shaders.
+		auto pScene = _pGameObject->_pScene;
+		auto defaultMaterial = pScene->DefaultMaterial();
+		Image albedoMap = defaultMaterial._albedo;
+		Image roughnessMap = defaultMaterial._roughness;
+		Image metalnessMap = defaultMaterial._metalness;
+
+		if (_materialIndex >= 0) {
+			if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._albedo._image) {
+				albedoMap = pScene->_materials[_materialIndex]._albedo;
+			}
+			if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._roughness._image) {
+				roughnessMap = pScene->_materials[_materialIndex]._roughness;
+			}
+			if (VK_NULL_HANDLE != pScene->_materials[_materialIndex]._metalness._image) {
+				metalnessMap = pScene->_materials[_materialIndex]._metalness;
+			}
+		}
+
+		// Send the textures to the GPU.
+		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, albedoMap._createInfo.extent.width, albedoMap._createInfo.extent.height, albedoMap._createInfo.extent.depth, albedoMap._pData, albedoMap._sizeBytes);
+		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, roughnessMap._createInfo.extent.width, roughnessMap._createInfo.extent.height, roughnessMap._createInfo.extent.depth, roughnessMap._pData, roughnessMap._sizeBytes);
+		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, metalnessMap._createInfo.extent.width, metalnessMap._createInfo.extent.height, metalnessMap._createInfo.extent.depth, metalnessMap._pData, metalnessMap._sizeBytes);
+
+		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
+		StartRecording(commandBuffer);
+
+		// Transition the images to shader read layout.
+		{
+			VkImageMemoryBarrier barrier{};
+			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			barrier.oldLayout = albedoMap._currentLayout;
+			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			barrier.image = albedoMap._image;
+			barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
+			albedoMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			barrier.oldLayout = roughnessMap._currentLayout;
+			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			barrier.image = roughnessMap._image;
+			barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
+			roughnessMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			barrier.oldLayout = metalnessMap._currentLayout;
+			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			barrier.image = metalnessMap._image;
+			barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS };
+			metalnessMap._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+		}
+
+		StopRecording(commandBuffer);
+		ExecuteCommands(commandBuffer, queue);
+
+		_images.push_back(albedoMap);
+		_images.push_back(roughnessMap);
+		_images.push_back(metalnessMap);
+
+		VkDescriptorPool descriptorPool{};
+		VkDescriptorPoolSize poolSizes[1] = { VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3 } };
+		VkDescriptorPoolCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		createInfo.maxSets = (uint32_t)1;
+		createInfo.poolSizeCount = (uint32_t)1;
+		createInfo.pPoolSizes = poolSizes;
+		vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
+
+		VkDescriptorSetAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = descriptorPool;
+		allocInfo.descriptorSetCount = (uint32_t)1;
+		allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
+		VkDescriptorSet descriptorSet;
+		vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
+
+		VkDescriptorImageInfo imageInfo[3];
+		imageInfo[0] = { albedoMap._sampler, albedoMap._view, albedoMap._currentLayout };
+		imageInfo[1] = { roughnessMap._sampler, roughnessMap._view, roughnessMap._currentLayout };
+		imageInfo[2] = { metalnessMap._sampler, metalnessMap._view, metalnessMap._currentLayout };
+		VkWriteDescriptorSet writeInfo = {};
+		writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeInfo.dstSet = descriptorSet;
+		writeInfo.descriptorCount = 3;
+		writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		writeInfo.pImageInfo = imageInfo;
+		writeInfo.dstBinding = 0;
+		vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
+
+		auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
+		_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
+		return _shaderResources;
+	}
+
+	void Mesh::UpdateShaderResources() {
+		// TODO
+	}
+
+	void Mesh::Update(VulkanContext& vkContext) {
+		auto& vkBuffer = _vertices._vertexBuffer._buffer;
+		auto& vertexData = _vertices._vertexData;
+
+		// Update the Vulkan-only visible memory that is mapped to the GPU so that the updated data is also visible in the vertex shader.
+		memcpy(_vertices._vertexBuffer._cpuMemory, _vertices._vertexData.data(), GetVectorSizeInBytes(_vertices._vertexData));
+	}
+
+	void Mesh::Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer) {
+		VkDescriptorSet sets[] = { _shaderResources[3][0] };
+		vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 3, 1, sets, 0, nullptr);
+
+		VkDeviceSize offset = 0;
+		vkCmdBindVertexBuffers(drawCommandBuffer, 0, 1, &_vertices._vertexBuffer._buffer, &offset);
+		vkCmdBindIndexBuffer(drawCommandBuffer, _faceIndices._indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdDrawIndexed(drawCommandBuffer, (uint32_t)_faceIndices._indexData.size(), 1, 0, 0, 0);
+	}
+	
+	// Rigidbody
+	bool RigidBody::IsVectorZero(const glm::vec3& vector, float tolerance) {
+		return (vector.x >= -tolerance && vector.x <= tolerance &&
+			vector.y >= -tolerance && vector.y <= tolerance &&
+			vector.z >= -tolerance && vector.z <= tolerance);
+	}
+
+	glm::vec3 RigidBody::CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition) {
+		if (IsVectorZero(receiverPosition - transmitterPosition, 0.001f)) {
+			return force;
+		}
+
+		auto effectiveForce = glm::normalize(receiverPosition - transmitterPosition);
+		auto scaleFactor = glm::dot(effectiveForce, force);
+		return effectiveForce * scaleFactor;
+	}
+
+	glm::vec3 RigidBody::GetCenterOfMass() {
+		if (_isCenterOfMassOverridden) {
+			return _overriddenCenterOfMass;
+		}
+
+		auto& vertices = _mesh._vertices;
+		int vertexCount = (int)vertices.size();
+		float totalX = 0.0f;
+		float totalY = 0.0f;
+		float totalZ = 0.0f;
+
+		for (int i = 0; i < vertexCount; ++i) {
+			totalX += vertices[i]._position.x;
+			totalY += vertices[i]._position.y;
+			totalZ += vertices[i]._position.z;
+		}
+
+		return glm::vec3(totalX / vertexCount, totalY / vertexCount, totalZ / vertexCount);
+	}
+
+	void RigidBody::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool ignoreTranslation) {
+		auto& time = Time::Instance();
+		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
+		auto vertexCount = _mesh._pMesh->_vertices._vertexData.size();
+		auto& vertices = _mesh._pMesh->_vertices._vertexData;
+		auto worldSpaceTransform = _mesh._pMesh->_pGameObject->GetWorldSpaceTransform()._matrix;
+
+		// First calculate the translation component of the force to apply.
+		auto worldSpaceCom = glm::vec3(worldSpaceTransform * glm::vec4(GetCenterOfMass(), 1.0f));
+		auto worldSpacePointOfApplication = glm::vec3(worldSpaceTransform * glm::vec4(pointOfApplication, 1.0f));
+
+		if (!ignoreTranslation) {
+			glm::vec3 translationForce = CalculateTransmittedForce(worldSpacePointOfApplication, force, worldSpaceCom);
+			glm::vec3 translationAcceleration = translationForce / _mass;
+			glm::vec3 translationDelta = translationForce * deltaTimeSeconds;
+			_velocity += translationDelta;
+		}
+
+		// Now calculate the rotation component.
+		auto positionToCom = worldSpaceCom - worldSpacePointOfApplication;
+		if (IsVectorZero(positionToCom, 0.001f)) {
+			return;
+		}
+
+		auto rotationAxis = -glm::normalize(glm::cross(positionToCom, force));
+		if (glm::isnan(rotationAxis.x) || glm::isnan(rotationAxis.y) || glm::isnan(rotationAxis.x)) {
+			return;
+		}
+
+		auto comPerpendicularDirection = glm::normalize(glm::cross(positionToCom, rotationAxis));
+		auto rotationalForce = comPerpendicularDirection * glm::dot(comPerpendicularDirection, force);
+
+		// Calculate or approximate rotational inertia.
+		auto rotationalInertia = 0.0f;
+		auto singleVertexMass = _mass / vertexCount;
+		for (int i = 0; i < vertexCount; ++i) {
+			auto worldSpaceVertexPosition = glm::vec3(worldSpaceTransform * glm::vec4(vertices[i]._position, 1.0f));
+
+			if (worldSpaceVertexPosition == worldSpaceCom) {
+				continue;
+			}
+
+			auto comToVertexDirection = glm::normalize(worldSpaceVertexPosition - worldSpaceCom);
+			auto cathetus = comToVertexDirection * glm::dot(rotationAxis, comToVertexDirection);
+
+			if (IsVectorZero(cathetus), 0.001f) {
+				rotationalInertia += (/*vertex.mass **/ glm::length(worldSpaceVertexPosition - worldSpaceCom));
+				continue;
+			}
+
+			auto endPosition = worldSpaceCom + cathetus;
+			auto perpDistance = glm::length(endPosition - worldSpaceVertexPosition);
+			rotationalInertia += (singleVertexMass * (perpDistance * perpDistance));
+		}
+
+		auto angularAcceleration = glm::cross(rotationalForce, positionToCom) / rotationalInertia;
+		auto rotationDelta = angularAcceleration * deltaTimeSeconds;
+		_angularVelocity += rotationDelta;
+	}
+
+	void RigidBody::AddForce(const glm::vec3& force, bool ignoreMass) {
+		auto& time = Time::Instance();
+		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
+		auto translationDelta = ignoreMass ? (force * deltaTimeSeconds) : ((force / _mass) * deltaTimeSeconds);
+		_velocity += translationDelta;
+		_mesh._pMesh->_pGameObject->_localTransform.Translate(translationDelta);
+	}
+
+	std::vector<glm::vec3> RigidBody::GetContactPoints(const RigidBody& other) {
+		std::vector<glm::vec3> outContactPoints;
+		auto worldSpaceOther = other._mesh._pMesh->_pGameObject->GetWorldSpaceTransform();
+		auto worldSpaceCurrent = _mesh._pMesh->_pGameObject->GetWorldSpaceTransform();
+
+		for (int i = 0; i < other._mesh._faceIndices.size(); i += 3) {
+			for (int j = 0; j < _mesh._faceIndices.size(); j += 3) {
+
+				auto v1Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i]]._position, 1.0f));
+				auto v2Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i + 1]]._position, 1.0f));
+				auto v3Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i + 2]]._position, 1.0f));
+
+				auto v1 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j]]._position, 1.0f));
+				auto v2 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j + 1]]._position, 1.0f));
+				auto v3 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j + 2]]._position, 1.0f));
+
+				glm::vec3 intersectionPoint1;
+				glm::vec3 intersectionPoint2;
+				glm::vec3 intersectionPoint3;
+
+				if (IsRayIntersectingTriangle(v1Other, v2Other - v1Other, v1, v2, v3, intersectionPoint1)) {
+					outContactPoints.push_back(intersectionPoint1);
+				}
+
+				if (IsRayIntersectingTriangle(v1Other, v3Other - v1Other, v1, v2, v3, intersectionPoint2)) {
+					outContactPoints.push_back(intersectionPoint2);
+				}
+
+				if (IsRayIntersectingTriangle(v3Other, v2Other - v3Other, v1, v2, v3, intersectionPoint3)) {
+					outContactPoints.push_back(intersectionPoint3);
+				}
+			}
+		}
+		return outContactPoints;
+	}
+
+	std::vector< GameObject*> RigidBody::GetAllGameObjects(GameObject* pRoot) {
+		std::vector<GameObject*> outGameObjects;
+		outGameObjects.push_back(pRoot);
+		for (int i = 0; i < pRoot->_children.size(); ++i) {
+			auto objects = GetAllGameObjects(pRoot->_children[i]);
+			outGameObjects.insert(outGameObjects.end(), objects.begin(), objects.end());
+		}
+		return outGameObjects;
+	}
+
+	std::vector<GameObject*> RigidBody::GetOtherGameObjects(GameObject* pGameObject) {
+		auto allGameObjects = GetAllGameObjects(pGameObject->_pScene->_pRootGameObject);
+		for (int i = 0; i < allGameObjects.size(); ++i) {
+			if (pGameObject == allGameObjects[i]) {
+				allGameObjects.erase(allGameObjects.begin() + i);
+			}
+		}
+		return allGameObjects;
+	}
+
+	std::vector<glm::vec3> RigidBody::GetContactPoints() {
+		auto otherGameObjects = GetOtherGameObjects(_mesh._pMesh->_pGameObject);
+		std::vector<glm::vec3> outContactPoints;
+		for (int i = 0; i < otherGameObjects.size(); ++i) {
+			if (otherGameObjects[i]->_body._mesh._pMesh == nullptr) {
+				continue;
+			}
+			auto contactPoints = GetContactPoints(otherGameObjects[i]->_body);
+			outContactPoints.insert(outContactPoints.end(), contactPoints.begin(), contactPoints.end());
+		}
+		return outContactPoints;
+	}
+
+	void RigidBody::Initialize(Mesh* pMesh, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass) {
+		if (pMesh == nullptr || mass <= 0.001f) {
+			return;
+		}
+
+		_mass = mass;
+		_mesh._pMesh = pMesh;
+		_isCenterOfMassOverridden = overrideCenterOfMass;
+		_overriddenCenterOfMass = overriddenCenterOfMass;
+		auto& vertices = pMesh->_vertices._vertexData;
+		auto& indices = pMesh->_faceIndices._indexData;
+		_mesh._vertices.resize(vertices.size());
+		_mesh._faceIndices.resize(indices.size());
+
+		// TODO: Decide how you want to initialize your physics mesh.
+		for (int i = 0; i < vertices.size(); ++i) {
+			_mesh._vertices[i]._position = vertices[i]._position;
+		}
+
+		memcpy(_mesh._faceIndices.data(), indices.data(), GetVectorSizeInBytes(indices));
+
+		_isInitialized = true;
+	}
+
+	void RigidBody::PhysicsUpdate() {
+		if (_isCollidable) {
+
+		}
+
+		if (_updateImplementation) {
+			_updateImplementation(*_mesh._pMesh->_pGameObject);
+		}
+
+		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
+		_mesh._pMesh->_pGameObject->_localTransform.RotateAroundPosition(GetCenterOfMass(), glm::normalize(_angularVelocity), glm::length(_angularVelocity) * deltaTimeSeconds);
+		_mesh._pMesh->_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
+	}
+
 	void CheckResult(VkResult result) {
 		if (result != VK_SUCCESS) {
 			std::string message = "ERROR: code " + std::to_string(result);
@@ -3875,21 +3900,11 @@ namespace Engine {
 		 */
 		glm::vec3 _max;
 
-		/**
-		 * @brief Returns the center of the bounding box.
-		 */
-		glm::vec3 GetCenter();
-
-		/**
-		 * @brief Creates a bounding box from a visual mesh.
-		 */
-		static BoundingBox Create(const Mesh& mesh);
-
 		glm::vec3 GetCenter() {
 			return glm::vec3((_min.x + _max.x) * 0.5f, (_min.y + _max.y) * 0.5f, (_min.z + _max.z) * 0.5f);
 		}
 
-		BoundingBox Create(const Mesh& mesh) {
+		static BoundingBox Create(const Mesh& mesh) {
 			auto& vertices = mesh._vertices._vertexData;
 			BoundingBox boundingBox;
 
@@ -4842,7 +4857,7 @@ namespace Engine {
 		}
 
 		void MainLoop() {
-			std::thread physicsThread(&PhysicsUpdate, this);
+			//std::thread physicsThread(&PhysicsUpdate, this);
 			VulkanContext vkContext;
 			vkContext._instance = _instance;
 			vkContext._logicalDevice = _logicalDevice;
@@ -4857,7 +4872,7 @@ namespace Engine {
 				glfwPollEvents();
 			}
 
-			physicsThread.join();
+			//physicsThread.join();
 		}
 
 		void Update(VulkanContext& vkContext) {
@@ -5120,9 +5135,9 @@ namespace Engine {
 			//auto scenePath = Paths::ModelsPath() /= "directions.glb";
 			//auto scenePath = Paths::ModelsPath() /= "f.glb";
 			//auto scenePath = Paths::ModelsPath() /= "fr.glb";
-			//auto scenePath = Paths::ModelsPath() /= "mp5k.glb";
+			auto scenePath = Paths::ModelsPath() /= "mp5k.glb";
 			//auto scenePath = Paths::ModelsPath() /= "collision.glb";
-			auto scenePath = Paths::ModelsPath() /= "forces.glb";
+			//auto scenePath = Paths::ModelsPath() /= "forces.glb";
 			//auto scenePath = Paths::ModelsPath() /= "hierarchy.glb";
 			//auto scenePath = Paths::ModelsPath() /= "primitives.glb";
 			//auto scenePath = Paths::ModelsPath() /= "translation.glb";
@@ -5860,10 +5875,6 @@ namespace Engine {
 			}
 		}
 	};
-
-	namespace Scenes {
-		class GameObject;
-	}
 }
 
 int main() {

@@ -19,12 +19,12 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\Json.cpp" />
     <ClCompile Include="src\Main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Includes.hpp" />
     <ClInclude Include="include\json\json.h" />
-    <ClInclude Include="include\LocalIncludes.hpp" />
     <ClInclude Include="include\nlohmann\adl_serializer.hpp" />
     <ClInclude Include="include\nlohmann\byte_container_with_subtype.hpp" />
     <ClInclude Include="include\nlohmann\detail\abi_macros.hpp" />
@@ -71,9 +71,9 @@
     <ClInclude Include="include\nlohmann\thirdparty\hedley\hedley.hpp" />
     <ClInclude Include="include\nlohmann\thirdparty\hedley\hedley_undef.hpp" />
     <ClInclude Include="include\stb\stb_image_write.h" />
-    <ClInclude Include="include\LocalDependencies.hpp" />
     <ClInclude Include="include\tinygltf\tiny_gltf.h" />
     <ClInclude Include="include\stb\stb_image.h" />
+    <ClInclude Include="src\Json.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -202,10 +202,10 @@
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\graphics\VertexShader.vert" -o "$(SolutionDir)src\engine\shaders\graphics\VertexShader.spv"
-$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\graphics\FragmentShader.frag" -o "$(SolutionDir)src\engine\shaders\graphics\FragmentShader.spv"</Command>
+      <Command>"$(SolutionDir)src\shaders\ShaderCompiler.bat"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
+	
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -218,6 +218,7 @@ $(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\graphics\FragmentS
       <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
     </ClCompile>
+	  
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -228,10 +229,7 @@ $(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\graphics\FragmentS
       <AdditionalDependencies>assimp-vc142-mtd.lib;vulkan-1.lib;glfw3.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/NODEFAULTLIB:MSVCRT</AdditionalOptions>
     </Link>
-    <PostBuildEvent>
-      <Command>$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\graphics\VertexShader.vert" -o "$(SolutionDir)src\engine\shaders\graphics\VertexShader.spv"
-$(VULKAN_SDK)\Bin\glslc.exe "$(SolutionDir)src\engine\shaders\graphics\FragmentShader.frag" -o "$(SolutionDir)src\engine\shaders\graphics\FragmentShader.spv"</Command>
-    </PostBuildEvent>
+    
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
