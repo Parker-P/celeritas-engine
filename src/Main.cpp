@@ -5,6 +5,8 @@
 #define TINYGLTF_IMPLEMENTATION
 #define _CRT_SECURE_NO_WARNINGS
 #define __STDC_LIB_EXT1__ 1
+#define NK_IMPLEMENTATION
+#define NK_GLFW_VULKAN_IMPLEMENTATION
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -23,6 +25,8 @@
 #include <tinygltf/tiny_gltf.h>
 #include <vulkan/vulkan.h>
 #include <Json.h>
+#include <nuklear/nuklear.h>
+#include <nuklear/nuklear_glfw_vulkan.h>
 
 namespace Engine {
 
@@ -781,8 +785,6 @@ namespace Engine {
 		 */
 		uint32_t _familyIndex;
 	};
-
-	
 
 	VkCommandPool CreateCommandPool(VkDevice& logicalDevice, int& queueFamilyIndex) {
 		VkCommandPoolCreateInfo poolCreateInfo = {};
@@ -3664,7 +3666,7 @@ namespace Engine {
 		vkCmdBindIndexBuffer(drawCommandBuffer, _faceIndices._indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdDrawIndexed(drawCommandBuffer, (uint32_t)_faceIndices._indexData.size(), 1, 0, 0, 0);
 	}
-	
+
 	// Rigidbody
 	bool RigidBody::IsVectorZero(const glm::vec3& vector, float tolerance) {
 		return (vector.x >= -tolerance && vector.x <= tolerance &&
@@ -4740,6 +4742,875 @@ namespace Engine {
 			ShaderResources _shaderResources;
 
 		} _graphicsPipeline;
+
+		/**
+		 * @brief Context that contains all the info that the Nuklear library uses to render UI.
+		 */
+		struct NuklearUiContext {
+			VkSampler _uiShaderSampler;
+			VkDescriptorSetLayout _descriptorSetLayout;
+
+			void CreateSampler() {
+				VkResult result;
+				VkSamplerCreateInfo samplerCreateInfo{};
+				samplerCreateInfo
+					.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+				samplerCreateInfo.pNext = NULL;
+				samplerCreateInfo.maxAnisotropy = 1.0;
+				samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+				samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+				samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+				samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+				samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+				samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+				samplerCreateInfo.mipLodBias = 0.0f;
+				samplerCreateInfo.compareEnable = VK_FALSE;
+				samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+				samplerCreateInfo.minLod = 0.0f;
+				samplerCreateInfo.maxLod = 0.0f;
+				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+				CheckResult(vkCreateSampler(_logicalDevice, &samplerCreateInfo, NULL, &uiContext->_uiShaderSampler));
+			}
+
+			void CreateDescriptorSetLayout() {
+				VkDescriptorSetLayoutBinding overlay_layout_binding{};
+				VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_nfo{};
+				overlay_layout_binding.binding = 0;
+				overlay_layout_binding.descriptorCount = 1;
+				overlay_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+				overlay_layout_binding.pImmutableSamplers = NULL;
+				overlay_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+				descriptor_set_layout_create_nfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+				descriptor_set_layout_create_nfo.bindingCount = 1;
+				descriptor_set_layout_create_nfo.pBindings = &overlay_layout_binding;
+				CheckResult(vkCreateDescriptorSetLayout(_logicalDevice, &descriptor_set_layout_create_nfo, NULL, &uiContext->_descriptorSetLayout));
+			}
+
+			bool CreateSwapChainRelatedResources() {
+				if (!create_swap_chain(demo)) {
+					return false;
+				}
+				if (!create_swap_chain_image_views(demo)) {
+					return false;
+				}
+				if (!create_overlay_images(demo)) {
+					return false;
+				}
+				if (!create_render_pass(demo)) {
+					return false;
+				}
+				if (!create_framebuffers(demo)) {
+					return false;
+				}
+				if (!create_graphics_pipeline(demo)) {
+					return false;
+				}
+				return true;
+			}
+
+			bool CreateSwapChain() {
+				struct swap_chain_support_details swap_chain_support;
+				VkSurfaceFormatKHR surface_format;
+				VkPresentModeKHR present_mode;
+				VkExtent2D extent;
+				VkResult result;
+				VkSwapchainCreateInfoKHR create_info;
+				uint32_t queue_family_indices[2];
+				bool ret = false;
+
+				queue_family_indices[0] = (uint32_t)demo->indices.graphics;
+				queue_family_indices[1] = (uint32_t)demo->indices.present;
+
+				if (!query_swap_chain_support(demo->physical_device, demo->surface,
+					&swap_chain_support)) {
+					goto cleanup;
+				}
+				surface_format = choose_swap_surface_format(swap_chain_support.formats,
+					swap_chain_support.formats_len);
+				present_mode = choose_swap_present_mode(
+					swap_chain_support.present_modes, swap_chain_support.present_modes_len);
+				extent = choose_swap_extent(demo, &swap_chain_support.capabilities);
+
+				demo->swap_chain_images_len =
+					swap_chain_support.capabilities.minImageCount + 1;
+				if (swap_chain_support.capabilities.maxImageCount > 0 &&
+					demo->swap_chain_images_len >
+					swap_chain_support.capabilities.maxImageCount) {
+					demo->swap_chain_images_len =
+						swap_chain_support.capabilities.maxImageCount;
+				}
+
+				memset(&create_info, 0, sizeof(VkSwapchainCreateInfoKHR));
+				create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+				create_info.surface = demo->surface;
+
+				create_info.minImageCount = demo->swap_chain_images_len;
+				create_info.imageFormat = surface_format.format;
+				create_info.imageColorSpace = surface_format.colorSpace;
+				create_info.imageExtent = extent;
+				create_info.imageArrayLayers = 1;
+				create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+				if (demo->indices.graphics != demo->indices.present) {
+					create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+					create_info.queueFamilyIndexCount = 2;
+					create_info.pQueueFamilyIndices = queue_family_indices;
+				}
+				else {
+					create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+				}
+
+				create_info.preTransform = swap_chain_support.capabilities.currentTransform;
+				create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+				create_info.presentMode = present_mode;
+				create_info.clipped = VK_TRUE;
+
+				result = vkCreateSwapchainKHR(demo->device, &create_info, NULL,
+					&demo->swap_chain);
+
+				if (result != VK_SUCCESS) {
+					fprintf(stderr, "vkCreateSwapchainKHR failed: %d\n", result);
+					goto cleanup;
+				}
+
+				result = vkGetSwapchainImagesKHR(demo->device, demo->swap_chain,
+					&demo->swap_chain_images_len, NULL);
+				if (result != VK_SUCCESS) {
+					fprintf(stderr, "vkGetSwapchainImagesKHR failed: %d\n", result);
+					goto cleanup;
+				}
+				if (demo->swap_chain_images == NULL) {
+					demo->swap_chain_images =
+						malloc(demo->swap_chain_images_len * sizeof(VkImage));
+				}
+				result = vkGetSwapchainImagesKHR(demo->device, demo->swap_chain,
+					&demo->swap_chain_images_len,
+					demo->swap_chain_images);
+
+				if (result != VK_SUCCESS) {
+					fprintf(stderr, "vkGetSwapchainImagesKHR failed: %d\n", result);
+					return false;
+				}
+
+				demo->swap_chain_image_format = surface_format.format;
+				demo->swap_chain_image_extent = extent;
+
+				ret = true;
+			cleanup:
+				swap_chain_support_details_free(&swap_chain_support);
+
+				return ret;
+			}
+
+			bool CreateSwapChainImageViews() {
+				uint32_t i;
+				VkResult result;
+				VkImageViewCreateInfo create_info;
+
+				memset(&create_info, 0, sizeof(VkImageViewCreateInfo));
+				create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+				create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+				create_info.format = demo->swap_chain_image_format;
+				create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+				create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+				create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+				create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+				create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				create_info.subresourceRange.baseMipLevel = 0;
+				create_info.subresourceRange.levelCount = 1;
+				create_info.subresourceRange.baseArrayLayer = 0;
+				create_info.subresourceRange.layerCount = 1;
+
+				if (!demo->swap_chain_image_views) {
+					demo->swap_chain_image_views =
+						malloc(demo->swap_chain_images_len * sizeof(VkImageView));
+				}
+
+				for (i = 0; i < demo->swap_chain_images_len; i++) {
+					create_info.image = demo->swap_chain_images[i];
+					result = vkCreateImageView(demo->device, &create_info, NULL,
+						&demo->swap_chain_image_views[i]);
+
+					if (result != VK_SUCCESS) {
+						fprintf(stderr, "vkCreateImageView failed: %d\n", result);
+						return false;
+					}
+				}
+				return true;
+			}
+
+			bool CreateOverlayImages() {
+				uint32_t i, j;
+				VkResult result;
+				VkMemoryRequirements mem_requirements;
+				VkPhysicalDeviceMemoryProperties mem_properties;
+				int found;
+				VkImageCreateInfo image_info;
+				VkMemoryAllocateInfo alloc_info;
+				VkImageViewCreateInfo image_view_info;
+
+				memset(&image_info, 0, sizeof(VkImageCreateInfo));
+				image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+				image_info.imageType = VK_IMAGE_TYPE_2D;
+				image_info.extent.width = demo->swap_chain_image_extent.width;
+				image_info.extent.height = demo->swap_chain_image_extent.height;
+				image_info.extent.depth = 1;
+				image_info.mipLevels = 1;
+				image_info.arrayLayers = 1;
+				image_info.format = demo->swap_chain_image_format;
+				image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+				image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				image_info.usage =
+					VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+				image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+				image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+				memset(&alloc_info, 0, sizeof(VkMemoryAllocateInfo));
+				alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+
+				memset(&image_view_info, 0, sizeof(VkImageViewCreateInfo));
+				image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+				image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+				image_view_info.format = demo->swap_chain_image_format;
+				image_view_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+				image_view_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+				image_view_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+				image_view_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+				image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				image_view_info.subresourceRange.baseMipLevel = 0;
+				image_view_info.subresourceRange.levelCount = 1;
+				image_view_info.subresourceRange.baseArrayLayer = 0;
+				image_view_info.subresourceRange.layerCount = 1;
+
+				if (!demo->overlay_images) {
+					demo->overlay_images =
+						malloc(demo->swap_chain_images_len * sizeof(VkImage));
+				}
+
+				if (!demo->overlay_image_memories) {
+					demo->overlay_image_memories =
+						malloc(demo->swap_chain_images_len * sizeof(VkDeviceMemory));
+				}
+				if (!demo->overlay_image_views) {
+					demo->overlay_image_views =
+						malloc(demo->swap_chain_images_len * sizeof(VkImageView));
+				}
+
+				for (i = 0; i < demo->swap_chain_images_len; i++) {
+					result = vkCreateImage(demo->device, &image_info, NULL,
+						&demo->overlay_images[i]);
+
+					if (result != VK_SUCCESS) {
+						fprintf(stderr, "vkCreateImage failed for index %lu: %d\n",
+							(unsigned long)i, result);
+						return false;
+					}
+
+					vkGetImageMemoryRequirements(demo->device, demo->overlay_images[i],
+						&mem_requirements);
+
+					alloc_info.allocationSize = mem_requirements.size;
+
+					vkGetPhysicalDeviceMemoryProperties(demo->physical_device,
+						&mem_properties);
+					found = 0;
+					for (j = 0; j < mem_properties.memoryTypeCount; j++) {
+						if ((mem_requirements.memoryTypeBits & (1 << j)) &&
+							(mem_properties.memoryTypes[j].propertyFlags &
+								VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) ==
+							VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
+							found = 1;
+							break;
+						}
+					}
+					if (!found) {
+						fprintf(stderr,
+							"failed to find suitable memory type for index %lu!\n",
+							(unsigned long)i);
+						return false;
+					}
+					alloc_info.memoryTypeIndex = j;
+					result = vkAllocateMemory(demo->device, &alloc_info, NULL,
+						&demo->overlay_image_memories[i]);
+					if (result != VK_SUCCESS) {
+						fprintf(stderr,
+							"failed to allocate vulkan memory for index %lu: %d!\n",
+							(unsigned long)i, result);
+						return false;
+					}
+					result = vkBindImageMemory(demo->device, demo->overlay_images[i],
+						demo->overlay_image_memories[i], 0);
+					if (result != VK_SUCCESS) {
+						fprintf(stderr, "Couldn't bind image memory for index %lu: %d\n",
+							(unsigned long)i, result);
+						return false;
+					}
+
+					image_view_info.image = demo->overlay_images[i];
+					result = vkCreateImageView(demo->device, &image_view_info, NULL,
+						&demo->overlay_image_views[i]);
+
+					if (result != VK_SUCCESS) {
+						fprintf(stderr, "vkCreateImageView failed for index %lu: %d\n",
+							(unsigned long)i, result);
+						return false;
+					}
+				}
+				return true;
+			}
+
+			void CreateRenderPass() {
+				VkAttachmentDescription attachment{};
+				VkAttachmentReference color_attachment_ref{};
+				VkSubpassDescription subpass{};
+				VkSubpassDependency dependency{};
+				VkRenderPassCreateInfo render_pass_info{};
+
+				attachment.format = demo->swap_chain_image_format;
+				attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+				attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+				attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+				attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+				attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+				attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+				color_attachment_ref.attachment = 0;
+				color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+				subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+				subpass.colorAttachmentCount = 1;
+				subpass.pColorAttachments = &color_attachment_ref;
+
+				dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+				dependency.dstSubpass = 0;
+				dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+				dependency.srcAccessMask = 0;
+				dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+				dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+				render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+				render_pass_info.attachmentCount = 1;
+				render_pass_info.pAttachments = &attachment;
+				render_pass_info.subpassCount = 1;
+				render_pass_info.pSubpasses = &subpass;
+				render_pass_info.dependencyCount = 1;
+				render_pass_info.pDependencies = &dependency;
+
+				CheckResult(vkCreateRenderPass(demo->device, &render_pass_info, NULL, &demo->render_pass));
+			}
+
+			bool CreateFramebuffers() {
+				uint32_t i;
+				VkResult result;
+				VkFramebufferCreateInfo framebuffer_info;
+
+				if (!demo->framebuffers) {
+					demo->framebuffers =
+						malloc(demo->swap_chain_images_len * sizeof(VkFramebuffer));
+				}
+
+				memset(&framebuffer_info, 0, sizeof(VkFramebufferCreateInfo));
+				framebuffer_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+				framebuffer_info.renderPass = demo->render_pass;
+				framebuffer_info.attachmentCount = 1;
+				framebuffer_info.width = demo->swap_chain_image_extent.width;
+				framebuffer_info.height = demo->swap_chain_image_extent.height;
+				framebuffer_info.layers = 1;
+
+				for (i = 0; i < demo->swap_chain_images_len; i++) {
+					framebuffer_info.pAttachments = &demo->swap_chain_image_views[i];
+
+					result = vkCreateFramebuffer(demo->device, &framebuffer_info, NULL,
+						&demo->framebuffers[i]);
+					if (result != VK_SUCCESS) {
+						fprintf(stderr, "vkCreateFramebuffer failed from index %lu: %d\n",
+							(unsigned long)i, result);
+						return false;
+					}
+				}
+				return true;
+			}
+
+			VkSurfaceFormatKHR ChooseSwapSurfaceFormat(VkSurfaceFormatKHR* available_formats, uint32_t available_formats_len) {
+				VkSurfaceFormatKHR undefined_format = { VK_FORMAT_B8G8R8A8_UNORM,
+													   VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
+				uint32_t i;
+				if (available_formats_len == 1 &&
+					available_formats[0].format == VK_FORMAT_UNDEFINED) {
+					return undefined_format;
+				}
+
+				for (i = 0; i < available_formats_len; i++) {
+					if (available_formats[i].format == VK_FORMAT_B8G8R8A8_UNORM &&
+						available_formats[i].colorSpace ==
+						VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+						return available_formats[i];
+					}
+				}
+
+				return available_formats[0];
+			}
+
+			VkPresentModeKHR ChooseSwapPresentMode(VkPresentModeKHR* available_present_modes, uint32_t available_present_modes_len) {
+				uint32_t i;
+				for (i = 0; i < available_present_modes_len; i++) {
+					/*
+					best mode to ensure good input latency while ensuring we are not
+					producing tearing
+					*/
+					if (available_present_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
+						return available_present_modes[i];
+					}
+				}
+
+				/* must be supported */
+				return VK_PRESENT_MODE_FIFO_KHR;
+			}
+
+			VkExtent2D ChooseSwapExtent(VkSurfaceCapabilitiesKHR* capabilities) {
+				int width, height;
+				VkExtent2D actual_extent;
+				if (capabilities->currentExtent.width != 0xFFFFFFFF) {
+					return capabilities->currentExtent;
+				}
+				else {
+					/* not window size! */
+					glfwGetFramebufferSize(demo->win, &width, &height);
+
+					actual_extent.width = (uint32_t)width;
+					actual_extent.height = (uint32_t)height;
+
+					actual_extent.width = NK_MAX(
+						capabilities->minImageExtent.width,
+						NK_MIN(capabilities->maxImageExtent.width, actual_extent.width));
+					actual_extent.height = NK_MAX(
+						capabilities->minImageExtent.height,
+						NK_MIN(capabilities->maxImageExtent.height, actual_extent.height));
+
+					return actual_extent;
+				}
+			}
+
+			bool CreateDescriptorPool() {
+				VkDescriptorPoolSize pool_size;
+				VkDescriptorPoolCreateInfo pool_info;
+				VkResult result;
+
+				memset(&pool_size, 0, sizeof(VkDescriptorPoolSize));
+				pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+				pool_size.descriptorCount = demo->swap_chain_images_len;
+
+				memset(&pool_info, 0, sizeof(VkDescriptorPoolCreateInfo));
+				pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+				pool_info.poolSizeCount = 1;
+				pool_info.pPoolSizes = &pool_size;
+				pool_info.maxSets = demo->swap_chain_images_len;
+				result = vkCreateDescriptorPool(demo->device, &pool_info, NULL,
+					&demo->descriptor_pool);
+
+				if (result != VK_SUCCESS) {
+					fprintf(stderr, "vkCreateDescriptorPool failed: %d\n", result);
+					return false;
+				}
+				return true;
+			}
+
+			void UpdateDescriptorSets() {
+				uint32_t i;
+				VkDescriptorImageInfo descriptor_image_info;
+				VkWriteDescriptorSet descriptor_write;
+
+				memset(&descriptor_image_info, 0, sizeof(VkDescriptorImageInfo));
+				descriptor_image_info.imageLayout =
+					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				descriptor_image_info.sampler = demo->sampler;
+
+				memset(&descriptor_write, 0, sizeof(VkWriteDescriptorSet));
+				descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				descriptor_write.dstBinding = 0;
+				descriptor_write.dstArrayElement = 0;
+				descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+				descriptor_write.descriptorCount = 1;
+				descriptor_write.pImageInfo = &descriptor_image_info;
+
+				for (i = 0; i < demo->swap_chain_images_len; i++) {
+					descriptor_write.dstSet = demo->descriptor_sets[i];
+					descriptor_image_info.imageView = demo->overlay_image_views[i];
+
+					vkUpdateDescriptorSets(demo->device, 1, &descriptor_write, 0, NULL);
+				}
+			}
+
+			bool CreateDescriptorSets() {
+				bool ret = false;
+				VkDescriptorSetLayout* descriptor_set_layouts;
+				VkDescriptorSetAllocateInfo alloc_info;
+				uint32_t i;
+				VkResult result;
+
+				demo->descriptor_sets =
+					malloc(demo->swap_chain_images_len * sizeof(VkDescriptorSet));
+				descriptor_set_layouts =
+					malloc(demo->swap_chain_images_len * sizeof(VkDescriptorSetLayout));
+
+				for (i = 0; i < demo->swap_chain_images_len; i++) {
+					descriptor_set_layouts[i] = demo->descriptor_set_layout;
+				}
+
+				memset(&alloc_info, 0, sizeof(VkDescriptorSetAllocateInfo));
+				alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+				alloc_info.descriptorPool = demo->descriptor_pool;
+				alloc_info.descriptorSetCount = demo->swap_chain_images_len;
+				alloc_info.pSetLayouts = descriptor_set_layouts;
+				result = vkAllocateDescriptorSets(demo->device, &alloc_info,
+					demo->descriptor_sets);
+				if (result != VK_SUCCESS) {
+					fprintf(stderr, "vkAllocateDescriptorSets failed: %d\n", result);
+					goto cleanup;
+				}
+
+				update_descriptor_sets(demo);
+
+				ret = true;
+			cleanup:
+				free(descriptor_set_layouts);
+
+				return ret;
+			}
+
+			bool CreateShaderModule(VkDevice device, char* shader_buffer, size_t shader_buffer_len, VkShaderModule* shader_module) {
+				VkShaderModuleCreateInfo create_info;
+				VkResult result;
+
+				memset(&create_info, 0, sizeof(VkShaderModuleCreateInfo));
+				create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+				create_info.codeSize = shader_buffer_len;
+				create_info.pCode = (const uint32_t*)shader_buffer;
+
+				result = vkCreateShaderModule(device, &create_info, NULL, shader_module);
+				if (result != VK_SUCCESS) {
+					fprintf(stderr, "vkCreateShaderModule failed: %d\n", result);
+					return false;
+				}
+
+				return true;
+			}
+
+			bool CreateGraphicsPipeline() {
+				bool ret = false;
+				char* vert_shader_code = NULL;
+				char* frag_shader_code = NULL;
+				VkShaderModule vert_shader_module = VK_NULL_HANDLE;
+				VkShaderModule frag_shader_module = VK_NULL_HANDLE;
+				FILE* fp;
+				size_t file_len;
+				VkPipelineShaderStageCreateInfo vert_shader_stage_info;
+				VkPipelineShaderStageCreateInfo frag_shader_stage_info;
+				VkPipelineShaderStageCreateInfo shader_stages[2];
+				VkPipelineVertexInputStateCreateInfo vertex_input_info;
+				VkPipelineInputAssemblyStateCreateInfo input_assembly;
+				VkViewport viewport;
+				VkRect2D scissor;
+				VkPipelineViewportStateCreateInfo viewport_state;
+				VkPipelineRasterizationStateCreateInfo rasterizer;
+				VkPipelineMultisampleStateCreateInfo multisampling;
+				VkPipelineColorBlendAttachmentState color_blend_attachment;
+				VkPipelineColorBlendStateCreateInfo color_blending;
+				VkPipelineLayoutCreateInfo pipeline_layout_info;
+				VkResult result;
+				VkGraphicsPipelineCreateInfo pipeline_info;
+				size_t read_result;
+
+				fp = fopen("shaders/demo.vert.spv", "rb");
+				if (!fp) {
+					fprintf(stderr, "Couldn't open shaders/demo.vert.spv\n");
+					return false;
+				}
+				fseek(fp, 0, SEEK_END);
+				file_len = ftell(fp);
+				vert_shader_code = malloc(file_len);
+				fseek(fp, 0, 0);
+				read_result = fread(vert_shader_code, file_len, 1, fp);
+				fclose(fp);
+				if (read_result != 1) {
+					fprintf(stderr, "Could not read fragment shader\n");
+					goto cleanup;
+				}
+
+				if (!create_shader_module(demo->device, vert_shader_code, file_len,
+					&vert_shader_module)) {
+					goto cleanup;
+				}
+
+				fp = fopen("shaders/demo.frag.spv", "rb");
+				if (!fp) {
+					fprintf(stderr, "Couldn't open shaders/demo.frag.spv\n");
+					return false;
+				}
+				fseek(fp, 0, SEEK_END);
+				file_len = ftell(fp);
+				frag_shader_code = malloc(file_len);
+				fseek(fp, 0, 0);
+				read_result = fread(frag_shader_code, file_len, 1, fp);
+				fclose(fp);
+				if (read_result != 1) {
+					fprintf(stderr, "Could not read fragment shader\n");
+					goto cleanup;
+				}
+
+				if (!create_shader_module(demo->device, frag_shader_code, file_len,
+					&frag_shader_module)) {
+					goto cleanup;
+				}
+
+				memset(&vert_shader_stage_info, 0, sizeof(VkPipelineShaderStageCreateInfo));
+				vert_shader_stage_info.sType =
+					VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+				vert_shader_stage_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
+				vert_shader_stage_info.module = vert_shader_module;
+				vert_shader_stage_info.pName = "main";
+
+				memset(&frag_shader_stage_info, 0, sizeof(VkPipelineShaderStageCreateInfo));
+				frag_shader_stage_info.sType =
+					VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+				frag_shader_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+				frag_shader_stage_info.module = frag_shader_module;
+				frag_shader_stage_info.pName = "main";
+
+				shader_stages[0] = vert_shader_stage_info;
+				shader_stages[1] = frag_shader_stage_info;
+
+				memset(&vertex_input_info, 0, sizeof(VkPipelineVertexInputStateCreateInfo));
+				vertex_input_info.sType =
+					VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+				memset(&input_assembly, 0, sizeof(VkPipelineInputAssemblyStateCreateInfo));
+				input_assembly.sType =
+					VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+				input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+				input_assembly.primitiveRestartEnable = VK_FALSE;
+
+				memset(&viewport, 0, sizeof(VkViewport));
+				viewport.x = 0.0f;
+				viewport.y = 0.0f;
+				viewport.width = (float)demo->swap_chain_image_extent.width;
+				viewport.height = (float)demo->swap_chain_image_extent.height;
+				viewport.minDepth = 0.0f;
+				viewport.maxDepth = 1.0f;
+
+				memset(&scissor, 0, sizeof(VkRect2D));
+				scissor.extent.width = demo->swap_chain_image_extent.width;
+				scissor.extent.height = demo->swap_chain_image_extent.height;
+
+				memset(&viewport_state, 0, sizeof(VkPipelineViewportStateCreateInfo));
+				viewport_state.sType =
+					VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+				viewport_state.viewportCount = 1;
+				viewport_state.pViewports = &viewport;
+				viewport_state.scissorCount = 1;
+				viewport_state.pScissors = &scissor;
+
+				memset(&rasterizer, 0, sizeof(VkPipelineRasterizationStateCreateInfo));
+				rasterizer.sType =
+					VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+				rasterizer.depthClampEnable = VK_FALSE;
+				rasterizer.rasterizerDiscardEnable = VK_FALSE;
+				rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+				rasterizer.lineWidth = 1.0f;
+				rasterizer.cullMode = VK_CULL_MODE_FRONT_BIT;
+				rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+				rasterizer.depthBiasEnable = VK_FALSE;
+
+				memset(&multisampling, 0, sizeof(VkPipelineMultisampleStateCreateInfo));
+				multisampling.sType =
+					VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+				multisampling.sampleShadingEnable = VK_FALSE;
+				multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+				memset(&color_blend_attachment, 0,
+					sizeof(VkPipelineColorBlendAttachmentState));
+				color_blend_attachment.colorWriteMask =
+					VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+					VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+				color_blend_attachment.blendEnable = VK_TRUE;
+				color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+				color_blend_attachment.dstColorBlendFactor =
+					VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+				color_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+				color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+				color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+				color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+				memset(&color_blending, 0, sizeof(VkPipelineColorBlendStateCreateInfo));
+				color_blending.sType =
+					VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+				color_blending.logicOpEnable = VK_FALSE;
+				color_blending.logicOp = VK_LOGIC_OP_COPY;
+				color_blending.attachmentCount = 1;
+				color_blending.pAttachments = &color_blend_attachment;
+				color_blending.blendConstants[0] = 1.0f;
+				color_blending.blendConstants[1] = 1.0f;
+				color_blending.blendConstants[2] = 1.0f;
+				color_blending.blendConstants[3] = 1.0f;
+
+				memset(&pipeline_layout_info, 0, sizeof(VkPipelineLayoutCreateInfo));
+				pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+				pipeline_layout_info.setLayoutCount = 0;
+				pipeline_layout_info.pushConstantRangeCount = 0;
+				pipeline_layout_info.setLayoutCount = 1;
+				pipeline_layout_info.pSetLayouts = &demo->descriptor_set_layout;
+
+				result = vkCreatePipelineLayout(demo->device, &pipeline_layout_info, NULL,
+					&demo->pipeline_layout);
+
+				if (result != VK_SUCCESS) {
+					fprintf(stderr, "vkCreatePipelineLayout failed: %d\n", result);
+					goto cleanup;
+				}
+
+				memset(&pipeline_info, 0, sizeof(VkGraphicsPipelineCreateInfo));
+				pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+				pipeline_info.stageCount = 2;
+				pipeline_info.pStages = shader_stages;
+				pipeline_info.pVertexInputState = &vertex_input_info;
+				pipeline_info.pInputAssemblyState = &input_assembly;
+				pipeline_info.pViewportState = &viewport_state;
+				pipeline_info.pRasterizationState = &rasterizer;
+				pipeline_info.pMultisampleState = &multisampling;
+				pipeline_info.pColorBlendState = &color_blending;
+				pipeline_info.layout = demo->pipeline_layout;
+				pipeline_info.renderPass = demo->render_pass;
+				pipeline_info.basePipelineHandle = NULL;
+
+				result = vkCreateGraphicsPipelines(demo->device, NULL, 1, &pipeline_info,
+					NULL, &demo->pipeline);
+				if (result != VK_SUCCESS) {
+					fprintf(stderr, "vkCreateGraphicsPipelines failed: %d\n", result);
+					goto cleanup;
+				}
+				ret = true;
+			cleanup:
+				if (frag_shader_module) {
+					vkDestroyShaderModule(demo->device, frag_shader_module, NULL);
+				}
+				if (frag_shader_code) {
+					free(frag_shader_code);
+				}
+				if (vert_shader_module) {
+					vkDestroyShaderModule(demo->device, vert_shader_module, NULL);
+				}
+				if (vert_shader_code) {
+					free(vert_shader_code);
+				}
+
+				return ret;
+			}
+
+			bool CreateCommandPool() {
+				VkCommandPoolCreateInfo pool_info;
+				VkResult result;
+
+				memset(&pool_info, 0, sizeof(VkCommandPoolCreateInfo));
+				pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+				pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+				pool_info.queueFamilyIndex = demo->indices.graphics;
+
+				result = vkCreateCommandPool(demo->device, &pool_info, NULL,
+					&demo->command_pool);
+				if (result != VK_SUCCESS) {
+					fprintf(stderr, "vkCreateCommandPool failed: %d\n", result);
+					return false;
+				}
+				return true;
+			}
+
+			bool CreateCommandBuffers() {
+				VkCommandBufferAllocateInfo alloc_info;
+				VkResult result;
+
+				demo->command_buffers =
+					malloc(demo->swap_chain_images_len * sizeof(VkCommandBuffer));
+
+				memset(&alloc_info, 0, sizeof(VkCommandBufferAllocateInfo));
+				alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+				alloc_info.commandPool = demo->command_pool;
+				alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+				alloc_info.commandBufferCount = demo->swap_chain_images_len;
+
+				result = vkAllocateCommandBuffers(demo->device, &alloc_info,
+					demo->command_buffers);
+				if (result != VK_SUCCESS) {
+					fprintf(stderr, "vkAllocateCommandBuffers failed: %d\n", result);
+					return false;
+				}
+
+				return true;
+			}
+
+			bool CreateSemaphores() {
+				VkSemaphoreCreateInfo semaphore_info;
+				VkResult result;
+
+				memset(&semaphore_info, 0, sizeof(VkSemaphoreCreateInfo));
+				semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+				result = vkCreateSemaphore(demo->device, &semaphore_info, NULL,
+					&demo->image_available);
+				if (result != VK_SUCCESS) {
+					fprintf(stderr, "vkCreateSemaphore failed: %d\n", result);
+					return false;
+				}
+				result = vkCreateSemaphore(demo->device, &semaphore_info, NULL,
+					&demo->render_finished);
+				if (result != VK_SUCCESS) {
+					fprintf(stderr, "vkCreateSemaphore failed: %d\n", result);
+					return false;
+				}
+				return true;
+			}
+
+			bool CreateFence() {
+				VkResult result;
+				VkFenceCreateInfo fence_create_info;
+
+				memset(&fence_create_info, 0, sizeof(VkFenceCreateInfo));
+				fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+				fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+				result = vkCreateFence(demo->device, &fence_create_info, NULL,
+					&demo->render_fence);
+
+				if (result != VK_SUCCESS) {
+					fprintf(stderr, "vkCreateFence failed: %d\n", result);
+					return false;
+				}
+				return true;
+			}
+
+			bool DestroySwapChainRelatedResources() {
+				uint32_t i;
+				VkResult result;
+
+				result = vkQueueWaitIdle(demo->graphics_queue);
+				if (result != VK_SUCCESS) {
+					fprintf(stderr, "vkQueueWaitIdle failed: %d\n", result);
+					return false;
+				}
+
+				for (i = 0; i < demo->swap_chain_images_len; i++) {
+					vkDestroyFramebuffer(demo->device, demo->framebuffers[i], NULL);
+					vkDestroyImageView(demo->device, demo->overlay_image_views[i], NULL);
+					vkDestroyImage(demo->device, demo->overlay_images[i], NULL);
+					vkFreeMemory(demo->device, demo->overlay_image_memories[i], NULL);
+					vkDestroyImageView(demo->device, demo->swap_chain_image_views[i], NULL);
+				}
+				vkDestroySwapchainKHR(demo->device, demo->swap_chain, NULL);
+				vkDestroyRenderPass(demo->device, demo->render_pass, NULL);
+				vkDestroyPipeline(demo->device, demo->pipeline, NULL);
+				vkDestroyPipelineLayout(demo->device, demo->pipeline_layout, NULL);
+				return true;
+			}
+		};
 
 		// Vulkan commands.
 		VkCommandPool _commandPool;
