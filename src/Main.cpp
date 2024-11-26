@@ -4772,7 +4772,7 @@ namespace Engine {
 				CheckResult(vkCreateSampler(_logicalDevice, &samplerCreateInfo, NULL, &uiContext->_uiShaderSampler));
 			}
 
-			void CreateDescriptorSetLayout() {
+			void CreateDescriptorSetLayout(VkDevice logicalDevice) {
 				VkDescriptorSetLayoutBinding overlay_layout_binding{};
 				VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_nfo{};
 				overlay_layout_binding.binding = 0;
@@ -4783,29 +4783,16 @@ namespace Engine {
 				descriptor_set_layout_create_nfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 				descriptor_set_layout_create_nfo.bindingCount = 1;
 				descriptor_set_layout_create_nfo.pBindings = &overlay_layout_binding;
-				CheckResult(vkCreateDescriptorSetLayout(_logicalDevice, &descriptor_set_layout_create_nfo, NULL, &uiContext->_descriptorSetLayout));
+				CheckResult(vkCreateDescriptorSetLayout(logicalDevice, &descriptor_set_layout_create_nfo, NULL, &_descriptorSetLayout));
 			}
 
-			bool CreateSwapChainRelatedResources() {
-				if (!create_swap_chain(demo)) {
-					return false;
-				}
-				if (!create_swap_chain_image_views(demo)) {
-					return false;
-				}
-				if (!create_overlay_images(demo)) {
-					return false;
-				}
-				if (!create_render_pass(demo)) {
-					return false;
-				}
-				if (!create_framebuffers(demo)) {
-					return false;
-				}
-				if (!create_graphics_pipeline(demo)) {
-					return false;
-				}
-				return true;
+			void CreateSwapChainRelatedResources() {
+				CreateSwapChain();
+				CreateSwapChainImageViews();
+				CreateOverlayImages();
+				CreateRenderPass();
+				CreateFramebuffers();
+				CreateGraphicsPipeline();
 			}
 
 			bool CreateSwapChain() {
@@ -4825,19 +4812,13 @@ namespace Engine {
 					&swap_chain_support)) {
 					goto cleanup;
 				}
-				surface_format = choose_swap_surface_format(swap_chain_support.formats,
-					swap_chain_support.formats_len);
-				present_mode = choose_swap_present_mode(
-					swap_chain_support.present_modes, swap_chain_support.present_modes_len);
+				surface_format = choose_swap_surface_format(swap_chain_support.formats, swap_chain_support.formats_len);
+				present_mode = choose_swap_present_mode(swap_chain_support.present_modes, swap_chain_support.present_modes_len);
 				extent = choose_swap_extent(demo, &swap_chain_support.capabilities);
 
-				demo->swap_chain_images_len =
-					swap_chain_support.capabilities.minImageCount + 1;
-				if (swap_chain_support.capabilities.maxImageCount > 0 &&
-					demo->swap_chain_images_len >
-					swap_chain_support.capabilities.maxImageCount) {
-					demo->swap_chain_images_len =
-						swap_chain_support.capabilities.maxImageCount;
+				demo->swap_chain_images_len = swap_chain_support.capabilities.minImageCount + 1;
+				if (swap_chain_support.capabilities.maxImageCount > 0 && demo->swap_chain_images_len > swap_chain_support.capabilities.maxImageCount) {
+					demo->swap_chain_images_len = swap_chain_support.capabilities.maxImageCount;
 				}
 
 				memset(&create_info, 0, sizeof(VkSwapchainCreateInfoKHR));
