@@ -4783,7 +4783,9 @@ namespace Engine {
 		 */
 		class NuklearUiContext {
 		public:
-			void Initialize(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkSurfaceKHR windowSurface, GLFWwindow* pWindow, uint32_t* pQueueFamilyIndex) {
+			nk_context* _ctx;
+
+			void Initialize(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkSurfaceKHR windowSurface, GLFWwindow* pWindow, VkQueue queue, uint32_t* pQueueFamilyIndex) {
 				_logicalDevice = logicalDevice;
 				_physicalDevice = physicalDevice;
 				_windowSurface = windowSurface;
@@ -4799,6 +4801,60 @@ namespace Engine {
 				CreateCommandBuffers();
 				CreateSemaphores();
 				CreateFence();
+
+				uint32_t image_index;
+				VkSemaphore nk_semaphore;
+
+				std::vector<VkImageView> views; views.resize(_overlayImages.size());
+				for (int i = 0; i < views.size(); ++i) views[i] = _overlayImages[i]._view;
+				_ctx = nk_glfw3_init(_pWindow, _logicalDevice, _physicalDevice, *pQueueFamilyIndex, views.data(), _swapChainImages.size(), _swapChainImageFormat, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
+				/* Load Fonts: if none of these are loaded a default font will be used  */
+				/* Load Cursor: if you uncomment cursor loading please hide the cursor */
+				{
+					struct nk_font_atlas* atlas;
+					nk_glfw3_font_stash_begin(&atlas);
+					/*struct nk_font *droid = nk_font_atlas_add_from_file(atlas,
+					 * "../../../extra_font/DroidSans.ttf", 14, 0);*/
+					 /*struct nk_font *roboto = nk_font_atlas_add_from_file(atlas,
+					  * "../../../extra_font/Roboto-Regular.ttf", 14, 0);*/
+					  /*struct nk_font *future = nk_font_atlas_add_from_file(atlas,
+					   * "../../../extra_font/kenvector_future_thin.ttf", 13, 0);*/
+					   /*struct nk_font *clean = nk_font_atlas_add_from_file(atlas,
+						* "../../../extra_font/ProggyClean.ttf", 12, 0);*/
+						/*struct nk_font *tiny = nk_font_atlas_add_from_file(atlas,
+						 * "../../../extra_font/ProggyTiny.ttf", 10, 0);*/
+						 /*struct nk_font *cousine = nk_font_atlas_add_from_file(atlas,
+						  * "../../../extra_font/Cousine-Regular.ttf", 13, 0);*/
+					nk_glfw3_font_stash_end(queue);
+					/*nk_style_load_all_cursors(ctx, atlas->cursors);*/
+				/*nk_style_set_font(ctx, &droid->handle);*/
+				}
+
+				/* GUI */
+				if (nk_begin(_ctx, "Demo", nk_rect(50, 50, 230, 250),
+					NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
+					NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)) {
+					enum { EASY, HARD };
+					static int op = EASY;
+					static int property = 20;
+					nk_layout_row_static(_ctx, 30, 80, 1);
+					if (nk_button_label(_ctx, "button"))
+						fprintf(stdout, "button pressed\n");
+
+					nk_layout_row_dynamic(_ctx, 30, 2);
+					if (nk_option_label(_ctx, "easy", op == EASY))
+						op = EASY;
+					if (nk_option_label(_ctx, "hard", op == HARD))
+						op = HARD;
+
+					nk_layout_row_dynamic(_ctx, 25, 1);
+					nk_property_int(_ctx, "Compression:", 0, &property, 100, 10, 1);
+
+					nk_layout_row_dynamic(_ctx, 20, 1);
+					nk_label(_ctx, "background:", NK_TEXT_LEFT);
+					nk_layout_row_dynamic(_ctx, 25, 1);
+				}
+				nk_end(_ctx);
 			}
 
 			VkDevice _logicalDevice;
@@ -4931,6 +4987,7 @@ namespace Engine {
 
 				for (auto i = 0; i < _swapChainImages.size(); i++) {
 					_swapChainImages[i]._viewCreateInfo = createInfo;
+					createInfo.image = _swapChainImages[i]._image;
 					CheckResult(vkCreateImageView(_logicalDevice, &createInfo, NULL, &_swapChainImages[i]._view));
 				}
 			}
@@ -5056,7 +5113,7 @@ namespace Engine {
 				framebuffer_info.width = _swapChainImageExtent.width;
 				framebuffer_info.height = _swapChainImageExtent.height;
 				framebuffer_info.layers = 1;
-
+				_frameBuffers.resize(_swapChainImages.size());
 				for (int i = 0; i < _swapChainImages.size(); i++) {
 					framebuffer_info.pAttachments = &_swapChainImages[i]._view;
 
@@ -5066,20 +5123,14 @@ namespace Engine {
 			}
 
 			VkSurfaceFormatKHR ChooseSwapSurfaceFormat(VkSurfaceFormatKHR* available_formats, uint32_t available_formats_len) {
-				VkSurfaceFormatKHR undefined_format = { VK_FORMAT_B8G8R8A8_UNORM,
-													   VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
-				uint32_t i;
-				if (available_formats_len == 1 &&
-					available_formats[0].format == VK_FORMAT_UNDEFINED) {
-					return undefined_format;
-				}
+				//VkSurfaceFormatKHR undefined_format = { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
+				VkSurfaceFormatKHR undefined_format = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
+				if (available_formats_len == 1 && available_formats[0].format == VK_FORMAT_UNDEFINED) return undefined_format;
 
-				for (i = 0; i < available_formats_len; i++) {
-					if (available_formats[i].format == VK_FORMAT_B8G8R8A8_UNORM &&
-						available_formats[i].colorSpace ==
-						VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+				for (int i = 0; i < available_formats_len; i++) {
+					//if (available_formats[i].format == VK_FORMAT_B8G8R8A8_UNORM && available_formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+					if (available_formats[i].format == VK_FORMAT_R8G8B8A8_UNORM && available_formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
 						return available_formats[i];
-					}
 				}
 
 				return available_formats[0];
@@ -5163,7 +5214,7 @@ namespace Engine {
 				alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 				alloc_info.descriptorPool = _descriptorPool;
 				alloc_info.descriptorSetCount = _swapChainImages.size();
-				alloc_info.pSetLayouts = _descriptorSetLayouts.data();
+				alloc_info.pSetLayouts = &_descriptorSetLayout;
 				CheckResult(vkAllocateDescriptorSets(_logicalDevice, &alloc_info, _descriptorSets.data()));
 				UpdateDescriptorSets();
 			}
@@ -5263,7 +5314,7 @@ namespace Engine {
 				pipeline_layout_info.setLayoutCount = 0;
 				pipeline_layout_info.pushConstantRangeCount = 0;
 				pipeline_layout_info.setLayoutCount = 1;
-				pipeline_layout_info.pSetLayouts = _descriptorSetLayouts.data();
+				pipeline_layout_info.pSetLayouts = &_descriptorSetLayout;
 
 				CheckResult(vkCreatePipelineLayout(_logicalDevice, &pipeline_layout_info, NULL, &_pipelineLayout));
 
@@ -5425,13 +5476,13 @@ namespace Engine {
 			_graphicsPipeline._layout = CreatePipelineLayout(descriptorSetLayouts);
 			CreateShaderResources(descriptorSetLayouts);
 
+			_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, _queue, &_queueFamilyIndex);
+
 			CreateGraphicsPipeline();
 			AllocateDrawCommandBuffers();
-
-			_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, &_queueFamilyIndex);
-
 			RecordDrawCommands();
 			CreateSemaphores();
+
 		}
 
 		void PhysicsUpdate() {
@@ -5787,15 +5838,12 @@ namespace Engine {
 			return VK_PRESENT_MODE_FIFO_KHR;
 		}
 
-		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats, VkSurfaceFormatKHR fallbackFormat) {
-			if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED) return fallbackFormat;
-
+		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
 			for (const auto& availableSurfaceFormat : availableFormats) {
 				if (availableSurfaceFormat.format == VK_FORMAT_R8G8B8A8_UNORM) return availableSurfaceFormat;
-				return availableFormats[0];
 			}
 
-			return fallbackFormat;
+			return availableFormats[0];
 		}
 
 		VkExtent2D ChooseFramebufferSize(const VkSurfaceCapabilitiesKHR& surfaceCapabilities) {
@@ -6009,7 +6057,7 @@ namespace Engine {
 				imageCount = surfaceCapabilities.maxImageCount;
 			}
 
-			VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat(surfaceFormats, { VK_FORMAT_R8G8B8A8_UNORM });
+			VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat(surfaceFormats);
 			_swapchain._framebufferSize = ChooseFramebufferSize(surfaceCapabilities);
 
 			// Determine transformation to use (preferring no transform).
@@ -6340,100 +6388,83 @@ namespace Engine {
 			subResourceRange.baseArrayLayer = 0;
 			subResourceRange.layerCount = 1;
 
-
-
-
-
-			
-
-			VkCommandBufferBeginInfo command_buffer_begin_info{};
-			VkCommandBuffer command_buffer;
-			VkRenderPassBeginInfo render_pass_info{};
-			VkSubmitInfo submit_info{};
-			VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			VkResult result;
-			VkPresentInfoKHR present_info{};
-			VkClearValue clear_color;
-
-			command_buffer_begin_info.sType =
-				VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-			command_buffer = demo->command_buffers[image_index];
-			CheckResult(vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info));
-
-
-			render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			render_pass_info.renderPass = demo->render_pass;
-			render_pass_info.framebuffer = demo->framebuffers[image_index];
-			render_pass_info.renderArea.offset.x = 0;
-			render_pass_info.renderArea.offset.y = 0;
-			render_pass_info.renderArea.extent = demo->swap_chain_image_extent;
-			render_pass_info.clearValueCount = 1;
-			render_pass_info.pClearValues = &clear_color;
-
-			vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
-
-			vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, demo->pipeline);
-			vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, demo->pipeline_layout, 0, 1, &demo->descriptor_sets[image_index], 0, NULL);
-			vkCmdDraw(command_buffer, 3, 1, 0, 0);
-
-			vkCmdEndRenderPass(command_buffer);
-
-			result = vkEndCommandBuffer(command_buffer);
-
-
-
-
 			// Record command buffer for each swapchain image.
-			vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
+			for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
+				vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
 
-			// If present queue family and graphics queue family are different, then a barrier is necessary
-			// The barrier is also needed initially to transition the image to the present layout
-			VkImageMemoryBarrier presentToDrawBarrier = {};
-			presentToDrawBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-			presentToDrawBarrier.srcAccessMask = 0;
-			presentToDrawBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			presentToDrawBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			presentToDrawBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			presentToDrawBarrier.image = _renderPass._colorImages[i]._image;
-			presentToDrawBarrier.subresourceRange = subResourceRange;
+				// If present queue family and graphics queue family are different, then a barrier is necessary
+				// The barrier is also needed initially to transition the image to the present layout
+				VkImageMemoryBarrier presentToDrawBarrier = {};
+				presentToDrawBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+				presentToDrawBarrier.srcAccessMask = 0;
+				presentToDrawBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+				presentToDrawBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				presentToDrawBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+				presentToDrawBarrier.image = _renderPass._colorImages[i]._image;
+				presentToDrawBarrier.subresourceRange = subResourceRange;
 
-			vkCmdPipelineBarrier(_drawCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
+				vkCmdPipelineBarrier(_drawCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
 
-			VkClearValue clearColor = {
-			{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
-			};
+				VkClearValue clearColor = {
+				{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
+				};
 
-			VkClearValue depthClear;
-			depthClear.depthStencil.depth = 1.0f;
-			VkClearValue clearValues[] = { clearColor, depthClear };
+				VkClearValue depthClear;
+				depthClear.depthStencil.depth = 1.0f;
+				VkClearValue clearValues[] = { clearColor, depthClear };
 
-			VkRenderPassBeginInfo renderPassBeginInfo = {};
-			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			renderPassBeginInfo.renderPass = _renderPass._handle;
-			renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[i];
-			renderPassBeginInfo.renderArea.offset.x = 0;
-			renderPassBeginInfo.renderArea.offset.y = 0;
-			renderPassBeginInfo.renderArea.extent = _swapchain._framebufferSize;
-			renderPassBeginInfo.clearValueCount = 2;
-			renderPassBeginInfo.pClearValues = &clearValues[0];
+				VkRenderPassBeginInfo renderPassBeginInfo = {};
+				renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+				renderPassBeginInfo.renderPass = _renderPass._handle;
+				renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[i];
+				renderPassBeginInfo.renderArea.offset.x = 0;
+				renderPassBeginInfo.renderArea.offset.y = 0;
+				renderPassBeginInfo.renderArea.extent = _swapchain._framebufferSize;
+				renderPassBeginInfo.clearValueCount = 2;
+				renderPassBeginInfo.pClearValues = &clearValues[0];
 
-			vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
+				vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+				vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
-			auto& shaderResources = _graphicsPipeline._shaderResources;
-			VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
-			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
-			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
-			vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
+				auto& shaderResources = _graphicsPipeline._shaderResources;
+				VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
+				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
+				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
+				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
 
-			for (auto& gameObject : _scene._pRootGameObject->_children) {
-				gameObject->Draw(_graphicsPipeline._layout, _drawCommandBuffers[i]);
+				for (auto& gameObject : _scene._pRootGameObject->_children) {
+					gameObject->Draw(_graphicsPipeline._layout, _drawCommandBuffers[i]);
+				}
+
+				vkCmdEndRenderPass(_drawCommandBuffers[i]);
+
+				VkCommandBuffer command_buffer = _uiCtx._commandBuffers[i];
+				VkCommandBufferBeginInfo command_buffer_begin_info{};
+				VkSubmitInfo submit_info{};
+				VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+				VkPresentInfoKHR present_info{};
+				command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+				CheckResult(vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info));
+
+				VkRenderPassBeginInfo render_pass_info{};
+				render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+				render_pass_info.renderPass = _uiCtx._renderPass;
+				render_pass_info.framebuffer = _swapchain._frameBuffers[i];
+				render_pass_info.renderArea.offset.x = 0;
+				render_pass_info.renderArea.offset.y = 0;
+				render_pass_info.renderArea.extent = _swapchain._framebufferSize;
+				render_pass_info.clearValueCount = 1;
+				render_pass_info.pClearValues = &clearValues[0];
+
+				vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+
+				vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
+				vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipelineLayout, 0, 1, &_uiCtx._descriptorSets[i], 0, NULL);
+				vkCmdDraw(command_buffer, 3, 1, 0, 0);
+
+				CheckResult(vkEndCommandBuffer(_drawCommandBuffers[i]));
 			}
-
-			vkCmdEndRenderPass(_drawCommandBuffers[i]);
-
-			CheckResult(vkEndCommandBuffer(_drawCommandBuffers[i]));
 		}
 
 		void Draw() {
@@ -6470,14 +6501,6 @@ namespace Engine {
 					std::cerr << "failed to submit draw command buffer" << std::endl;
 					exit(1);
 				}
-
-				
-				
-				VkSemaphore nk_semaphore = nk_glfw3_render(_queue, imageIndex, _imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
-				CheckResult(vkAcquireNextImageKHR(_logicalDevice, _swapchain._handle, UINT64_MAX, _imageAvailableSemaphore, NULL, &imageIndex));
-
-
-
 
 				// Present drawn image.
 				// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
