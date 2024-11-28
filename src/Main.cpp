@@ -5187,11 +5187,10 @@ namespace Engine {
 
 			void UpdateDescriptorSets() {
 				uint32_t i;
-				VkDescriptorImageInfo descriptor_image_info;
-				VkWriteDescriptorSet descriptor_write;
+				VkDescriptorImageInfo descriptor_image_info{};
+				VkWriteDescriptorSet descriptor_write{};
 
-				descriptor_image_info.imageLayout =
-					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				descriptor_image_info.imageLayout =VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				descriptor_image_info.sampler = _uiShaderSampler;
 
 				descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -5210,11 +5209,14 @@ namespace Engine {
 			}
 
 			void CreateDescriptorSets() {
+				std::vector<VkDescriptorSetLayout> layouts;
+				for (int i = 0; i < _swapChainImages.size(); ++i) layouts.push_back(_descriptorSetLayout);
 				VkDescriptorSetAllocateInfo alloc_info{};
 				alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 				alloc_info.descriptorPool = _descriptorPool;
 				alloc_info.descriptorSetCount = _swapChainImages.size();
-				alloc_info.pSetLayouts = &_descriptorSetLayout;
+				alloc_info.pSetLayouts = layouts.data();
+				_descriptorSets.resize(_swapChainImages.size());
 				CheckResult(vkAllocateDescriptorSets(_logicalDevice, &alloc_info, _descriptorSets.data()));
 				UpdateDescriptorSets();
 			}
@@ -5235,10 +5237,10 @@ namespace Engine {
 				VkResult result{};
 				VkGraphicsPipelineCreateInfo pipeline_info{};
 
+				auto vertPath = Paths::ShadersPath() / std::filesystem::path("graphics\\NuklearUIVertexShader.spv");
 				auto fragPath = Paths::ShadersPath() / std::filesystem::path("graphics\\NuklearUIFragmentShader.spv");
-				auto vertPath = Paths::ShadersPath() / std::filesystem::path("graphics\\NuklearUIFragmentShader.spv");
-				VkShaderModule frag_shader_module = CreateShaderModule(_logicalDevice, fragPath);
 				VkShaderModule vert_shader_module = CreateShaderModule(_logicalDevice, vertPath);
+				VkShaderModule frag_shader_module = CreateShaderModule(_logicalDevice, fragPath);
 
 				VkPipelineShaderStageCreateInfo vert_shader_stage_info{};
 				vert_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
