@@ -4953,6 +4953,10 @@ namespace Engine {
 			uint32_t* _pQueueFamilyIndex;
 			VkSampler _uiShaderSampler;
 			VkDescriptorSetLayout _descriptorSetLayout;
+
+			/**
+			 * @brief The images to which Nuklear renders its UI.
+			 */
 			std::vector<Image> _overlayImages;
 			VkRenderPass _renderPass;
 			VkDescriptorPool _descriptorPool;
@@ -6288,7 +6292,7 @@ namespace Engine {
 			VkDescriptorSetLayout gameObjectLayout;
 			VkDescriptorSetLayout meshLayout;
 			VkDescriptorSetLayout lightLayout;
-			VkDescriptorSetLayout environmentMapLayout;
+			VkDescriptorSetLayout miscLayout;
 
 			{
 				VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr } };
@@ -6330,12 +6334,14 @@ namespace Engine {
 			}
 
 			{
-				VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._environmentMap._cubeMapImage._sampler } };
+				VkDescriptorSetLayoutBinding bindings[2];
+				bindings[0] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._environmentMap._cubeMapImage._sampler } };
+				bindings[1] = { VkDescriptorSetLayoutBinding { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_uiCtx._uiShaderSampler } };
 				VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
 				layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-				layoutCreateInfo.bindingCount = 1;
+				layoutCreateInfo.bindingCount = 2;
 				layoutCreateInfo.pBindings = bindings;
-				vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, nullptr, &environmentMapLayout);
+				vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, nullptr, &miscLayout);
 			}
 
 			return {
@@ -6343,7 +6349,7 @@ namespace Engine {
 				DescriptorSetLayout{ "gameObjectLayout", 1, gameObjectLayout },
 				DescriptorSetLayout{ "lightLayout", 2, lightLayout },
 				DescriptorSetLayout{ "meshLayout", 3, meshLayout },
-				DescriptorSetLayout{ "environmentMapLayout", 4, environmentMapLayout }
+				DescriptorSetLayout{ "miscLayout", 4, miscLayout }
 			};
 		}
 
@@ -6490,11 +6496,11 @@ namespace Engine {
 			uint32_t imageWidth, imageHeight;
 			imageWidth = _swapchain._framebufferSize.width;
 			imageHeight = _swapchain._framebufferSize.height;
-			void* imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, imageWidth, imageHeight, stagingMemory, stagingBuffer);
+			VkImage meshRenderResult = _renderPass._colorImages[imageIndex]._image;
+			VkImage uiRenderResult = _uiCtx._overlayImages[imageIndex]._image;
+			void* imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, uiRenderResult, imageWidth, imageHeight, stagingMemory, stagingBuffer);
 			Helper::SaveImageAsPng(Paths::TexturesPath() / std::filesystem::path("uiResult.png"), imageData, imageWidth, imageHeight);
 			VkHelper::UnmapAndDestroyStagingBuffer(_logicalDevice, stagingMemory, stagingBuffer);
-
-			
 
 			// Present drawn image.
 			// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
