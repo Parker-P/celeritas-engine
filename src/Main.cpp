@@ -855,8 +855,7 @@ namespace Engine {
 				&stagingBuffer, &stagingMemory);
 
 			// Transition the image layout to TRANSFER_SRC_OPTIMAL
-			TransitionImageLayout(logicalDevice, commandPool, queue, image,
-				VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+			TransitionImageLayout(logicalDevice, commandPool, queue, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
 			// Copy the image to the buffer
 			CopyImageToBuffer(logicalDevice, commandPool, queue, image, stagingBuffer, width, height);
@@ -896,7 +895,7 @@ namespace Engine {
 			vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
 		}
 
-		static void TransitionImageLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
+		static void TransitionImageLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) {
 			VkCommandBufferAllocateInfo allocInfo{};
 			allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 			allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -6406,18 +6405,8 @@ namespace Engine {
 			for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
 				vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
 
-				// If present queue family and graphics queue family are different, then a barrier is necessary
-				// The barrier is also needed initially to transition the image to the present layout
-				VkImageMemoryBarrier presentToDrawBarrier = {};
-				presentToDrawBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-				presentToDrawBarrier.srcAccessMask = 0;
-				presentToDrawBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-				presentToDrawBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-				presentToDrawBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-				presentToDrawBarrier.image = _renderPass._colorImages[i]._image;
-				presentToDrawBarrier.subresourceRange = subResourceRange;
-
-				vkCmdPipelineBarrier(_drawCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
+				VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._colorImages[i]._image,
+					VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 				VkClearValue clearColor = {
 				{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
@@ -6493,12 +6482,7 @@ namespace Engine {
 			VkClearValue clearColor = {
 			{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
 			};
-			VkCommandBuffer command_buffer = _uiCtx._commandBuffers[imageIndex];
-			VkCommandBufferBeginInfo command_buffer_begin_info{};
-			VkSubmitInfo submit_info{};
-			VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			VkPresentInfoKHR present_info{};
-			command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
 			auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _3dRenderingFinishedSemaphore, NK_ANTI_ALIASING_ON);
 
 			VkDeviceMemory stagingMemory;
@@ -6510,33 +6494,7 @@ namespace Engine {
 			Helper::SaveImageAsPng(Paths::TexturesPath() / std::filesystem::path("uiResult.png"), imageData, imageWidth, imageHeight);
 			VkHelper::UnmapAndDestroyStagingBuffer(_logicalDevice, stagingMemory, stagingBuffer);
 
-			/*submitInfo.pWaitSemaphores = &nk_semaphore;
-			submitInfo.pSignalSemaphores = &_uiRenderingFinishedSemaphore;
-			submitInfo.pCommandBuffers = &command_buffer;
-			vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
-
-			VkRenderPassBeginInfo render_pass_info{};
-			render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			render_pass_info.renderPass = _uiCtx._renderPass;
-			render_pass_info.framebuffer = _swapchain._frameBuffers[imageIndex];
-			render_pass_info.renderArea.offset.x = 0;
-			render_pass_info.renderArea.offset.y = 0;
-			render_pass_info.renderArea.extent = _swapchain._framebufferSize;
-			render_pass_info.clearValueCount = 1;
-			render_pass_info.pClearValues = &clearColor;
-			vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
-
-			vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
-			vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipelineLayout, 0, 1, &_uiCtx._descriptorSets[imageIndex], 0, NULL);
-			vkCmdDraw(command_buffer, 3, 1, 0, 0);
-			vkCmdEndRenderPass(command_buffer);
-			vkEndCommandBuffer(_drawCommandBuffers[imageIndex]);
-
-			vkQueueSubmit(_queue, 1, &submitInfo, _queueFence);
-			vkWaitForFences(_logicalDevice, 1, &_queueFence, VK_TRUE, UINT64_MAX);*/
-
-
-
+			
 
 			// Present drawn image.
 			// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
