@@ -293,7 +293,7 @@ namespace Engine {
 		static void SaveImageAsPng(std::filesystem::path absolutePath, void* data, uint32_t width, uint32_t height) {
 			stbi_write_png(absolutePath.string().c_str(), width, height, 4, data, width * 4);
 
-			
+
 		}
 	};
 
@@ -6491,16 +6491,33 @@ namespace Engine {
 
 			auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _3dRenderingFinishedSemaphore, NK_ANTI_ALIASING_ON);
 
-			VkDeviceMemory stagingMemory;
-			VkBuffer stagingBuffer;
+			VkDeviceMemory stagingMemory = nullptr;
+			VkBuffer stagingBuffer = nullptr;
 			uint32_t imageWidth, imageHeight;
 			imageWidth = _swapchain._framebufferSize.width;
 			imageHeight = _swapchain._framebufferSize.height;
 			VkImage meshRenderResult = _renderPass._colorImages[imageIndex]._image;
 			VkImage uiRenderResult = _uiCtx._overlayImages[imageIndex]._image;
-			void* imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, uiRenderResult, imageWidth, imageHeight, stagingMemory, stagingBuffer);
+			/*void* imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, uiRenderResult, imageWidth, imageHeight, stagingMemory, stagingBuffer);
 			Helper::SaveImageAsPng(Paths::TexturesPath() / std::filesystem::path("uiResult.png"), imageData, imageWidth, imageHeight);
-			VkHelper::UnmapAndDestroyStagingBuffer(_logicalDevice, stagingMemory, stagingBuffer);
+			if (stagingBuffer == nullptr || stagingMemory == nullptr)VkHelper::UnmapAndDestroyStagingBuffer(_logicalDevice, stagingMemory, stagingBuffer);*/
+
+			auto commandBuffer = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
+			VkRenderPassBeginInfo beginInfo{};
+			beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+			beginInfo.renderPass = _uiCtx._renderPass;
+			beginInfo.framebuffer = _swapchain._frameBuffers[i];
+			beginInfo.renderArea.offset.x = 0;
+			beginInfo.renderArea.offset.y = 0;
+			beginInfo.renderArea.extent = _swapchain._framebufferSize;
+			beginInfo.clearValueCount = 2;
+			beginInfo.pClearValues = &clearValues[0];
+
+			vkCmdBeginRenderPass(commandBuffer, &_uiCtx._renderPass, VK_SUBPASS_CONTENTS_INLINE);
+			vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, demo->pipeline);
+			vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, demo->pipeline_layout, 0, 1, &demo->descriptor_sets[image_index], 0, NULL);
+			vkCmdDraw(command_buffer, 3, 1, 0, 0);
+			vkCmdEndRenderPass(command_buffer);
 
 			// Present drawn image.
 			// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
