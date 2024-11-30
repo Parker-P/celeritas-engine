@@ -4629,14 +4629,19 @@ namespace Engine {
 
 		/**
 		 * @brief Semaphore that will be used by Vulkan to signal when an image has finished
-		 * rendering and is available in one of the framebuffers.
+		 * rendering and is available to be rendered to in one of the framebuffers.
 		 */
 		VkSemaphore _imageAvailableSemaphore;
 
 		/**
 		 * @brief Same as imageAvailableSemaphore.
 		 */
-		VkSemaphore	_renderingFinishedSemaphore;
+		VkSemaphore	_3dRenderingFinishedSemaphore;
+
+		/**
+		 * @brief .
+		 */
+		VkSemaphore	_uiRenderingFinishedSemaphore;
 
 		/**
 		 * @brief Encapsulates info for a render pass.
@@ -4873,7 +4878,7 @@ namespace Engine {
 				nk_end(_ctx);
 			}
 
-			
+
 
 			bool CreateOverlayImages() {
 				uint32_t i, j;
@@ -5249,9 +5254,8 @@ namespace Engine {
 		// Vulkan commands.
 		VkCommandPool _commandPool;
 		VkQueue _queue;
+		VkFence _queueFence;
 		uint32_t _queueFamilyIndex;
-
-		VkCommandBuffer _graphicsCommandBuffer;
 		std::vector<VkCommandBuffer> _drawCommandBuffers;
 
 		// Game.
@@ -5301,9 +5305,7 @@ namespace Engine {
 
 			auto flags = (VkQueueFlagBits)(VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT);
 			_queueFamilyIndex = FindQueueFamilyIndex(_physicalDevice, flags);
-			if (PhysicalDevice::SupportsSurface(_physicalDevice, _queueFamilyIndex, _windowSurface) == false) {
-				std::exit(1);
-			}
+			if (!PhysicalDevice::SupportsSurface(_physicalDevice, _queueFamilyIndex, _windowSurface)) std::exit(1);
 
 			VkDeviceQueueCreateInfo graphicsQueueInfo{};
 			float queuePriority = 1.0f;
@@ -5314,6 +5316,8 @@ namespace Engine {
 
 			_logicalDevice = CreateLogicalDevice(_physicalDevice, { graphicsQueueInfo });
 			vkGetDeviceQueue(_logicalDevice, _queueFamilyIndex, 0, &_queue);
+			VkFenceCreateInfo fci = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, 0 };
+			vkCreateFence(_logicalDevice, &fci, NULL, &_queueFence);
 			_commandPool = CreateCommandPool(_logicalDevice, _queueFamilyIndex);
 
 			LoadScene();
@@ -5634,7 +5638,8 @@ namespace Engine {
 			VkSemaphoreCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 			CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_imageAvailableSemaphore));
-			CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_renderingFinishedSemaphore));
+			CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_3dRenderingFinishedSemaphore));
+			CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_uiRenderingFinishedSemaphore));
 		}
 
 		void LoadScene() {
@@ -6292,97 +6297,164 @@ namespace Engine {
 			}
 		}
 
+		void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* buffer, VkDeviceMemory* bufferMemory) {
+			// Step 1: Create the buffer
+			VkBufferCreateInfo bufferInfo{};
+			bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			bufferInfo.size = size;
+			bufferInfo.usage = usage;
+			bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // Single queue family access
+
+			if (vkCreateBuffer(device, &bufferInfo, nullptr, buffer) != VK_SUCCESS) {
+				throw std::runtime_error("Failed to create buffer!");
+			}
+
+			// Step 2: Get memory requirements for the buffer
+			VkMemoryRequirements memRequirements;
+			vkGetBufferMemoryRequirements(device, *buffer, &memRequirements);
+
+			// Step 3: Allocate memory for the buffer
+			VkMemoryAllocateInfo allocInfo{};
+			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+			allocInfo.allocationSize = memRequirements.size;
+			allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(physicalDevice, memRequirements.memoryTypeBits, (VkMemoryPropertyFlagBits)properties);
+			if (vkAllocateMemory(device, &allocInfo, nullptr, bufferMemory) != VK_SUCCESS) {
+				throw std::runtime_error("Failed to allocate buffer memory!");
+			}
+
+			// Step 4: Bind the memory to the buffer
+			vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
+		}
+
+		void DownloadImage() {
+			// Assuming `image` is your Vulkan image and `device` is your VkDevice
+			VkDeviceMemory stagingMemory;
+			VkBuffer stagingBuffer;
+
+			// Create a staging buffer
+			createBuffer(_logicalDevice, _physicalDevice, _overlayImages,
+				VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+				VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				&stagingBuffer, &stagingMemory);
+
+			// Transition the image layout to TRANSFER_SRC_OPTIMAL
+			transitionImageLayout(device, commandPool, queue, image,
+				VK_FORMAT_R8G8B8A8_SRGB,
+				VK_IMAGE_LAYOUT_UNDEFINED,
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+			// Copy the image to the buffer
+			copyImageToBuffer(device, commandPool, queue, image, stagingBuffer, width, height);
+
+			// Map the buffer memory
+			void* data;
+			vkMapMemory(device, stagingMemory, 0, imageSize, 0, &data);
+
+			// Write the image data to a file
+			stbi_write_png("output.png", width, height, 4, data, width * 4);
+
+			// Unmap the memory and clean up
+			vkUnmapMemory(device, stagingMemory);
+			vkDestroyBuffer(device, stagingBuffer, nullptr);
+			vkFreeMemory(device, stagingMemory, nullptr);
+		}
+
 		void Draw() {
-			if (!windowMinimized) {
+			if (windowMinimized) return;
+			vkResetFences(_logicalDevice, 1, &_queueFence);
 
-				// Acquire image.
-				uint32_t imageIndex;
-				VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain._handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+			// Acquire image.
+			uint32_t imageIndex;
+			VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain._handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
-				// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
-				if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) {
-					WindowSizeChanged();
-					return;
-				}
-				else if (res != VK_SUCCESS) {
-					std::cerr << "failed to acquire image" << std::endl;
-					exit(1);
-				}
+			// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
+			if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) {
+				WindowSizeChanged();
+				return;
+			}
+			else if (res != VK_SUCCESS) {
+				std::cerr << "failed to acquire image" << std::endl;
+				exit(1);
+			}
 
-				// Wait for image to be available and draw.
-				// This is the stage where the queue should wait on the semaphore.
-				VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-				VkSubmitInfo submitInfo = {};
-				submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-				submitInfo.waitSemaphoreCount = 1;
-				submitInfo.pWaitSemaphores = &_imageAvailableSemaphore;
-				submitInfo.signalSemaphoreCount = 1;
-				submitInfo.pSignalSemaphores = &_renderingFinishedSemaphore;
-				submitInfo.pWaitDstStageMask = &waitDstStageMask;
-				submitInfo.commandBufferCount = 1;
-				submitInfo.pCommandBuffers = &_drawCommandBuffers[imageIndex];
+			// Wait for image to be available and draw.
+			// This is the stage where the queue should wait on the semaphore.
+			VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+			VkSubmitInfo submitInfo = {};
+			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submitInfo.waitSemaphoreCount = 1;
+			submitInfo.pWaitSemaphores = &_imageAvailableSemaphore;
+			submitInfo.signalSemaphoreCount = 1;
+			submitInfo.pSignalSemaphores = &_3dRenderingFinishedSemaphore;
+			submitInfo.pWaitDstStageMask = &waitDstStageMask;
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &_drawCommandBuffers[imageIndex];
 
-				if (auto res = vkQueueSubmit(_queue, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS) {
-					std::cerr << "failed to submit draw command buffer" << std::endl;
-					exit(1);
-				}
+			vkQueueSubmit(_queue, 1, &submitInfo, _queueFence);
+			vkWaitForFences(_logicalDevice, 1, &_queueFence, VK_TRUE, UINT64_MAX);
 
+			VkClearValue clearColor = {
+			{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
+			};
+			VkCommandBuffer command_buffer = _uiCtx._commandBuffers[imageIndex];
+			VkCommandBufferBeginInfo command_buffer_begin_info{};
+			VkSubmitInfo submit_info{};
+			VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			VkPresentInfoKHR present_info{};
+			command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+			auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _uiRenderingFinishedSemaphore, NK_ANTI_ALIASING_ON);
 
-				VkClearValue clearColor = {
-				{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
-				};
-				VkCommandBuffer command_buffer = _uiCtx._commandBuffers[imageIndex];
-				VkCommandBufferBeginInfo command_buffer_begin_info{};
-				VkSubmitInfo submit_info{};
-				VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-				VkPresentInfoKHR present_info{};
-				command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-				auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _renderingFinishedSemaphore, NK_ANTI_ALIASING_ON);
-
-				vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
-
-				VkRenderPassBeginInfo render_pass_info{};
-				render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-				render_pass_info.renderPass = _uiCtx._renderPass;
-				render_pass_info.framebuffer = _swapchain._frameBuffers[imageIndex];
-				render_pass_info.renderArea.offset.x = 0;
-				render_pass_info.renderArea.offset.y = 0;
-				render_pass_info.renderArea.extent = _swapchain._framebufferSize;
-				render_pass_info.clearValueCount = 1;
-				render_pass_info.pClearValues = &clearColor;
-
-				vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
-
-				vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
-				vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipelineLayout, 0, 1, &_uiCtx._descriptorSets[imageIndex], 0, NULL);
-				vkCmdDraw(command_buffer, 3, 1, 0, 0);
-
-				vkEndCommandBuffer(_drawCommandBuffers[imageIndex]);
+			DownloadImage();
 
 
 
+			/*submitInfo.pWaitSemaphores = &nk_semaphore;
+			submitInfo.pSignalSemaphores = &_uiRenderingFinishedSemaphore;
+			submitInfo.pCommandBuffers = &command_buffer;
+			vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
+
+			VkRenderPassBeginInfo render_pass_info{};
+			render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+			render_pass_info.renderPass = _uiCtx._renderPass;
+			render_pass_info.framebuffer = _swapchain._frameBuffers[imageIndex];
+			render_pass_info.renderArea.offset.x = 0;
+			render_pass_info.renderArea.offset.y = 0;
+			render_pass_info.renderArea.extent = _swapchain._framebufferSize;
+			render_pass_info.clearValueCount = 1;
+			render_pass_info.pClearValues = &clearColor;
+			vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+
+			vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
+			vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipelineLayout, 0, 1, &_uiCtx._descriptorSets[imageIndex], 0, NULL);
+			vkCmdDraw(command_buffer, 3, 1, 0, 0);
+			vkCmdEndRenderPass(command_buffer);
+			vkEndCommandBuffer(_drawCommandBuffers[imageIndex]);
+
+			vkQueueSubmit(_queue, 1, &submitInfo, _queueFence);
+			vkWaitForFences(_logicalDevice, 1, &_queueFence, VK_TRUE, UINT64_MAX);*/
 
 
-				// Present drawn image.
-				// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
-				VkPresentInfoKHR presentInfo = {};
-				presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-				presentInfo.waitSemaphoreCount = 1;
-				presentInfo.pWaitSemaphores = &nk_semaphore;
-				presentInfo.swapchainCount = 1;
-				presentInfo.pSwapchains = &_swapchain._handle;
-				presentInfo.pImageIndices = &imageIndex;
 
-				res = vkQueuePresentKHR(_queue, &presentInfo);
 
-				if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
-					WindowSizeChanged();
-				}
-				else if (res != VK_SUCCESS) {
-					std::cerr << "failed to submit present command buffer" << std::endl;
-					exit(1);
-				}
+			// Present drawn image.
+			// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
+			VkPresentInfoKHR presentInfo = {};
+			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+			presentInfo.waitSemaphoreCount = 1;
+			presentInfo.pWaitSemaphores = &nk_semaphore;
+			presentInfo.swapchainCount = 1;
+			presentInfo.pSwapchains = &_swapchain._handle;
+			presentInfo.pImageIndices = &imageIndex;
+
+			res = vkQueuePresentKHR(_queue, &presentInfo);
+
+			if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
+				WindowSizeChanged();
+			}
+			else if (res != VK_SUCCESS) {
+				std::cerr << "failed to submit present command buffer" << std::endl;
+				exit(1);
 			}
 		}
 	};
