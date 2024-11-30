@@ -208,30 +208,7 @@ namespace Engine {
 		}
 	};
 
-	class File {
-	public:
-		/**
-		 * @brief Reads an ASCII or UNICODE text file.
-		 * @param absolutePath
-		 * @return The text the file contains as a std::string.
-		 */
-		static inline std::string ReadAllText(std::filesystem::path absolutePath) {
-			std::fstream textFile{ absolutePath, std::ios::in };
-			std::string fileText{};
-
-			if (textFile.is_open()) {
-				char nextChar = textFile.get();
-
-				while (nextChar >= 0) {
-					fileText += nextChar;
-					nextChar = textFile.get();
-				}
-			}
-			return fileText;
-		}
-	};
-
-	class Converter {
+	class Helper {
 	public:
 
 		/**
@@ -240,7 +217,7 @@ namespace Engine {
 		 * @return
 		 */
 		template <typename FromType, typename ToType>
-		static inline ToType Convert(FromType value) {
+		static ToType Convert(FromType value) {
 			return Convert<ToType>(value);
 		}
 
@@ -250,7 +227,7 @@ namespace Engine {
 		 * @return
 		 */
 		template<>
-		static inline float Convert(uint32_t value) {
+		static float Convert(uint32_t value) {
 			int intermediateValue = 0;
 			for (unsigned short i = 32; i > 0; --i) {
 				unsigned char ithBitFromRight = ((uint32_t)value >> i) & 1;
@@ -265,7 +242,7 @@ namespace Engine {
 		 * @return true if the value is either "true" (case insensitive) or 1, false otherwise.
 		 */
 		template<>
-		static inline bool Convert(std::string value) {
+		static bool Convert(std::string value) {
 			std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return std::tolower(c); });
 			if (value == "true" || value == "1") {
 				return true;
@@ -279,7 +256,7 @@ namespace Engine {
 		 * @return
 		 */
 		template<>
-		static inline int Convert(std::string value) {
+		static int Convert(std::string value) {
 			return std::stoi(value);
 		}
 
@@ -291,6 +268,32 @@ namespace Engine {
 		template<>
 		static inline float Convert(std::string value) {
 			return std::stof(value);
+		}
+
+		/**
+		 * @brief Reads an ASCII or UNICODE text file.
+		 * @param absolutePath
+		 * @return The text the file contains as a std::string.
+		 */
+		static std::string GetFileText(std::filesystem::path absolutePath) {
+			std::fstream textFile{ absolutePath, std::ios::in };
+			std::string fileText{};
+
+			if (textFile.is_open()) {
+				char nextChar = textFile.get();
+
+				while (nextChar >= 0) {
+					fileText += nextChar;
+					nextChar = textFile.get();
+				}
+			}
+			return fileText;
+		}
+
+		static void SaveImageAsPng(std::filesystem::path absolutePath, void* data, uint32_t width, uint32_t height) {
+			stbi_write_png(absolutePath.string().c_str(), width, height, 4, data, width * 4);
+
+			
 		}
 	};
 
@@ -340,14 +343,14 @@ namespace Engine {
 		 */
 		void Load(const std::filesystem::path& absolutePathToJson) {
 			// Read the json file and parse it.
-			auto text = File::ReadAllText(absolutePathToJson);
+			auto text = Helper::GetFileText(absolutePathToJson);
 
 			sjson::parsing::parse_results json = sjson::parsing::parse(text.data());
 			sjson::jobject rootObj = sjson::jobject::parse(json.value);
 
 			// Get the values from the parsed result.
 			auto evlJson = rootObj.get("EnableValidationLayers");
-			_enableValidationLayers = Converter::Convert<std::string, bool>(TrimEnds(evlJson));
+			_enableValidationLayers = Helper::Convert<std::string, bool>(TrimEnds(evlJson));
 
 			auto validationLayers = sjson::jobject::parse(rootObj.get("ValidationLayers"));
 			_pValidationLayers.resize(validationLayers.size());
@@ -364,12 +367,12 @@ namespace Engine {
 			auto windowSize = sjson::jobject::parse(rootObj.get("WindowSize"));
 			auto width = windowSize.get("Width");
 			auto height = windowSize.get("Height");
-			_windowWidth = Converter::Convert<std::string, int>(width);
-			_windowHeight = Converter::Convert<std::string, int>(height);
+			_windowWidth = Helper::Convert<std::string, int>(width);
+			_windowHeight = Helper::Convert<std::string, int>(height);
 
 			auto input = sjson::jobject::parse(rootObj.get("Input"));
 			auto sens = input.get("MouseSensitivity");
-			_mouseSensitivity = Converter::Convert<std::string, float>(sens);
+			_mouseSensitivity = Helper::Convert<std::string, float>(sens);
 		}
 	};
 
@@ -781,74 +784,230 @@ namespace Engine {
 		}
 	};
 
-	/**
-	 * @brief A queue is an ordered collection of commands that gets passed into a command buffer.
-	 */
-	struct Queue {
-		/**
-		 * @brief Identifier for Vulkan.
-		 */
-		VkQueue _handle;
-
-		/**
-		 * @brief A queue family index enables Vulkan to group queues that serve similar purposes (a.k.a. have the same properties).
-		 */
-		uint32_t _familyIndex;
-	};
-
-	VkCommandPool CreateCommandPool(VkDevice& logicalDevice, uint32_t& queueFamilyIndex) {
-		VkCommandPoolCreateInfo poolCreateInfo = {};
-		poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		poolCreateInfo.queueFamilyIndex = queueFamilyIndex;
-		poolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-		VkCommandPool outPool;
-		vkCreateCommandPool(logicalDevice, &poolCreateInfo, nullptr, &outPool);
-		return outPool;
-	}
-
-	int FindQueueFamilyIndex(VkPhysicalDevice& physicalDevice, VkQueueFlagBits queueFlags) {
-		auto queueFamilyProperties = PhysicalDevice::GetAllQueueFamilyProperties(physicalDevice);
-
-		for (uint32_t queueFamilyIndex = 0; queueFamilyIndex < queueFamilyProperties.size(); queueFamilyIndex++) {
-			if (queueFamilyProperties[queueFamilyIndex].queueCount > 0 && queueFamilyProperties[queueFamilyIndex].queueFlags & queueFlags) {
-				return queueFamilyIndex;
-			}
+	class VkHelper {
+	public:
+		static VkCommandPool CreateCommandPool(VkDevice& logicalDevice, uint32_t& queueFamilyIndex) {
+			VkCommandPoolCreateInfo poolCreateInfo = {};
+			poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+			poolCreateInfo.queueFamilyIndex = queueFamilyIndex;
+			poolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+			VkCommandPool outPool;
+			vkCreateCommandPool(logicalDevice, &poolCreateInfo, nullptr, &outPool);
+			return outPool;
 		}
 
-		return -1;
-	}
+		static int FindQueueFamilyIndex(VkPhysicalDevice& physicalDevice, VkQueueFlagBits queueFlags) {
+			auto queueFamilyProperties = PhysicalDevice::GetAllQueueFamilyProperties(physicalDevice);
 
-	void StartRecording(VkCommandBuffer& commandBuffer) {
-		VkCommandBufferBeginInfo beginInfo{};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-		vkResetCommandBuffer(commandBuffer, 0);
-		vkBeginCommandBuffer(commandBuffer, &beginInfo);
-	}
+			for (uint32_t queueFamilyIndex = 0; queueFamilyIndex < queueFamilyProperties.size(); queueFamilyIndex++) {
+				if (queueFamilyProperties[queueFamilyIndex].queueCount > 0 && queueFamilyProperties[queueFamilyIndex].queueFlags & queueFlags) {
+					return queueFamilyIndex;
+				}
+			}
 
-	void StopRecording(VkCommandBuffer& commandBuffer) {
-		vkEndCommandBuffer(commandBuffer);
-	}
+			return -1;
+		}
 
-	void ExecuteCommands(VkCommandBuffer& commandBuffer, VkQueue& queue) {
-		VkSubmitInfo submitInfo{};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandBuffer;
-		vkQueueSubmit(queue, 1, &submitInfo, nullptr);
-		vkQueueWaitIdle(queue);
-	}
+		static void StartRecording(VkCommandBuffer& commandBuffer) {
+			VkCommandBufferBeginInfo beginInfo{};
+			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+			vkResetCommandBuffer(commandBuffer, 0);
+			vkBeginCommandBuffer(commandBuffer, &beginInfo);
+		}
 
-	VkCommandBuffer CreateCommandBuffer(VkDevice& logicalDevice, VkCommandPool& commandPool) {
-		VkCommandBufferAllocateInfo cmdBufInfo = {};
-		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cmdBufInfo.commandPool = commandPool;
-		cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		cmdBufInfo.commandBufferCount = 1;
-		VkCommandBuffer commandBuffer;
-		vkAllocateCommandBuffers(logicalDevice, &cmdBufInfo, &commandBuffer);
-		return commandBuffer;
-	}
+		static void StopRecording(VkCommandBuffer& commandBuffer) { vkEndCommandBuffer(commandBuffer); }
+
+		static void ExecuteCommands(VkCommandBuffer& commandBuffer, VkQueue& queue) {
+			VkSubmitInfo submitInfo{};
+			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &commandBuffer;
+			vkQueueSubmit(queue, 1, &submitInfo, nullptr);
+			vkQueueWaitIdle(queue);
+		}
+
+		static VkCommandBuffer CreateCommandBuffer(VkDevice& logicalDevice, VkCommandPool& commandPool) {
+			VkCommandBufferAllocateInfo cmdBufInfo = {};
+			cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+			cmdBufInfo.commandPool = commandPool;
+			cmdBufInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+			cmdBufInfo.commandBufferCount = 1;
+			VkCommandBuffer commandBuffer;
+			vkAllocateCommandBuffers(logicalDevice, &cmdBufInfo, &commandBuffer);
+			return commandBuffer;
+		}
+
+		static void UnmapAndDestroyStagingBuffer(VkDevice logicalDevice, VkDeviceMemory stagingMemory, VkBuffer stagingBuffer) {
+			vkUnmapMemory(logicalDevice, stagingMemory);
+			vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
+			vkFreeMemory(logicalDevice, stagingMemory, nullptr);
+		}
+
+		static void* DownloadImage(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue queue, VkImage image, uint32_t width, uint32_t height, VkDeviceMemory outStagingMemory, VkBuffer outStagingBuffer) {
+			// Assuming `image` is your Vulkan image and `device` is your VkDevice
+			VkDeviceMemory stagingMemory;
+			VkBuffer stagingBuffer;
+
+			// Create a staging buffer
+			CreateBuffer(logicalDevice, physicalDevice, 4 * width * height, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				&stagingBuffer, &stagingMemory);
+
+			// Transition the image layout to TRANSFER_SRC_OPTIMAL
+			TransitionImageLayout(logicalDevice, commandPool, queue, image,
+				VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+			// Copy the image to the buffer
+			CopyImageToBuffer(logicalDevice, commandPool, queue, image, stagingBuffer, width, height);
+
+			// Map the buffer memory
+			void* data;
+			vkMapMemory(logicalDevice, stagingMemory, 0, 4 * width * height, 0, &data);
+			return data;
+		}
+
+		static void CreateBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* buffer, VkDeviceMemory* bufferMemory) {
+			// Step 1: Create the buffer
+			VkBufferCreateInfo bufferInfo{};
+			bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			bufferInfo.size = size;
+			bufferInfo.usage = usage;
+			bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // Single queue family access
+
+			if (vkCreateBuffer(device, &bufferInfo, nullptr, buffer) != VK_SUCCESS) {
+				throw std::runtime_error("Failed to create buffer!");
+			}
+
+			// Step 2: Get memory requirements for the buffer
+			VkMemoryRequirements memRequirements;
+			vkGetBufferMemoryRequirements(device, *buffer, &memRequirements);
+
+			// Step 3: Allocate memory for the buffer
+			VkMemoryAllocateInfo allocInfo{};
+			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+			allocInfo.allocationSize = memRequirements.size;
+			allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(physicalDevice, memRequirements.memoryTypeBits, (VkMemoryPropertyFlagBits)properties);
+			if (vkAllocateMemory(device, &allocInfo, nullptr, bufferMemory) != VK_SUCCESS) {
+				throw std::runtime_error("Failed to allocate buffer memory!");
+			}
+
+			// Step 4: Bind the memory to the buffer
+			vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
+		}
+
+		static void TransitionImageLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
+			VkCommandBufferAllocateInfo allocInfo{};
+			allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+			allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+			allocInfo.commandPool = commandPool;
+			allocInfo.commandBufferCount = 1;
+
+			VkCommandBuffer commandBuffer;
+			vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+			VkCommandBufferBeginInfo beginInfo{};
+			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+			vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+			VkImageMemoryBarrier barrier{};
+			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+			barrier.oldLayout = oldLayout;
+			barrier.newLayout = newLayout;
+			barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			barrier.image = image;
+			barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			barrier.subresourceRange.baseMipLevel = 0;
+			barrier.subresourceRange.levelCount = 1;
+			barrier.subresourceRange.baseArrayLayer = 0;
+			barrier.subresourceRange.layerCount = 1;
+
+			VkPipelineStageFlags sourceStage;
+			VkPipelineStageFlags destinationStage;
+
+			if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+				barrier.srcAccessMask = 0;
+				barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+				sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+				destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			}
+			else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+				barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+				barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+				sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+				destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			}
+			else {
+				throw std::invalid_argument("Unsupported layout transition!");
+			}
+
+			vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+			vkEndCommandBuffer(commandBuffer);
+
+			VkSubmitInfo submitInfo{};
+			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &commandBuffer;
+
+			vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+			vkQueueWaitIdle(queue);
+
+			vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+		}
+
+		static void CopyImageToBuffer(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImage image, VkBuffer buffer, uint32_t width, uint32_t height) {
+			VkCommandBufferAllocateInfo allocInfo{};
+			allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+			allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+			allocInfo.commandPool = commandPool;
+			allocInfo.commandBufferCount = 1;
+
+			VkCommandBuffer commandBuffer;
+			vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+			VkCommandBufferBeginInfo beginInfo{};
+			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+			vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+			VkBufferImageCopy region{};
+			region.bufferOffset = 0;
+			region.bufferRowLength = 0;  // Tightly packed
+			region.bufferImageHeight = 0; // Tightly packed
+
+			region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			region.imageSubresource.mipLevel = 0;
+			region.imageSubresource.baseArrayLayer = 0;
+			region.imageSubresource.layerCount = 1;
+
+			region.imageOffset = { 0, 0, 0 };
+			region.imageExtent = {
+				width,
+				height,
+				1
+			};
+
+			vkCmdCopyImageToBuffer(commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
+			vkEndCommandBuffer(commandBuffer);
+
+			VkSubmitInfo submitInfo{};
+			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &commandBuffer;
+
+			vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+			vkQueueWaitIdle(queue);
+
+			vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+		}
+	};
 
 	class Buffer {
 	public:
@@ -902,15 +1061,15 @@ namespace Engine {
 			vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, sizeBytes, 0, &stagingBuffer._cpuMemory);
 			memcpy(stagingBuffer._cpuMemory, pData, sizeBytes);
 
-			auto copyCommandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
-			StartRecording(copyCommandBuffer);
+			auto copyCommandBuffer = VkHelper::CreateCommandBuffer(logicalDevice, commandPool);
+			VkHelper::StartRecording(copyCommandBuffer);
 
 			VkBufferCopy copyRegion = {};
 			copyRegion.size = sizeBytes;
 			vkCmdCopyBuffer(copyCommandBuffer, stagingBuffer._buffer, buffer, 1, &copyRegion);
 
-			StopRecording(copyCommandBuffer);
-			ExecuteCommands(copyCommandBuffer, queue);
+			VkHelper::StopRecording(copyCommandBuffer);
+			VkHelper::ExecuteCommands(copyCommandBuffer, queue);
 
 			vkFreeCommandBuffers(logicalDevice, commandPool, 1, &copyCommandBuffer);
 			vkDestroyBuffer(logicalDevice, stagingBuffer._buffer, nullptr);
@@ -935,8 +1094,8 @@ namespace Engine {
 		vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, sizeBytes, 0, &stagingBuffer._cpuMemory);
 		memcpy(stagingBuffer._cpuMemory, pData, sizeBytes);
 
-		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
-		StartRecording(commandBuffer);
+		auto commandBuffer = VkHelper::CreateCommandBuffer(logicalDevice, commandPool);
+		VkHelper::StartRecording(commandBuffer);
 
 		VkImageMemoryBarrier barrier{};
 		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -956,8 +1115,8 @@ namespace Engine {
 		copyInfo.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
 		vkCmdCopyBufferToImage(commandBuffer, stagingBuffer._buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyInfo);
 
-		StopRecording(commandBuffer);
-		ExecuteCommands(commandBuffer, queue);
+		VkHelper::StopRecording(commandBuffer);
+		VkHelper::ExecuteCommands(commandBuffer, queue);
 
 		vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
 		vkDestroyBuffer(logicalDevice, stagingBuffer._buffer, nullptr);
@@ -3035,7 +3194,7 @@ namespace Engine {
 			samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 			vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_cubeMapImage._sampler);
 
-			auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
+			auto commandBuffer = VkHelper::CreateCommandBuffer(logicalDevice, commandPool);
 			CopyFacesToImage(logicalDevice, physicalDevice, commandPool, commandBuffer, queue);
 		}
 
@@ -3044,7 +3203,7 @@ namespace Engine {
 			uint32_t resolution = _faceSizePixels;
 			uint32_t faceIndex = 0;
 
-			StartRecording(commandBuffer);
+			VkHelper::StartRecording(commandBuffer);
 
 			VkImageMemoryBarrier barrier{};
 			barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -3108,8 +3267,8 @@ namespace Engine {
 			_cubeMapImage._currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-			StopRecording(commandBuffer);
-			ExecuteCommands(commandBuffer, queue);
+			VkHelper::StopRecording(commandBuffer);
+			VkHelper::ExecuteCommands(commandBuffer, queue);
 
 			// Destroy all the buffers used to move data to the cube map image.
 			for (auto& buffer : temporaryBuffers) {
@@ -3576,8 +3735,8 @@ namespace Engine {
 		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, roughnessMap._createInfo.extent.width, roughnessMap._createInfo.extent.height, roughnessMap._createInfo.extent.depth, roughnessMap._pData, roughnessMap._sizeBytes);
 		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, metalnessMap._createInfo.extent.width, metalnessMap._createInfo.extent.height, metalnessMap._createInfo.extent.depth, metalnessMap._pData, metalnessMap._sizeBytes);
 
-		auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
-		StartRecording(commandBuffer);
+		auto commandBuffer = VkHelper::CreateCommandBuffer(logicalDevice, commandPool);
+		VkHelper::StartRecording(commandBuffer);
 
 		// Transition the images to shader read layout.
 		{
@@ -3613,8 +3772,8 @@ namespace Engine {
 			vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 		}
 
-		StopRecording(commandBuffer);
-		ExecuteCommands(commandBuffer, queue);
+		VkHelper::StopRecording(commandBuffer);
+		VkHelper::ExecuteCommands(commandBuffer, queue);
 
 		_images.push_back(albedoMap);
 		_images.push_back(roughnessMap);
@@ -4082,7 +4241,7 @@ namespace Engine {
 
 			_cameraData.worldToCamera = _view._matrix;
 			_cameraData.tanHalfHorizontalFov = tan(glm::radians(_horizontalFov / 2.0f));
-			_cameraData.aspectRatio = Converter::Convert<uint32_t, float>(globalSettings._windowWidth) / Converter::Convert<uint32_t, float>(globalSettings._windowHeight);
+			_cameraData.aspectRatio = Helper::Convert<uint32_t, float>(globalSettings._windowWidth) / Helper::Convert<uint32_t, float>(globalSettings._windowHeight);
 			_cameraData.nearClipDistance = _nearClippingDistance;
 			_cameraData.farClipDistance = _farClippingDistance;
 			_cameraData.transform = _localTransform.Position();
@@ -4901,7 +5060,7 @@ namespace Engine {
 				image_info.format = _swapchain._surfaceFormat.format;
 				image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
 				image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-				image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+				image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 				image_info.samples = VK_SAMPLE_COUNT_1_BIT;
 				image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -5304,7 +5463,7 @@ namespace Engine {
 			_physicalDevice = CreatePhysicalDevice(_instance);
 
 			auto flags = (VkQueueFlagBits)(VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT);
-			_queueFamilyIndex = FindQueueFamilyIndex(_physicalDevice, flags);
+			_queueFamilyIndex = VkHelper::FindQueueFamilyIndex(_physicalDevice, flags);
 			if (!PhysicalDevice::SupportsSurface(_physicalDevice, _queueFamilyIndex, _windowSurface)) std::exit(1);
 
 			VkDeviceQueueCreateInfo graphicsQueueInfo{};
@@ -5318,7 +5477,7 @@ namespace Engine {
 			vkGetDeviceQueue(_logicalDevice, _queueFamilyIndex, 0, &_queue);
 			VkFenceCreateInfo fci = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, 0 };
 			vkCreateFence(_logicalDevice, &fci, NULL, &_queueFence);
-			_commandPool = CreateCommandPool(_logicalDevice, _queueFamilyIndex);
+			_commandPool = VkHelper::CreateCommandPool(_logicalDevice, _queueFamilyIndex);
 
 			LoadScene();
 			LoadEnvironmentMap();
@@ -6018,8 +6177,8 @@ namespace Engine {
 			VkViewport viewport = {};
 			viewport.x = 0.0f;
 			viewport.y = 0.0f;
-			viewport.width = Converter::Convert<uint32_t, float>(_swapchain._framebufferSize.width);
-			viewport.height = Converter::Convert<uint32_t, float>(_swapchain._framebufferSize.height);
+			viewport.width = Helper::Convert<uint32_t, float>(_swapchain._framebufferSize.width);
+			viewport.height = Helper::Convert<uint32_t, float>(_swapchain._framebufferSize.height);
 			viewport.minDepth = 0.0f;
 			viewport.maxDepth = 1.0f;
 
@@ -6297,69 +6456,6 @@ namespace Engine {
 			}
 		}
 
-		void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* buffer, VkDeviceMemory* bufferMemory) {
-			// Step 1: Create the buffer
-			VkBufferCreateInfo bufferInfo{};
-			bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-			bufferInfo.size = size;
-			bufferInfo.usage = usage;
-			bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // Single queue family access
-
-			if (vkCreateBuffer(device, &bufferInfo, nullptr, buffer) != VK_SUCCESS) {
-				throw std::runtime_error("Failed to create buffer!");
-			}
-
-			// Step 2: Get memory requirements for the buffer
-			VkMemoryRequirements memRequirements;
-			vkGetBufferMemoryRequirements(device, *buffer, &memRequirements);
-
-			// Step 3: Allocate memory for the buffer
-			VkMemoryAllocateInfo allocInfo{};
-			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-			allocInfo.allocationSize = memRequirements.size;
-			allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(physicalDevice, memRequirements.memoryTypeBits, (VkMemoryPropertyFlagBits)properties);
-			if (vkAllocateMemory(device, &allocInfo, nullptr, bufferMemory) != VK_SUCCESS) {
-				throw std::runtime_error("Failed to allocate buffer memory!");
-			}
-
-			// Step 4: Bind the memory to the buffer
-			vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
-		}
-
-		void DownloadImage() {
-			// Assuming `image` is your Vulkan image and `device` is your VkDevice
-			VkDeviceMemory stagingMemory;
-			VkBuffer stagingBuffer;
-
-			// Create a staging buffer
-			createBuffer(_logicalDevice, _physicalDevice, _overlayImages,
-				VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-				VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				&stagingBuffer, &stagingMemory);
-
-			// Transition the image layout to TRANSFER_SRC_OPTIMAL
-			transitionImageLayout(device, commandPool, queue, image,
-				VK_FORMAT_R8G8B8A8_SRGB,
-				VK_IMAGE_LAYOUT_UNDEFINED,
-				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-
-			// Copy the image to the buffer
-			copyImageToBuffer(device, commandPool, queue, image, stagingBuffer, width, height);
-
-			// Map the buffer memory
-			void* data;
-			vkMapMemory(device, stagingMemory, 0, imageSize, 0, &data);
-
-			// Write the image data to a file
-			stbi_write_png("output.png", width, height, 4, data, width * 4);
-
-			// Unmap the memory and clean up
-			vkUnmapMemory(device, stagingMemory);
-			vkDestroyBuffer(device, stagingBuffer, nullptr);
-			vkFreeMemory(device, stagingMemory, nullptr);
-		}
-
 		void Draw() {
 			if (windowMinimized) return;
 			vkResetFences(_logicalDevice, 1, &_queueFence);
@@ -6403,11 +6499,16 @@ namespace Engine {
 			VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 			VkPresentInfoKHR present_info{};
 			command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-			auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _uiRenderingFinishedSemaphore, NK_ANTI_ALIASING_ON);
+			auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _3dRenderingFinishedSemaphore, NK_ANTI_ALIASING_ON);
 
-			DownloadImage();
-
-
+			VkDeviceMemory stagingMemory;
+			VkBuffer stagingBuffer;
+			uint32_t imageWidth, imageHeight;
+			imageWidth = _swapchain._framebufferSize.width;
+			imageHeight = _swapchain._framebufferSize.height;
+			void* imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, imageWidth, imageHeight, stagingMemory, stagingBuffer);
+			Helper::SaveImageAsPng(Paths::TexturesPath() / std::filesystem::path("uiResult.png"), imageData, imageWidth, imageHeight);
+			VkHelper::UnmapAndDestroyStagingBuffer(_logicalDevice, stagingMemory, stagingBuffer);
 
 			/*submitInfo.pWaitSemaphores = &nk_semaphore;
 			submitInfo.pSignalSemaphores = &_uiRenderingFinishedSemaphore;
