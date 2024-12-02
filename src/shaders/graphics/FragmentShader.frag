@@ -24,7 +24,6 @@ layout(set = 3, binding = 2) uniform sampler2D metalnessMap;
 
 // Environment map.
 layout(set = 4, binding = 0) uniform samplerCube environmentMap;
-layout(set = 4, binding = 1) uniform sampler2D uiTexture;
 
 void main() 
 {
@@ -46,11 +45,6 @@ void main()
 
         vec4 environmentMapColor = textureLod(environmentMap, reflected.xyz, 3.0f);
         outColor = normalize(environmentMapColor + albedoMapColor);
-
-		vec4 uiColor = texture(uiTexture, inUVCoord);
-		float uiAlpha = uiColor.a;
-		vec4 blendedColor = mix(baseColor, uiColor, uiAlpha);
-		outColor = blendedColor;
 	}
 	else {
 		outColor = vec4(0.0f, 0.0f, 0.0f, 0.0f);

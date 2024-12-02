@@ -4827,6 +4827,8 @@ namespace Engine {
 			 */
 			Image _depthImage;
 
+			Image _uiImage;
+
 		} _renderPass;
 
 		/**
@@ -4960,7 +4962,7 @@ namespace Engine {
 			std::vector<Image> _overlayImages;
 			VkRenderPass _renderPass;
 			VkDescriptorPool _descriptorPool;
-			std::vector<VkDescriptorSet> _descriptorSets;
+			VkDescriptorSet _descriptorSet;
 			std::vector<VkDescriptorSetLayout> _descriptorSetLayouts;
 			VkPipelineLayout _pipelineLayout;
 			VkPipeline _pipeline;
@@ -4981,7 +4983,7 @@ namespace Engine {
 				CreateGraphicsPipeline();
 				CreateOverlayImages();
 				CreateDescriptorPool();
-				CreateDescriptorSets();
+				//CreateDescriptorSets();
 				CreateCommandPool();
 				CreateCommandBuffers();
 
@@ -5214,7 +5216,7 @@ namespace Engine {
 				CheckResult(vkCreateDescriptorPool(_logicalDevice, &pool_info, NULL, &_descriptorPool));
 			}
 
-			void UpdateDescriptorSets() {
+			/*void UpdateDescriptorSets() {
 				VkDescriptorImageInfo descriptor_image_info{};
 				VkWriteDescriptorSet descriptor_write{};
 
@@ -5234,9 +5236,9 @@ namespace Engine {
 
 					vkUpdateDescriptorSets(_logicalDevice, 1, &descriptor_write, 0, NULL);
 				}
-			}
+			}*/
 
-			void CreateDescriptorSets() {
+			/*void CreateDescriptorSets() {
 				std::vector<VkDescriptorSetLayout> layouts;
 				for (int i = 0; i < _swapchain._frameBuffers.size(); ++i) layouts.push_back(_descriptorSetLayout);
 				VkDescriptorSetAllocateInfo alloc_info{};
@@ -5247,7 +5249,7 @@ namespace Engine {
 				_descriptorSets.resize(_swapchain._frameBuffers.size());
 				CheckResult(vkAllocateDescriptorSets(_logicalDevice, &alloc_info, _descriptorSets.data()));
 				UpdateDescriptorSets();
-			}
+			}*/
 
 			void CreateGraphicsPipeline() {
 				FILE* fp{};
@@ -5486,7 +5488,6 @@ namespace Engine {
 			LoadEnvironmentMap();
 			CreateSwapchain();
 			CreateRenderPass();
-			CreateFramebuffers();
 
 			auto descriptorSetLayouts = CreateDescriptorSetLayouts();
 			_graphicsPipeline._layout = CreatePipelineLayout(descriptorSetLayouts);
@@ -5498,7 +5499,6 @@ namespace Engine {
 			AllocateDrawCommandBuffers();
 			RecordDrawCommands();
 			CreateSemaphores();
-
 		}
 
 		void PhysicsUpdate() {
@@ -5577,7 +5577,6 @@ namespace Engine {
 			Cleanup(false);
 			CreateSwapchain();
 			CreateRenderPass();
-			CreateFramebuffers();
 			CreateGraphicsPipeline();
 			AllocateDrawCommandBuffers();
 			RecordDrawCommands();
@@ -5879,187 +5878,270 @@ namespace Engine {
 			}
 		}
 
-		void CreateFramebuffers() {
+		void CreateRenderPass() {
+			auto imageFormat = _swapchain._surfaceFormat.format;
+			InitializeSwapchainColorAttachments(imageFormat);
+			InitializeDepthImage();
+			InitializeUiImage();
+			_renderPass._handle = CreateRenderPassHandle();
+		}
+
+		void InitializeSwapchainColorAttachments(VkFormat imageFormat) {
+			uint32_t actualImageCount = 0;
+
+			// Retrieve the swapchain images
+			CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, nullptr));
+			_renderPass._colorImages.resize(actualImageCount);
+
+			std::vector<VkImage> images(actualImageCount);
+			CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, images.data()));
+
+			// Create image views for each swapchain image
+			for (uint32_t i = 0; i < actualImageCount; ++i) {
+				auto& colorImage = _renderPass._colorImages[i];
+				colorImage._image = images[i];
+
+				VkImageViewCreateInfo& viewCreateInfo = colorImage._viewCreateInfo;
+				viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+				viewCreateInfo.image = images[i];
+				viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+				viewCreateInfo.format = imageFormat;
+				viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY,
+											  VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
+				viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				viewCreateInfo.subresourceRange.baseMipLevel = 0;
+				viewCreateInfo.subresourceRange.levelCount = 1;
+				viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+				viewCreateInfo.subresourceRange.layerCount = 1;
+
+				CheckResult(vkCreateImageView(_logicalDevice, &viewCreateInfo, nullptr, &colorImage._view));
+			}
+		}
+
+		void InitializeDepthImage() {
+			// Create depth image
+			VkImageCreateInfo& imageCreateInfo = _renderPass._depthImage._createInfo;
+			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+			imageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+			imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
+			imageCreateInfo.mipLevels = 1;
+			imageCreateInfo.arrayLayers = 1;
+			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+			imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+			CheckResult(vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_renderPass._depthImage._image));
+
+			// Allocate memory for depth image
+			AllocateImageMemory(_renderPass._depthImage._image);
+
+			// Create depth image view
+			VkImageViewCreateInfo& viewCreateInfo = _renderPass._depthImage._viewCreateInfo;
+			viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			viewCreateInfo.image = _renderPass._depthImage._image;
+			viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			viewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+			viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY,
+										  VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
+			viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+			viewCreateInfo.subresourceRange.baseMipLevel = 0;
+			viewCreateInfo.subresourceRange.levelCount = 1;
+			viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			viewCreateInfo.subresourceRange.layerCount = 1;
+
+			CheckResult(vkCreateImageView(_logicalDevice, &viewCreateInfo, nullptr, &_renderPass._depthImage._view));
+
+			// Create depth sampler (optional, if sampling the depth buffer later)
+			VkSamplerCreateInfo& samplerCreateInfo = _renderPass._depthImage._samplerCreateInfo;
+			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.anisotropyEnable = VK_FALSE;
+			samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+			samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+			samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+
+			CheckResult(vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._depthImage._sampler));
+		}
+
+		void InitializeUiImage() {
+			VkImageCreateInfo& imageCreateInfo = _renderPass._uiImage._createInfo;
+			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+			imageCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+			imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
+			imageCreateInfo.mipLevels = 1;
+			imageCreateInfo.arrayLayers = 1;
+			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+			imageCreateInfo.usage = VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
+			CheckResult(vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_renderPass._uiImage._image));
+
+			AllocateImageMemory(_renderPass._uiImage._image);
+
+			VkImageViewCreateInfo& viewCreateInfo = _renderPass._uiImage._viewCreateInfo;
+			viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			viewCreateInfo.image = _renderPass._uiImage._image;
+			viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			viewCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+			viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY,
+										  VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
+			viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			viewCreateInfo.subresourceRange.baseMipLevel = 0;
+			viewCreateInfo.subresourceRange.levelCount = 1;
+			viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			viewCreateInfo.subresourceRange.layerCount = 1;
+
+			CheckResult(vkCreateImageView(_logicalDevice, &viewCreateInfo, nullptr, &_renderPass._uiImage._view));
+
+			VkSamplerCreateInfo& samplerCreateInfo = _renderPass._uiImage._samplerCreateInfo;
+			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.anisotropyEnable = VK_FALSE;
+			samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+			samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+			samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+
+			CheckResult(vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._uiImage._sampler));
+		}
+
+		void AllocateImageMemory(VkImage& image) {
+			VkMemoryRequirements memoryRequirements;
+			vkGetImageMemoryRequirements(_logicalDevice, image, &memoryRequirements);
+
+			VkMemoryAllocateInfo allocInfo = {};
+			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+			allocInfo.allocationSize = memoryRequirements.size;
+			allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(_physicalDevice, memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+			VkDeviceMemory memory;
+			CheckResult(vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &memory));
+			CheckResult(vkBindImageMemory(_logicalDevice, image, memory, 0));
+		}
+
+		VkRenderPass CreateRenderPassHandle() {
+			// Color attachment description
+			VkAttachmentDescription colorAttachment = {};
+			colorAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
+			colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+			colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			colorAttachment.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+			// Depth attachment description
+			VkAttachmentDescription depthAttachment = {};
+			depthAttachment.format = VK_FORMAT_D32_SFLOAT;
+			depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+			depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+			// UI attachment description
+			VkAttachmentDescription uiAttachment = {};
+			uiAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
+			uiAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+			uiAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			uiAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			uiAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			uiAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			uiAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			uiAttachment.finalLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+
+			// Subpass 0: First subpass (color rendering)
+			VkAttachmentReference colorReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+			VkAttachmentReference depthReference = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
+			VkSubpassDescription subpass0 = {};
+			subpass0.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			subpass0.colorAttachmentCount = 1;
+			subpass0.pColorAttachments = &colorReference;
+			subpass0.pDepthStencilAttachment = &depthReference;
+
+			// Subpass 1: Second subpass (UI rendering with input attachment)
+			VkAttachmentReference uiReference = { 2, VK_IMAGE_LAYOUT_GENERAL };
+			VkSubpassDescription subpass1 = {};
+			subpass1.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			subpass1.inputAttachmentCount = 1;
+			subpass1.pInputAttachments = &uiReference;
+			subpass1.colorAttachmentCount = 1;
+			subpass1.pColorAttachments = &uiReference; // Output color attachment
+
+			// Subpass dependencies
+			std::vector<VkSubpassDependency> dependencies;
+
+			// Dependency from external to scene subpass
+			VkSubpassDependency sceneDependency = {};
+			sceneDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+			sceneDependency.dstSubpass = 0; // First subpass: scene rendering
+			sceneDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			sceneDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			sceneDependency.srcAccessMask = 0;
+			sceneDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			dependencies.push_back(sceneDependency);
+
+			// Dependency from scene subpass to UI subpass
+			VkSubpassDependency uiDependency = {};
+			uiDependency.srcSubpass = 0; // From the scene rendering subpass
+			uiDependency.dstSubpass = 1; // To the UI subpass
+			uiDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			uiDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			uiDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			uiDependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			dependencies.push_back(uiDependency);
+
+			// Dependency from UI subpass to external
+			VkSubpassDependency uiToExternalDependency = {};
+			uiToExternalDependency.srcSubpass = 1; // From the UI subpass
+			uiToExternalDependency.dstSubpass = VK_SUBPASS_EXTERNAL; // To external (presentation)
+			uiToExternalDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			uiToExternalDependency.dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+			uiToExternalDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			uiToExternalDependency.dstAccessMask = 0;
+			dependencies.push_back(uiToExternalDependency);
+
+			// Render pass creation
+			VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment, uiAttachment };
+			VkSubpassDescription subpasses[] = { subpass0, subpass1 };
+
+			VkRenderPassCreateInfo createInfo = {};
+			createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+			createInfo.attachmentCount = 3;
+			createInfo.pAttachments = attachments;
+			createInfo.subpassCount = 2;
+			createInfo.pSubpasses = subpasses;
+			createInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
+			createInfo.pDependencies = dependencies.data();
+
+			VkRenderPass renderPass;
+			CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &renderPass));
+
 			_swapchain._frameBuffers.resize(_renderPass._colorImages.size());
 
 			for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
-
-				// We will render to the same depth image for each frame. 
-				// We can just keep clearing and reusing the same depth image for every frame.
-				VkImageView colorAndDepthImages[2] = { _renderPass._colorImages[i]._view, _renderPass._depthImage._view };
+				VkImageView attachmentViews[3] = { _renderPass._colorImages[i]._view, _renderPass._depthImage._view, _renderPass._uiImage._view };
 				VkFramebufferCreateInfo createInfo = {};
 				createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-				createInfo.renderPass = _renderPass._handle;
-				createInfo.attachmentCount = 2;
-				createInfo.pAttachments = &colorAndDepthImages[0];
+				createInfo.renderPass = renderPass;
+				createInfo.attachmentCount = 3;
+				createInfo.pAttachments = &attachmentViews[0];
 				createInfo.width = _swapchain._framebufferSize.width;
 				createInfo.height = _swapchain._framebufferSize.height;
 				createInfo.layers = 1;
 
 				CheckResult(vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_swapchain._frameBuffers[i]));
 			}
-		}
 
-		void CreateRenderPass() {
-			auto imageFormat = _swapchain._surfaceFormat.format;
-
-			// Store the images used by the swap chain.
-			// Note: these are the images that swap chain image indices refer to.
-			// Note: actual number of images may differ from requested number, since it's a lower bound.
-			uint32_t actualImageCount = 0;
-			CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, nullptr));
-
-			_renderPass._colorImages.resize(actualImageCount);
-
-			std::vector<VkImage> images;
-			images.resize(actualImageCount);
-			CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, images.data()));
-
-			// Create the color attachments.
-			for (uint32_t i = 0; i < actualImageCount; ++i) {
-				_renderPass._colorImages[i]._image = images[i];
-				auto& createInfo = _renderPass._colorImages[i]._viewCreateInfo;
-				createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-				createInfo.image = images[i];
-				createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-				createInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-				createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-				createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-				createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-				createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-				createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-				createInfo.subresourceRange.baseMipLevel = 0;
-				createInfo.subresourceRange.levelCount = 1;
-				createInfo.subresourceRange.baseArrayLayer = 0;
-				createInfo.subresourceRange.layerCount = 1;
-				vkCreateImageView(_logicalDevice, &createInfo, nullptr, &_renderPass._colorImages[i]._view);
-			}
-
-			// Create the image.
-			auto& imageCreateInfo = _renderPass._depthImage._createInfo;
-			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-			imageCreateInfo.arrayLayers = 1;
-			imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
-			imageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-			imageCreateInfo.mipLevels = 1;
-			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-			imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-			vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_renderPass._depthImage._image);
-
-			// Allocate memory on the GPU for the image.
-			VkMemoryRequirements reqs;
-			vkGetImageMemoryRequirements(_logicalDevice, _renderPass._depthImage._image, &reqs);
-			VkMemoryAllocateInfo allocInfo{};
-			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-			allocInfo.allocationSize = reqs.size;
-			allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(_physicalDevice, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-			VkDeviceMemory mem;
-			vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem);
-			vkBindImageMemory(_logicalDevice, _renderPass._depthImage._image, mem, 0);
-
-			auto& imageViewCreateInfo = _renderPass._depthImage._viewCreateInfo;
-			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			imageViewCreateInfo.components = { {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY} };
-			imageViewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-			imageViewCreateInfo.image = _renderPass._depthImage._image;
-			imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-			imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-			imageViewCreateInfo.subresourceRange.layerCount = 1;
-			imageViewCreateInfo.subresourceRange.levelCount = 1;
-			vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_renderPass._depthImage._view);
-
-			auto& samplerCreateInfo = _renderPass._depthImage._samplerCreateInfo;
-			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-			samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-			samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-			samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-			samplerCreateInfo.anisotropyEnable = false;
-			samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-			samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-			samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-			vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._depthImage._sampler);
-
-			// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for "image used for a render pass".
-			VkAttachmentDescription colorAttachmentDescription = {};
-			colorAttachmentDescription.format = VK_FORMAT_R8G8B8A8_UNORM;
-			colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-			colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-			// Note: hardware will automatically transition attachment to the specified layout
-			// Note: index refers to attachment descriptions array.
-			VkAttachmentReference colorAttachmentReference = {};
-			colorAttachmentReference.attachment = 0;
-			colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-			// Describes how the render pass is going to use the depth attachment.
-			VkAttachmentDescription depthAttachmentDescription = {};
-			depthAttachmentDescription.flags = 0;
-			depthAttachmentDescription.format = VK_FORMAT_D32_SFLOAT;
-			depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-			depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-			VkAttachmentReference depthAttachmentReference = {};
-			depthAttachmentReference.attachment = 1;
-			depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-			// Note: this is a description of how the attachments of the render pass will be used in this sub pass
-			// e.g. if they will be read in shaders and/or drawn to.
-			VkSubpassDescription subPassDescription = {};
-			subPassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-			subPassDescription.colorAttachmentCount = 1;
-			subPassDescription.pColorAttachments = &colorAttachmentReference;
-			subPassDescription.pDepthStencilAttachment = &depthAttachmentReference;
-
-			// Now we have to adjust the renderpass synchronization. Previously, it was possible that multiple frames 
-			// were rendered simultaneously by the GPU. This is a problem when using depth buffers, because one frame 
-			// could overwrite the depth buffer while a previous frame is still rendering to it.
-			// We keep the subpass dependency for the color attachment we were already using.
-			VkSubpassDependency colorDependency = {};
-			colorDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-			colorDependency.dstSubpass = 0;
-			colorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			colorDependency.srcAccessMask = 0;
-			colorDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			colorDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-			// This dependency tells Vulkan that the depth attachment in a renderpass cannot be used before 
-			// previous subpasses have finished using it.
-			VkSubpassDependency depthDependency = {};
-			depthDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-			depthDependency.dstSubpass = 0;
-			depthDependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-			depthDependency.srcAccessMask = 0;
-			depthDependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-			depthDependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-			// Create the render pass. We pass in the main image attachment (color) and the depth image attachment, so the GPU knows how to treat
-			// the images.
-			VkAttachmentDescription attachmentDescriptions[2] = { colorAttachmentDescription, depthAttachmentDescription };
-			VkSubpassDependency subpassDependencies[2] = { colorDependency, depthDependency };
-			VkRenderPassCreateInfo createInfo = {};
-			createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-			createInfo.attachmentCount = 2;
-			createInfo.pAttachments = &attachmentDescriptions[0];
-			createInfo.subpassCount = 1;
-			createInfo.pSubpasses = &subPassDescription;
-			createInfo.dependencyCount = 2;
-			createInfo.pDependencies = &subpassDependencies[0];
-
-			CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass._handle));
+			return renderPass;
 		}
 
 		void CreateSwapchain() {
@@ -6394,6 +6476,48 @@ namespace Engine {
 			_scene.UpdateShaderResources();
 		}
 
+		void CreateUIDescriptorSet() {
+			// Step 1: Create a Descriptor Set Layout
+			VkDescriptorSetLayout descriptorSetLayout;
+			VkDescriptorSetLayoutBinding layoutBinding = {};
+			layoutBinding.binding = 0; // Binding 0 in the shader
+			layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; // For sampled images
+			layoutBinding.descriptorCount = 1; // One image
+			layoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; // Accessible in fragment shader
+			layoutBinding.pImmutableSamplers = nullptr; // No immutable samplers
+
+			VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+			layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+			layoutInfo.bindingCount = 1;
+			layoutInfo.pBindings = &layoutBinding;
+
+			CheckResult(vkCreateDescriptorSetLayout(_logicalDevice, &layoutInfo, nullptr, &_uiCtx._descriptorSetLayout));
+
+			// Step 2: Create a Descriptor Pool
+			VkDescriptorPool descriptorPool;
+			VkDescriptorPoolSize poolSize = {};
+			poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			poolSize.descriptorCount = 1; // Only one descriptor
+
+			VkDescriptorPoolCreateInfo poolInfo = {};
+			poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+			poolInfo.poolSizeCount = 1;
+			poolInfo.pPoolSizes = &poolSize;
+			poolInfo.maxSets = 1; // Only one descriptor set
+
+			CheckResult(vkCreateDescriptorPool(_logicalDevice, &poolInfo, nullptr, &descriptorPool));
+
+			// Step 3: Allocate the Descriptor Set
+			VkDescriptorSet descriptorSet;
+			VkDescriptorSetAllocateInfo allocInfo = {};
+			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+			allocInfo.descriptorPool = descriptorPool;
+			allocInfo.descriptorSetCount = 1;
+			allocInfo.pSetLayouts = &descriptorSetLayout;
+
+			CheckResult(vkAllocateDescriptorSets(_logicalDevice, &allocInfo, &_uiCtx._descriptorSet));
+		}
+
 		void RecordDrawCommands() {
 			// Prepare data for recording command buffers.
 			VkCommandBufferBeginInfo beginInfo = {};
@@ -6446,7 +6570,12 @@ namespace Engine {
 					gameObject->Draw(_graphicsPipeline._layout, _drawCommandBuffers[i]);
 				}
 
+				vkCmdNextSubpass(_drawCommandBuffers[i], VK_SUBPASS_CONTENTS_INLINE);
+				vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
+				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipelineLayout, 0, 1, &_uiCtx._descriptorSet, 0, nullptr);
+				vkCmdDraw(_drawCommandBuffers[i], 3, 1, 0, 0);
 				vkCmdEndRenderPass(_drawCommandBuffers[i]);
+
 				vkEndCommandBuffer(_drawCommandBuffers[i]);
 			}
 		}
@@ -6485,7 +6614,7 @@ namespace Engine {
 			vkQueueSubmit(_queue, 1, &submitInfo, _queueFence);
 			vkWaitForFences(_logicalDevice, 1, &_queueFence, VK_TRUE, UINT64_MAX);
 
-			VkClearValue clearColor = {
+			VkClearValue backgroundColor = {
 			{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
 			};
 
@@ -6501,23 +6630,6 @@ namespace Engine {
 			/*void* imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, uiRenderResult, imageWidth, imageHeight, stagingMemory, stagingBuffer);
 			Helper::SaveImageAsPng(Paths::TexturesPath() / std::filesystem::path("uiResult.png"), imageData, imageWidth, imageHeight);
 			if (stagingBuffer == nullptr || stagingMemory == nullptr)VkHelper::UnmapAndDestroyStagingBuffer(_logicalDevice, stagingMemory, stagingBuffer);*/
-
-			auto commandBuffer = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
-			VkRenderPassBeginInfo beginInfo{};
-			beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			beginInfo.renderPass = _uiCtx._renderPass;
-			beginInfo.framebuffer = _swapchain._frameBuffers[i];
-			beginInfo.renderArea.offset.x = 0;
-			beginInfo.renderArea.offset.y = 0;
-			beginInfo.renderArea.extent = _swapchain._framebufferSize;
-			beginInfo.clearValueCount = 2;
-			beginInfo.pClearValues = &clearValues[0];
-
-			vkCmdBeginRenderPass(commandBuffer, &_uiCtx._renderPass, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, demo->pipeline);
-			vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, demo->pipeline_layout, 0, 1, &demo->descriptor_sets[image_index], 0, NULL);
-			vkCmdDraw(command_buffer, 3, 1, 0, 0);
-			vkCmdEndRenderPass(command_buffer);
 
 			// Present drawn image.
 			// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
