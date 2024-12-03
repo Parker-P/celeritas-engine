@@ -845,11 +845,9 @@ namespace Engine {
 		}
 
 		static void* DownloadImage(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue queue, VkImage image, uint32_t width, uint32_t height, VkDeviceMemory outStagingMemory, VkBuffer outStagingBuffer) {
-			// Assuming `image` is your Vulkan image and `device` is your VkDevice
 			VkDeviceMemory stagingMemory;
 			VkBuffer stagingBuffer;
 
-			// Create a staging buffer
 			CreateBuffer(logicalDevice, physicalDevice, 4 * width * height, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				&stagingBuffer, &stagingMemory);
@@ -874,24 +872,8 @@ namespace Engine {
 			bufferInfo.usage = usage;
 			bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // Single queue family access
 
-			if (vkCreateBuffer(device, &bufferInfo, nullptr, buffer) != VK_SUCCESS) {
-				throw std::runtime_error("Failed to create buffer!");
-			}
-
-			// Step 2: Get memory requirements for the buffer
-			VkMemoryRequirements memRequirements;
-			vkGetBufferMemoryRequirements(device, *buffer, &memRequirements);
-
-			// Step 3: Allocate memory for the buffer
-			VkMemoryAllocateInfo allocInfo{};
-			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-			allocInfo.allocationSize = memRequirements.size;
-			allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(physicalDevice, memRequirements.memoryTypeBits, (VkMemoryPropertyFlagBits)properties);
-			if (vkAllocateMemory(device, &allocInfo, nullptr, bufferMemory) != VK_SUCCESS) {
-				throw std::runtime_error("Failed to allocate buffer memory!");
-			}
-
-			// Step 4: Bind the memory to the buffer
+			CheckResult(vkCreateBuffer(device, &bufferInfo, nullptr, buffer));
+			*bufferMemory = AllocateGpuMemoryForBuffer(device, physicalDevice, *buffer, properties);
 			vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
 		}
 
@@ -967,44 +949,57 @@ namespace Engine {
 			allocInfo.commandPool = commandPool;
 			allocInfo.commandBufferCount = 1;
 
-			VkCommandBuffer commandBuffer;
-			vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
-
-			VkCommandBufferBeginInfo beginInfo{};
-			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-			vkBeginCommandBuffer(commandBuffer, &beginInfo);
+			VkCommandBuffer commandBuffer = CreateCommandBuffer(device, commandPool);
+			StartRecording(commandBuffer);
 
 			VkBufferImageCopy region{};
 			region.bufferOffset = 0;
 			region.bufferRowLength = 0;  // Tightly packed
 			region.bufferImageHeight = 0; // Tightly packed
-
 			region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			region.imageSubresource.mipLevel = 0;
 			region.imageSubresource.baseArrayLayer = 0;
 			region.imageSubresource.layerCount = 1;
-
 			region.imageOffset = { 0, 0, 0 };
-			region.imageExtent = {
-				width,
-				height,
-				1
-			};
+			region.imageExtent = { width, height, 1 };
 
 			vkCmdCopyImageToBuffer(commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
 			vkEndCommandBuffer(commandBuffer);
-
-			VkSubmitInfo submitInfo{};
-			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-			submitInfo.commandBufferCount = 1;
-			submitInfo.pCommandBuffers = &commandBuffer;
-
-			vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-			vkQueueWaitIdle(queue);
-
+			ExecuteCommands(commandBuffer, queue);
 			vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+		}
+
+		static VkDeviceMemory AllocateGpuMemory(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkMemoryRequirements memRequirements) {
+			VkMemoryAllocateInfo allocInfo = {};
+			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+			allocInfo.allocationSize = memRequirements.size;
+			allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(physicalDevice, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+			VkDeviceMemory allocatedMemory;
+			CheckResult(vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &allocatedMemory));
+			return allocatedMemory;
+		}
+
+		static VkDeviceMemory AllocateGpuMemoryForImage(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkImage imageToAllocate) {
+			VkMemoryRequirements memRequirements;
+			vkGetImageMemoryRequirements(logicalDevice, imageToAllocate, &memRequirements);
+			return AllocateGpuMemory(logicalDevice, physicalDevice, memRequirements);
+		}
+
+		static VkDeviceMemory AllocateGpuMemoryForBuffer(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkBuffer buffer, VkMemoryPropertyFlags requiredMemoryProperties) {
+			VkMemoryRequirements memRequirements;
+			vkGetBufferMemoryRequirements(logicalDevice, buffer, &memRequirements);
+			return AllocateGpuMemory(logicalDevice, physicalDevice, memRequirements);
+		}
+
+		static VkDescriptorSet AllocateDescriptorSet(VkDevice logicalDevice, VkDescriptorPool descriptorPool, VkDescriptorSetLayout setLayout) {
+			VkDescriptorSetAllocateInfo allocInfo = {};
+			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+			allocInfo.descriptorPool = descriptorPool;
+			allocInfo.descriptorSetCount = (uint32_t)1;
+			allocInfo.pSetLayouts = &setLayout;
+			VkDescriptorSet descriptorSet;
+			CheckResult(vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet));
 		}
 	};
 
@@ -4210,14 +4205,7 @@ namespace Engine {
 			createInfo.pPoolSizes = poolSizes;
 			vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
 
-			// Create the descriptor set.
-			VkDescriptorSetAllocateInfo allocInfo = {};
-			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-			allocInfo.descriptorPool = descriptorPool;
-			allocInfo.descriptorSetCount = (uint32_t)1;
-			allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
-			VkDescriptorSet descriptorSet;
-			vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
+			VkDescriptorSet descriptorSet = VkHelper::AllocateDescriptorSet(logicalDevice, descriptorPool, layouts[descriptorSetID]._layout);
 
 			// Update the descriptor set's data with the environment map's image.
 			VkDescriptorBufferInfo bufferInfo{ buffer._buffer, 0, buffer._createInfo.size };
@@ -4745,6 +4733,10 @@ namespace Engine {
 		 */
 		VkSwapchainKHR _oldSwapchainHandle;
 
+		/**
+		 * @brief The amount of images used by this swapchain to show render results in turn.
+		 */
+		uint32_t _imageCount;
 	};
 
 	/**
@@ -4794,7 +4786,7 @@ namespace Engine {
 		/**
 		 * @brief Same as imageAvailableSemaphore.
 		 */
-		VkSemaphore	_3dRenderingFinishedSemaphore;
+		VkSemaphore	renderingFinishedSemaphore;
 
 		/**
 		 * @brief .
@@ -4818,7 +4810,7 @@ namespace Engine {
 			/**
 			 * @brief Attachments used by the GPU to write color information to.
 			 */
-			std::vector<Image> _colorImages;
+			Image _finalRenderedImage;
 
 			/**
 			 * @brief Attachment that stores per-pixel depth information for the hardwired depth testing stage.
@@ -4827,7 +4819,7 @@ namespace Engine {
 			 */
 			Image _depthImage;
 
-			Image _uiImage;
+			//Image _uiImage;
 
 		} _renderPass;
 
@@ -4953,13 +4945,13 @@ namespace Engine {
 			VkPhysicalDevice _physicalDevice;
 			GLFWwindow* _pWindow;
 			uint32_t* _pQueueFamilyIndex;
-			VkSampler _uiShaderSampler;
+			//VkSampler _uiShaderSampler;
 			VkDescriptorSetLayout _descriptorSetLayout;
 
 			/**
 			 * @brief The images to which Nuklear renders its UI.
 			 */
-			std::vector<Image> _overlayImages;
+			Image _overlayImage;
 			VkRenderPass _renderPass;
 			VkDescriptorPool _descriptorPool;
 			VkDescriptorSet _descriptorSet;
@@ -4970,18 +4962,17 @@ namespace Engine {
 			std::vector<VkCommandBuffer> _commandBuffers;
 			Swapchain _swapchain;
 
-			void Initialize(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkSurfaceKHR windowSurface, GLFWwindow* pWindow, VkQueue queue, uint32_t* pQueueFamilyIndex, Swapchain swapchain) {
+			void Initialize(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkSurfaceKHR windowSurface, GLFWwindow* pWindow, VkQueue queue, uint32_t* pQueueFamilyIndex, Swapchain swapchain, Image sceneImage) {
 				_logicalDevice = logicalDevice;
 				_physicalDevice = physicalDevice;
 				_pWindow = pWindow;
 				_pQueueFamilyIndex = pQueueFamilyIndex;
 				_swapchain = swapchain;
 
-				CreateSampler();
-				CreateDescriptorSetLayout();
-				CreateRenderPass();
+				CreateDescriptorSet(sceneImage);
+				//CreateRenderPass();
 				CreateGraphicsPipeline();
-				CreateOverlayImages();
+				CreateOverlayImage();
 				CreateDescriptorPool();
 				//CreateDescriptorSets();
 				CreateCommandPool();
@@ -4990,9 +4981,7 @@ namespace Engine {
 				uint32_t image_index;
 				VkSemaphore nk_semaphore;
 
-				std::vector<VkImageView> views; views.resize(_overlayImages.size());
-				for (int i = 0; i < views.size(); ++i) views[i] = _overlayImages[i]._view;
-				_ctx = nk_glfw3_init(_pWindow, _logicalDevice, _physicalDevice, *pQueueFamilyIndex, views.data(), _swapchain._frameBuffers.size(), _swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
+				_ctx = nk_glfw3_init(_pWindow, _logicalDevice, _physicalDevice, *pQueueFamilyIndex, &_overlayImage._view, _swapchain._frameBuffers.size(), _swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
 				/* Load Fonts: if none of these are loaded a default font will be used  */
 				/* Load Cursor: if you uncomment cursor loading please hide the cursor */
 				{
@@ -5042,19 +5031,8 @@ namespace Engine {
 				nk_end(_ctx);
 			}
 
-
-
-			bool CreateOverlayImages() {
-				uint32_t i, j;
-				VkResult result;
-				VkMemoryRequirements mem_requirements;
-				VkPhysicalDeviceMemoryProperties mem_properties;
-				int found;
-				VkImageCreateInfo image_info;
-				VkMemoryAllocateInfo alloc_info;
-				VkImageViewCreateInfo image_view_info;
-
-				memset(&image_info, 0, sizeof(VkImageCreateInfo));
+			bool CreateOverlayImage() {
+				VkImageCreateInfo image_info{};
 				image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 				image_info.imageType = VK_IMAGE_TYPE_2D;
 				image_info.extent.width = _swapchain._framebufferSize.width;
@@ -5068,11 +5046,12 @@ namespace Engine {
 				image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 				image_info.samples = VK_SAMPLE_COUNT_1_BIT;
 				image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+				CheckResult(vkCreateImage(_logicalDevice, &image_info, NULL, &_overlayImage._image));
 
-				memset(&alloc_info, 0, sizeof(VkMemoryAllocateInfo));
-				alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+				_overlayImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, _overlayImage._image);
+				CheckResult(vkBindImageMemory(_logicalDevice, _overlayImage._image, _overlayImage._gpuMemory, 0));
 
-				memset(&image_view_info, 0, sizeof(VkImageViewCreateInfo));
+				VkImageViewCreateInfo image_view_info{};
 				image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 				image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
 				image_view_info.format = _swapchain._surfaceFormat.format;
@@ -5085,50 +5064,9 @@ namespace Engine {
 				image_view_info.subresourceRange.levelCount = 1;
 				image_view_info.subresourceRange.baseArrayLayer = 0;
 				image_view_info.subresourceRange.layerCount = 1;
+				image_view_info.image = _overlayImage._image;
+				CheckResult(vkCreateImageView(_logicalDevice, &image_view_info, NULL, &_overlayImage._view));
 
-				_overlayImages.resize(_swapchain._frameBuffers.size());
-
-				for (i = 0; i < _swapchain._frameBuffers.size(); i++) {
-					result = vkCreateImage(_logicalDevice, &image_info, NULL, &_overlayImages[i]._image);
-
-					if (result != VK_SUCCESS) {
-						fprintf(stderr, "vkCreateImage failed for index %lu: %d\n",
-							(unsigned long)i, result);
-						return false;
-					}
-
-					vkGetImageMemoryRequirements(_logicalDevice, _overlayImages[i]._image, &mem_requirements);
-
-					alloc_info.allocationSize = mem_requirements.size;
-
-					vkGetPhysicalDeviceMemoryProperties(_physicalDevice, &mem_properties);
-					found = 0;
-					for (j = 0; j < mem_properties.memoryTypeCount; j++) {
-						if ((mem_requirements.memoryTypeBits & (1 << j)) &&
-							(mem_properties.memoryTypes[j].propertyFlags &
-								VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) ==
-							VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
-							found = 1;
-							break;
-						}
-					}
-					if (!found) {
-						fprintf(stderr,
-							"failed to find suitable memory type for index %lu!\n",
-							(unsigned long)i);
-						return false;
-					}
-					alloc_info.memoryTypeIndex = j;
-					CheckResult(vkAllocateMemory(_logicalDevice, &alloc_info, NULL, &_overlayImages[i]._gpuMemory));
-					CheckResult(vkBindImageMemory(_logicalDevice, _overlayImages[i]._image, _overlayImages[i]._gpuMemory, 0));
-					image_view_info.image = _overlayImages[i]._image;
-					CheckResult(vkCreateImageView(_logicalDevice, &image_view_info, NULL, &_overlayImages[i]._view));
-
-				}
-				return true;
-			}
-
-			void CreateSampler() {
 				VkSamplerCreateInfo samplerCreateInfo{};
 				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 				samplerCreateInfo.pNext = NULL;
@@ -5145,24 +5083,50 @@ namespace Engine {
 				samplerCreateInfo.minLod = 0.0f;
 				samplerCreateInfo.maxLod = 0.0f;
 				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-				CheckResult(vkCreateSampler(_logicalDevice, &samplerCreateInfo, NULL, &_uiShaderSampler));
+				CheckResult(vkCreateSampler(_logicalDevice, &samplerCreateInfo, NULL, &_overlayImage._sampler));
+
+				return true;
 			}
 
-			void CreateDescriptorSetLayout() {
-				VkDescriptorSetLayoutBinding overlay_layout_binding{};
-				VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_nfo{};
-				overlay_layout_binding.binding = 0;
-				overlay_layout_binding.descriptorCount = 1;
-				overlay_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-				overlay_layout_binding.pImmutableSamplers = NULL;
-				overlay_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-				descriptor_set_layout_create_nfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-				descriptor_set_layout_create_nfo.bindingCount = 1;
-				descriptor_set_layout_create_nfo.pBindings = &overlay_layout_binding;
-				CheckResult(vkCreateDescriptorSetLayout(_logicalDevice, &descriptor_set_layout_create_nfo, NULL, &_descriptorSetLayout));
+			void CreateDescriptorSet(Image sceneImage) {
+				std::array<VkDescriptorSetLayoutBinding, 2> setLayoutBindings{};
+				setLayoutBindings[0].binding = 0;
+				setLayoutBindings[0].descriptorCount = 1;
+				setLayoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+				setLayoutBindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+				setLayoutBindings[1].binding = 1;
+				setLayoutBindings[1].descriptorCount = 1;
+				setLayoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+				setLayoutBindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+				VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
+				layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+				layoutCreateInfo.bindingCount = 2;
+				layoutCreateInfo.pBindings = setLayoutBindings.data();
+				CheckResult(vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, NULL, &_descriptorSetLayout));
+
+				VkDescriptorSet descriptorSet = VkHelper::AllocateDescriptorSet(_logicalDevice, _descriptorPool, _descriptorSetLayout);
+
+				std::array<VkDescriptorImageInfo, 2> descriptors{};
+				descriptors[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				descriptors[0].imageView = sceneImage._view;
+				descriptors[0].sampler = VK_NULL_HANDLE;
+
+				descriptors[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				descriptors[1].imageView = _overlayImage._view;
+				descriptors[1].sampler = VK_NULL_HANDLE;
+
+				VkWriteDescriptorSet writeDescriptorSet{};
+				writeDescriptorSet.dstSet = descriptorSet;
+				writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+				writeDescriptorSet.descriptorCount = 1;
+				writeDescriptorSet.dstBinding = 0;
+				writeDescriptorSet.pImageInfo = &descriptors[0];
+				vkUpdateDescriptorSets(_logicalDevice, 1, &writeDescriptorSet, 0, nullptr);
 			}
 
-			void CreateRenderPass() {
+			/*void CreateRenderPass() {
 				VkAttachmentDescription attachment{};
 				VkAttachmentReference color_attachment_ref{};
 				VkSubpassDescription subpass{};
@@ -5201,7 +5165,7 @@ namespace Engine {
 				render_pass_info.pDependencies = &dependency;
 
 				CheckResult(vkCreateRenderPass(_logicalDevice, &render_pass_info, NULL, &_renderPass));
-			}
+			}*/
 
 			void CreateDescriptorPool() {
 				VkDescriptorPoolSize pool_size{};
@@ -5420,7 +5384,7 @@ namespace Engine {
 		VkQueue _queue;
 		VkFence _queueFence;
 		uint32_t _queueFamilyIndex;
-		std::vector<VkCommandBuffer> _drawCommandBuffers;
+		VkCommandBuffer _drawCommandBuffer;
 
 		// Game.
 		KeyboardMouse& _input = KeyboardMouse::Instance();
@@ -5493,10 +5457,10 @@ namespace Engine {
 			_graphicsPipeline._layout = CreatePipelineLayout(descriptorSetLayouts);
 			CreateShaderResources(descriptorSetLayouts);
 
-			_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, _queue, &_queueFamilyIndex, _swapchain);
+			_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, _queue, &_queueFamilyIndex, _swapchain, _renderPass._finalRenderedImage);
 
 			CreateGraphicsPipeline();
-			AllocateDrawCommandBuffers();
+			_drawCommandBuffer = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
 			RecordDrawCommands();
 			CreateSemaphores();
 		}
@@ -5578,7 +5542,7 @@ namespace Engine {
 			CreateSwapchain();
 			CreateRenderPass();
 			CreateGraphicsPipeline();
-			AllocateDrawCommandBuffers();
+			_drawCommandBuffer = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
 			RecordDrawCommands();
 			//vkDestroyPipelineLayout(_logicalDevice, _graphicsPipeline._shaderResources._pipelineLayout, nullptr);
 		}
@@ -5799,7 +5763,7 @@ namespace Engine {
 			VkSemaphoreCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 			CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_imageAvailableSemaphore));
-			CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_3dRenderingFinishedSemaphore));
+			CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &renderingFinishedSemaphore));
 			CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_uiRenderingFinishedSemaphore));
 		}
 
@@ -5879,47 +5843,69 @@ namespace Engine {
 		}
 
 		void CreateRenderPass() {
-			auto imageFormat = _swapchain._surfaceFormat.format;
-			InitializeSwapchainColorAttachments(imageFormat);
-			InitializeDepthImage();
-			InitializeUiImage();
+			CreateFinalRenderedImage();
+			CreateDepthImage();
+			//InitializeUiImage();
 			_renderPass._handle = CreateRenderPassHandle();
 		}
 
-		void InitializeSwapchainColorAttachments(VkFormat imageFormat) {
-			uint32_t actualImageCount = 0;
+		void CreateFinalRenderedImage() {
+			VkFormat imageFormat = _swapchain._surfaceFormat.format;
+			auto& finalRenderedImage = _renderPass._finalRenderedImage;
 
-			// Retrieve the swapchain images
-			CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, nullptr));
-			_renderPass._colorImages.resize(actualImageCount);
+			VkImageCreateInfo imageCreateInfo = {};
+			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+			imageCreateInfo.format = imageFormat;
+			imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
+			imageCreateInfo.mipLevels = 1;
+			imageCreateInfo.arrayLayers = 1;
+			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+			imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-			std::vector<VkImage> images(actualImageCount);
-			CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, images.data()));
+			CheckResult(vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &finalRenderedImage._image));
+			VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, finalRenderedImage._image);
+			CheckResult(vkBindImageMemory(_logicalDevice, finalRenderedImage._image, finalRenderedImage._gpuMemory, 0));
 
-			// Create image views for each swapchain image
-			for (uint32_t i = 0; i < actualImageCount; ++i) {
-				auto& colorImage = _renderPass._colorImages[i];
-				colorImage._image = images[i];
+			// Create an Image View
+			VkImageViewCreateInfo& viewCreateInfo = _renderPass._finalRenderedImage._viewCreateInfo;
+			viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			viewCreateInfo.image = finalRenderedImage._image;
+			viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			viewCreateInfo.format = imageFormat;
+			viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
+			viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			viewCreateInfo.subresourceRange.baseMipLevel = 0;
+			viewCreateInfo.subresourceRange.levelCount = 1;
+			viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			viewCreateInfo.subresourceRange.layerCount = 1;
 
-				VkImageViewCreateInfo& viewCreateInfo = colorImage._viewCreateInfo;
-				viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-				viewCreateInfo.image = images[i];
-				viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-				viewCreateInfo.format = imageFormat;
-				viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY,
-											  VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
-				viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-				viewCreateInfo.subresourceRange.baseMipLevel = 0;
-				viewCreateInfo.subresourceRange.levelCount = 1;
-				viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-				viewCreateInfo.subresourceRange.layerCount = 1;
+			CheckResult(vkCreateImageView(_logicalDevice, &viewCreateInfo, nullptr, &finalRenderedImage._view));
 
-				CheckResult(vkCreateImageView(_logicalDevice, &viewCreateInfo, nullptr, &colorImage._view));
-			}
+			// Create a VkSampler
+			VkSamplerCreateInfo samplerCreateInfo = {};
+			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+			samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+			samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			samplerCreateInfo.anisotropyEnable = VK_TRUE;
+			samplerCreateInfo.maxAnisotropy = 16;
+			samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+			samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+			samplerCreateInfo.compareEnable = VK_FALSE;
+			samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+			samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+			CheckResult(vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &finalRenderedImage._sampler));
+
 		}
 
-		void InitializeDepthImage() {
-			// Create depth image
+		void CreateDepthImage() {
 			VkImageCreateInfo& imageCreateInfo = _renderPass._depthImage._createInfo;
 			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -5933,17 +5919,15 @@ namespace Engine {
 
 			CheckResult(vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_renderPass._depthImage._image));
 
-			// Allocate memory for depth image
-			AllocateImageMemory(_renderPass._depthImage._image);
+			auto gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, _renderPass._depthImage._image);
+			vkBindImageMemory(_logicalDevice, _renderPass._depthImage._image, gpuMemory, 0);
 
-			// Create depth image view
 			VkImageViewCreateInfo& viewCreateInfo = _renderPass._depthImage._viewCreateInfo;
 			viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 			viewCreateInfo.image = _renderPass._depthImage._image;
 			viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 			viewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-			viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY,
-										  VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
+			viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
 			viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 			viewCreateInfo.subresourceRange.baseMipLevel = 0;
 			viewCreateInfo.subresourceRange.levelCount = 1;
@@ -5952,7 +5936,6 @@ namespace Engine {
 
 			CheckResult(vkCreateImageView(_logicalDevice, &viewCreateInfo, nullptr, &_renderPass._depthImage._view));
 
-			// Create depth sampler (optional, if sampling the depth buffer later)
 			VkSamplerCreateInfo& samplerCreateInfo = _renderPass._depthImage._samplerCreateInfo;
 			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 			samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -5966,7 +5949,7 @@ namespace Engine {
 			CheckResult(vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._depthImage._sampler));
 		}
 
-		void InitializeUiImage() {
+		/*void InitializeUiImage() {
 			VkImageCreateInfo& imageCreateInfo = _renderPass._uiImage._createInfo;
 			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -6008,21 +5991,7 @@ namespace Engine {
 			samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 
 			CheckResult(vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._uiImage._sampler));
-		}
-
-		void AllocateImageMemory(VkImage& image) {
-			VkMemoryRequirements memoryRequirements;
-			vkGetImageMemoryRequirements(_logicalDevice, image, &memoryRequirements);
-
-			VkMemoryAllocateInfo allocInfo = {};
-			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-			allocInfo.allocationSize = memoryRequirements.size;
-			allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(_physicalDevice, memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-			VkDeviceMemory memory;
-			CheckResult(vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &memory));
-			CheckResult(vkBindImageMemory(_logicalDevice, image, memory, 0));
-		}
+		}*/
 
 		VkRenderPass CreateRenderPassHandle() {
 			// Color attachment description
@@ -6047,17 +6016,6 @@ namespace Engine {
 			depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 			depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-			// UI attachment description
-			VkAttachmentDescription uiAttachment = {};
-			uiAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
-			uiAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-			uiAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			uiAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			uiAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			uiAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			uiAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			uiAttachment.finalLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-
 			// Subpass 0: First subpass (color rendering)
 			VkAttachmentReference colorReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
 			VkAttachmentReference depthReference = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
@@ -6068,13 +6026,13 @@ namespace Engine {
 			subpass0.pDepthStencilAttachment = &depthReference;
 
 			// Subpass 1: Second subpass (UI rendering with input attachment)
-			VkAttachmentReference uiReference = { 2, VK_IMAGE_LAYOUT_GENERAL };
+			VkAttachmentReference firstSubpassOutputReference = { 0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
 			VkSubpassDescription subpass1 = {};
 			subpass1.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 			subpass1.inputAttachmentCount = 1;
-			subpass1.pInputAttachments = &uiReference;
+			subpass1.pInputAttachments = &firstSubpassOutputReference;
 			subpass1.colorAttachmentCount = 1;
-			subpass1.pColorAttachments = &uiReference; // Output color attachment
+			subpass1.pColorAttachments = &firstSubpassOutputReference; // Output color attachment
 
 			// Subpass dependencies
 			std::vector<VkSubpassDependency> dependencies;
@@ -6110,12 +6068,12 @@ namespace Engine {
 			dependencies.push_back(uiToExternalDependency);
 
 			// Render pass creation
-			VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment, uiAttachment };
+			VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment };
 			VkSubpassDescription subpasses[] = { subpass0, subpass1 };
 
 			VkRenderPassCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-			createInfo.attachmentCount = 3;
+			createInfo.attachmentCount = 2;
 			createInfo.pAttachments = attachments;
 			createInfo.subpassCount = 2;
 			createInfo.pSubpasses = subpasses;
@@ -6125,10 +6083,10 @@ namespace Engine {
 			VkRenderPass renderPass;
 			CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &renderPass));
 
-			_swapchain._frameBuffers.resize(_renderPass._colorImages.size());
+			_swapchain._frameBuffers.resize(_swapchain._imageCount);
 
-			for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
-				VkImageView attachmentViews[3] = { _renderPass._colorImages[i]._view, _renderPass._depthImage._view, _renderPass._uiImage._view };
+			for (size_t i = 0; i < _swapchain._imageCount; i++) {
+				VkImageView attachmentViews[2] = { _renderPass._finalRenderedImage._view, _renderPass._depthImage._view };
 				VkFramebufferCreateInfo createInfo = {};
 				createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 				createInfo.renderPass = renderPass;
@@ -6452,19 +6410,6 @@ namespace Engine {
 			return outLayout;
 		}
 
-		void AllocateDrawCommandBuffers() {
-			// Allocate graphics command buffers
-			_drawCommandBuffers.resize(_renderPass._colorImages.size());
-
-			VkCommandBufferAllocateInfo allocInfo = {};
-			allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-			allocInfo.commandPool = _commandPool;
-			allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-			allocInfo.commandBufferCount = (uint32_t)_renderPass._colorImages.size();
-
-			CheckResult(vkAllocateCommandBuffers(_logicalDevice, &allocInfo, _drawCommandBuffers.data()));
-		}
-
 		void CreateShaderResources(std::vector<DescriptorSetLayout>& descriptorSetLayouts) {
 			auto& shaderResources = _graphicsPipeline._shaderResources;
 			auto cameraResources = _mainCamera.CreateDescriptorSets(_physicalDevice, _logicalDevice, _commandPool, _queue, descriptorSetLayouts);
@@ -6532,52 +6477,50 @@ namespace Engine {
 			subResourceRange.layerCount = 1;
 
 			// Record command buffer for each swapchain image.
-			for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
-				vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
+			vkBeginCommandBuffer(_drawCommandBuffer, &beginInfo);
 
-				VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._colorImages[i]._image,
-					VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+			VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._finalRenderedImage._image,
+				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-				VkClearValue clearColor = {
-				{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
-				};
+			VkClearValue clearColor = {
+			{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
+			};
 
-				VkClearValue depthClear;
-				depthClear.depthStencil.depth = 1.0f;
-				VkClearValue uiClear = { .0f, .0f, .0f, .0f };
-				VkClearValue clearValues[] = { clearColor, depthClear, uiClear };
+			VkClearValue depthClear;
+			depthClear.depthStencil.depth = 1.0f;
+			VkClearValue uiClear = { .0f, .0f, .0f, .0f };
+			VkClearValue clearValues[] = { clearColor, depthClear, uiClear };
 
-				VkRenderPassBeginInfo renderPassBeginInfo = {};
-				renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-				renderPassBeginInfo.renderPass = _renderPass._handle;
-				renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[i];
-				renderPassBeginInfo.renderArea.offset.x = 0;
-				renderPassBeginInfo.renderArea.offset.y = 0;
-				renderPassBeginInfo.renderArea.extent = _swapchain._framebufferSize;
-				renderPassBeginInfo.clearValueCount = 2;
-				renderPassBeginInfo.pClearValues = &clearValues[0];
+			VkRenderPassBeginInfo renderPassBeginInfo = {};
+			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+			renderPassBeginInfo.renderPass = _renderPass._handle;
+			renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[0];
+			renderPassBeginInfo.renderArea.offset.x = 0;
+			renderPassBeginInfo.renderArea.offset.y = 0;
+			renderPassBeginInfo.renderArea.extent = _swapchain._framebufferSize;
+			renderPassBeginInfo.clearValueCount = 2;
+			renderPassBeginInfo.pClearValues = &clearValues[0];
 
-				vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-				vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
+			vkCmdBeginRenderPass(_drawCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			vkCmdBindPipeline(_drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
-				auto& shaderResources = _graphicsPipeline._shaderResources;
-				VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
-				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
-				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
-				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
+			auto& shaderResources = _graphicsPipeline._shaderResources;
+			VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
+			vkCmdBindDescriptorSets(_drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
+			vkCmdBindDescriptorSets(_drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
+			vkCmdBindDescriptorSets(_drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
 
-				for (auto& gameObject : _scene._pRootGameObject->_children) {
-					gameObject->Draw(_graphicsPipeline._layout, _drawCommandBuffers[i]);
-				}
-
-				vkCmdNextSubpass(_drawCommandBuffers[i], VK_SUBPASS_CONTENTS_INLINE);
-				vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
-				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipelineLayout, 0, 1, &_uiCtx._descriptorSet, 0, nullptr);
-				vkCmdDraw(_drawCommandBuffers[i], 3, 1, 0, 0);
-				vkCmdEndRenderPass(_drawCommandBuffers[i]);
-
-				vkEndCommandBuffer(_drawCommandBuffers[i]);
+			for (auto& gameObject : _scene._pRootGameObject->_children) {
+				gameObject->Draw(_graphicsPipeline._layout, _drawCommandBuffer);
 			}
+
+			vkCmdNextSubpass(_drawCommandBuffer, VK_SUBPASS_CONTENTS_INLINE);
+			vkCmdBindPipeline(_drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
+			vkCmdBindDescriptorSets(_drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipelineLayout, 0, 1, &_uiCtx._descriptorSet, 0, nullptr);
+			vkCmdDraw(_drawCommandBuffer, 3, 1, 0, 0);
+			vkCmdEndRenderPass(_drawCommandBuffer);
+
+			vkEndCommandBuffer(_drawCommandBuffer);
 		}
 
 		void Draw() {
@@ -6590,13 +6533,11 @@ namespace Engine {
 
 			// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
 			if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) {
-				WindowSizeChanged();
-				return;
+				WindowSizeChanged(); return;
 			}
-			else if (res != VK_SUCCESS) {
-				std::cerr << "failed to acquire image" << std::endl;
-				exit(1);
-			}
+			else if (res != VK_SUCCESS) { std::cerr << "failed to acquire image\n"; exit(1); }
+
+			auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
 
 			// Wait for image to be available and draw.
 			// This is the stage where the queue should wait on the semaphore.
@@ -6604,12 +6545,12 @@ namespace Engine {
 			VkSubmitInfo submitInfo = {};
 			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 			submitInfo.waitSemaphoreCount = 1;
-			submitInfo.pWaitSemaphores = &_imageAvailableSemaphore;
+			submitInfo.pWaitSemaphores = &nk_semaphore;
 			submitInfo.signalSemaphoreCount = 1;
-			submitInfo.pSignalSemaphores = &_3dRenderingFinishedSemaphore;
+			submitInfo.pSignalSemaphores = &renderingFinishedSemaphore;
 			submitInfo.pWaitDstStageMask = &waitDstStageMask;
 			submitInfo.commandBufferCount = 1;
-			submitInfo.pCommandBuffers = &_drawCommandBuffers[imageIndex];
+			submitInfo.pCommandBuffers = &_drawCommandBuffer;
 
 			vkQueueSubmit(_queue, 1, &submitInfo, _queueFence);
 			vkWaitForFences(_logicalDevice, 1, &_queueFence, VK_TRUE, UINT64_MAX);
@@ -6618,14 +6559,12 @@ namespace Engine {
 			{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
 			};
 
-			auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _3dRenderingFinishedSemaphore, NK_ANTI_ALIASING_ON);
-
 			VkDeviceMemory stagingMemory = nullptr;
 			VkBuffer stagingBuffer = nullptr;
 			uint32_t imageWidth, imageHeight;
 			imageWidth = _swapchain._framebufferSize.width;
 			imageHeight = _swapchain._framebufferSize.height;
-			VkImage meshRenderResult = _renderPass._colorImages[imageIndex]._image;
+			VkImage meshRenderResult = _renderPass._finalRenderedImage._image;
 			VkImage uiRenderResult = _uiCtx._overlayImages[imageIndex]._image;
 			/*void* imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, uiRenderResult, imageWidth, imageHeight, stagingMemory, stagingBuffer);
 			Helper::SaveImageAsPng(Paths::TexturesPath() / std::filesystem::path("uiResult.png"), imageData, imageWidth, imageHeight);
@@ -6636,7 +6575,7 @@ namespace Engine {
 			VkPresentInfoKHR presentInfo = {};
 			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 			presentInfo.waitSemaphoreCount = 1;
-			presentInfo.pWaitSemaphores = &nk_semaphore;
+			presentInfo.pWaitSemaphores = &renderingFinishedSemaphore;
 			presentInfo.swapchainCount = 1;
 			presentInfo.pSwapchains = &_swapchain._handle;
 			presentInfo.pImageIndices = &imageIndex;
