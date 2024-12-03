@@ -45,6 +45,52 @@ namespace Engine {
 	bool windowResized = false;
 	bool windowMinimized = false;
 
+	template <typename T>
+	class Singleton {
+	public:
+
+		/**
+		 * @brief Returns a static instance of the implementing class.
+		 * @return
+		 */
+		static T& Instance() {
+			static T _instance;
+			return _instance;
+		}
+	};
+
+	class Logger : public Singleton<Logger> {
+	public:
+		static void Log(const char* message) {
+			std::cout << message << std::endl;
+		}
+
+		static void Log(std::string message) {
+			std::cout << message << std::endl;
+		}
+
+		static void Log(const wchar_t* message) {
+			std::wcout << message << std::endl;
+		}
+
+		static void Log(const std::wstring message) {
+			std::wcout << message << std::endl;
+		}
+	};
+
+	void Exit(int errorCode, const char* message) {
+		Logger::Log(message);
+		throw std::exception(message);
+		std::exit(errorCode);
+	}
+
+	void CheckResult(VkResult result) {
+		if (result != VK_SUCCESS) {
+			std::string message = "ERROR: code " + std::to_string(result);
+			Exit(result, message.c_str());
+		}
+	}
+
 	/**
 	 * @brief Returns true if rayVector intersects the plane formed by the triangle formed by v1, v2, v3 and the intersection point falls within said triangle.
 	 * @param rayOrigin The origin point of the ray, in local space.
@@ -173,39 +219,6 @@ namespace Engine {
 		 * @brief Function called on implementing classes in each iteration of the main loop. The main loop is defined in VulkanApplication.cpp.
 		 */
 		virtual void PhysicsUpdate() = 0;
-	};
-
-	template <typename T>
-	class Singleton {
-	public:
-
-		/**
-		 * @brief Returns a static instance of the implementing class.
-		 * @return
-		 */
-		static T& Instance() {
-			static T _instance;
-			return _instance;
-		}
-	};
-
-	class Logger : public Singleton<Logger> {
-	public:
-		static void Log(const char* message) {
-			std::cout << message << std::endl;
-		}
-
-		static void Log(std::string message) {
-			std::cout << message << std::endl;
-		}
-
-		static void Log(const wchar_t* message) {
-			std::wcout << message << std::endl;
-		}
-
-		static void Log(const std::wstring message) {
-			std::wcout << message << std::endl;
-		}
 	};
 
 	class Helper {
@@ -974,7 +987,6 @@ namespace Engine {
 			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 			allocInfo.allocationSize = memRequirements.size;
 			allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(physicalDevice, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
 			VkDeviceMemory allocatedMemory;
 			CheckResult(vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &allocatedMemory));
 			return allocatedMemory;
@@ -1000,6 +1012,7 @@ namespace Engine {
 			allocInfo.pSetLayouts = &setLayout;
 			VkDescriptorSet descriptorSet;
 			CheckResult(vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet));
+			return descriptorSet;
 		}
 	};
 
@@ -1134,12 +1147,6 @@ namespace Engine {
 
 	inline std::ostream& operator<< (std::ostream& stream, const glm::vec3&& vector) {
 		return stream << "(" << vector.x << ", " << vector.y << ", " << vector.z << ")";
-	}
-
-	inline void Exit(int errorCode, const char* message) {
-		Logger::Log(message);
-		throw std::exception(message);
-		std::exit(errorCode);
 	}
 
 	/**
@@ -4042,13 +4049,6 @@ namespace Engine {
 		_mesh._pMesh->_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
 	}
 
-	void CheckResult(VkResult result) {
-		if (result != VK_SUCCESS) {
-			std::string message = "ERROR: code " + std::to_string(result);
-			Exit(result, message.c_str());
-		}
-	}
-
 	/**
 	 * @brief Represents a three-dimensional bounding box.
 	 */
@@ -4955,19 +4955,20 @@ namespace Engine {
 			VkRenderPass _renderPass;
 			VkDescriptorPool _descriptorPool;
 			VkDescriptorSet _descriptorSet;
-			std::vector<VkDescriptorSetLayout> _descriptorSetLayouts;
+			//std::vector<VkDescriptorSetLayout> _descriptorSetLayouts;
 			VkPipelineLayout _pipelineLayout;
 			VkPipeline _pipeline;
 			VkCommandPool _commandPool;
 			std::vector<VkCommandBuffer> _commandBuffers;
 			Swapchain _swapchain;
 
-			void Initialize(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkSurfaceKHR windowSurface, GLFWwindow* pWindow, VkQueue queue, uint32_t* pQueueFamilyIndex, Swapchain swapchain, Image sceneImage) {
+			void Initialize(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkSurfaceKHR windowSurface, GLFWwindow* pWindow, VkQueue queue, uint32_t* pQueueFamilyIndex, Swapchain swapchain, VkRenderPass renderPass, Image sceneImage) {
 				_logicalDevice = logicalDevice;
 				_physicalDevice = physicalDevice;
 				_pWindow = pWindow;
 				_pQueueFamilyIndex = pQueueFamilyIndex;
 				_swapchain = swapchain;
+				_renderPass = renderPass;
 
 				CreateDescriptorSet(sceneImage);
 				//CreateRenderPass();
@@ -5106,7 +5107,7 @@ namespace Engine {
 				layoutCreateInfo.pBindings = setLayoutBindings.data();
 				CheckResult(vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, NULL, &_descriptorSetLayout));
 
-				VkDescriptorSet descriptorSet = VkHelper::AllocateDescriptorSet(_logicalDevice, _descriptorPool, _descriptorSetLayout);
+				_descriptorSet = VkHelper::AllocateDescriptorSet(_logicalDevice, _descriptorPool, _descriptorSetLayout);
 
 				std::array<VkDescriptorImageInfo, 2> descriptors{};
 				descriptors[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -5118,7 +5119,7 @@ namespace Engine {
 				descriptors[1].sampler = VK_NULL_HANDLE;
 
 				VkWriteDescriptorSet writeDescriptorSet{};
-				writeDescriptorSet.dstSet = descriptorSet;
+				writeDescriptorSet.dstSet = _descriptorSet;
 				writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
 				writeDescriptorSet.descriptorCount = 1;
 				writeDescriptorSet.dstBinding = 0;
@@ -5325,6 +5326,7 @@ namespace Engine {
 				pipeline_info.pColorBlendState = &color_blending;
 				pipeline_info.layout = _pipelineLayout;
 				pipeline_info.renderPass = _renderPass;
+				pipeline_info.subpass = 1;
 				pipeline_info.basePipelineHandle = NULL;
 
 				CheckResult(vkCreateGraphicsPipelines(_logicalDevice, NULL, 1, &pipeline_info, NULL, &_pipeline));
@@ -5457,7 +5459,7 @@ namespace Engine {
 			_graphicsPipeline._layout = CreatePipelineLayout(descriptorSetLayouts);
 			CreateShaderResources(descriptorSetLayouts);
 
-			_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, _queue, &_queueFamilyIndex, _swapchain, _renderPass._finalRenderedImage);
+			_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, _queue, &_queueFamilyIndex, _swapchain, _renderPass._handle, _renderPass._finalRenderedImage);
 
 			CreateGraphicsPipeline();
 			_drawCommandBuffer = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
@@ -5867,7 +5869,7 @@ namespace Engine {
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 			CheckResult(vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &finalRenderedImage._image));
-			VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, finalRenderedImage._image);
+			finalRenderedImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, finalRenderedImage._image);
 			CheckResult(vkBindImageMemory(_logicalDevice, finalRenderedImage._image, finalRenderedImage._gpuMemory, 0));
 
 			// Create an Image View
@@ -6376,7 +6378,6 @@ namespace Engine {
 			{
 				VkDescriptorSetLayoutBinding bindings[2];
 				bindings[0] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._environmentMap._cubeMapImage._sampler } };
-				bindings[1] = { VkDescriptorSetLayoutBinding { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_uiCtx._uiShaderSampler } };
 				VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
 				layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 				layoutCreateInfo.bindingCount = 2;
@@ -6565,7 +6566,7 @@ namespace Engine {
 			imageWidth = _swapchain._framebufferSize.width;
 			imageHeight = _swapchain._framebufferSize.height;
 			VkImage meshRenderResult = _renderPass._finalRenderedImage._image;
-			VkImage uiRenderResult = _uiCtx._overlayImages[imageIndex]._image;
+			VkImage uiRenderResult = _uiCtx._overlayImage._image;
 			/*void* imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, uiRenderResult, imageWidth, imageHeight, stagingMemory, stagingBuffer);
 			Helper::SaveImageAsPng(Paths::TexturesPath() / std::filesystem::path("uiResult.png"), imageData, imageWidth, imageHeight);
 			if (stagingBuffer == nullptr || stagingMemory == nullptr)VkHelper::UnmapAndDestroyStagingBuffer(_logicalDevice, stagingMemory, stagingBuffer);*/
