@@ -305,8 +305,6 @@ namespace Engine {
 
 		static void SaveImageAsPng(std::filesystem::path absolutePath, void* data, uint32_t width, uint32_t height) {
 			stbi_write_png(absolutePath.string().c_str(), width, height, 4, data, width * 4);
-
-
 		}
 	};
 
@@ -710,7 +708,7 @@ namespace Engine {
 			return props;
 		}
 
-		static uint32_t GetMemoryTypeIndex(VkPhysicalDevice& physicalDevice, uint32_t typeBits, VkMemoryPropertyFlagBits properties) {
+		static uint32_t GetMemoryTypeIndex(VkPhysicalDevice& physicalDevice, uint32_t typeBits, VkMemoryPropertyFlags properties) {
 			auto props = GetMemoryProperties(physicalDevice);
 
 			for (uint32_t i = 0; i < 32; i++) {
@@ -862,16 +860,12 @@ namespace Engine {
 			VkBuffer stagingBuffer;
 
 			CreateBuffer(logicalDevice, physicalDevice, 4 * width * height, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT /*| VK_MEMORY_PROPERTY_HOST_COHERENT_BIT*/,
 				&stagingBuffer, &stagingMemory);
 
-			// Transition the image layout to TRANSFER_SRC_OPTIMAL
 			TransitionImageLayout(logicalDevice, commandPool, queue, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-
-			// Copy the image to the buffer
 			CopyImageToBuffer(logicalDevice, commandPool, queue, image, stagingBuffer, width, height);
-
-			// Map the buffer memory
+			
 			void* data;
 			vkMapMemory(logicalDevice, stagingMemory, 0, 4 * width * height, 0, &data);
 			return data;
@@ -960,26 +954,26 @@ namespace Engine {
 			vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 		}
 
-		static VkDeviceMemory AllocateGpuMemory(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkMemoryRequirements memRequirements) {
+		static VkDeviceMemory AllocateGpuMemory(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkMemoryRequirements memRequirements, VkMemoryPropertyFlags requiredMemoryProperties) {
 			VkMemoryAllocateInfo allocInfo = {};
 			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 			allocInfo.allocationSize = memRequirements.size;
-			allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(physicalDevice, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(physicalDevice, memRequirements.memoryTypeBits, requiredMemoryProperties);
 			VkDeviceMemory allocatedMemory;
 			CheckResult(vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &allocatedMemory));
 			return allocatedMemory;
 		}
 
-		static VkDeviceMemory AllocateGpuMemoryForImage(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkImage imageToAllocate) {
+		static VkDeviceMemory AllocateGpuMemoryForImage(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkImage imageToAllocate, VkMemoryPropertyFlags requiredMemoryProperties) {
 			VkMemoryRequirements memRequirements;
 			vkGetImageMemoryRequirements(logicalDevice, imageToAllocate, &memRequirements);
-			return AllocateGpuMemory(logicalDevice, physicalDevice, memRequirements);
+			return AllocateGpuMemory(logicalDevice, physicalDevice, memRequirements, requiredMemoryProperties);
 		}
 
 		static VkDeviceMemory AllocateGpuMemoryForBuffer(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkBuffer buffer, VkMemoryPropertyFlags requiredMemoryProperties) {
 			VkMemoryRequirements memRequirements;
 			vkGetBufferMemoryRequirements(logicalDevice, buffer, &memRequirements);
-			return AllocateGpuMemory(logicalDevice, physicalDevice, memRequirements);
+			return AllocateGpuMemory(logicalDevice, physicalDevice, memRequirements, requiredMemoryProperties);
 		}
 
 		static VkDescriptorSet AllocateDescriptorSet(VkDevice logicalDevice, VkDescriptorPool descriptorPool, VkDescriptorSetLayout setLayout) {
@@ -991,39 +985,6 @@ namespace Engine {
 			VkDescriptorSet descriptorSet;
 			CheckResult(vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet));
 			return descriptorSet;
-		}
-
-		static void CreateImage(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkFormat format, VkExtent2D widthAndHeightPixels, VkImage* outImage, VkImageView* outView, VkDeviceMemory* outGpuMemory) {
-			VkImageCreateInfo imageCreateInfo = {};
-			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-			imageCreateInfo.format = format;
-			imageCreateInfo.extent = { widthAndHeightPixels.width, widthAndHeightPixels.height, 1 };
-			imageCreateInfo.mipLevels = 1;
-			imageCreateInfo.arrayLayers = 1;
-			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-			imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-			imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-			CheckResult(vkCreateImage(logicalDevice, &imageCreateInfo, nullptr, outImage));
-			*outGpuMemory = VkHelper::AllocateGpuMemoryForImage(logicalDevice, physicalDevice, *outImage);
-			CheckResult(vkBindImageMemory(logicalDevice, *outImage, *outGpuMemory, 0));
-
-			VkImageViewCreateInfo viewCreateInfo{};
-			viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			viewCreateInfo.image = *outImage;
-			viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			viewCreateInfo.format = format;
-			viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
-			viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			viewCreateInfo.subresourceRange.baseMipLevel = 0;
-			viewCreateInfo.subresourceRange.levelCount = 1;
-			viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-			viewCreateInfo.subresourceRange.layerCount = 1;
-
-			CheckResult(vkCreateImageView(logicalDevice, &viewCreateInfo, nullptr, outView));
 		}
 
 		static void CopyImage(VkDevice logicalDevice, VkCommandPool commandPool, VkQueue queue,
@@ -5099,7 +5060,7 @@ namespace Engine {
 				image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 				CheckResult(vkCreateImage(_logicalDevice, &image_info, NULL, &_overlayImage._image));
 
-				_overlayImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, _overlayImage._image);
+				_overlayImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, _overlayImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 				CheckResult(vkBindImageMemory(_logicalDevice, _overlayImage._image, _overlayImage._gpuMemory, 0));
 
 				VkImageViewCreateInfo image_view_info{};
@@ -5938,7 +5899,7 @@ namespace Engine {
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 			CheckResult(vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &img._image));
-			img._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, img._image);
+			img._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, img._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 			CheckResult(vkBindImageMemory(_logicalDevice, img._image, img._gpuMemory, 0));
 
 			// Create an Image View
@@ -5993,7 +5954,7 @@ namespace Engine {
 			imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 			CheckResult(vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &finalRenderedImage._image));
-			finalRenderedImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, finalRenderedImage._image);
+			finalRenderedImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, finalRenderedImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 			CheckResult(vkBindImageMemory(_logicalDevice, finalRenderedImage._image, finalRenderedImage._gpuMemory, 0));
 
 			// Create an Image View
@@ -6044,7 +6005,7 @@ namespace Engine {
 
 			CheckResult(vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_renderPass._depthImage._image));
 
-			auto gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, _renderPass._depthImage._image);
+			auto gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, _renderPass._depthImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 			vkBindImageMemory(_logicalDevice, _renderPass._depthImage._image, gpuMemory, 0);
 
 			VkImageViewCreateInfo& viewCreateInfo = _renderPass._depthImage._viewCreateInfo;
