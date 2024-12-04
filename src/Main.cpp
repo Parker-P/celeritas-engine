@@ -5830,298 +5830,109 @@ namespace Engine {
 			}
 		}
 
-		void CreateRenderPass() {
-			_renderPass._colorImages.resize(_swapchain._imageCount);
-			CreateColorImages();
-			CreateDepthImage();
-			//CreateFinalRenderedImage();
-			//InitializeUiImage();
-			_renderPass._handle = CreateRenderPassHandle();
-		}
+		void CreateFramebuffers() {
+			_swapchain._frameBuffers.resize(_renderPass._colorImages.size());
 
-		void CreateColorImages() {
-			for (int i = 0; i < _renderPass._colorImages.size(); ++i) {
-				VkFormat imageFormat = _swapchain._surfaceFormat.format;
-				auto& img = _renderPass._colorImages[i];
+			for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
 
-				VkImageCreateInfo imageCreateInfo{};
-				imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-				imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-				imageCreateInfo.format = imageFormat;
-				imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
-				imageCreateInfo.mipLevels = 1;
-				imageCreateInfo.arrayLayers = 1;
-				imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-				imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-				imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-				imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-				imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				// We will render to the same depth image for each frame. 
+				// We can just keep clearing and reusing the same depth image for every frame.
+				VkImageView colorAndDepthImages[2] = { _renderPass._colorImages[i]._view, _renderPass._depthImage._view };
+				VkFramebufferCreateInfo createInfo = {};
+				createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+				createInfo.renderPass = _renderPass._handle;
+				createInfo.attachmentCount = 2;
+				createInfo.pAttachments = &colorAndDepthImages[0];
+				createInfo.width = _swapchain._framebufferSize.width;
+				createInfo.height = _swapchain._framebufferSize.height;
+				createInfo.layers = 1;
 
-				CheckResult(vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &img._image));
-				img._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, img._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-				CheckResult(vkBindImageMemory(_logicalDevice, img._image, img._gpuMemory, 0));
-
-				// Create an Image View
-				VkImageViewCreateInfo viewCreateInfo{};
-				viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-				viewCreateInfo.image = img._image;
-				viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-				viewCreateInfo.format = imageFormat;
-				viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
-				viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-				viewCreateInfo.subresourceRange.baseMipLevel = 0;
-				viewCreateInfo.subresourceRange.levelCount = 1;
-				viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-				viewCreateInfo.subresourceRange.layerCount = 1;
-
-				CheckResult(vkCreateImageView(_logicalDevice, &viewCreateInfo, nullptr, &img._view));
-
-				// Create a VkSampler
-				VkSamplerCreateInfo samplerCreateInfo{};
-				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-				samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-				samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-				samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-				samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-				samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-				samplerCreateInfo.anisotropyEnable = VK_TRUE;
-				samplerCreateInfo.maxAnisotropy = 16;
-				samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-				samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-				samplerCreateInfo.compareEnable = VK_FALSE;
-				samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-				samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-
-				CheckResult(vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &img._sampler));
-
-				VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, img._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+				CheckResult(vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_swapchain._frameBuffers[i]));
 			}
 		}
 
-		//void CreateFinalRenderedImage() {
-		//	VkFormat imageFormat = _swapchain._surfaceFormat.format;
-		//	auto& finalRenderedImage = _renderPass._colorImage;
+		void CreateRenderPass() {
+			auto imageFormat = _swapchain._surfaceFormat.format;
 
-		//	VkImageCreateInfo imageCreateInfo = {};
-		//	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		//	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		//	imageCreateInfo.format = imageFormat;
-		//	imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
-		//	imageCreateInfo.mipLevels = 1;
-		//	imageCreateInfo.arrayLayers = 1;
-		//	imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		//	imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		//	imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		//	imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		//	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			// Store the images used by the swap chain.
+			// Note: these are the images that swap chain image indices refer to.
+			// Note: actual number of images may differ from requested number, since it's a lower bound.
+			uint32_t actualImageCount = 0;
+			CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, nullptr));
 
-		//	CheckResult(vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &finalRenderedImage._image));
-		//	finalRenderedImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, finalRenderedImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		//	CheckResult(vkBindImageMemory(_logicalDevice, finalRenderedImage._image, finalRenderedImage._gpuMemory, 0));
+			_renderPass._colorImages.resize(actualImageCount);
 
-		//	// Create an Image View
-		//	VkImageViewCreateInfo& viewCreateInfo = _renderPass._colorImage._viewCreateInfo;
-		//	viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		//	viewCreateInfo.image = finalRenderedImage._image;
-		//	viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		//	viewCreateInfo.format = imageFormat;
-		//	viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
-		//	viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		//	viewCreateInfo.subresourceRange.baseMipLevel = 0;
-		//	viewCreateInfo.subresourceRange.levelCount = 1;
-		//	viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-		//	viewCreateInfo.subresourceRange.layerCount = 1;
+			std::vector<VkImage> images;
+			images.resize(actualImageCount);
+			CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, images.data()));
 
-		//	CheckResult(vkCreateImageView(_logicalDevice, &viewCreateInfo, nullptr, &finalRenderedImage._view));
+			// Create the color attachments.
+			for (uint32_t i = 0; i < actualImageCount; ++i) {
+				_renderPass._colorImages[i]._image = images[i];
+				auto& createInfo = _renderPass._colorImages[i]._viewCreateInfo;
+				createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+				createInfo.image = images[i];
+				createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+				createInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+				createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+				createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+				createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+				createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+				createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				createInfo.subresourceRange.baseMipLevel = 0;
+				createInfo.subresourceRange.levelCount = 1;
+				createInfo.subresourceRange.baseArrayLayer = 0;
+				createInfo.subresourceRange.layerCount = 1;
+				vkCreateImageView(_logicalDevice, &createInfo, nullptr, &_renderPass._colorImages[i]._view);
+			}
 
-		//	// Create a VkSampler
-		//	VkSamplerCreateInfo samplerCreateInfo = {};
-		//	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		//	samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-		//	samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-		//	samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		//	samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		//	samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		//	samplerCreateInfo.anisotropyEnable = VK_TRUE;
-		//	samplerCreateInfo.maxAnisotropy = 16;
-		//	samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-		//	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-		//	samplerCreateInfo.compareEnable = VK_FALSE;
-		//	samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-		//	samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-
-		//	CheckResult(vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &finalRenderedImage._sampler));
-		//}
-
-		void CreateDepthImage() {
-			VkImageCreateInfo& imageCreateInfo = _renderPass._depthImage._createInfo;
+			// Create the image.
+			auto& imageCreateInfo = _renderPass._depthImage._createInfo;
 			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-			imageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-			imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
-			imageCreateInfo.mipLevels = 1;
 			imageCreateInfo.arrayLayers = 1;
+			imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
+			imageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+			imageCreateInfo.mipLevels = 1;
 			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 			imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+			vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_renderPass._depthImage._image);
 
-			CheckResult(vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_renderPass._depthImage._image));
+			// Allocate memory on the GPU for the image.
+			VkMemoryRequirements reqs;
+			vkGetImageMemoryRequirements(_logicalDevice, _renderPass._depthImage._image, &reqs);
+			VkMemoryAllocateInfo allocInfo{};
+			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+			allocInfo.allocationSize = reqs.size;
+			allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(_physicalDevice, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			VkDeviceMemory mem;
+			vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem);
+			vkBindImageMemory(_logicalDevice, _renderPass._depthImage._image, mem, 0);
 
-			auto gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, _renderPass._depthImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-			vkBindImageMemory(_logicalDevice, _renderPass._depthImage._image, gpuMemory, 0);
+			auto& imageViewCreateInfo = _renderPass._depthImage._viewCreateInfo;
+			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			imageViewCreateInfo.components = { {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY} };
+			imageViewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+			imageViewCreateInfo.image = _renderPass._depthImage._image;
+			imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+			imageViewCreateInfo.subresourceRange.layerCount = 1;
+			imageViewCreateInfo.subresourceRange.levelCount = 1;
+			vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_renderPass._depthImage._view);
 
-			VkImageViewCreateInfo& viewCreateInfo = _renderPass._depthImage._viewCreateInfo;
-			viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			viewCreateInfo.image = _renderPass._depthImage._image;
-			viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			viewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-			viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
-			viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-			viewCreateInfo.subresourceRange.baseMipLevel = 0;
-			viewCreateInfo.subresourceRange.levelCount = 1;
-			viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-			viewCreateInfo.subresourceRange.layerCount = 1;
-
-			CheckResult(vkCreateImageView(_logicalDevice, &viewCreateInfo, nullptr, &_renderPass._depthImage._view));
-
-			VkSamplerCreateInfo& samplerCreateInfo = _renderPass._depthImage._samplerCreateInfo;
+			auto& samplerCreateInfo = _renderPass._depthImage._samplerCreateInfo;
 			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 			samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 			samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 			samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-			samplerCreateInfo.anisotropyEnable = VK_FALSE;
+			samplerCreateInfo.anisotropyEnable = false;
 			samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
 			samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 			samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-
-			CheckResult(vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._depthImage._sampler));
-		}
-
-		/*void InitializeUiImage() {
-			VkImageCreateInfo& imageCreateInfo = _renderPass._uiImage._createInfo;
-			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-			imageCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-			imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
-			imageCreateInfo.mipLevels = 1;
-			imageCreateInfo.arrayLayers = 1;
-			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-			imageCreateInfo.usage = VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-
-			CheckResult(vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_renderPass._uiImage._image));
-
-			AllocateImageMemory(_renderPass._uiImage._image);
-
-			VkImageViewCreateInfo& viewCreateInfo = _renderPass._uiImage._viewCreateInfo;
-			viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			viewCreateInfo.image = _renderPass._uiImage._image;
-			viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			viewCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-			viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY,
-										  VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY };
-			viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			viewCreateInfo.subresourceRange.baseMipLevel = 0;
-			viewCreateInfo.subresourceRange.levelCount = 1;
-			viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-			viewCreateInfo.subresourceRange.layerCount = 1;
-
-			CheckResult(vkCreateImageView(_logicalDevice, &viewCreateInfo, nullptr, &_renderPass._uiImage._view));
-
-			VkSamplerCreateInfo& samplerCreateInfo = _renderPass._uiImage._samplerCreateInfo;
-			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-			samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-			samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-			samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-			samplerCreateInfo.anisotropyEnable = VK_FALSE;
-			samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-			samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-			samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-
-			CheckResult(vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._uiImage._sampler));
-		}*/
-
-		VkRenderPass CreateRenderPassHandle() {
-			//// Final rendered image attachment for the scene combined with the UI rendered by Nuklear
-			//VkAttachmentDescription finalRenderedImageAttachment = {};
-			//finalRenderedImageAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
-			//finalRenderedImageAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-			//finalRenderedImageAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			//finalRenderedImageAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			//finalRenderedImageAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			//finalRenderedImageAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			//finalRenderedImageAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			//finalRenderedImageAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-			//// Color attachment description for the scene image render
-			//VkAttachmentDescription colorAttachment = {};
-			//colorAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
-			//colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-			//colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			//colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			//colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			//colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			//colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			//colorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-			//// Depth attachment description for the scene image render
-			//VkAttachmentDescription depthAttachment = {};
-			//depthAttachment.format = VK_FORMAT_D32_SFLOAT;
-			//depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-			//depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			//depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			//depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			//depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			//depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			//depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-			//// Subpass 0: First subpass (color rendering)
-			//VkAttachmentReference colorReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-			//VkAttachmentReference depthReference = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
-			//VkSubpassDescription subpass0 = {};
-			//subpass0.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-			//subpass0.colorAttachmentCount = 1;
-			//subpass0.pColorAttachments = &colorReference;
-			//subpass0.pDepthStencilAttachment = &depthReference;
-
-			//// Subpass 1: Second subpass (UI rendering with input attachment)
-			////VkAttachmentReference inputReference = { 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-			////VkAttachmentReference finalRenderedImageReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-			////VkSubpassDescription subpass1 = {};
-			////subpass1.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-			////subpass1.inputAttachmentCount = 1;
-			////subpass1.pInputAttachments = &inputReference;
-			////subpass1.colorAttachmentCount = 1;
-			////subpass1.pColorAttachments = &finalRenderedImageReference; // Output color attachment
-
-			//// Subpass dependencies
-			//std::vector<VkSubpassDependency> dependencies;
-
-			//// Dependency from scene subpass to UI subpass
-			//VkSubpassDependency uiDependency = {};
-			//uiDependency.srcSubpass = 0; // From the scene rendering subpass
-			//uiDependency.dstSubpass = 1; // To the UI subpass
-			//uiDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			//uiDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-			//uiDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			//uiDependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-			//dependencies.push_back(uiDependency);
-
-			//// Render pass creation
-			//VkAttachmentDescription attachments[] = { finalRenderedImageAttachment, /*colorAttachment,*/ depthAttachment };
-			//VkSubpassDescription subpasses[] = { subpass0/*, subpass1*/ };
-
-			//VkRenderPassCreateInfo createInfo = {};
-			//createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-			//createInfo.attachmentCount = 2;
-			//createInfo.pAttachments = attachments;
-			//createInfo.subpassCount = 1;
-			//createInfo.pSubpasses = subpasses;
-			///*createInfo.dependencyCount = 1;
-			//createInfo.pDependencies = dependencies.data();*/
-
-			//VkRenderPass renderPass;
-			//CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &renderPass));
+			vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._depthImage._sampler);
 
 			// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for "image used for a render pass".
 			VkAttachmentDescription colorAttachmentDescription = {};
@@ -6200,24 +6011,6 @@ namespace Engine {
 			createInfo.pDependencies = &subpassDependencies[0];
 
 			CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass._handle));
-
-			_swapchain._frameBuffers.resize(_swapchain._imageCount);
-
-			for (size_t i = 0; i < _swapchain._imageCount; i++) {
-				//VkImageView attachmentViews[2] = { _renderPass._colorImage._view, _renderPass._depthImage._view/*, _renderPass._finalRenderedImage._view*/ };
-				VkImageView attachmentViews[2] = { _swapchain._images[i]._view, /*_renderPass._colorImages[i]._view,*/ _renderPass._depthImage._view};
-				VkFramebufferCreateInfo createInfo = {};
-				createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-				createInfo.renderPass = _renderPass._handle;
-				createInfo.attachmentCount = 2;
-				createInfo.pAttachments = attachmentViews;
-				createInfo.width = _swapchain._framebufferSize.width;
-				createInfo.height = _swapchain._framebufferSize.height;
-				createInfo.layers = 1;
-				CheckResult(vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_swapchain._frameBuffers[i]));
-			}
-
-			return _renderPass._handle;
 		}
 
 		void CreateSwapchain() {
@@ -6232,15 +6025,17 @@ namespace Engine {
 				imageCount = surfaceCapabilities.maxImageCount;
 			}
 
-			_swapchain._imageCount = imageCount;
-			_swapchain._surfaceFormat = ChooseSurfaceFormat(surfaceFormats);
+			VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat(surfaceFormats);
 			_swapchain._framebufferSize = ChooseFramebufferSize(surfaceCapabilities);
 
 			// Determine transformation to use (preferring no transform).
 			VkSurfaceTransformFlagBitsKHR surfaceTransform;
-			if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) 
+			if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
 				surfaceTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-			else surfaceTransform = surfaceCapabilities.currentTransform;
+			}
+			else {
+				surfaceTransform = surfaceCapabilities.currentTransform;
+			}
 
 			// Choose presentation mode (preferring MAILBOX ~= triple buffering).
 			VkPresentModeKHR presentMode = ChoosePresentMode(presentModes);
@@ -6250,8 +6045,8 @@ namespace Engine {
 			createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 			createInfo.surface = _windowSurface;
 			createInfo.minImageCount = imageCount;
-			createInfo.imageFormat = _swapchain._surfaceFormat.format;
-			createInfo.imageColorSpace = _swapchain._surfaceFormat.colorSpace;
+			createInfo.imageFormat = surfaceFormat.format;
+			createInfo.imageColorSpace = surfaceFormat.colorSpace;
 			createInfo.imageExtent = _swapchain._framebufferSize;
 			createInfo.imageArrayLayers = 1;
 			createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -6268,31 +6063,6 @@ namespace Engine {
 
 			if (_swapchain._oldSwapchainHandle != VK_NULL_HANDLE) {
 				vkDestroySwapchainKHR(_logicalDevice, _swapchain._oldSwapchainHandle, nullptr);
-			}
-
-			_swapchain._images.resize(imageCount);
-			std::vector<VkImage> images(imageCount);
-			vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &_swapchain._imageCount, images.data());
-
-			// Create the color attachments.
-			for (uint32_t i = 0; i < imageCount; ++i) {
-				_swapchain._images[i]._image = images[i];
-
-				VkImageViewCreateInfo createInfo{};
-				createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-				createInfo.image = images[i];
-				createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-				createInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-				createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-				createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-				createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-				createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-				createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-				createInfo.subresourceRange.baseMipLevel = 0;
-				createInfo.subresourceRange.levelCount = 1;
-				createInfo.subresourceRange.baseArrayLayer = 0;
-				createInfo.subresourceRange.layerCount = 1;
-				vkCreateImageView(_logicalDevice, &createInfo, nullptr, &_swapchain._images[i]._view);
 			}
 
 			_swapchain._oldSwapchainHandle = _swapchain._handle;
