@@ -6373,54 +6373,69 @@ namespace Engine {
 		//}
 
 		void RecordDrawCommands() {
-			for (int i = 0; i < _drawCommandBuffers.size(); ++i) {
-				auto& cmdBuf = _drawCommandBuffers[i];
-				VkCommandBufferBeginInfo beginInfo = {};
-				beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-				beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-				vkBeginCommandBuffer(cmdBuf, &beginInfo);
+			// Prepare data for recording command buffers.
+			VkCommandBufferBeginInfo beginInfo = {};
+			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+
+			VkImageSubresourceRange subResourceRange = {};
+			subResourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			subResourceRange.baseMipLevel = 0;
+			subResourceRange.levelCount = 1;
+			subResourceRange.baseArrayLayer = 0;
+			subResourceRange.layerCount = 1;
+
+			// Record command buffer for each swapchain image.
+			for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
+				vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
+
+				// If present queue family and graphics queue family are different, then a barrier is necessary
+				// The barrier is also needed initially to transition the image to the present layout
+				VkImageMemoryBarrier presentToDrawBarrier = {};
+				presentToDrawBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+				presentToDrawBarrier.srcAccessMask = 0;
+				presentToDrawBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+				presentToDrawBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				presentToDrawBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+				presentToDrawBarrier.image = _renderPass._colorImages[i]._image;
+				presentToDrawBarrier.subresourceRange = subResourceRange;
+
+				vkCmdPipelineBarrier(_drawCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
 
 				VkClearValue clearColor = {
 				{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
 				};
 
-				VkClearValue depthClear = {
-				{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
-				};
+				VkClearValue depthClear;
 				depthClear.depthStencil.depth = 1.0f;
-				VkClearValue uiClear = { .0f, .0f, .0f, .0f };
-				VkClearValue clearValues[] = { clearColor, depthClear, uiClear };
+				VkClearValue clearValues[] = { clearColor, depthClear };
 
 				VkRenderPassBeginInfo renderPassBeginInfo = {};
 				renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 				renderPassBeginInfo.renderPass = _renderPass._handle;
-				renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[0];
+				renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[i];
 				renderPassBeginInfo.renderArea.offset.x = 0;
 				renderPassBeginInfo.renderArea.offset.y = 0;
 				renderPassBeginInfo.renderArea.extent = _swapchain._framebufferSize;
 				renderPassBeginInfo.clearValueCount = 2;
 				renderPassBeginInfo.pClearValues = &clearValues[0];
 
-				vkCmdBeginRenderPass(cmdBuf, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-				vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
+				vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+				vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
 				auto& shaderResources = _graphicsPipeline._shaderResources;
 				VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
-				vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
-				vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
-				vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
+				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
+				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
+				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
 
 				for (auto& gameObject : _scene._pRootGameObject->_children) {
-					gameObject->Draw(_graphicsPipeline._layout, cmdBuf);
+					gameObject->Draw(_graphicsPipeline._layout, _drawCommandBuffers[i]);
 				}
 
-				/*vkCmdNextSubpass(cmdBuf, VK_SUBPASS_CONTENTS_INLINE);
-				vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
-				vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipelineLayout, 0, 1, &_uiCtx._descriptorSets[i], 0, nullptr);
-				vkCmdDraw(cmdBuf, 3, 1, 0, 0);
-				vkCmdEndRenderPass(cmdBuf);*/
-				vkCmdEndRenderPass(cmdBuf);
-				vkEndCommandBuffer(cmdBuf);
+				vkCmdEndRenderPass(_drawCommandBuffers[i]);
+
+				CheckResult(vkEndCommandBuffer(_drawCommandBuffers[i]));
 			}
 		}
 
