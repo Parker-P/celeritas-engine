@@ -6042,86 +6042,164 @@ namespace Engine {
 		}*/
 
 		VkRenderPass CreateRenderPassHandle() {
-			// Final rendered image attachment for the scene combined with the UI rendered by Nuklear
-			VkAttachmentDescription finalRenderedImageAttachment = {};
-			finalRenderedImageAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
-			finalRenderedImageAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-			finalRenderedImageAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			finalRenderedImageAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			finalRenderedImageAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			finalRenderedImageAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			finalRenderedImageAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			finalRenderedImageAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			//// Final rendered image attachment for the scene combined with the UI rendered by Nuklear
+			//VkAttachmentDescription finalRenderedImageAttachment = {};
+			//finalRenderedImageAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
+			//finalRenderedImageAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+			//finalRenderedImageAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			//finalRenderedImageAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			//finalRenderedImageAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			//finalRenderedImageAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			//finalRenderedImageAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			//finalRenderedImageAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-			// Color attachment description for the scene image render
-			VkAttachmentDescription colorAttachment = {};
-			colorAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
-			colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-			colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			colorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			//// Color attachment description for the scene image render
+			//VkAttachmentDescription colorAttachment = {};
+			//colorAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
+			//colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+			//colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			//colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			//colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			//colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			//colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			//colorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-			// Depth attachment description for the scene image render
-			VkAttachmentDescription depthAttachment = {};
-			depthAttachment.format = VK_FORMAT_D32_SFLOAT;
-			depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-			depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			//// Depth attachment description for the scene image render
+			//VkAttachmentDescription depthAttachment = {};
+			//depthAttachment.format = VK_FORMAT_D32_SFLOAT;
+			//depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+			//depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			//depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			//depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			//depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			//depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			//depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-			// Subpass 0: First subpass (color rendering)
-			VkAttachmentReference colorReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-			VkAttachmentReference depthReference = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
-			VkSubpassDescription subpass0 = {};
-			subpass0.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-			subpass0.colorAttachmentCount = 1;
-			subpass0.pColorAttachments = &colorReference;
-			subpass0.pDepthStencilAttachment = &depthReference;
+			//// Subpass 0: First subpass (color rendering)
+			//VkAttachmentReference colorReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+			//VkAttachmentReference depthReference = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
+			//VkSubpassDescription subpass0 = {};
+			//subpass0.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			//subpass0.colorAttachmentCount = 1;
+			//subpass0.pColorAttachments = &colorReference;
+			//subpass0.pDepthStencilAttachment = &depthReference;
 
-			// Subpass 1: Second subpass (UI rendering with input attachment)
-			//VkAttachmentReference inputReference = { 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-			//VkAttachmentReference finalRenderedImageReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-			//VkSubpassDescription subpass1 = {};
-			//subpass1.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-			//subpass1.inputAttachmentCount = 1;
-			//subpass1.pInputAttachments = &inputReference;
-			//subpass1.colorAttachmentCount = 1;
-			//subpass1.pColorAttachments = &finalRenderedImageReference; // Output color attachment
+			//// Subpass 1: Second subpass (UI rendering with input attachment)
+			////VkAttachmentReference inputReference = { 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+			////VkAttachmentReference finalRenderedImageReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+			////VkSubpassDescription subpass1 = {};
+			////subpass1.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			////subpass1.inputAttachmentCount = 1;
+			////subpass1.pInputAttachments = &inputReference;
+			////subpass1.colorAttachmentCount = 1;
+			////subpass1.pColorAttachments = &finalRenderedImageReference; // Output color attachment
 
-			// Subpass dependencies
-			std::vector<VkSubpassDependency> dependencies;
+			//// Subpass dependencies
+			//std::vector<VkSubpassDependency> dependencies;
 
-			// Dependency from scene subpass to UI subpass
-			VkSubpassDependency uiDependency = {};
-			uiDependency.srcSubpass = 0; // From the scene rendering subpass
-			uiDependency.dstSubpass = 1; // To the UI subpass
-			uiDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			uiDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-			uiDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			uiDependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-			dependencies.push_back(uiDependency);
+			//// Dependency from scene subpass to UI subpass
+			//VkSubpassDependency uiDependency = {};
+			//uiDependency.srcSubpass = 0; // From the scene rendering subpass
+			//uiDependency.dstSubpass = 1; // To the UI subpass
+			//uiDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			//uiDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			//uiDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			//uiDependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			//dependencies.push_back(uiDependency);
 
-			// Render pass creation
-			VkAttachmentDescription attachments[] = { finalRenderedImageAttachment, /*colorAttachment,*/ depthAttachment };
-			VkSubpassDescription subpasses[] = { subpass0/*, subpass1*/ };
+			//// Render pass creation
+			//VkAttachmentDescription attachments[] = { finalRenderedImageAttachment, /*colorAttachment,*/ depthAttachment };
+			//VkSubpassDescription subpasses[] = { subpass0/*, subpass1*/ };
 
+			//VkRenderPassCreateInfo createInfo = {};
+			//createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+			//createInfo.attachmentCount = 2;
+			//createInfo.pAttachments = attachments;
+			//createInfo.subpassCount = 1;
+			//createInfo.pSubpasses = subpasses;
+			///*createInfo.dependencyCount = 1;
+			//createInfo.pDependencies = dependencies.data();*/
+
+			//VkRenderPass renderPass;
+			//CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &renderPass));
+
+			// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for "image used for a render pass".
+			VkAttachmentDescription colorAttachmentDescription = {};
+			colorAttachmentDescription.format = VK_FORMAT_R8G8B8A8_UNORM;
+			colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+			colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+			// Note: hardware will automatically transition attachment to the specified layout
+			// Note: index refers to attachment descriptions array.
+			VkAttachmentReference colorAttachmentReference = {};
+			colorAttachmentReference.attachment = 0;
+			colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+			// Describes how the render pass is going to use the depth attachment.
+			VkAttachmentDescription depthAttachmentDescription = {};
+			depthAttachmentDescription.flags = 0;
+			depthAttachmentDescription.format = VK_FORMAT_D32_SFLOAT;
+			depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+			depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+			VkAttachmentReference depthAttachmentReference = {};
+			depthAttachmentReference.attachment = 1;
+			depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+			// Note: this is a description of how the attachments of the render pass will be used in this sub pass
+			// e.g. if they will be read in shaders and/or drawn to.
+			VkSubpassDescription subPassDescription = {};
+			subPassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			subPassDescription.colorAttachmentCount = 1;
+			subPassDescription.pColorAttachments = &colorAttachmentReference;
+			subPassDescription.pDepthStencilAttachment = &depthAttachmentReference;
+
+			// Now we have to adjust the renderpass synchronization. Previously, it was possible that multiple frames 
+			// were rendered simultaneously by the GPU. This is a problem when using depth buffers, because one frame 
+			// could overwrite the depth buffer while a previous frame is still rendering to it.
+			// We keep the subpass dependency for the color attachment we were already using.
+			VkSubpassDependency colorDependency = {};
+			colorDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+			colorDependency.dstSubpass = 0;
+			colorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			colorDependency.srcAccessMask = 0;
+			colorDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			colorDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+			// This dependency tells Vulkan that the depth attachment in a renderpass cannot be used before 
+			// previous subpasses have finished using it.
+			VkSubpassDependency depthDependency = {};
+			depthDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+			depthDependency.dstSubpass = 0;
+			depthDependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+			depthDependency.srcAccessMask = 0;
+			depthDependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+			depthDependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+			// Create the render pass. We pass in the main image attachment (color) and the depth image attachment, so the GPU knows how to treat
+			// the images.
+			VkAttachmentDescription attachmentDescriptions[2] = { colorAttachmentDescription, depthAttachmentDescription };
+			VkSubpassDependency subpassDependencies[2] = { colorDependency, depthDependency };
 			VkRenderPassCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 			createInfo.attachmentCount = 2;
-			createInfo.pAttachments = attachments;
+			createInfo.pAttachments = &attachmentDescriptions[0];
 			createInfo.subpassCount = 1;
-			createInfo.pSubpasses = subpasses;
-			/*createInfo.dependencyCount = 1;
-			createInfo.pDependencies = dependencies.data();*/
+			createInfo.pSubpasses = &subPassDescription;
+			createInfo.dependencyCount = 2;
+			createInfo.pDependencies = &subpassDependencies[0];
 
-			VkRenderPass renderPass;
-			CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &renderPass));
+			CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass._handle));
 
 			_swapchain._frameBuffers.resize(_swapchain._imageCount);
 
@@ -6130,7 +6208,7 @@ namespace Engine {
 				VkImageView attachmentViews[2] = { _swapchain._images[i]._view, /*_renderPass._colorImages[i]._view,*/ _renderPass._depthImage._view};
 				VkFramebufferCreateInfo createInfo = {};
 				createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-				createInfo.renderPass = renderPass;
+				createInfo.renderPass = _renderPass._handle;
 				createInfo.attachmentCount = 2;
 				createInfo.pAttachments = attachmentViews;
 				createInfo.width = _swapchain._framebufferSize.width;
@@ -6139,7 +6217,7 @@ namespace Engine {
 				CheckResult(vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_swapchain._frameBuffers[i]));
 			}
 
-			return renderPass;
+			return _renderPass._handle;
 		}
 
 		void CreateSwapchain() {
