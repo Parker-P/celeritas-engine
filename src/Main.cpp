@@ -914,6 +914,7 @@ namespace Engine {
 			if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) { barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT; sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT; }
 
 			if (newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) { barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT; destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT; }
+			if (newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) { barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT; }
 			if (newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) { barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT; destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; }
 			if (newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) { barrier.dstAccessMask = 0; destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT; }
 
@@ -1023,6 +1024,38 @@ namespace Engine {
 			viewCreateInfo.subresourceRange.layerCount = 1;
 
 			CheckResult(vkCreateImageView(logicalDevice, &viewCreateInfo, nullptr, outView));
+		}
+
+		static void CopyImage(VkDevice logicalDevice, VkCommandPool commandPool, VkQueue queue,
+			VkImage srcImage, VkImage dstImage, VkExtent2D extent,
+			uint32_t mipLevel = 0, uint32_t baseArrayLayer = 0, uint32_t layerCount = 1) {
+			VkCommandBuffer commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
+			StartRecording(commandBuffer);
+			
+			VkImageSubresourceLayers subresource = {};
+			subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; // Assuming color images
+			subresource.mipLevel = mipLevel;
+			subresource.baseArrayLayer = baseArrayLayer;
+			subresource.layerCount = layerCount;
+
+			VkImageCopy copyRegion = {};
+			copyRegion.srcSubresource = subresource;
+			copyRegion.dstSubresource = subresource;
+			copyRegion.srcOffset = { 0, 0, 0 }; // Copy from the start of the source image
+			copyRegion.dstOffset = { 0, 0, 0 }; // Copy to the start of the destination image
+			copyRegion.extent = { extent.width, extent.height, 1 };       // The size of the image to copy
+
+			// Record the copy command
+			vkCmdCopyImage(commandBuffer,
+				srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				1, &copyRegion);
+
+			// End the command buffer
+			CheckResult(vkEndCommandBuffer(commandBuffer));
+
+			ExecuteCommands(commandBuffer, queue);
+			vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
 		}
 	};
 
@@ -6679,7 +6712,10 @@ namespace Engine {
 			Helper::SaveImageAsPng(Paths::TexturesPath() / std::filesystem::path("uiResult.png"), imageData, imageWidth, imageHeight);
 			if (stagingBuffer == nullptr || stagingMemory == nullptr)VkHelper::UnmapAndDestroyStagingBuffer(_logicalDevice, stagingMemory, stagingBuffer);*/
 
-			VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _swapchain._images[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+			VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._finalRenderedImage._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+			VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _swapchain._images[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+			VkHelper::CopyImage(_logicalDevice, _commandPool, _queue, _renderPass._finalRenderedImage._image, _swapchain._images[imageIndex], _swapchain._framebufferSize);
+			VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _swapchain._images[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 			// Present drawn image.
 			// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
