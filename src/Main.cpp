@@ -5447,7 +5447,7 @@ namespace Engine {
 			//_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, _queue, &_queueFamilyIndex, _swapchain, _renderPass._handle, _renderPass._colorImages);
 
 			CreateGraphicsPipeline();
-			_drawCommandBuffers.resize(_swapchain._imageCount);
+			_drawCommandBuffers.resize(_swapchain._frameBuffers.size());
 			for (int i = 0; i < _drawCommandBuffers.size(); ++i) _drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
 			RecordDrawCommands();
 			CreateSemaphores();
