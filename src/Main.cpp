@@ -6124,7 +6124,7 @@ namespace Engine {
 
 			// Subpass 1: Second subpass (UI rendering with input attachment)
 			VkAttachmentReference inputReference = { 0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-			VkAttachmentReference finalRenderedImageReference = { 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+			VkAttachmentReference finalRenderedImageReference = { 0, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR };
 			VkSubpassDescription subpass1 = {};
 			subpass1.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 			subpass1.inputAttachmentCount = 1;
@@ -6184,11 +6184,12 @@ namespace Engine {
 			_swapchain._frameBuffers.resize(_swapchain._imageCount);
 
 			for (size_t i = 0; i < _swapchain._imageCount; i++) {
-				VkImageView attachmentViews[3] = { _renderPass._colorImage._view, _renderPass._depthImage._view, _renderPass._finalRenderedImage._view };
+				//VkImageView attachmentViews[2] = { _renderPass._colorImage._view, _renderPass._depthImage._view/*, _renderPass._finalRenderedImage._view*/ };
+				VkImageView attachmentViews[2] = { _renderPass._colorImage._view, _renderPass._depthImage._view/*, _renderPass._finalRenderedImage._view*/ };
 				VkFramebufferCreateInfo createInfo = {};
 				createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 				createInfo.renderPass = renderPass;
-				createInfo.attachmentCount = 3;
+				createInfo.attachmentCount = 2;
 				createInfo.pAttachments = attachmentViews;
 				createInfo.width = _swapchain._framebufferSize.width;
 				createInfo.height = _swapchain._framebufferSize.height;
@@ -6254,6 +6255,8 @@ namespace Engine {
 
 			_swapchain._images.resize(imageCount);
 			vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &_swapchain._imageCount, _swapchain._images.data());
+
+
 
 			_swapchain._oldSwapchainHandle = _swapchain._handle;
 		}
