@@ -5438,6 +5438,7 @@ namespace Engine {
 			LoadEnvironmentMap();
 			CreateSwapchain();
 			CreateRenderPass();
+			CreateFramebuffers();
 
 			auto descriptorSetLayouts = CreateDescriptorSetLayouts();
 			_graphicsPipeline._layout = CreatePipelineLayout(descriptorSetLayouts);
