@@ -15,6 +15,6 @@ void main() {
     vec4 overlayColor = texture(overlay, inUV);
 
     // Blend the overlay on top of the base color using alpha blending
-//    outColor = overlayColor * overlayColor.a + baseColor * (1.0 - overlayColor.a);
-    outColor = overlayColor;
+    outColor = overlayColor * overlayColor.a + baseColor * (1.0 - overlayColor.a);
+//    outColor = overlayColor;
 }

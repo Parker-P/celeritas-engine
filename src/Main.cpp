@@ -4973,7 +4973,6 @@ namespace Engine {
 				CreateOverlayImages();
 				_descriptorSets.resize(_swapchain._imageCount);
 				CreateDescriptorSets();
-				//CreateRenderPass();
 				CreateGraphicsPipeline();
 				//CreateDescriptorSets();
 				CreateCommandPool();
@@ -5162,10 +5161,6 @@ namespace Engine {
 					vkUpdateDescriptorSets(_logicalDevice, 2, descriptorWrites, 0, nullptr);
 				}
 			}
-
-			/*void CreateRenderPass() {
-
-			}*/
 
 			/*void UpdateDescriptorSets() {
 				VkDescriptorImageInfo descriptor_image_info{};
@@ -5448,7 +5443,7 @@ namespace Engine {
 			_graphicsPipeline._layout = CreatePipelineLayout(descriptorSetLayouts);
 			CreateShaderResources(descriptorSetLayouts);
 
-			_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, _queue, &_queueFamilyIndex, _swapchain, _renderPass._handle, _renderPass._colorImages);
+			//_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, _queue, &_queueFamilyIndex, _swapchain, _renderPass._handle, _renderPass._colorImages);
 
 			CreateGraphicsPipeline();
 			_drawCommandBuffers.resize(_swapchain._imageCount);
@@ -6081,8 +6076,8 @@ namespace Engine {
 			depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 			// Subpass 0: First subpass (color rendering)
-			VkAttachmentReference colorReference = { 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-			VkAttachmentReference depthReference = { 2, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
+			VkAttachmentReference colorReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+			VkAttachmentReference depthReference = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
 			VkSubpassDescription subpass0 = {};
 			subpass0.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 			subpass0.colorAttachmentCount = 1;
@@ -6090,27 +6085,17 @@ namespace Engine {
 			subpass0.pDepthStencilAttachment = &depthReference;
 
 			// Subpass 1: Second subpass (UI rendering with input attachment)
-			VkAttachmentReference inputReference = { 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-			VkAttachmentReference finalRenderedImageReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-			VkSubpassDescription subpass1 = {};
-			subpass1.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-			subpass1.inputAttachmentCount = 1;
-			subpass1.pInputAttachments = &inputReference;
-			subpass1.colorAttachmentCount = 1;
-			subpass1.pColorAttachments = &finalRenderedImageReference; // Output color attachment
+			//VkAttachmentReference inputReference = { 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+			//VkAttachmentReference finalRenderedImageReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+			//VkSubpassDescription subpass1 = {};
+			//subpass1.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			//subpass1.inputAttachmentCount = 1;
+			//subpass1.pInputAttachments = &inputReference;
+			//subpass1.colorAttachmentCount = 1;
+			//subpass1.pColorAttachments = &finalRenderedImageReference; // Output color attachment
 
 			// Subpass dependencies
 			std::vector<VkSubpassDependency> dependencies;
-
-			// Dependency from external to scene subpass
-			VkSubpassDependency sceneDependency = {};
-			sceneDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-			sceneDependency.dstSubpass = 0; // First subpass: scene rendering
-			sceneDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			sceneDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			sceneDependency.srcAccessMask = 0;
-			sceneDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			dependencies.push_back(sceneDependency);
 
 			// Dependency from scene subpass to UI subpass
 			VkSubpassDependency uiDependency = {};
@@ -6122,28 +6107,18 @@ namespace Engine {
 			uiDependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 			dependencies.push_back(uiDependency);
 
-			// Dependency from UI subpass to external
-			VkSubpassDependency uiToExternalDependency = {};
-			uiToExternalDependency.srcSubpass = 1; // From the UI subpass
-			uiToExternalDependency.dstSubpass = VK_SUBPASS_EXTERNAL; // To external (presentation)
-			uiToExternalDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			uiToExternalDependency.dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-			uiToExternalDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			uiToExternalDependency.dstAccessMask = 0;
-			dependencies.push_back(uiToExternalDependency);
-
 			// Render pass creation
-			VkAttachmentDescription attachments[] = { finalRenderedImageAttachment, colorAttachment, depthAttachment };
-			VkSubpassDescription subpasses[] = { subpass0, subpass1 };
+			VkAttachmentDescription attachments[] = { finalRenderedImageAttachment, /*colorAttachment,*/ depthAttachment };
+			VkSubpassDescription subpasses[] = { subpass0/*, subpass1*/ };
 
 			VkRenderPassCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-			createInfo.attachmentCount = 3;
+			createInfo.attachmentCount = 2;
 			createInfo.pAttachments = attachments;
-			createInfo.subpassCount = 2;
+			createInfo.subpassCount = 1;
 			createInfo.pSubpasses = subpasses;
-			createInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
-			createInfo.pDependencies = dependencies.data();
+			/*createInfo.dependencyCount = 1;
+			createInfo.pDependencies = dependencies.data();*/
 
 			VkRenderPass renderPass;
 			CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &renderPass));
@@ -6152,11 +6127,11 @@ namespace Engine {
 
 			for (size_t i = 0; i < _swapchain._imageCount; i++) {
 				//VkImageView attachmentViews[2] = { _renderPass._colorImage._view, _renderPass._depthImage._view/*, _renderPass._finalRenderedImage._view*/ };
-				VkImageView attachmentViews[3] = { _swapchain._images[i]._view, _renderPass._colorImages[i]._view, _renderPass._depthImage._view};
+				VkImageView attachmentViews[2] = { _swapchain._images[i]._view, /*_renderPass._colorImages[i]._view,*/ _renderPass._depthImage._view};
 				VkFramebufferCreateInfo createInfo = {};
 				createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 				createInfo.renderPass = renderPass;
-				createInfo.attachmentCount = 3;
+				createInfo.attachmentCount = 2;
 				createInfo.pAttachments = attachmentViews;
 				createInfo.width = _swapchain._framebufferSize.width;
 				createInfo.height = _swapchain._framebufferSize.height;
@@ -6185,12 +6160,9 @@ namespace Engine {
 
 			// Determine transformation to use (preferring no transform).
 			VkSurfaceTransformFlagBitsKHR surfaceTransform;
-			if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
+			if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) 
 				surfaceTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-			}
-			else {
-				surfaceTransform = surfaceCapabilities.currentTransform;
-			}
+			else surfaceTransform = surfaceCapabilities.currentTransform;
 
 			// Choose presentation mode (preferring MAILBOX ~= triple buffering).
 			VkPresentModeKHR presentMode = ChoosePresentMode(presentModes);
@@ -6412,8 +6384,6 @@ namespace Engine {
 			pipelineCreateInfo.basePipelineIndex = -1;
 
 			CheckResult(vkCreateGraphicsPipelines(_logicalDevice, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_graphicsPipeline._handle));
-
-			// No longer necessary as it has all been put into the _graphicsPipeline object.
 			vkDestroyShaderModule(_logicalDevice, vertexShaderModule, nullptr);
 			vkDestroyShaderModule(_logicalDevice, fragmentShaderModule, nullptr);
 		}
@@ -6593,12 +6563,12 @@ namespace Engine {
 					gameObject->Draw(_graphicsPipeline._layout, cmdBuf);
 				}
 
-				vkCmdNextSubpass(cmdBuf, VK_SUBPASS_CONTENTS_INLINE);
+				/*vkCmdNextSubpass(cmdBuf, VK_SUBPASS_CONTENTS_INLINE);
 				vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
 				vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipelineLayout, 0, 1, &_uiCtx._descriptorSets[i], 0, nullptr);
 				vkCmdDraw(cmdBuf, 3, 1, 0, 0);
+				vkCmdEndRenderPass(cmdBuf);*/
 				vkCmdEndRenderPass(cmdBuf);
-
 				vkEndCommandBuffer(cmdBuf);
 			}
 		}
@@ -6617,7 +6587,7 @@ namespace Engine {
 			}
 			else if (res != VK_SUCCESS) { std::cerr << "failed to acquire image\n"; exit(1); }
 
-			auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
+			//auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
 
 			// Wait for image to be available and draw.
 			// This is the stage where the queue should wait on the semaphore.
@@ -6625,7 +6595,7 @@ namespace Engine {
 			VkSubmitInfo submitInfo = {};
 			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 			submitInfo.waitSemaphoreCount = 1;
-			submitInfo.pWaitSemaphores = &nk_semaphore;
+			submitInfo.pWaitSemaphores = &_imageAvailableSemaphore;
 			submitInfo.signalSemaphoreCount = 1;
 			submitInfo.pSignalSemaphores = &renderingFinishedSemaphore;
 			submitInfo.pWaitDstStageMask = &waitDstStageMask;
@@ -6639,13 +6609,13 @@ namespace Engine {
 			{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
 			};
 
-			VkDeviceMemory stagingMemory = nullptr;
+			/*VkDeviceMemory stagingMemory = nullptr;
 			VkBuffer stagingBuffer = nullptr;
 			uint32_t imageWidth, imageHeight;
 			imageWidth = _swapchain._framebufferSize.width;
 			imageHeight = _swapchain._framebufferSize.height;
 			VkImage meshRenderResult = _renderPass._colorImages[imageIndex]._image;
-			VkImage uiRenderResult = _uiCtx._overlayImages[imageIndex]._image;
+			VkImage uiRenderResult = _uiCtx._overlayImages[imageIndex]._image;*/
 			/*void* imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, uiRenderResult, imageWidth, imageHeight, stagingMemory, stagingBuffer);
 			Helper::SaveImageAsPng(Paths::TexturesPath() / std::filesystem::path("uiResult.png"), imageData, imageWidth, imageHeight);
 			if (stagingBuffer == nullptr || stagingMemory == nullptr)VkHelper::UnmapAndDestroyStagingBuffer(_logicalDevice, stagingMemory, stagingBuffer);*/
