@@ -4786,7 +4786,7 @@ namespace Engine {
 		/**
 		 * @brief Same as imageAvailableSemaphore.
 		 */
-		VkSemaphore	renderingFinishedSemaphore;
+		VkSemaphore	_renderingFinishedSemaphore;
 
 		/**
 		 * @brief .
@@ -5751,8 +5751,8 @@ namespace Engine {
 			VkSemaphoreCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 			CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_imageAvailableSemaphore));
-			CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &renderingFinishedSemaphore));
-			CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_uiRenderingFinishedSemaphore));
+			CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_renderingFinishedSemaphore));
+			//CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_uiRenderingFinishedSemaphore));
 		}
 
 		void LoadScene() {
@@ -6535,7 +6535,9 @@ namespace Engine {
 				{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
 				};
 
-				VkClearValue depthClear;
+				VkClearValue depthClear = {
+				{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
+				};
 				depthClear.depthStencil.depth = 1.0f;
 				VkClearValue uiClear = { .0f, .0f, .0f, .0f };
 				VkClearValue clearValues[] = { clearColor, depthClear, uiClear };
@@ -6547,7 +6549,7 @@ namespace Engine {
 				renderPassBeginInfo.renderArea.offset.x = 0;
 				renderPassBeginInfo.renderArea.offset.y = 0;
 				renderPassBeginInfo.renderArea.extent = _swapchain._framebufferSize;
-				renderPassBeginInfo.clearValueCount = 3;
+				renderPassBeginInfo.clearValueCount = 2;
 				renderPassBeginInfo.pClearValues = &clearValues[0];
 
 				vkCmdBeginRenderPass(cmdBuf, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -6589,6 +6591,8 @@ namespace Engine {
 
 			//auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
 
+			std::cout << imageIndex << std::endl;
+
 			// Wait for image to be available and draw.
 			// This is the stage where the queue should wait on the semaphore.
 			VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
@@ -6597,17 +6601,13 @@ namespace Engine {
 			submitInfo.waitSemaphoreCount = 1;
 			submitInfo.pWaitSemaphores = &_imageAvailableSemaphore;
 			submitInfo.signalSemaphoreCount = 1;
-			submitInfo.pSignalSemaphores = &renderingFinishedSemaphore;
+			submitInfo.pSignalSemaphores = &_renderingFinishedSemaphore;
 			submitInfo.pWaitDstStageMask = &waitDstStageMask;
 			submitInfo.commandBufferCount = 1;
 			submitInfo.pCommandBuffers = &_drawCommandBuffers[imageIndex];
 
 			vkQueueSubmit(_queue, 1, &submitInfo, _queueFence);
 			vkWaitForFences(_logicalDevice, 1, &_queueFence, VK_TRUE, UINT64_MAX);
-
-			VkClearValue backgroundColor = {
-			{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
-			};
 
 			/*VkDeviceMemory stagingMemory = nullptr;
 			VkBuffer stagingBuffer = nullptr;
@@ -6630,13 +6630,13 @@ namespace Engine {
 			VkPresentInfoKHR presentInfo = {};
 			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 			presentInfo.waitSemaphoreCount = 1;
-			presentInfo.pWaitSemaphores = &renderingFinishedSemaphore;
+			presentInfo.pWaitSemaphores = &_renderingFinishedSemaphore;
 			presentInfo.swapchainCount = 1;
 			presentInfo.pSwapchains = &_swapchain._handle;
 			presentInfo.pImageIndices = &imageIndex;
 
 			res = vkQueuePresentKHR(_queue, &presentInfo);
-
+			
 			if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
 				WindowSizeChanged();
 			}
