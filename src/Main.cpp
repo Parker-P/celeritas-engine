@@ -5438,7 +5438,6 @@ namespace Engine {
 			LoadEnvironmentMap();
 			CreateSwapchain();
 			CreateRenderPass();
-			CreateFramebuffers();
 
 			auto descriptorSetLayouts = CreateDescriptorSetLayouts();
 			_graphicsPipeline._layout = CreatePipelineLayout(descriptorSetLayouts);
@@ -5831,27 +5830,6 @@ namespace Engine {
 			}
 		}
 
-		void CreateFramebuffers() {
-			_swapchain._frameBuffers.resize(_renderPass._colorImages.size());
-
-			for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
-
-				// We will render to the same depth image for each frame. 
-				// We can just keep clearing and reusing the same depth image for every frame.
-				VkImageView colorAndDepthImages[2] = { _renderPass._colorImages[i]._view, _renderPass._depthImage._view };
-				VkFramebufferCreateInfo createInfo = {};
-				createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-				createInfo.renderPass = _renderPass._handle;
-				createInfo.attachmentCount = 2;
-				createInfo.pAttachments = &colorAndDepthImages[0];
-				createInfo.width = _swapchain._framebufferSize.width;
-				createInfo.height = _swapchain._framebufferSize.height;
-				createInfo.layers = 1;
-
-				CheckResult(vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_swapchain._frameBuffers[i]));
-			}
-		}
-
 		void CreateRenderPass() {
 			auto imageFormat = _swapchain._surfaceFormat.format;
 
@@ -5887,7 +5865,7 @@ namespace Engine {
 				vkCreateImageView(_logicalDevice, &createInfo, nullptr, &_renderPass._colorImages[i]._view);
 			}
 
-			// Create the image.
+			// Create the depth image.
 			auto& imageCreateInfo = _renderPass._depthImage._createInfo;
 			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 			imageCreateInfo.arrayLayers = 1;
@@ -5901,15 +5879,8 @@ namespace Engine {
 			vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_renderPass._depthImage._image);
 
 			// Allocate memory on the GPU for the image.
-			VkMemoryRequirements reqs;
-			vkGetImageMemoryRequirements(_logicalDevice, _renderPass._depthImage._image, &reqs);
-			VkMemoryAllocateInfo allocInfo{};
-			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-			allocInfo.allocationSize = reqs.size;
-			allocInfo.memoryTypeIndex = PhysicalDevice::GetMemoryTypeIndex(_physicalDevice, reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-			VkDeviceMemory mem;
-			vkAllocateMemory(_logicalDevice, &allocInfo, nullptr, &mem);
-			vkBindImageMemory(_logicalDevice, _renderPass._depthImage._image, mem, 0);
+			_renderPass._depthImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, _renderPass._depthImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			vkBindImageMemory(_logicalDevice, _renderPass._depthImage._image, _renderPass._depthImage._gpuMemory, 0);
 
 			auto& imageViewCreateInfo = _renderPass._depthImage._viewCreateInfo;
 			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -6012,6 +5983,25 @@ namespace Engine {
 			createInfo.pDependencies = &subpassDependencies[0];
 
 			CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass._handle));
+
+			_swapchain._frameBuffers.resize(_renderPass._colorImages.size());
+
+			for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
+
+				// We will render to the same depth image for each frame. 
+				// We can just keep clearing and reusing the same depth image for every frame.
+				VkImageView colorAndDepthImages[2] = { _renderPass._colorImages[i]._view, _renderPass._depthImage._view };
+				VkFramebufferCreateInfo createInfo = {};
+				createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+				createInfo.renderPass = _renderPass._handle;
+				createInfo.attachmentCount = 2;
+				createInfo.pAttachments = &colorAndDepthImages[0];
+				createInfo.width = _swapchain._framebufferSize.width;
+				createInfo.height = _swapchain._framebufferSize.height;
+				createInfo.layers = 1;
+
+				CheckResult(vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_swapchain._frameBuffers[i]));
+			}
 		}
 
 		void CreateSwapchain() {
@@ -6389,18 +6379,7 @@ namespace Engine {
 			for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
 				vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
 
-				// If present queue family and graphics queue family are different, then a barrier is necessary
-				// The barrier is also needed initially to transition the image to the present layout
-				VkImageMemoryBarrier presentToDrawBarrier = {};
-				presentToDrawBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-				presentToDrawBarrier.srcAccessMask = 0;
-				presentToDrawBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-				presentToDrawBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-				presentToDrawBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-				presentToDrawBarrier.image = _renderPass._colorImages[i]._image;
-				presentToDrawBarrier.subresourceRange = subResourceRange;
-
-				vkCmdPipelineBarrier(_drawCommandBuffers[i], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &presentToDrawBarrier);
+				VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 				VkClearValue clearColor = {
 				{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
@@ -6472,22 +6451,6 @@ namespace Engine {
 
 			vkQueueSubmit(_queue, 1, &submitInfo, _queueFence);
 			vkWaitForFences(_logicalDevice, 1, &_queueFence, VK_TRUE, UINT64_MAX);
-
-			/*VkDeviceMemory stagingMemory = nullptr;
-			VkBuffer stagingBuffer = nullptr;
-			uint32_t imageWidth, imageHeight;
-			imageWidth = _swapchain._framebufferSize.width;
-			imageHeight = _swapchain._framebufferSize.height;
-			VkImage meshRenderResult = _renderPass._colorImages[imageIndex]._image;
-			VkImage uiRenderResult = _uiCtx._overlayImages[imageIndex]._image;*/
-			/*void* imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, uiRenderResult, imageWidth, imageHeight, stagingMemory, stagingBuffer);
-			Helper::SaveImageAsPng(Paths::TexturesPath() / std::filesystem::path("uiResult.png"), imageData, imageWidth, imageHeight);
-			if (stagingBuffer == nullptr || stagingMemory == nullptr)VkHelper::UnmapAndDestroyStagingBuffer(_logicalDevice, stagingMemory, stagingBuffer);*/
-
-			//VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._finalRenderedImage._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-			VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _swapchain._images[imageIndex]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-			//VkHelper::CopyImage(_logicalDevice, _commandPool, _queue, _renderPass._finalRenderedImage._image, _swapchain._images[imageIndex], _swapchain._framebufferSize);
-			//VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _swapchain._images[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 			// Present drawn image.
 			// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
