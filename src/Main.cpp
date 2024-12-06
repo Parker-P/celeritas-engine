@@ -4943,8 +4943,6 @@ namespace Engine {
 			VkPhysicalDevice _physicalDevice;
 			GLFWwindow* _pWindow;
 			uint32_t* _pQueueFamilyIndex;
-			//VkSampler _uiShaderSampler;
-			VkDescriptorSetLayout _descriptorSetLayout;
 
 			/**
 			 * @brief The images to which Nuklear renders its UI.
@@ -4954,7 +4952,7 @@ namespace Engine {
 			VkRenderPass _renderPass;
 			VkDescriptorPool _descriptorPool;
 			std::vector<VkDescriptorSet> _descriptorSets;
-			//std::vector<VkDescriptorSetLayout> _descriptorSetLayouts;
+			std::vector<VkDescriptorSetLayout> _descriptorSetLayouts;
 			VkPipelineLayout _pipelineLayout;
 			VkPipeline _pipeline;
 			VkCommandPool _commandPool;
@@ -4971,12 +4969,8 @@ namespace Engine {
 				_sceneImages = sceneImages;
 
 				CreateOverlayImages();
-				_descriptorSets.resize(_swapchain._imageCount);
 				CreateDescriptorSets();
-				CreateGraphicsPipeline();
-				//CreateDescriptorSets();
-				CreateCommandPool();
-				CreateCommandBuffers();
+				CreatePipelineLayout();
 
 				uint32_t image_index;
 				VkSemaphore nk_semaphore;
@@ -5091,6 +5085,9 @@ namespace Engine {
 			}
 
 			void CreateDescriptorSets() {
+				_descriptorSets.resize(_swapchain._imageCount);
+				_descriptorSetLayouts.resize(_swapchain._imageCount);
+
 				for (int i = 0; i < _descriptorSets.size(); ++i) {
 					VkDescriptorPoolSize poolSizes[2];
 					poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -5108,7 +5105,8 @@ namespace Engine {
 
 					CheckResult(vkCreateDescriptorPool(_logicalDevice, &pool_info, NULL, &_descriptorPool));
 
-					std::array<VkDescriptorSetLayoutBinding, 2> setLayoutBindings{};
+					VkDescriptorSetLayoutBinding setLayoutBindings[2];
+					memset(setLayoutBindings, 0, sizeof(VkDescriptorSetLayoutBinding) * 2);
 
 					// Input attachment from the scene subpass
 					setLayoutBindings[0].binding = 1;
@@ -5125,10 +5123,10 @@ namespace Engine {
 					VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
 					layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 					layoutCreateInfo.bindingCount = 2;
-					layoutCreateInfo.pBindings = setLayoutBindings.data();
-					CheckResult(vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, NULL, &_descriptorSetLayout));
+					layoutCreateInfo.pBindings = setLayoutBindings;
+					CheckResult(vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, NULL, &_descriptorSetLayouts[i]));
 
-					_descriptorSets[i] = VkHelper::AllocateDescriptorSet(_logicalDevice, _descriptorPool, _descriptorSetLayout);
+					_descriptorSets[i] = VkHelper::AllocateDescriptorSet(_logicalDevice, _descriptorPool, _descriptorSetLayouts[i]);
 
 					std::array<VkDescriptorImageInfo, 2> descriptors{};
 					descriptors[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -5162,204 +5160,19 @@ namespace Engine {
 				}
 			}
 
-			/*void UpdateDescriptorSets() {
-				VkDescriptorImageInfo descriptor_image_info{};
-				VkWriteDescriptorSet descriptor_write{};
+			void CreatePipelineLayout() {
+				// Create pipeline layout info
+				VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
+				pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+				pipelineLayoutCreateInfo.setLayoutCount = _descriptorSetLayouts.size(); // Using one descriptor set layout
+				pipelineLayoutCreateInfo.pSetLayouts = _descriptorSetLayouts.data();
+				pipelineLayoutCreateInfo.pushConstantRangeCount = 0; // No push constants in this example
+				pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
 
-				descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				descriptor_image_info.sampler = _uiShaderSampler;
-
-				descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				descriptor_write.dstBinding = 0;
-				descriptor_write.dstArrayElement = 0;
-				descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-				descriptor_write.descriptorCount = 1;
-				descriptor_write.pImageInfo = &descriptor_image_info;
-
-				for (uint32_t i = 0; i < _swapchain._frameBuffers.size(); i++) {
-					descriptor_write.dstSet = _descriptorSets[i];
-					descriptor_image_info.imageView = _overlayImages[i]._view;
-
-					vkUpdateDescriptorSets(_logicalDevice, 1, &descriptor_write, 0, NULL);
-				}
-			}*/
-
-			/*void CreateDescriptorSets() {
-				std::vector<VkDescriptorSetLayout> layouts;
-				for (int i = 0; i < _swapchain._frameBuffers.size(); ++i) layouts.push_back(_descriptorSetLayout);
-				VkDescriptorSetAllocateInfo alloc_info{};
-				alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-				alloc_info.descriptorPool = _descriptorPool;
-				alloc_info.descriptorSetCount = _swapchain._frameBuffers.size();
-				alloc_info.pSetLayouts = layouts.data();
-				_descriptorSets.resize(_swapchain._frameBuffers.size());
-				CheckResult(vkAllocateDescriptorSets(_logicalDevice, &alloc_info, _descriptorSets.data()));
-				UpdateDescriptorSets();
-			}*/
-
-			void CreateGraphicsPipeline() {
-				FILE* fp{};
-				size_t file_len{};
-				VkPipelineVertexInputStateCreateInfo vertex_input_info{};
-				VkPipelineInputAssemblyStateCreateInfo input_assembly{};
-				VkViewport viewport{};
-				VkRect2D scissor{};
-				VkPipelineViewportStateCreateInfo viewport_state{};
-				VkPipelineRasterizationStateCreateInfo rasterizer{};
-				VkPipelineMultisampleStateCreateInfo multisampling{};
-				VkPipelineColorBlendAttachmentState color_blend_attachment{};
-				VkPipelineColorBlendStateCreateInfo color_blending{};
-				VkPipelineLayoutCreateInfo pipeline_layout_info{};
-				VkResult result{};
-				VkGraphicsPipelineCreateInfo pipeline_info{};
-
-				auto vertPath = Paths::ShadersPath() / std::filesystem::path("graphics\\NuklearUIVertexShader.spv");
-				auto fragPath = Paths::ShadersPath() / std::filesystem::path("graphics\\NuklearUIFragmentShader.spv");
-				VkShaderModule vert_shader_module = CreateShaderModule(_logicalDevice, vertPath);
-				VkShaderModule frag_shader_module = CreateShaderModule(_logicalDevice, fragPath);
-
-				VkPipelineShaderStageCreateInfo vert_shader_stage_info{};
-				vert_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-				vert_shader_stage_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
-				vert_shader_stage_info.module = vert_shader_module;
-				vert_shader_stage_info.pName = "main";
-
-				VkPipelineShaderStageCreateInfo frag_shader_stage_info{};
-				frag_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-				frag_shader_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-				frag_shader_stage_info.module = frag_shader_module;
-				frag_shader_stage_info.pName = "main";
-
-				VkPipelineShaderStageCreateInfo shader_stages[2]{};
-				shader_stages[0] = vert_shader_stage_info;
-				shader_stages[1] = frag_shader_stage_info;
-
-				vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-				input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-				input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-				input_assembly.primitiveRestartEnable = VK_FALSE;
-
-				viewport.x = 0.0f;
-				viewport.y = 0.0f;
-				viewport.width = (float)_swapchain._framebufferSize.width;
-				viewport.height = (float)_swapchain._framebufferSize.height;
-				viewport.minDepth = 0.0f;
-				viewport.maxDepth = 1.0f;
-
-				scissor.extent.width = _swapchain._framebufferSize.width;
-				scissor.extent.height = _swapchain._framebufferSize.height;
-
-				viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-				viewport_state.viewportCount = 1;
-				viewport_state.pViewports = &viewport;
-				viewport_state.scissorCount = 1;
-				viewport_state.pScissors = &scissor;
-
-				rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-				rasterizer.depthClampEnable = VK_FALSE;
-				rasterizer.rasterizerDiscardEnable = VK_FALSE;
-				rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-				rasterizer.lineWidth = 1.0f;
-				rasterizer.cullMode = VK_CULL_MODE_FRONT_BIT;
-				rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-				rasterizer.depthBiasEnable = VK_FALSE;
-
-				multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-				multisampling.sampleShadingEnable = VK_FALSE;
-				multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-				color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-				color_blend_attachment.blendEnable = VK_TRUE;
-				color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-				color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-				color_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
-				color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-				color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-				color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
-
-				color_blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-				color_blending.logicOpEnable = VK_FALSE;
-				color_blending.logicOp = VK_LOGIC_OP_COPY;
-				color_blending.attachmentCount = 1;
-				color_blending.pAttachments = &color_blend_attachment;
-				color_blending.blendConstants[0] = 1.0f;
-				color_blending.blendConstants[1] = 1.0f;
-				color_blending.blendConstants[2] = 1.0f;
-				color_blending.blendConstants[3] = 1.0f;
-
-				pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-				pipeline_layout_info.setLayoutCount = 0;
-				pipeline_layout_info.pushConstantRangeCount = 0;
-				pipeline_layout_info.setLayoutCount = 1;
-				pipeline_layout_info.pSetLayouts = &_descriptorSetLayout;
-
-				CheckResult(vkCreatePipelineLayout(_logicalDevice, &pipeline_layout_info, NULL, &_pipelineLayout));
-
-				pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-				pipeline_info.stageCount = 2;
-				pipeline_info.pStages = shader_stages;
-				pipeline_info.pVertexInputState = &vertex_input_info;
-				pipeline_info.pInputAssemblyState = &input_assembly;
-				pipeline_info.pViewportState = &viewport_state;
-				pipeline_info.pRasterizationState = &rasterizer;
-				pipeline_info.pMultisampleState = &multisampling;
-				pipeline_info.pColorBlendState = &color_blending;
-				pipeline_info.layout = _pipelineLayout;
-				pipeline_info.renderPass = _renderPass;
-				pipeline_info.subpass = 1;
-				pipeline_info.basePipelineHandle = NULL;
-
-				CheckResult(vkCreateGraphicsPipelines(_logicalDevice, NULL, 1, &pipeline_info, NULL, &_pipeline));
-
-				if (frag_shader_module) vkDestroyShaderModule(_logicalDevice, frag_shader_module, NULL);
-				if (vert_shader_module) vkDestroyShaderModule(_logicalDevice, vert_shader_module, NULL);
+				// Create the pipeline layout
+				VkPipelineLayout pipelineLayout;
+				CheckResult(vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_pipelineLayout));
 			}
-
-			void CreateCommandPool() {
-				VkCommandPoolCreateInfo pool_info{};
-				pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-				pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-				pool_info.queueFamilyIndex = *_pQueueFamilyIndex;
-				CheckResult(vkCreateCommandPool(_logicalDevice, &pool_info, NULL, &_commandPool));
-			}
-
-			void CreateCommandBuffers() {
-				VkCommandBufferAllocateInfo alloc_info{};
-				alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-				alloc_info.commandPool = _commandPool;
-				alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-				alloc_info.commandBufferCount = _swapchain._frameBuffers.size();
-				_commandBuffers.resize(_swapchain._frameBuffers.size());
-				CheckResult(vkAllocateCommandBuffers(_logicalDevice, &alloc_info, _commandBuffers.data()));
-			}
-
-			void UpdateDescriptorSets(Image sceneImage, uint32_t overlayImageIndex) {
-
-			}
-			/*bool DestroySwapChainRelatedResources() {
-				uint32_t i;
-				VkResult result;
-
-				result = vkQueueWaitIdle(graphics);
-				if (result != VK_SUCCESS) {
-					fprintf(stderr, "vkQueueWaitIdle failed: %d\n", result);
-					return false;
-				}
-
-				for (i = 0; i < _swapChainImages.size(); i++) {
-					vkDestroyFramebuffer(_logicalDevice, demo->framebuffers[i], NULL);
-					vkDestroyImageView(_logicalDevice, demo->overlay_image_views[i], NULL);
-					vkDestroyImage(_logicalDevice, demo->overlay_images[i], NULL);
-					vkFreeMemory(_logicalDevice, demo->overlay_image_memories[i], NULL);
-					vkDestroyImageView(_logicalDevice, demo->swap_chain_image_views[i], NULL);
-				}
-				vkDestroySwapchainKHR(_logicalDevice, demo->swap_chain, NULL);
-				vkDestroyRenderPass(_logicalDevice, demo->render_pass, NULL);
-				vkDestroyPipeline(_logicalDevice, demo->pipeline, NULL);
-				vkDestroyPipelineLayout(_logicalDevice, demo->pipeline_layout, NULL);
-				return true;
-			}*/
 		};
 
 		NuklearUiContext _uiCtx;
@@ -5436,16 +5249,313 @@ namespace Engine {
 
 			LoadScene();
 			LoadEnvironmentMap();
-			CreateSwapchain();
-			CreateRenderPass();
 
 			auto descriptorSetLayouts = CreateDescriptorSetLayouts();
 			_graphicsPipeline._layout = CreatePipelineLayout(descriptorSetLayouts);
 			CreateShaderResources(descriptorSetLayouts);
 
-			//_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, _queue, &_queueFamilyIndex, _swapchain, _renderPass._handle, _renderPass._colorImages);
+			CreateSwapchain();
 
-			CreateGraphicsPipeline();
+			auto imageFormat = _swapchain._surfaceFormat.format;
+
+			// Store the images used by the swap chain.
+			// Note: these are the images that swap chain image indices refer to.
+			// Note: actual number of images may differ from requested number, since it's a lower bound.
+			uint32_t actualImageCount = 0;
+			CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, nullptr));
+
+			_renderPass._colorImages.resize(actualImageCount);
+
+			std::vector<VkImage> swapchainImages;
+			swapchainImages.resize(actualImageCount);
+			CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, swapchainImages.data()));
+			_swapchain._imageCount = actualImageCount;
+			_swapchain._images.resize(actualImageCount);
+
+			// Create the color attachments.
+			for (uint32_t i = 0; i < actualImageCount; ++i) {
+
+				// Image view used by the UI shader as output attachment, after it has combined the UI image with the scene image output by the first subpass.
+				_swapchain._images[i]._image = swapchainImages[i];
+				auto& createInfo = _swapchain._images[i]._viewCreateInfo;
+				createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+				createInfo.image = swapchainImages[i];
+				createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+				createInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+				createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+				createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+				createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+				createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+				createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				createInfo.subresourceRange.baseMipLevel = 0;
+				createInfo.subresourceRange.levelCount = 1;
+				createInfo.subresourceRange.baseArrayLayer = 0;
+				createInfo.subresourceRange.layerCount = 1;
+				vkCreateImageView(_logicalDevice, &createInfo, nullptr, &_swapchain._images[i]._view);
+
+				// Scene image.
+				auto& rpColorImg = _renderPass._colorImages[i];
+				auto& imageCreateInfo = rpColorImg._createInfo;
+				imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+				imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+				imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+				imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
+				imageCreateInfo.mipLevels = 1;
+				imageCreateInfo.arrayLayers = 1;
+				imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+				imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+				imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+				vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &rpColorImg._image);
+
+				// Allocate memory on the GPU for the image.
+				rpColorImg._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, rpColorImg._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+				vkBindImageMemory(_logicalDevice, rpColorImg._image, rpColorImg._gpuMemory, 0);
+
+				auto& imageViewCreateInfo = rpColorImg._viewCreateInfo;
+				imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+				imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+				imageViewCreateInfo.image = rpColorImg._image;
+				imageViewCreateInfo.format = imageCreateInfo.format;
+				imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+				imageViewCreateInfo.subresourceRange.levelCount = 1;
+				imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+				imageViewCreateInfo.subresourceRange.layerCount = 1;
+				imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &rpColorImg._view);
+
+				auto& samplerCreateInfo = rpColorImg._samplerCreateInfo;
+				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+				samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+				samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+				samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+				samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+				samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+				samplerCreateInfo.anisotropyEnable = VK_FALSE;
+				samplerCreateInfo.maxAnisotropy = 1.0f;
+				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+				samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+				samplerCreateInfo.compareEnable = VK_FALSE;
+				samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+				samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+				samplerCreateInfo.mipLodBias = 0.0f;
+				samplerCreateInfo.minLod = 0.0f;
+				samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
+				vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &rpColorImg._sampler);
+			}
+
+			// Create the depth image.
+			auto& imageCreateInfo = _renderPass._depthImage._createInfo;
+			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+			imageCreateInfo.arrayLayers = 1;
+			imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
+			imageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+			imageCreateInfo.mipLevels = 1;
+			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+			imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+			vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_renderPass._depthImage._image);
+
+			// Allocate memory on the GPU for the image.
+			_renderPass._depthImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, _renderPass._depthImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			vkBindImageMemory(_logicalDevice, _renderPass._depthImage._image, _renderPass._depthImage._gpuMemory, 0);
+
+			auto& imageViewCreateInfo = _renderPass._depthImage._viewCreateInfo;
+			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			imageViewCreateInfo.components = { {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY} };
+			imageViewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+			imageViewCreateInfo.image = _renderPass._depthImage._image;
+			imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+			imageViewCreateInfo.subresourceRange.layerCount = 1;
+			imageViewCreateInfo.subresourceRange.levelCount = 1;
+			vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_renderPass._depthImage._view);
+
+			auto& samplerCreateInfo = _renderPass._depthImage._samplerCreateInfo;
+			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.anisotropyEnable = false;
+			samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+			samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+			samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+			vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._depthImage._sampler);
+
+			// Note: hardware will automatically transition attachment to the specified layout
+			// Note: index refers to attachment descriptions array.
+			VkAttachmentReference swapchainImageAttachmentReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+			VkAttachmentReference colorAttachmentRefSubpass0 = { 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+			VkAttachmentReference inputAttachmentRefSubpass1 = { 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+			VkAttachmentReference depthAttachmentReference = { 2, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
+
+			// Note: this is a description of how the attachments of the render pass will be used in this sub pass
+			// e.g. if they will be read in shaders and/or drawn to.
+			VkSubpassDescription sceneRenderingSubpass = {};
+			sceneRenderingSubpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			sceneRenderingSubpass.colorAttachmentCount = 1;
+			sceneRenderingSubpass.pColorAttachments = &colorAttachmentRefSubpass0;
+			sceneRenderingSubpass.pDepthStencilAttachment = &depthAttachmentReference;
+
+			VkSubpassDescription uiRenderingSubpass = {};
+			uiRenderingSubpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			uiRenderingSubpass.colorAttachmentCount = 1;
+			uiRenderingSubpass.inputAttachmentCount = 1;
+			uiRenderingSubpass.pColorAttachments = &swapchainImageAttachmentReference;
+			uiRenderingSubpass.pInputAttachments = &inputAttachmentRefSubpass1;
+
+			// Now we have to adjust the renderpass synchronization. Previously, it was possible that multiple frames 
+			// were rendered simultaneously by the GPU. This is a problem when using depth buffers, because one frame 
+			// could overwrite the depth buffer while a previous frame is still rendering to it.
+			// We keep the subpass dependency for the color attachment we were already using.
+			VkSubpassDependency colorDependency = {};
+			colorDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+			colorDependency.dstSubpass = 0;
+			colorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			colorDependency.srcAccessMask = 0;
+			colorDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			colorDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+			// This dependency tells Vulkan that the depth attachment in a renderpass cannot be used before 
+			// previous subpasses have finished using it.
+			VkSubpassDependency depthDependency = {};
+			depthDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+			depthDependency.dstSubpass = 0;
+			depthDependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+			depthDependency.srcAccessMask = 0;
+			depthDependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+			depthDependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+			VkSubpassDependency uiDependency = {};
+			uiDependency.srcSubpass = 0;
+			uiDependency.dstSubpass = 1;
+			uiDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			uiDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			uiDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			uiDependency.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+
+			VkAttachmentDescription swapchainImageAttachmentDescription = {};
+			swapchainImageAttachmentDescription.format = VK_FORMAT_R8G8B8A8_SRGB;
+			swapchainImageAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+			swapchainImageAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			swapchainImageAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			swapchainImageAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			swapchainImageAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			swapchainImageAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			swapchainImageAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+			// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for "image used for a render pass".
+			VkAttachmentDescription colorAttachmentDescription = {};
+			colorAttachmentDescription.format = VK_FORMAT_R8G8B8A8_SRGB;
+			colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+			colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+			// Describes how the render pass is going to use the depth attachment.
+			VkAttachmentDescription depthAttachmentDescription = {};
+			depthAttachmentDescription.flags = 0;
+			depthAttachmentDescription.format = VK_FORMAT_D32_SFLOAT;
+			depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+			depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+			// Create the render pass. We pass in the main image attachment (color) and the depth image attachment, so the GPU knows how to treat
+			// the images.
+			VkAttachmentDescription attachmentDescriptions[] = { swapchainImageAttachmentDescription, colorAttachmentDescription, depthAttachmentDescription };
+			VkSubpassDependency subpassDependencies[] = { colorDependency, depthDependency, uiDependency };
+			VkSubpassDescription subpassDescriptions[] = { sceneRenderingSubpass, uiRenderingSubpass };
+			VkRenderPassCreateInfo createInfo = {};
+			createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+			createInfo.attachmentCount = 3;
+			createInfo.pAttachments = attachmentDescriptions;
+			createInfo.subpassCount = 2;
+			createInfo.pSubpasses = subpassDescriptions;
+			createInfo.dependencyCount = 3;
+			createInfo.pDependencies = subpassDependencies;
+			CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass._handle));
+
+			_swapchain._frameBuffers.resize(actualImageCount);
+			_drawCommandBuffers.resize(actualImageCount);
+			for (int i = 0; i < actualImageCount; ++i) _drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
+
+			// Here we record the commands that will be executed in the render loop.
+			for (size_t i = 0; i < actualImageCount; i++) {
+				auto& currentFrameBuffer = _swapchain._frameBuffers[i];
+				auto& currentCmdBuffer = _drawCommandBuffers[i];
+
+				// We will render to the same depth image for each frame. 
+				// We can just keep clearing and reusing the same depth image for every frame.
+				VkImageView renderPassImages[3] = { _swapchain._images[i]._view, _renderPass._colorImages[i]._view, _renderPass._depthImage._view };
+				VkFramebufferCreateInfo createInfo = {};
+				createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+				createInfo.renderPass = _renderPass._handle;
+				createInfo.attachmentCount = 3;
+				createInfo.pAttachments = renderPassImages;
+				createInfo.width = _swapchain._framebufferSize.width;
+				createInfo.height = _swapchain._framebufferSize.height;
+				createInfo.layers = 1;
+				CheckResult(vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &currentFrameBuffer));
+
+				_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, _queue, &_queueFamilyIndex, _swapchain, _renderPass._handle, _renderPass._colorImages);
+				CreateGraphicsPipelines(_renderPass._handle, _graphicsPipeline._layout, _uiCtx._pipelineLayout);
+
+				VkCommandBufferBeginInfo beginInfo = {};
+				beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+				beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+				vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
+
+				VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _swapchain._images[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+				VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+				VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _uiCtx._overlayImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+				VkClearValue swapchainImageClear{ { 0.0f, 0.0f, 0.0f, 1.0f } }; // R, G, B, A.
+				VkClearValue sceneImageClear = { { 0.1f, 0.1f, 0.1f, 1.0f } };
+				VkClearValue depthImageClear{ { 0.0f, 0.0f, 0.0f, 0.0f } }; depthImageClear.depthStencil.depth = 1.0f;
+				VkClearValue clearValues[] = { swapchainImageClear, sceneImageClear, depthImageClear };
+
+				VkRenderPassBeginInfo renderPassBeginInfo{};
+				renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+				renderPassBeginInfo.renderPass = _renderPass._handle;
+				renderPassBeginInfo.framebuffer = currentFrameBuffer;
+				renderPassBeginInfo.renderArea.offset.x = 0;
+				renderPassBeginInfo.renderArea.offset.y = 0;
+				renderPassBeginInfo.renderArea.extent = _swapchain._framebufferSize;
+				renderPassBeginInfo.clearValueCount = 3;
+				renderPassBeginInfo.pClearValues = clearValues;
+
+				vkCmdBeginRenderPass(currentCmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+				vkCmdBindPipeline(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
+
+				auto& shaderResources = _graphicsPipeline._shaderResources;
+				VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
+				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
+				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
+				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
+
+				for (auto& gameObject : _scene._pRootGameObject->_children)
+					gameObject->Draw(_graphicsPipeline._layout, currentCmdBuffer);
+
+				//VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+				vkCmdNextSubpass(currentCmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
+				vkCmdBindPipeline(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
+				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipelineLayout, 0, 1, _uiCtx._descriptorSets.data(), 0, nullptr);
+				vkCmdDraw(currentCmdBuffer, 3, 1, 0, 0);
+				vkCmdEndRenderPass(currentCmdBuffer);
+				CheckResult(vkEndCommandBuffer(currentCmdBuffer));
+			}
+
+			//CreateGraphicsPipeline();
 			//RecordDrawCommands();
 			CreateSemaphores();
 		}
@@ -5525,8 +5635,8 @@ namespace Engine {
 			// Only recreate objects that are affected by framebuffer size changes.
 			Cleanup(false);
 			CreateSwapchain();
-			CreateRenderPass();
-			CreateGraphicsPipeline();
+			//CreateRenderPass();
+			//CreateGraphicsPipeline();
 			_drawCommandBuffers.resize(_swapchain._imageCount);
 			for (int i = 0; i < _drawCommandBuffers.size(); ++i) _drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
 			//RecordDrawCommands();
@@ -5750,7 +5860,6 @@ namespace Engine {
 			createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 			CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_imageAvailableSemaphore));
 			CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_renderingFinishedSemaphore));
-			//CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_uiRenderingFinishedSemaphore));
 		}
 
 		void LoadScene() {
@@ -5806,7 +5915,7 @@ namespace Engine {
 
 		VkSurfaceFormatKHR ChooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
 			for (const auto& availableSurfaceFormat : availableFormats) {
-				if (availableSurfaceFormat.format == VK_FORMAT_R8G8B8A8_UNORM) return availableSurfaceFormat;
+				if (availableSurfaceFormat.format == VK_FORMAT_R8G8B8A8_SRGB) return availableSurfaceFormat;
 			}
 
 			return availableFormats[0];
@@ -5825,297 +5934,6 @@ namespace Engine {
 			}
 			else {
 				return surfaceCapabilities.currentExtent;
-			}
-		}
-
-		void CreateRenderPass() {
-			auto imageFormat = _swapchain._surfaceFormat.format;
-
-			// Store the images used by the swap chain.
-			// Note: these are the images that swap chain image indices refer to.
-			// Note: actual number of images may differ from requested number, since it's a lower bound.
-			uint32_t actualImageCount = 0;
-			CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, nullptr));
-
-			_renderPass._colorImages.resize(actualImageCount);
-
-			std::vector<VkImage> images;
-			images.resize(actualImageCount);
-			CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, images.data()));
-
-			// Create the color attachments.
-			for (uint32_t i = 0; i < actualImageCount; ++i) {
-				_swapchain._images[i]._image = images[i];
-				auto& createInfo = _swapchain._images[i]._viewCreateInfo;
-				createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-				createInfo.image = images[i];
-				createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-				createInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-				createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-				createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-				createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-				createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-				createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-				createInfo.subresourceRange.baseMipLevel = 0;
-				createInfo.subresourceRange.levelCount = 1;
-				createInfo.subresourceRange.baseArrayLayer = 0;
-				createInfo.subresourceRange.layerCount = 1;
-				vkCreateImageView(_logicalDevice, &createInfo, nullptr, &_swapchain._images[i]._view);
-
-
-
-				auto& rpColorImg = _renderPass._colorImages[i];
-				auto& imageCreateInfo = rpColorImg._createInfo;
-				imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-				imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-				imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-				imageCreateInfo.extent = { 1, 1, 1 };
-				imageCreateInfo.mipLevels = 1;
-				imageCreateInfo.arrayLayers = 1;
-				imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-				imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-				imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-				vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &rpColorImg._image);
-
-				// Allocate memory on the GPU for the image.
-				rpColorImg._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, rpColorImg._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-				vkBindImageMemory(_logicalDevice, rpColorImg._image, rpColorImg._gpuMemory, 0);
-
-				auto& imageViewCreateInfo = rpColorImg._viewCreateInfo;
-				imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-				imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-				imageViewCreateInfo.image = rpColorImg._image;
-				imageViewCreateInfo.format = imageCreateInfo.format;
-				imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-				imageViewCreateInfo.subresourceRange.levelCount = 1;
-				imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-				imageViewCreateInfo.subresourceRange.layerCount = 1;
-				imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-				vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &rpColorImg._view);
-
-				auto& samplerCreateInfo = rpColorImg._samplerCreateInfo;
-				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-				samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-				samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-				samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-				samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-				samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-				samplerCreateInfo.anisotropyEnable = VK_FALSE;
-				samplerCreateInfo.maxAnisotropy = 1.0f;
-				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-				samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-				samplerCreateInfo.compareEnable = VK_FALSE;
-				samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-				samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-				samplerCreateInfo.mipLodBias = 0.0f;
-				samplerCreateInfo.minLod = 0.0f;
-				samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
-				vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &rpColorImg._sampler);
-			}
-
-			// Create the depth image.
-			auto& imageCreateInfo = _renderPass._depthImage._createInfo;
-			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-			imageCreateInfo.arrayLayers = 1;
-			imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
-			imageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-			imageCreateInfo.mipLevels = 1;
-			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-			imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-			vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_renderPass._depthImage._image);
-
-			// Allocate memory on the GPU for the image.
-			_renderPass._depthImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, _renderPass._depthImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-			vkBindImageMemory(_logicalDevice, _renderPass._depthImage._image, _renderPass._depthImage._gpuMemory, 0);
-
-			auto& imageViewCreateInfo = _renderPass._depthImage._viewCreateInfo;
-			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			imageViewCreateInfo.components = { {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY} };
-			imageViewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-			imageViewCreateInfo.image = _renderPass._depthImage._image;
-			imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-			imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-			imageViewCreateInfo.subresourceRange.layerCount = 1;
-			imageViewCreateInfo.subresourceRange.levelCount = 1;
-			vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_renderPass._depthImage._view);
-
-			auto& samplerCreateInfo = _renderPass._depthImage._samplerCreateInfo;
-			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-			samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-			samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-			samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-			samplerCreateInfo.anisotropyEnable = false;
-			samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-			samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-			samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-			vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._depthImage._sampler);
-
-			// Note: hardware will automatically transition attachment to the specified layout
-			// Note: index refers to attachment descriptions array.
-			VkAttachmentReference swapchainImageAttachmentReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-			VkAttachmentReference colorAttachmentRefSubpass0 = { 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-			VkAttachmentReference inputAttachmentRefSubpass1 = { 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-			VkAttachmentReference depthAttachmentReference = { 2, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
-
-			// Note: this is a description of how the attachments of the render pass will be used in this sub pass
-			// e.g. if they will be read in shaders and/or drawn to.
-			VkSubpassDescription sceneRenderingSubpass = {};
-			sceneRenderingSubpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-			sceneRenderingSubpass.colorAttachmentCount = 1;
-			sceneRenderingSubpass.pColorAttachments = &colorAttachmentRefSubpass0;
-			sceneRenderingSubpass.pDepthStencilAttachment = &depthAttachmentReference;
-
-			VkSubpassDescription uiRenderingSubpass = {};
-			uiRenderingSubpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-			uiRenderingSubpass.colorAttachmentCount = 1;
-			uiRenderingSubpass.inputAttachmentCount = 1;
-			uiRenderingSubpass.pColorAttachments = &swapchainImageAttachmentReference;
-			uiRenderingSubpass.pInputAttachments = &inputAttachmentRefSubpass1;
-
-			// Now we have to adjust the renderpass synchronization. Previously, it was possible that multiple frames 
-			// were rendered simultaneously by the GPU. This is a problem when using depth buffers, because one frame 
-			// could overwrite the depth buffer while a previous frame is still rendering to it.
-			// We keep the subpass dependency for the color attachment we were already using.
-			VkSubpassDependency colorDependency = {};
-			colorDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-			colorDependency.dstSubpass = 0;
-			colorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			colorDependency.srcAccessMask = 0;
-			colorDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			colorDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-			// This dependency tells Vulkan that the depth attachment in a renderpass cannot be used before 
-			// previous subpasses have finished using it.
-			VkSubpassDependency depthDependency = {};
-			depthDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-			depthDependency.dstSubpass = 0;
-			depthDependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-			depthDependency.srcAccessMask = 0;
-			depthDependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-			depthDependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-			VkSubpassDependency uiDependency = {};
-			uiDependency.srcSubpass = 0;
-			uiDependency.dstSubpass = 1;
-			uiDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			uiDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			uiDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-			uiDependency.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-
-			VkAttachmentDescription swapchainImageAttachmentDescription = {};
-			swapchainImageAttachmentDescription.format = VK_FORMAT_R8G8B8A8_UNORM;
-			swapchainImageAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-			swapchainImageAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			swapchainImageAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			swapchainImageAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			swapchainImageAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			swapchainImageAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			swapchainImageAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-			// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for "image used for a render pass".
-			VkAttachmentDescription colorAttachmentDescription = {};
-			colorAttachmentDescription.format = VK_FORMAT_R8G8B8A8_UNORM;
-			colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-			colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-			// Describes how the render pass is going to use the depth attachment.
-			VkAttachmentDescription depthAttachmentDescription = {};
-			depthAttachmentDescription.flags = 0;
-			depthAttachmentDescription.format = VK_FORMAT_D32_SFLOAT;
-			depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-			depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-			// Create the render pass. We pass in the main image attachment (color) and the depth image attachment, so the GPU knows how to treat
-			// the images.
-			VkAttachmentDescription attachmentDescriptions[] = { swapchainImageAttachmentDescription, colorAttachmentDescription, depthAttachmentDescription };
-			VkSubpassDependency subpassDependencies[] = { colorDependency, depthDependency, uiDependency };
-			VkSubpassDescription subpassDescriptions[] = { sceneRenderingSubpass, uiRenderingSubpass };
-			VkRenderPassCreateInfo createInfo = {};
-			createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-			createInfo.attachmentCount = 3;
-			createInfo.pAttachments = attachmentDescriptions;
-			createInfo.subpassCount = 2;
-			createInfo.pSubpasses = subpassDescriptions;
-			createInfo.dependencyCount = 3;
-			createInfo.pDependencies = subpassDependencies;
-			CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass._handle));
-
-			_swapchain._frameBuffers.resize(actualImageCount);
-			_drawCommandBuffers.resize(actualImageCount);
-			for (int i = 0; i < actualImageCount; ++i) _drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
-
-			// Here we record the commands that will be executed in the render loop.
-			for (size_t i = 0; i < actualImageCount; i++) {
-				auto& currentFrameBuffer = _swapchain._frameBuffers[i];
-				auto& currentCmdBuffer = _drawCommandBuffers[i];
-
-				// We will render to the same depth image for each frame. 
-				// We can just keep clearing and reusing the same depth image for every frame.
-				VkImageView renderPassImages[3] = { _swapchain._images[i]._view, _renderPass._colorImages[i]._view, _renderPass._depthImage._view };
-				VkFramebufferCreateInfo createInfo = {};
-				createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-				createInfo.renderPass = _renderPass._handle;
-				createInfo.attachmentCount = 3;
-				createInfo.pAttachments = renderPassImages;
-				createInfo.width = _swapchain._framebufferSize.width;
-				createInfo.height = _swapchain._framebufferSize.height;
-				createInfo.layers = 1;
-				CheckResult(vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_swapchain._frameBuffers[i]));
-
-
-				VkCommandBufferBeginInfo beginInfo = {};
-				beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-				beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-				vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
-
-				VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-				
-				VkClearValue clearColor = { { 0.1f, 0.1f, 0.1f, 1.0f } }; // R, G, B, A.
-				VkClearValue depthClear; depthClear.depthStencil.depth = 1.0f;
-				VkClearValue clearValues[] = { clearColor, depthClear };
-
-				VkRenderPassBeginInfo renderPassBeginInfo = {};
-				renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-				renderPassBeginInfo.renderPass = _renderPass._handle;
-				renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[i];
-				renderPassBeginInfo.renderArea.offset.x = 0;
-				renderPassBeginInfo.renderArea.offset.y = 0;
-				renderPassBeginInfo.renderArea.extent = _swapchain._framebufferSize;
-				renderPassBeginInfo.clearValueCount = 2;
-				renderPassBeginInfo.pClearValues = clearValues;
-
-				vkCmdBeginRenderPass(currentCmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-				vkCmdBindPipeline(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
-
-				auto& shaderResources = _graphicsPipeline._shaderResources;
-				VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
-				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
-				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
-				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
-
-				for (auto& gameObject : _scene._pRootGameObject->_children) 
-					gameObject->Draw(_graphicsPipeline._layout, currentCmdBuffer);
-
-				vkCmdNextSubpass(currentCmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
-				vkCmdBindPipeline(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
-				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipelineLayout, 0, 1, _uiCtx._descriptorSets.data(), 0, nullptr);
-				vkCmdDraw(currentCmdBuffer, 3, 1, 0, 0);
-				vkCmdEndRenderPass(currentCmdBuffer);
-				CheckResult(vkEndCommandBuffer(currentCmdBuffer));
 			}
 		}
 
@@ -6172,174 +5990,289 @@ namespace Engine {
 			}
 
 			_swapchain._oldSwapchainHandle = _swapchain._handle;
+			_swapchain._surfaceFormat = surfaceFormat;
 		}
 
-		void CreateGraphicsPipeline() {
-			VkShaderModule vertexShaderModule = CreateShaderModule(_logicalDevice, Paths::VertexShaderPath());
-			VkShaderModule fragmentShaderModule = CreateShaderModule(_logicalDevice, Paths::FragmentShaderPath());
+		void CreateGraphicsPipelines(VkRenderPass renderPass, VkPipelineLayout scenePipelineLayout, VkPipelineLayout uiPipelineLayout) {
+			// 3D scene pipeline
+			{
+				VkShaderModule vertexShaderModule = CreateShaderModule(_logicalDevice, Paths::VertexShaderPath());
+				VkShaderModule fragmentShaderModule = CreateShaderModule(_logicalDevice, Paths::FragmentShaderPath());
 
-			// Set up shader stage info.
-			VkPipelineShaderStageCreateInfo vertexShaderCreateInfo = {};
-			vertexShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-			vertexShaderCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-			vertexShaderCreateInfo.module = vertexShaderModule;
-			vertexShaderCreateInfo.pName = "main";
+				// Set up shader stage info.
+				VkPipelineShaderStageCreateInfo vertexShaderCreateInfo = {};
+				vertexShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+				vertexShaderCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+				vertexShaderCreateInfo.module = vertexShaderModule;
+				vertexShaderCreateInfo.pName = "main";
 
-			VkPipelineShaderStageCreateInfo fragmentShaderCreateInfo = {};
-			fragmentShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-			fragmentShaderCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-			fragmentShaderCreateInfo.module = fragmentShaderModule;
-			fragmentShaderCreateInfo.pName = "main";
-			VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderCreateInfo, fragmentShaderCreateInfo };
+				VkPipelineShaderStageCreateInfo fragmentShaderCreateInfo = {};
+				fragmentShaderCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+				fragmentShaderCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+				fragmentShaderCreateInfo.module = fragmentShaderModule;
+				fragmentShaderCreateInfo.pName = "main";
+				VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderCreateInfo, fragmentShaderCreateInfo };
 
-			// Vertex attribute binding - gives the vertex shader more info about a particular vertex buffer, denoted by the binding number. See binding for more info.
-			_graphicsPipeline._vertexBindingDescription.binding = 0;
-			_graphicsPipeline._vertexBindingDescription.stride = sizeof(Vertex);
-			_graphicsPipeline._vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+				// Vertex attribute binding - gives the vertex shader more info about a particular vertex buffer, denoted by the binding number. See binding for more info.
+				_graphicsPipeline._vertexBindingDescription.binding = 0;
+				_graphicsPipeline._vertexBindingDescription.stride = sizeof(Vertex);
+				_graphicsPipeline._vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-			// Describe how the shader should read vertex attributes when getting a vertex from the vertex buffer.
-			// Object-space positions.
-			_graphicsPipeline._vertexAttributeDescriptions.resize(3);
-			_graphicsPipeline._vertexAttributeDescriptions[0].location = 0;
-			_graphicsPipeline._vertexAttributeDescriptions[0].binding = 0;
-			_graphicsPipeline._vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-			_graphicsPipeline._vertexAttributeDescriptions[0].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Position);
+				// Describe how the shader should read vertex attributes when getting a vertex from the vertex buffer.
+				// Object-space positions.
+				_graphicsPipeline._vertexAttributeDescriptions.resize(3);
+				_graphicsPipeline._vertexAttributeDescriptions[0].location = 0;
+				_graphicsPipeline._vertexAttributeDescriptions[0].binding = 0;
+				_graphicsPipeline._vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+				_graphicsPipeline._vertexAttributeDescriptions[0].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Position);
 
-			// Normals.
-			_graphicsPipeline._vertexAttributeDescriptions[1].location = 1;
-			_graphicsPipeline._vertexAttributeDescriptions[1].binding = 0;
-			_graphicsPipeline._vertexAttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-			_graphicsPipeline._vertexAttributeDescriptions[1].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Normal);
+				// Normals.
+				_graphicsPipeline._vertexAttributeDescriptions[1].location = 1;
+				_graphicsPipeline._vertexAttributeDescriptions[1].binding = 0;
+				_graphicsPipeline._vertexAttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+				_graphicsPipeline._vertexAttributeDescriptions[1].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Normal);
 
-			// UV coordinates.
-			_graphicsPipeline._vertexAttributeDescriptions[2].location = 2;
-			_graphicsPipeline._vertexAttributeDescriptions[2].binding = 0;
-			_graphicsPipeline._vertexAttributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-			_graphicsPipeline._vertexAttributeDescriptions[2].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::UV);
+				// UV coordinates.
+				_graphicsPipeline._vertexAttributeDescriptions[2].location = 2;
+				_graphicsPipeline._vertexAttributeDescriptions[2].binding = 0;
+				_graphicsPipeline._vertexAttributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+				_graphicsPipeline._vertexAttributeDescriptions[2].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::UV);
 
-			// Describe vertex input.
-			VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo = {};
-			vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-			vertexInputCreateInfo.vertexBindingDescriptionCount = 1;
-			vertexInputCreateInfo.pVertexBindingDescriptions = &_graphicsPipeline._vertexBindingDescription;
-			vertexInputCreateInfo.vertexAttributeDescriptionCount = (uint32_t)_graphicsPipeline._vertexAttributeDescriptions.size();
-			vertexInputCreateInfo.pVertexAttributeDescriptions = _graphicsPipeline._vertexAttributeDescriptions.data();
+				// Describe vertex input.
+				VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo = {};
+				vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+				vertexInputCreateInfo.vertexBindingDescriptionCount = 1;
+				vertexInputCreateInfo.pVertexBindingDescriptions = &_graphicsPipeline._vertexBindingDescription;
+				vertexInputCreateInfo.vertexAttributeDescriptionCount = (uint32_t)_graphicsPipeline._vertexAttributeDescriptions.size();
+				vertexInputCreateInfo.pVertexAttributeDescriptions = _graphicsPipeline._vertexAttributeDescriptions.data();
 
-			// Describe input assembly - this allows Vulkan to know how many indices make up a face for the vkCmdDrawIndexed function.
-			// The input assembly is the very first stage of the graphics pipeline, where vertices and indices are loaded from VRAM and assembled,
-			// to then be passed to the shaders.
-			VkPipelineInputAssemblyStateCreateInfo inputAssemblyCreateInfo = {};
-			inputAssemblyCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-			inputAssemblyCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-			inputAssemblyCreateInfo.primitiveRestartEnable = VK_FALSE;
+				// Describe input assembly - this allows Vulkan to know how many indices make up a face for the vkCmdDrawIndexed function.
+				// The input assembly is the very first stage of the graphics pipeline, where vertices and indices are loaded from VRAM and assembled,
+				// to then be passed to the shaders.
+				VkPipelineInputAssemblyStateCreateInfo inputAssemblyCreateInfo = {};
+				inputAssemblyCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+				inputAssemblyCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+				inputAssemblyCreateInfo.primitiveRestartEnable = VK_FALSE;
 
-			// Describe viewport and scissor
-			VkViewport viewport = {};
-			viewport.x = 0.0f;
-			viewport.y = 0.0f;
-			viewport.width = Helper::Convert<uint32_t, float>(_swapchain._framebufferSize.width);
-			viewport.height = Helper::Convert<uint32_t, float>(_swapchain._framebufferSize.height);
-			viewport.minDepth = 0.0f;
-			viewport.maxDepth = 1.0f;
+				// Describe viewport and scissor
+				VkViewport viewport = {};
+				viewport.x = 0.0f;
+				viewport.y = 0.0f;
+				viewport.width = Helper::Convert<uint32_t, float>(_swapchain._framebufferSize.width);
+				viewport.height = Helper::Convert<uint32_t, float>(_swapchain._framebufferSize.height);
+				viewport.minDepth = 0.0f;
+				viewport.maxDepth = 1.0f;
 
-			VkRect2D scissor = {};
-			scissor.offset.x = 0;
-			scissor.offset.y = 0;
-			scissor.extent.width = _swapchain._framebufferSize.width;
-			scissor.extent.height = _swapchain._framebufferSize.height;
+				VkRect2D scissor = {};
+				scissor.offset.x = 0;
+				scissor.offset.y = 0;
+				scissor.extent.width = _swapchain._framebufferSize.width;
+				scissor.extent.height = _swapchain._framebufferSize.height;
 
-			// Note: scissor test is always enabled (although dynamic scissor is possible).
-			// Number of viewports must match number of scissors.
-			VkPipelineViewportStateCreateInfo viewportCreateInfo = {};
-			viewportCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-			viewportCreateInfo.viewportCount = 1;
-			viewportCreateInfo.pViewports = &viewport;
-			viewportCreateInfo.scissorCount = 1;
-			viewportCreateInfo.pScissors = &scissor;
+				// Note: scissor test is always enabled (although dynamic scissor is possible).
+				// Number of viewports must match number of scissors.
+				VkPipelineViewportStateCreateInfo viewportCreateInfo = {};
+				viewportCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+				viewportCreateInfo.viewportCount = 1;
+				viewportCreateInfo.pViewports = &viewport;
+				viewportCreateInfo.scissorCount = 1;
+				viewportCreateInfo.pScissors = &scissor;
 
-			// Describe rasterization - this tells Vulkan what settings to use when at the fragment shader stage of the pipeline, a.k.a. when
-			// rendering pixels.
-			// Note: depth bias and using polygon modes other than fill require changes to logical device creation (device features).
-			VkPipelineRasterizationStateCreateInfo rasterizationCreateInfo = {};
-			rasterizationCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-			rasterizationCreateInfo.depthClampEnable = VK_FALSE;
-			rasterizationCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-			rasterizationCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
-			rasterizationCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-			rasterizationCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-			rasterizationCreateInfo.depthBiasEnable = VK_FALSE;
-			rasterizationCreateInfo.depthBiasConstantFactor = 0.0f;
-			rasterizationCreateInfo.depthBiasClamp = 0.0f;
-			rasterizationCreateInfo.depthBiasSlopeFactor = 0.0f;
-			rasterizationCreateInfo.lineWidth = 1.0f;
+				// Describe rasterization - this tells Vulkan what settings to use when at the fragment shader stage of the pipeline, a.k.a. when
+				// rendering pixels.
+				// Note: depth bias and using polygon modes other than fill require changes to logical device creation (device features).
+				VkPipelineRasterizationStateCreateInfo rasterizationCreateInfo = {};
+				rasterizationCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+				rasterizationCreateInfo.depthClampEnable = VK_FALSE;
+				rasterizationCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+				rasterizationCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+				rasterizationCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+				rasterizationCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+				rasterizationCreateInfo.depthBiasEnable = VK_FALSE;
+				rasterizationCreateInfo.depthBiasConstantFactor = 0.0f;
+				rasterizationCreateInfo.depthBiasClamp = 0.0f;
+				rasterizationCreateInfo.depthBiasSlopeFactor = 0.0f;
+				rasterizationCreateInfo.lineWidth = 1.0f;
 
-			// Configure depth testing.
-			VkPipelineDepthStencilStateCreateInfo depthStencilCreateInfo{};
-			depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-			depthStencilCreateInfo.pNext = nullptr;
-			depthStencilCreateInfo.depthTestEnable = VK_TRUE;
-			depthStencilCreateInfo.depthWriteEnable = VK_TRUE;
-			depthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
-			depthStencilCreateInfo.depthBoundsTestEnable = VK_FALSE;
-			depthStencilCreateInfo.stencilTestEnable = VK_FALSE;
-			depthStencilCreateInfo.minDepthBounds = 0.0f;
-			depthStencilCreateInfo.maxDepthBounds = 1.0f;
+				// Configure depth testing.
+				VkPipelineDepthStencilStateCreateInfo depthStencilCreateInfo{};
+				depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+				depthStencilCreateInfo.pNext = nullptr;
+				depthStencilCreateInfo.depthTestEnable = VK_TRUE;
+				depthStencilCreateInfo.depthWriteEnable = VK_TRUE;
+				depthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
+				depthStencilCreateInfo.depthBoundsTestEnable = VK_FALSE;
+				depthStencilCreateInfo.stencilTestEnable = VK_FALSE;
+				depthStencilCreateInfo.minDepthBounds = 0.0f;
+				depthStencilCreateInfo.maxDepthBounds = 1.0f;
 
-			// Describe multisampling
-			// Note: using multisampling also requires turning on device features.
-			VkPipelineMultisampleStateCreateInfo multisampleCreateInfo = {};
-			multisampleCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-			multisampleCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-			multisampleCreateInfo.sampleShadingEnable = VK_FALSE;
-			multisampleCreateInfo.minSampleShading = 1.0f;
-			multisampleCreateInfo.alphaToCoverageEnable = VK_FALSE;
-			multisampleCreateInfo.alphaToOneEnable = VK_FALSE;
+				// Describe multisampling
+				// Note: using multisampling also requires turning on device features.
+				VkPipelineMultisampleStateCreateInfo multisampleCreateInfo = {};
+				multisampleCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+				multisampleCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+				multisampleCreateInfo.sampleShadingEnable = VK_FALSE;
+				multisampleCreateInfo.minSampleShading = 1.0f;
+				multisampleCreateInfo.alphaToCoverageEnable = VK_FALSE;
+				multisampleCreateInfo.alphaToOneEnable = VK_FALSE;
 
-			// Describing color blending.
-			// Note: all paramaters except blendEnable and colorWriteMask are irrelevant here.
-			VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
-			colorBlendAttachmentState.blendEnable = VK_FALSE;
-			colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-			colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-			colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-			colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-			colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-			colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-			colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+				// Describing color blending.
+				// Note: all paramaters except blendEnable and colorWriteMask are irrelevant here.
+				VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
+				colorBlendAttachmentState.blendEnable = VK_FALSE;
+				colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+				colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+				colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+				colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+				colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+				colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+				colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
-			// Note: all attachments must have the same values unless a device feature is enabled.
-			VkPipelineColorBlendStateCreateInfo colorBlendCreateInfo = {};
-			colorBlendCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-			colorBlendCreateInfo.logicOpEnable = VK_FALSE;
-			colorBlendCreateInfo.logicOp = VK_LOGIC_OP_COPY;
-			colorBlendCreateInfo.attachmentCount = 1;
-			colorBlendCreateInfo.pAttachments = &colorBlendAttachmentState;
-			colorBlendCreateInfo.blendConstants[0] = 0.0f;
-			colorBlendCreateInfo.blendConstants[1] = 0.0f;
-			colorBlendCreateInfo.blendConstants[2] = 0.0f;
-			colorBlendCreateInfo.blendConstants[3] = 0.0f;
+				// Note: all attachments must have the same values unless a device feature is enabled.
+				VkPipelineColorBlendStateCreateInfo colorBlendCreateInfo = {};
+				colorBlendCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+				colorBlendCreateInfo.logicOpEnable = VK_FALSE;
+				colorBlendCreateInfo.logicOp = VK_LOGIC_OP_COPY;
+				colorBlendCreateInfo.attachmentCount = 1;
+				colorBlendCreateInfo.pAttachments = &colorBlendAttachmentState;
+				colorBlendCreateInfo.blendConstants[0] = 0.0f;
+				colorBlendCreateInfo.blendConstants[1] = 0.0f;
+				colorBlendCreateInfo.blendConstants[2] = 0.0f;
+				colorBlendCreateInfo.blendConstants[3] = 0.0f;
 
-			// Create the graphics pipeline.
-			VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
-			pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-			pipelineCreateInfo.stageCount = 2;
-			pipelineCreateInfo.pStages = shaderStages;
-			pipelineCreateInfo.pVertexInputState = &vertexInputCreateInfo;
-			pipelineCreateInfo.pInputAssemblyState = &inputAssemblyCreateInfo;
-			pipelineCreateInfo.pViewportState = &viewportCreateInfo;
-			pipelineCreateInfo.pRasterizationState = &rasterizationCreateInfo;
-			pipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
-			pipelineCreateInfo.pMultisampleState = &multisampleCreateInfo;
-			pipelineCreateInfo.pColorBlendState = &colorBlendCreateInfo;
-			pipelineCreateInfo.layout = _graphicsPipeline._layout;
-			pipelineCreateInfo.renderPass = _renderPass._handle;
-			pipelineCreateInfo.subpass = 0;
-			pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
-			pipelineCreateInfo.basePipelineIndex = -1;
+				// Create the graphics pipeline.
+				VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
+				pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+				pipelineCreateInfo.stageCount = 2;
+				pipelineCreateInfo.pStages = shaderStages;
+				pipelineCreateInfo.pVertexInputState = &vertexInputCreateInfo;
+				pipelineCreateInfo.pInputAssemblyState = &inputAssemblyCreateInfo;
+				pipelineCreateInfo.pViewportState = &viewportCreateInfo;
+				pipelineCreateInfo.pRasterizationState = &rasterizationCreateInfo;
+				pipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
+				pipelineCreateInfo.pMultisampleState = &multisampleCreateInfo;
+				pipelineCreateInfo.pColorBlendState = &colorBlendCreateInfo;
+				pipelineCreateInfo.layout = scenePipelineLayout;
+				pipelineCreateInfo.renderPass = renderPass;
+				pipelineCreateInfo.subpass = 0;
+				pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+				pipelineCreateInfo.basePipelineIndex = -1;
 
-			CheckResult(vkCreateGraphicsPipelines(_logicalDevice, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_graphicsPipeline._handle));
-			vkDestroyShaderModule(_logicalDevice, vertexShaderModule, nullptr);
-			vkDestroyShaderModule(_logicalDevice, fragmentShaderModule, nullptr);
+				CheckResult(vkCreateGraphicsPipelines(_logicalDevice, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_graphicsPipeline._handle));
+				vkDestroyShaderModule(_logicalDevice, vertexShaderModule, nullptr);
+				vkDestroyShaderModule(_logicalDevice, fragmentShaderModule, nullptr);
+			}
+
+			// UI pipeline.
+			{
+				auto vertPath = Paths::ShadersPath() / std::filesystem::path("graphics\\NuklearUIVertexShader.spv");
+				auto fragPath = Paths::ShadersPath() / std::filesystem::path("graphics\\NuklearUIFragmentShader.spv");
+				VkShaderModule vertShaderModule = CreateShaderModule(_logicalDevice, vertPath);
+				VkShaderModule fragShaderModule = CreateShaderModule(_logicalDevice, fragPath);
+
+				VkPipelineShaderStageCreateInfo vert_shader_stage_info{};
+				vert_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+				vert_shader_stage_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
+				vert_shader_stage_info.module = vertShaderModule;
+				vert_shader_stage_info.pName = "main";
+
+				VkPipelineShaderStageCreateInfo frag_shader_stage_info{};
+				frag_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+				frag_shader_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+				frag_shader_stage_info.module = fragShaderModule;
+				frag_shader_stage_info.pName = "main";
+
+				VkPipelineShaderStageCreateInfo shader_stages[2]{};
+				shader_stages[0] = vert_shader_stage_info;
+				shader_stages[1] = frag_shader_stage_info;
+
+				FILE* fp{};
+				size_t file_len{};
+				VkViewport viewport{};
+				VkRect2D scissor{};
+				VkResult result{};
+
+				VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+				vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+				VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+				inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+				inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+				inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+				viewport.x = 0.0f;
+				viewport.y = 0.0f;
+				viewport.width = (float)_swapchain._framebufferSize.width;
+				viewport.height = (float)_swapchain._framebufferSize.height;
+				viewport.minDepth = 0.0f;
+				viewport.maxDepth = 1.0f;
+
+				scissor.extent.width = _swapchain._framebufferSize.width;
+				scissor.extent.height = _swapchain._framebufferSize.height;
+
+				VkPipelineViewportStateCreateInfo viewportState{};
+				viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+				viewportState.viewportCount = 1;
+				viewportState.pViewports = &viewport;
+				viewportState.scissorCount = 1;
+				viewportState.pScissors = &scissor;
+
+				VkPipelineRasterizationStateCreateInfo rasterizer{};
+				rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+				rasterizer.depthClampEnable = VK_FALSE;
+				rasterizer.rasterizerDiscardEnable = VK_FALSE;
+				rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+				rasterizer.lineWidth = 1.0f;
+				rasterizer.cullMode = VK_CULL_MODE_FRONT_BIT;
+				rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+				rasterizer.depthBiasEnable = VK_FALSE;
+
+				VkPipelineMultisampleStateCreateInfo multisampling{};
+				multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+				multisampling.sampleShadingEnable = VK_FALSE;
+				multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+				VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+				colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+				colorBlendAttachment.blendEnable = VK_TRUE;
+				colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+				colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+				colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+				colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+				colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+				colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+				VkPipelineColorBlendStateCreateInfo colorBlending{};
+				colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+				colorBlending.logicOpEnable = VK_FALSE;
+				colorBlending.logicOp = VK_LOGIC_OP_COPY;
+				colorBlending.attachmentCount = 1;
+				colorBlending.pAttachments = &colorBlendAttachment;
+				colorBlending.blendConstants[0] = 1.0f;
+				colorBlending.blendConstants[1] = 1.0f;
+				colorBlending.blendConstants[2] = 1.0f;
+				colorBlending.blendConstants[3] = 1.0f;
+
+				VkGraphicsPipelineCreateInfo pipelineInfo{};
+				pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+				pipelineInfo.stageCount = 2;
+				pipelineInfo.pStages = shader_stages;
+				pipelineInfo.pVertexInputState = &vertexInputInfo;
+				pipelineInfo.pInputAssemblyState = &inputAssembly;
+				pipelineInfo.pViewportState = &viewportState;
+				pipelineInfo.pRasterizationState = &rasterizer;
+				pipelineInfo.pMultisampleState = &multisampling;
+				pipelineInfo.pColorBlendState = &colorBlending;
+				pipelineInfo.layout = uiPipelineLayout;
+				pipelineInfo.renderPass = renderPass;
+				pipelineInfo.subpass = 1;
+				pipelineInfo.basePipelineHandle = NULL;
+
+				CheckResult(vkCreateGraphicsPipelines(_logicalDevice, NULL, 1, &pipelineInfo, NULL, &_uiCtx._pipeline));
+
+				if (fragShaderModule) vkDestroyShaderModule(_logicalDevice, fragShaderModule, NULL);
+				if (vertShaderModule) vkDestroyShaderModule(_logicalDevice, vertShaderModule, NULL);
+			}
 		}
 
 		std::vector<DescriptorSetLayout> CreateDescriptorSetLayouts() {
@@ -6542,14 +6475,12 @@ namespace Engine {
 			VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain._handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
 			// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
-			if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) {
-				WindowSizeChanged(); return;
-			}
+			if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) { WindowSizeChanged(); return; }
 			else if (res != VK_SUCCESS) { std::cerr << "failed to acquire image\n"; exit(1); }
 
-			//auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
+			auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
 
-			std::cout << imageIndex << std::endl;
+			//VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 			// Wait for image to be available and draw.
 			// This is the stage where the queue should wait on the semaphore.
@@ -6557,7 +6488,7 @@ namespace Engine {
 			VkSubmitInfo submitInfo = {};
 			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 			submitInfo.waitSemaphoreCount = 1;
-			submitInfo.pWaitSemaphores = &_imageAvailableSemaphore;
+			submitInfo.pWaitSemaphores = &nk_semaphore;
 			submitInfo.signalSemaphoreCount = 1;
 			submitInfo.pSignalSemaphores = &_renderingFinishedSemaphore;
 			submitInfo.pWaitDstStageMask = &waitDstStageMask;
