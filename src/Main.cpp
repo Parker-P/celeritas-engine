@@ -5173,6 +5173,40 @@ namespace Engine {
 				VkPipelineLayout pipelineLayout;
 				CheckResult(vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_pipelineLayout));
 			}
+
+			/*void Update() {
+				for (int i = 0; i < _overlayImages.size(); ++i) {
+					std::array<VkDescriptorImageInfo, 2> descriptors{};
+					descriptors[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+					descriptors[0].imageView = _overlayImages[i]._view;
+					descriptors[0].sampler = _overlayImages[i]._sampler;
+
+					descriptors[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+					descriptors[1].imageView = _sceneImages[i]._view;
+					descriptors[1].sampler = VK_NULL_HANDLE;
+
+					VkWriteDescriptorSet write0{};
+					write0.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+					write0.dstSet = _descriptorSets[i];
+					write0.dstBinding = 0;
+					write0.dstArrayElement = 0;
+					write0.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+					write0.descriptorCount = 1;
+					write0.pImageInfo = &descriptors[0];
+
+					VkWriteDescriptorSet write1{};
+					write1.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+					write1.dstSet = _descriptorSets[i];
+					write1.dstBinding = 1;
+					write1.dstArrayElement = 0;
+					write1.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+					write1.descriptorCount = 1;
+					write1.pImageInfo = &descriptors[1];
+
+					VkWriteDescriptorSet descriptorWrites[2] = { write0, write1 };
+					vkUpdateDescriptorSets(_logicalDevice, 2, descriptorWrites, 0, nullptr);
+				}
+			}*/
 		};
 
 		NuklearUiContext _uiCtx;
@@ -5599,6 +5633,7 @@ namespace Engine {
 
 			while (!glfwWindowShouldClose(_pWindow)) {
 				Update(vkContext);
+				//_uiCtx.Update();
 				Draw();
 				glfwPollEvents();
 			}
@@ -6478,7 +6513,9 @@ namespace Engine {
 
 			auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
 
-			//VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+			std::cout << "Image index: " << imageIndex << std::endl;
 
 			// Wait for image to be available and draw.
 			// This is the stage where the queue should wait on the semaphore.
@@ -6495,6 +6532,8 @@ namespace Engine {
 
 			vkQueueSubmit(_queue, 1, &submitInfo, _queueFence);
 			vkWaitForFences(_logicalDevice, 1, &_queueFence, VK_TRUE, UINT64_MAX);
+
+			std::cout << "--------------------------------------" << std::endl;
 
 			// Present drawn image.
 			// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
