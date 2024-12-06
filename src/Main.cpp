@@ -5403,8 +5403,8 @@ namespace Engine {
 			uiRenderingSubpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 			uiRenderingSubpass.colorAttachmentCount = 1;
 			uiRenderingSubpass.inputAttachmentCount = 1;
-			uiRenderingSubpass.pColorAttachments = &swapchainImageAttachmentReference;
 			uiRenderingSubpass.pInputAttachments = &inputAttachmentRefSubpass1;
+			uiRenderingSubpass.pColorAttachments = &swapchainImageAttachmentReference;
 
 			// Now we have to adjust the renderpass synchronization. Previously, it was possible that multiple frames 
 			// were rendered simultaneously by the GPU. This is a problem when using depth buffers, because one frame 
@@ -5544,8 +5544,6 @@ namespace Engine {
 
 				for (auto& gameObject : _scene._pRootGameObject->_children)
 					gameObject->Draw(_graphicsPipeline._layout, currentCmdBuffer);
-
-				//VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 				vkCmdNextSubpass(currentCmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
 				vkCmdBindPipeline(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
