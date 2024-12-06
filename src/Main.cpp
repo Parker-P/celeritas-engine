@@ -4734,7 +4734,7 @@ namespace Engine {
 		uint32_t _imageCount;
 
 		/**
-		 * @brief Images.
+		 * @brief Swapchain images used for presentation (showing the render results to the window).
 		 */
 		std::vector<Image> _images;
 	};
@@ -5446,9 +5446,7 @@ namespace Engine {
 			//_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, _queue, &_queueFamilyIndex, _swapchain, _renderPass._handle, _renderPass._colorImages);
 
 			CreateGraphicsPipeline();
-			_drawCommandBuffers.resize(_swapchain._frameBuffers.size());
-			for (int i = 0; i < _drawCommandBuffers.size(); ++i) _drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
-			RecordDrawCommands();
+			//RecordDrawCommands();
 			CreateSemaphores();
 		}
 
@@ -5531,7 +5529,7 @@ namespace Engine {
 			CreateGraphicsPipeline();
 			_drawCommandBuffers.resize(_swapchain._imageCount);
 			for (int i = 0; i < _drawCommandBuffers.size(); ++i) _drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
-			RecordDrawCommands();
+			//RecordDrawCommands();
 			//vkDestroyPipelineLayout(_logicalDevice, _graphicsPipeline._shaderResources._pipelineLayout, nullptr);
 		}
 
@@ -5847,8 +5845,8 @@ namespace Engine {
 
 			// Create the color attachments.
 			for (uint32_t i = 0; i < actualImageCount; ++i) {
-				_renderPass._colorImages[i]._image = images[i];
-				auto& createInfo = _renderPass._colorImages[i]._viewCreateInfo;
+				_swapchain._images[i]._image = images[i];
+				auto& createInfo = _swapchain._images[i]._viewCreateInfo;
 				createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 				createInfo.image = images[i];
 				createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -5862,7 +5860,57 @@ namespace Engine {
 				createInfo.subresourceRange.levelCount = 1;
 				createInfo.subresourceRange.baseArrayLayer = 0;
 				createInfo.subresourceRange.layerCount = 1;
-				vkCreateImageView(_logicalDevice, &createInfo, nullptr, &_renderPass._colorImages[i]._view);
+				vkCreateImageView(_logicalDevice, &createInfo, nullptr, &_swapchain._images[i]._view);
+
+
+
+				auto& rpColorImg = _renderPass._colorImages[i];
+				auto& imageCreateInfo = rpColorImg._createInfo;
+				imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+				imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+				imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+				imageCreateInfo.extent = { 1, 1, 1 };
+				imageCreateInfo.mipLevels = 1;
+				imageCreateInfo.arrayLayers = 1;
+				imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+				imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+				imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+				vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &rpColorImg._image);
+
+				// Allocate memory on the GPU for the image.
+				rpColorImg._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, rpColorImg._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+				vkBindImageMemory(_logicalDevice, rpColorImg._image, rpColorImg._gpuMemory, 0);
+
+				auto& imageViewCreateInfo = rpColorImg._viewCreateInfo;
+				imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+				imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+				imageViewCreateInfo.image = rpColorImg._image;
+				imageViewCreateInfo.format = imageCreateInfo.format;
+				imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+				imageViewCreateInfo.subresourceRange.levelCount = 1;
+				imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+				imageViewCreateInfo.subresourceRange.layerCount = 1;
+				imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &rpColorImg._view);
+
+				auto& samplerCreateInfo = rpColorImg._samplerCreateInfo;
+				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+				samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+				samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+				samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+				samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+				samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+				samplerCreateInfo.anisotropyEnable = VK_FALSE;
+				samplerCreateInfo.maxAnisotropy = 1.0f;
+				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+				samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+				samplerCreateInfo.compareEnable = VK_FALSE;
+				samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+				samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+				samplerCreateInfo.mipLodBias = 0.0f;
+				samplerCreateInfo.minLod = 0.0f;
+				samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
+				vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &rpColorImg._sampler);
 			}
 
 			// Create the depth image.
@@ -5906,46 +5954,27 @@ namespace Engine {
 			samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
 			vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._depthImage._sampler);
 
-			// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for "image used for a render pass".
-			VkAttachmentDescription colorAttachmentDescription = {};
-			colorAttachmentDescription.format = VK_FORMAT_R8G8B8A8_UNORM;
-			colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-			colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
 			// Note: hardware will automatically transition attachment to the specified layout
 			// Note: index refers to attachment descriptions array.
-			VkAttachmentReference colorAttachmentReference = {};
-			colorAttachmentReference.attachment = 0;
-			colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-			// Describes how the render pass is going to use the depth attachment.
-			VkAttachmentDescription depthAttachmentDescription = {};
-			depthAttachmentDescription.flags = 0;
-			depthAttachmentDescription.format = VK_FORMAT_D32_SFLOAT;
-			depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-			depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-			depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-			VkAttachmentReference depthAttachmentReference = {};
-			depthAttachmentReference.attachment = 1;
-			depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			VkAttachmentReference swapchainImageAttachmentReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+			VkAttachmentReference colorAttachmentRefSubpass0 = { 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+			VkAttachmentReference inputAttachmentRefSubpass1 = { 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+			VkAttachmentReference depthAttachmentReference = { 2, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
 
 			// Note: this is a description of how the attachments of the render pass will be used in this sub pass
 			// e.g. if they will be read in shaders and/or drawn to.
-			VkSubpassDescription subPassDescription = {};
-			subPassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-			subPassDescription.colorAttachmentCount = 1;
-			subPassDescription.pColorAttachments = &colorAttachmentReference;
-			subPassDescription.pDepthStencilAttachment = &depthAttachmentReference;
+			VkSubpassDescription sceneRenderingSubpass = {};
+			sceneRenderingSubpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			sceneRenderingSubpass.colorAttachmentCount = 1;
+			sceneRenderingSubpass.pColorAttachments = &colorAttachmentRefSubpass0;
+			sceneRenderingSubpass.pDepthStencilAttachment = &depthAttachmentReference;
+
+			VkSubpassDescription uiRenderingSubpass = {};
+			uiRenderingSubpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			uiRenderingSubpass.colorAttachmentCount = 1;
+			uiRenderingSubpass.inputAttachmentCount = 1;
+			uiRenderingSubpass.pColorAttachments = &swapchainImageAttachmentReference;
+			uiRenderingSubpass.pInputAttachments = &inputAttachmentRefSubpass1;
 
 			// Now we have to adjust the renderpass synchronization. Previously, it was possible that multiple frames 
 			// were rendered simultaneously by the GPU. This is a problem when using depth buffers, because one frame 
@@ -5969,38 +5998,124 @@ namespace Engine {
 			depthDependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
 			depthDependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
+			VkSubpassDependency uiDependency = {};
+			uiDependency.srcSubpass = 0;
+			uiDependency.dstSubpass = 1;
+			uiDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			uiDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			uiDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			uiDependency.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+
+			VkAttachmentDescription swapchainImageAttachmentDescription = {};
+			swapchainImageAttachmentDescription.format = VK_FORMAT_R8G8B8A8_UNORM;
+			swapchainImageAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+			swapchainImageAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			swapchainImageAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			swapchainImageAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			swapchainImageAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			swapchainImageAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			swapchainImageAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+			// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for "image used for a render pass".
+			VkAttachmentDescription colorAttachmentDescription = {};
+			colorAttachmentDescription.format = VK_FORMAT_R8G8B8A8_UNORM;
+			colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+			colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+			// Describes how the render pass is going to use the depth attachment.
+			VkAttachmentDescription depthAttachmentDescription = {};
+			depthAttachmentDescription.flags = 0;
+			depthAttachmentDescription.format = VK_FORMAT_D32_SFLOAT;
+			depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+			depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
 			// Create the render pass. We pass in the main image attachment (color) and the depth image attachment, so the GPU knows how to treat
 			// the images.
-			VkAttachmentDescription attachmentDescriptions[2] = { colorAttachmentDescription, depthAttachmentDescription };
-			VkSubpassDependency subpassDependencies[2] = { colorDependency, depthDependency };
+			VkAttachmentDescription attachmentDescriptions[] = { swapchainImageAttachmentDescription, colorAttachmentDescription, depthAttachmentDescription };
+			VkSubpassDependency subpassDependencies[] = { colorDependency, depthDependency, uiDependency };
+			VkSubpassDescription subpassDescriptions[] = { sceneRenderingSubpass, uiRenderingSubpass };
 			VkRenderPassCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-			createInfo.attachmentCount = 2;
-			createInfo.pAttachments = &attachmentDescriptions[0];
-			createInfo.subpassCount = 1;
-			createInfo.pSubpasses = &subPassDescription;
-			createInfo.dependencyCount = 2;
-			createInfo.pDependencies = &subpassDependencies[0];
-
+			createInfo.attachmentCount = 3;
+			createInfo.pAttachments = attachmentDescriptions;
+			createInfo.subpassCount = 2;
+			createInfo.pSubpasses = subpassDescriptions;
+			createInfo.dependencyCount = 3;
+			createInfo.pDependencies = subpassDependencies;
 			CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass._handle));
 
-			_swapchain._frameBuffers.resize(_renderPass._colorImages.size());
+			_swapchain._frameBuffers.resize(actualImageCount);
+			_drawCommandBuffers.resize(actualImageCount);
+			for (int i = 0; i < actualImageCount; ++i) _drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
 
-			for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
+			// Here we record the commands that will be executed in the render loop.
+			for (size_t i = 0; i < actualImageCount; i++) {
+				auto& currentFrameBuffer = _swapchain._frameBuffers[i];
+				auto& currentCmdBuffer = _drawCommandBuffers[i];
 
 				// We will render to the same depth image for each frame. 
 				// We can just keep clearing and reusing the same depth image for every frame.
-				VkImageView colorAndDepthImages[2] = { _renderPass._colorImages[i]._view, _renderPass._depthImage._view };
+				VkImageView renderPassImages[3] = { _swapchain._images[i]._view, _renderPass._colorImages[i]._view, _renderPass._depthImage._view };
 				VkFramebufferCreateInfo createInfo = {};
 				createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 				createInfo.renderPass = _renderPass._handle;
-				createInfo.attachmentCount = 2;
-				createInfo.pAttachments = &colorAndDepthImages[0];
+				createInfo.attachmentCount = 3;
+				createInfo.pAttachments = renderPassImages;
 				createInfo.width = _swapchain._framebufferSize.width;
 				createInfo.height = _swapchain._framebufferSize.height;
 				createInfo.layers = 1;
-
 				CheckResult(vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &_swapchain._frameBuffers[i]));
+
+
+				VkCommandBufferBeginInfo beginInfo = {};
+				beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+				beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+				vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
+
+				VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+				
+				VkClearValue clearColor = { { 0.1f, 0.1f, 0.1f, 1.0f } }; // R, G, B, A.
+				VkClearValue depthClear; depthClear.depthStencil.depth = 1.0f;
+				VkClearValue clearValues[] = { clearColor, depthClear };
+
+				VkRenderPassBeginInfo renderPassBeginInfo = {};
+				renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+				renderPassBeginInfo.renderPass = _renderPass._handle;
+				renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[i];
+				renderPassBeginInfo.renderArea.offset.x = 0;
+				renderPassBeginInfo.renderArea.offset.y = 0;
+				renderPassBeginInfo.renderArea.extent = _swapchain._framebufferSize;
+				renderPassBeginInfo.clearValueCount = 2;
+				renderPassBeginInfo.pClearValues = clearValues;
+
+				vkCmdBeginRenderPass(currentCmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+				vkCmdBindPipeline(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
+
+				auto& shaderResources = _graphicsPipeline._shaderResources;
+				VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
+				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
+				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
+				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
+
+				for (auto& gameObject : _scene._pRootGameObject->_children) 
+					gameObject->Draw(_graphicsPipeline._layout, currentCmdBuffer);
+
+				vkCmdNextSubpass(currentCmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
+				vkCmdBindPipeline(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
+				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipelineLayout, 0, 1, _uiCtx._descriptorSets.data(), 0, nullptr);
+				vkCmdDraw(currentCmdBuffer, 3, 1, 0, 0);
+				vkCmdEndRenderPass(currentCmdBuffer);
+				CheckResult(vkEndCommandBuffer(currentCmdBuffer));
 			}
 		}
 
@@ -6362,61 +6477,61 @@ namespace Engine {
 		//	CheckResult(vkAllocateDescriptorSets(_logicalDevice, &allocInfo, &_uiCtx._descriptorSet));
 		//}
 
-		void RecordDrawCommands() {
-			// Prepare data for recording command buffers.
-			VkCommandBufferBeginInfo beginInfo = {};
-			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+		//void RecordDrawCommands() {
+		//	// Prepare data for recording command buffers.
+		//	VkCommandBufferBeginInfo beginInfo = {};
+		//	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		//	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
-			VkImageSubresourceRange subResourceRange = {};
-			subResourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			subResourceRange.baseMipLevel = 0;
-			subResourceRange.levelCount = 1;
-			subResourceRange.baseArrayLayer = 0;
-			subResourceRange.layerCount = 1;
+		//	VkImageSubresourceRange subResourceRange = {};
+		//	subResourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		//	subResourceRange.baseMipLevel = 0;
+		//	subResourceRange.levelCount = 1;
+		//	subResourceRange.baseArrayLayer = 0;
+		//	subResourceRange.layerCount = 1;
 
-			// Record command buffer for each swapchain image.
-			for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
-				vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
+		//	// Record command buffer for each swapchain image.
+		//	for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
+		//		vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
 
-				VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+		//		VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-				VkClearValue clearColor = {
-				{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
-				};
+		//		VkClearValue clearColor = {
+		//		{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
+		//		};
 
-				VkClearValue depthClear;
-				depthClear.depthStencil.depth = 1.0f;
-				VkClearValue clearValues[] = { clearColor, depthClear };
+		//		VkClearValue depthClear;
+		//		depthClear.depthStencil.depth = 1.0f;
+		//		VkClearValue clearValues[] = { clearColor, depthClear };
 
-				VkRenderPassBeginInfo renderPassBeginInfo = {};
-				renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-				renderPassBeginInfo.renderPass = _renderPass._handle;
-				renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[i];
-				renderPassBeginInfo.renderArea.offset.x = 0;
-				renderPassBeginInfo.renderArea.offset.y = 0;
-				renderPassBeginInfo.renderArea.extent = _swapchain._framebufferSize;
-				renderPassBeginInfo.clearValueCount = 2;
-				renderPassBeginInfo.pClearValues = &clearValues[0];
+		//		VkRenderPassBeginInfo renderPassBeginInfo = {};
+		//		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		//		renderPassBeginInfo.renderPass = _renderPass._handle;
+		//		renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[i];
+		//		renderPassBeginInfo.renderArea.offset.x = 0;
+		//		renderPassBeginInfo.renderArea.offset.y = 0;
+		//		renderPassBeginInfo.renderArea.extent = _swapchain._framebufferSize;
+		//		renderPassBeginInfo.clearValueCount = 2;
+		//		renderPassBeginInfo.pClearValues = &clearValues[0];
 
-				vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-				vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
+		//		vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		//		vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
-				auto& shaderResources = _graphicsPipeline._shaderResources;
-				VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
-				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
-				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
-				vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
+		//		auto& shaderResources = _graphicsPipeline._shaderResources;
+		//		VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
+		//		vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
+		//		vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
+		//		vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
 
-				for (auto& gameObject : _scene._pRootGameObject->_children) {
-					gameObject->Draw(_graphicsPipeline._layout, _drawCommandBuffers[i]);
-				}
+		//		for (auto& gameObject : _scene._pRootGameObject->_children) {
+		//			gameObject->Draw(_graphicsPipeline._layout, _drawCommandBuffers[i]);
+		//		}
 
-				vkCmdEndRenderPass(_drawCommandBuffers[i]);
+		//		vkCmdEndRenderPass(_drawCommandBuffers[i]);
 
-				CheckResult(vkEndCommandBuffer(_drawCommandBuffers[i]));
-			}
-		}
+		//		CheckResult(vkEndCommandBuffer(_drawCommandBuffers[i]));
+		//	}
+		//}
 
 		void Draw() {
 			if (windowMinimized) return;
@@ -6463,7 +6578,7 @@ namespace Engine {
 			presentInfo.pImageIndices = &imageIndex;
 
 			res = vkQueuePresentKHR(_queue, &presentInfo);
-			
+
 			if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
 				WindowSizeChanged();
 			}
