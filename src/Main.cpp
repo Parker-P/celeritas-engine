@@ -855,19 +855,16 @@ namespace Engine {
 			vkFreeMemory(logicalDevice, stagingMemory, nullptr);
 		}
 
-		static void* DownloadImage(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue queue, VkImage image, uint32_t width, uint32_t height, VkDeviceMemory outStagingMemory, VkBuffer outStagingBuffer) {
-			VkDeviceMemory stagingMemory;
-			VkBuffer stagingBuffer;
-
+		static void* DownloadImage(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue queue, VkImage image, uint32_t width, uint32_t height, VkDeviceMemory& outStagingMemory, VkBuffer& outStagingBuffer) {
 			CreateBuffer(logicalDevice, physicalDevice, 4 * width * height, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT /*| VK_MEMORY_PROPERTY_HOST_COHERENT_BIT*/,
-				&stagingBuffer, &stagingMemory);
+				&outStagingBuffer, &outStagingMemory);
 
 			TransitionImageLayout(logicalDevice, commandPool, queue, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-			CopyImageToBuffer(logicalDevice, commandPool, queue, image, stagingBuffer, width, height);
+			CopyImageToBuffer(logicalDevice, commandPool, queue, image, outStagingBuffer, width, height);
 
 			void* data;
-			vkMapMemory(logicalDevice, stagingMemory, 0, 4 * width * height, 0, &data);
+			vkMapMemory(logicalDevice, outStagingMemory, 0, 4 * width * height, 0, &data);
 			return data;
 		}
 
@@ -883,7 +880,6 @@ namespace Engine {
 		}
 
 		static void TransitionImageLayout(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) {
-
 			VkCommandBuffer commandBuffer = CreateCommandBuffer(device, commandPool);
 			StartRecording(commandBuffer);
 
@@ -906,11 +902,14 @@ namespace Engine {
 			if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED) { barrier.srcAccessMask = 0; sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT; }
 			if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) { barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT; }
 			if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) { barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT; sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT; }
+			if (oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) { barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; sourceStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; }
+			if (oldLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) { barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT; sourceStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; }
 
 			if (newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) { barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT; destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT; }
 			if (newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) { barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT; }
 			if (newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) { barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT; destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; }
 			if (newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) { barrier.dstAccessMask = 0; destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT; }
+			if (newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) { barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT; }
 
 			vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 			vkEndCommandBuffer(commandBuffer);
@@ -4975,7 +4974,7 @@ namespace Engine {
 				uint32_t image_index;
 				VkSemaphore nk_semaphore;
 				std::vector<VkImageView> views; views.resize(_overlayImages.size());
-				for (int i = 0; i < views.size(); ++i) views[i] = _overlayImages[i]._view;
+				for (int i = 0; i < views.size(); ++i) { views[i] = _overlayImages[i]._view; }
 				_ctx = nk_glfw3_init(_pWindow, _logicalDevice, _physicalDevice, *pQueueFamilyIndex, views.data(), views.size(), _swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
 				/* Load Fonts: if none of these are loaded a default font will be used  */
 				/* Load Cursor: if you uncomment cursor loading please hide the cursor */
@@ -5523,12 +5522,12 @@ namespace Engine {
 			for (int i = 0; i < actualImageCount; ++i) _drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
 
 			_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, _queue, &_queueFamilyIndex, _swapchain, _renderPass._handle, _renderPass._colorImages);
-				CreateGraphicsPipelines(_renderPass._handle, _graphicsPipeline._layout, _uiCtx._pipelineLayout);
+			CreateGraphicsPipelines(_renderPass._handle, _graphicsPipeline._layout, _uiCtx._pipelineLayout);
 
 			// Here we record the commands that will be executed in the render loop.
 			for (size_t i = 0; i < actualImageCount; i++) {
 				auto& currentFrameBuffer = _swapchain._frameBuffers[i];
-				auto& currentCmdBuffer = _drawCommandBuffers[i];
+				auto& cmdBufferOfCurrentFrame = _drawCommandBuffers[i];
 
 				// We will render to the same depth image for each frame. 
 				// We can just keep clearing and reusing the same depth image for every frame.
@@ -5550,7 +5549,7 @@ namespace Engine {
 
 				VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _swapchain._images[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 				VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-				VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _uiCtx._overlayImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+				//VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _uiCtx._overlayImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 				VkClearValue swapchainImageClear{ { 0.0f, 0.0f, 0.0f, 1.0f } }; // R, G, B, A.
 				VkClearValue sceneImageClear = { { 0.1f, 0.1f, 0.1f, 1.0f } };
@@ -5567,24 +5566,24 @@ namespace Engine {
 				renderPassBeginInfo.clearValueCount = 3;
 				renderPassBeginInfo.pClearValues = clearValues;
 
-				vkCmdBeginRenderPass(currentCmdBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-				vkCmdBindPipeline(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
+				vkCmdBeginRenderPass(cmdBufferOfCurrentFrame, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+				vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
 
 				auto& shaderResources = _graphicsPipeline._shaderResources;
 				VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
-				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
-				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
-				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
+				vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
+				vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
+				vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
 
 				for (auto& gameObject : _scene._pRootGameObject->_children)
-					gameObject->Draw(_graphicsPipeline._layout, currentCmdBuffer);
+					gameObject->Draw(_graphicsPipeline._layout, cmdBufferOfCurrentFrame);
 
-				vkCmdNextSubpass(currentCmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
-				vkCmdBindPipeline(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
-				vkCmdBindDescriptorSets(currentCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipelineLayout, 0, 1, _uiCtx._descriptorSets.data(), 0, nullptr);
-				vkCmdDraw(currentCmdBuffer, 3, 1, 0, 0);
-				vkCmdEndRenderPass(currentCmdBuffer);
-				CheckResult(vkEndCommandBuffer(currentCmdBuffer));
+				vkCmdNextSubpass(cmdBufferOfCurrentFrame, VK_SUBPASS_CONTENTS_INLINE);
+				vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipeline);
+				vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiCtx._pipelineLayout, 0, 1, _uiCtx._descriptorSets.data(), 0, nullptr);
+				vkCmdDraw(cmdBufferOfCurrentFrame, 3, 1, 0, 0);
+				vkCmdEndRenderPass(cmdBufferOfCurrentFrame);
+				CheckResult(vkEndCommandBuffer(cmdBufferOfCurrentFrame));
 			}
 
 			//CreateGraphicsPipeline();
@@ -6401,104 +6400,6 @@ namespace Engine {
 			_scene.UpdateShaderResources();
 		}
 
-		//void CreateUIDescriptorSet() {
-		//	// Step 1: Create a Descriptor Set Layout
-		//	VkDescriptorSetLayout descriptorSetLayout;
-		//	VkDescriptorSetLayoutBinding layoutBinding = {};
-		//	layoutBinding.binding = 0; // Binding 0 in the shader
-		//	layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; // For sampled images
-		//	layoutBinding.descriptorCount = 1; // One image
-		//	layoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; // Accessible in fragment shader
-		//	layoutBinding.pImmutableSamplers = nullptr; // No immutable samplers
-
-		//	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-		//	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		//	layoutInfo.bindingCount = 1;
-		//	layoutInfo.pBindings = &layoutBinding;
-
-		//	CheckResult(vkCreateDescriptorSetLayout(_logicalDevice, &layoutInfo, nullptr, &_uiCtx._descriptorSetLayout));
-
-		//	// Step 2: Create a Descriptor Pool
-		//	VkDescriptorPool descriptorPool;
-		//	VkDescriptorPoolSize poolSize = {};
-		//	poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		//	poolSize.descriptorCount = 1; // Only one descriptor
-
-		//	VkDescriptorPoolCreateInfo poolInfo = {};
-		//	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		//	poolInfo.poolSizeCount = 1;
-		//	poolInfo.pPoolSizes = &poolSize;
-		//	poolInfo.maxSets = 1; // Only one descriptor set
-
-		//	CheckResult(vkCreateDescriptorPool(_logicalDevice, &poolInfo, nullptr, &descriptorPool));
-
-		//	// Step 3: Allocate the Descriptor Set
-		//	VkDescriptorSet descriptorSet;
-		//	VkDescriptorSetAllocateInfo allocInfo = {};
-		//	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		//	allocInfo.descriptorPool = descriptorPool;
-		//	allocInfo.descriptorSetCount = 1;
-		//	allocInfo.pSetLayouts = &descriptorSetLayout;
-
-		//	CheckResult(vkAllocateDescriptorSets(_logicalDevice, &allocInfo, &_uiCtx._descriptorSet));
-		//}
-
-		//void RecordDrawCommands() {
-		//	// Prepare data for recording command buffers.
-		//	VkCommandBufferBeginInfo beginInfo = {};
-		//	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		//	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-
-		//	VkImageSubresourceRange subResourceRange = {};
-		//	subResourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		//	subResourceRange.baseMipLevel = 0;
-		//	subResourceRange.levelCount = 1;
-		//	subResourceRange.baseArrayLayer = 0;
-		//	subResourceRange.layerCount = 1;
-
-		//	// Record command buffer for each swapchain image.
-		//	for (size_t i = 0; i < _renderPass._colorImages.size(); i++) {
-		//		vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
-
-		//		VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
-		//		VkClearValue clearColor = {
-		//		{ 0.1f, 0.1f, 0.1f, 1.0f } // R, G, B, A.
-		//		};
-
-		//		VkClearValue depthClear;
-		//		depthClear.depthStencil.depth = 1.0f;
-		//		VkClearValue clearValues[] = { clearColor, depthClear };
-
-		//		VkRenderPassBeginInfo renderPassBeginInfo = {};
-		//		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		//		renderPassBeginInfo.renderPass = _renderPass._handle;
-		//		renderPassBeginInfo.framebuffer = _swapchain._frameBuffers[i];
-		//		renderPassBeginInfo.renderArea.offset.x = 0;
-		//		renderPassBeginInfo.renderArea.offset.y = 0;
-		//		renderPassBeginInfo.renderArea.extent = _swapchain._framebufferSize;
-		//		renderPassBeginInfo.clearValueCount = 2;
-		//		renderPassBeginInfo.pClearValues = &clearValues[0];
-
-		//		vkCmdBeginRenderPass(_drawCommandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		//		vkCmdBindPipeline(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
-
-		//		auto& shaderResources = _graphicsPipeline._shaderResources;
-		//		VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
-		//		vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
-		//		vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
-		//		vkCmdBindDescriptorSets(_drawCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
-
-		//		for (auto& gameObject : _scene._pRootGameObject->_children) {
-		//			gameObject->Draw(_graphicsPipeline._layout, _drawCommandBuffers[i]);
-		//		}
-
-		//		vkCmdEndRenderPass(_drawCommandBuffers[i]);
-
-		//		CheckResult(vkEndCommandBuffer(_drawCommandBuffers[i]));
-		//	}
-		//}
-
 		void Draw() {
 			if (windowMinimized) return;
 			vkResetFences(_logicalDevice, 1, &_queueFence);
@@ -6512,7 +6413,11 @@ namespace Engine {
 			else if (res != VK_SUCCESS) { std::cerr << "failed to acquire image\n"; exit(1); }
 
 			auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
-
+			VkDeviceMemory stagingMemory = nullptr;
+			VkBuffer stagingBuffer = nullptr;
+			auto imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, stagingMemory, stagingBuffer);
+			Helper::SaveImageAsPng(Paths::TexturesPath() / "ui.png", imageData, _swapchain._framebufferSize.width, _swapchain._framebufferSize.height);
+			VkHelper::UnmapAndDestroyStagingBuffer(_logicalDevice, stagingMemory, stagingBuffer);
 			VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 			// Wait for image to be available and draw.
