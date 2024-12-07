@@ -5522,6 +5522,9 @@ namespace Engine {
 			_drawCommandBuffers.resize(actualImageCount);
 			for (int i = 0; i < actualImageCount; ++i) _drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
 
+			_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, _queue, &_queueFamilyIndex, _swapchain, _renderPass._handle, _renderPass._colorImages);
+				CreateGraphicsPipelines(_renderPass._handle, _graphicsPipeline._layout, _uiCtx._pipelineLayout);
+
 			// Here we record the commands that will be executed in the render loop.
 			for (size_t i = 0; i < actualImageCount; i++) {
 				auto& currentFrameBuffer = _swapchain._frameBuffers[i];
@@ -5539,9 +5542,6 @@ namespace Engine {
 				createInfo.height = _swapchain._framebufferSize.height;
 				createInfo.layers = 1;
 				CheckResult(vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &currentFrameBuffer));
-
-				_uiCtx.Initialize(_logicalDevice, _physicalDevice, _windowSurface, _pWindow, _queue, &_queueFamilyIndex, _swapchain, _renderPass._handle, _renderPass._colorImages);
-				CreateGraphicsPipelines(_renderPass._handle, _graphicsPipeline._layout, _uiCtx._pipelineLayout);
 
 				VkCommandBufferBeginInfo beginInfo = {};
 				beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -6515,8 +6515,6 @@ namespace Engine {
 
 			VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-			std::cout << "Image index: " << imageIndex << std::endl;
-
 			// Wait for image to be available and draw.
 			// This is the stage where the queue should wait on the semaphore.
 			VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
@@ -6532,8 +6530,6 @@ namespace Engine {
 
 			vkQueueSubmit(_queue, 1, &submitInfo, _queueFence);
 			vkWaitForFences(_logicalDevice, 1, &_queueFence, VK_TRUE, UINT64_MAX);
-
-			std::cout << "--------------------------------------" << std::endl;
 
 			// Present drawn image.
 			// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
