@@ -16,5 +16,5 @@ void main() {
 
     // Blend the overlay on top of the base color using alpha blending
     outColor = overlayColor * overlayColor.a + baseColor * (1.0 - overlayColor.a);
-//    outColor = overlayColor;
+//    outColor = sceneColorImage;
 }

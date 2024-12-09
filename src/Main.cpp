@@ -905,6 +905,7 @@ namespace Engine {
 			if (oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) { barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; sourceStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; }
 			if (oldLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) { barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT; sourceStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; }
 
+			if (newLayout == VK_IMAGE_LAYOUT_UNDEFINED) { barrier.dstAccessMask = 0; destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT; }
 			if (newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) { barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT; destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT; }
 			if (newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) { barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT; }
 			if (newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) { barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT; destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; }
@@ -4970,59 +4971,6 @@ namespace Engine {
 				CreateOverlayImages();
 				CreateDescriptorSets();
 				CreatePipelineLayout();
-
-				uint32_t image_index;
-				VkSemaphore nk_semaphore;
-				std::vector<VkImageView> views; views.resize(_overlayImages.size());
-				for (int i = 0; i < views.size(); ++i) { views[i] = _overlayImages[i]._view; }
-				_ctx = nk_glfw3_init(_pWindow, _logicalDevice, _physicalDevice, *pQueueFamilyIndex, views.data(), views.size(), _swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
-				/* Load Fonts: if none of these are loaded a default font will be used  */
-				/* Load Cursor: if you uncomment cursor loading please hide the cursor */
-				{
-					struct nk_font_atlas* atlas;
-					nk_glfw3_font_stash_begin(&atlas);
-					/*struct nk_font *droid = nk_font_atlas_add_from_file(atlas,
-					 * "../../../extra_font/DroidSans.ttf", 14, 0);*/
-					 /*struct nk_font *roboto = nk_font_atlas_add_from_file(atlas,
-					  * "../../../extra_font/Roboto-Regular.ttf", 14, 0);*/
-					  /*struct nk_font *future = nk_font_atlas_add_from_file(atlas,
-					   * "../../../extra_font/kenvector_future_thin.ttf", 13, 0);*/
-					   /*struct nk_font *clean = nk_font_atlas_add_from_file(atlas,
-						* "../../../extra_font/ProggyClean.ttf", 12, 0);*/
-						/*struct nk_font *tiny = nk_font_atlas_add_from_file(atlas,
-						 * "../../../extra_font/ProggyTiny.ttf", 10, 0);*/
-						 /*struct nk_font *cousine = nk_font_atlas_add_from_file(atlas,
-						  * "../../../extra_font/Cousine-Regular.ttf", 13, 0);*/
-					nk_glfw3_font_stash_end(queue);
-					/*nk_style_load_all_cursors(ctx, atlas->cursors);*/
-				/*nk_style_set_font(ctx, &droid->handle);*/
-				}
-
-				/* GUI */
-				if (nk_begin(_ctx, "Demo", nk_rect(50, 50, 230, 250),
-					NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
-					NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)) {
-					enum { EASY, HARD };
-					static int op = EASY;
-					static int property = 20;
-					nk_layout_row_static(_ctx, 30, 80, 1);
-					if (nk_button_label(_ctx, "button"))
-						fprintf(stdout, "button pressed\n");
-
-					nk_layout_row_dynamic(_ctx, 30, 2);
-					if (nk_option_label(_ctx, "easy", op == EASY))
-						op = EASY;
-					if (nk_option_label(_ctx, "hard", op == HARD))
-						op = HARD;
-
-					nk_layout_row_dynamic(_ctx, 25, 1);
-					nk_property_int(_ctx, "Compression:", 0, &property, 100, 10, 1);
-
-					nk_layout_row_dynamic(_ctx, 20, 1);
-					nk_label(_ctx, "background:", NK_TEXT_LEFT);
-					nk_layout_row_dynamic(_ctx, 25, 1);
-				}
-				nk_end(_ctx);
 			}
 
 			void CreateOverlayImages() {
@@ -6214,12 +6162,8 @@ namespace Engine {
 				frag_shader_stage_info.module = fragShaderModule;
 				frag_shader_stage_info.pName = "main";
 
-				VkPipelineShaderStageCreateInfo shader_stages[2]{};
-				shader_stages[0] = vert_shader_stage_info;
-				shader_stages[1] = frag_shader_stage_info;
+				VkPipelineShaderStageCreateInfo shader_stages[2]{ vert_shader_stage_info, frag_shader_stage_info };
 
-				FILE* fp{};
-				size_t file_len{};
 				VkViewport viewport{};
 				VkRect2D scissor{};
 				VkResult result{};
@@ -6400,6 +6344,10 @@ namespace Engine {
 			_scene.UpdateShaderResources();
 		}
 
+		void DrawUI() {
+
+		}
+
 		void Draw() {
 			if (windowMinimized) return;
 			vkResetFences(_logicalDevice, 1, &_queueFence);
@@ -6412,18 +6360,76 @@ namespace Engine {
 			if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) { WindowSizeChanged(); return; }
 			else if (res != VK_SUCCESS) { std::cerr << "failed to acquire image\n"; exit(1); }
 
+
+			{
+
+				uint32_t image_index;
+				VkSemaphore nk_semaphore;
+				std::vector<VkImageView> views; views.resize(_uiCtx._overlayImages.size());
+				for (int i = 0; i < views.size(); ++i) { views[i] = _uiCtx._overlayImages[i]._view; }
+				_uiCtx._ctx = nk_glfw3_init(_pWindow, _logicalDevice, _physicalDevice, _queueFamilyIndex, views.data(), views.size(), _swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
+				/* Load Fonts: if none of these are loaded a default font will be used  */
+				/* Load Cursor: if you uncomment cursor loading please hide the cursor */
+				{
+					struct nk_font_atlas* atlas;
+					nk_glfw3_font_stash_begin(&atlas);
+					/*struct nk_font *droid = nk_font_atlas_add_from_file(atlas,
+					 * "../../../extra_font/DroidSans.ttf", 14, 0);*/
+					 /*struct nk_font *roboto = nk_font_atlas_add_from_file(atlas,
+					  * "../../../extra_font/Roboto-Regular.ttf", 14, 0);*/
+					  /*struct nk_font *future = nk_font_atlas_add_from_file(atlas,
+					   * "../../../extra_font/kenvector_future_thin.ttf", 13, 0);*/
+					   /*struct nk_font *clean = nk_font_atlas_add_from_file(atlas,
+						* "../../../extra_font/ProggyClean.ttf", 12, 0);*/
+						/*struct nk_font *tiny = nk_font_atlas_add_from_file(atlas,
+						 * "../../../extra_font/ProggyTiny.ttf", 10, 0);*/
+						 /*struct nk_font *cousine = nk_font_atlas_add_from_file(atlas,
+						  * "../../../extra_font/Cousine-Regular.ttf", 13, 0);*/
+					nk_glfw3_font_stash_end(_queue);
+					/*nk_style_load_all_cursors(ctx, atlas->cursors);*/
+					/*nk_style_set_font(ctx, &droid->handle);*/
+				}
+
+				/* GUI */
+				if (nk_begin(_uiCtx._ctx, "Demo", nk_rect(50, 50, 230, 250),
+					NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
+					NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)) {
+					enum { EASY, HARD };
+					static int op = EASY;
+					static int property = 20;
+					nk_layout_row_static(_uiCtx._ctx, 30, 80, 1);
+					if (nk_button_label(_uiCtx._ctx, "button"))
+						fprintf(stdout, "button pressed\n");
+
+					nk_layout_row_dynamic(_uiCtx._ctx, 30, 2);
+					if (nk_option_label(_uiCtx._ctx, "easy", op == EASY))
+						op = EASY;
+					if (nk_option_label(_uiCtx._ctx, "hard", op == HARD))
+						op = HARD;
+
+					nk_layout_row_dynamic(_uiCtx._ctx, 25, 1);
+					nk_property_int(_uiCtx._ctx, "Compression:", 0, &property, 100, 10, 1);
+
+					nk_layout_row_dynamic(_uiCtx._ctx, 20, 1);
+					nk_label(_uiCtx._ctx, "background:", NK_TEXT_LEFT);
+					nk_layout_row_dynamic(_uiCtx._ctx, 25, 1);
+				}
+				nk_end(_uiCtx._ctx);
+			}
+
+			VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 			auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
-			VkDeviceMemory stagingMemory = nullptr;
+			/*VkDeviceMemory stagingMemory = nullptr;
 			VkBuffer stagingBuffer = nullptr;
 			auto imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, stagingMemory, stagingBuffer);
 			Helper::SaveImageAsPng(Paths::TexturesPath() / "ui.png", imageData, _swapchain._framebufferSize.width, _swapchain._framebufferSize.height);
 			VkHelper::UnmapAndDestroyStagingBuffer(_logicalDevice, stagingMemory, stagingBuffer);
-			VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);*/
 
 			// Wait for image to be available and draw.
 			// This is the stage where the queue should wait on the semaphore.
-			VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-			VkSubmitInfo submitInfo = {};
+			VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			VkSubmitInfo submitInfo{};
 			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 			submitInfo.waitSemaphoreCount = 1;
 			submitInfo.pWaitSemaphores = &nk_semaphore;
@@ -6438,7 +6444,7 @@ namespace Engine {
 
 			// Present drawn image.
 			// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
-			VkPresentInfoKHR presentInfo = {};
+			VkPresentInfoKHR presentInfo{};
 			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 			presentInfo.waitSemaphoreCount = 1;
 			presentInfo.pWaitSemaphores = &_renderingFinishedSemaphore;
