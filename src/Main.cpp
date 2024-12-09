@@ -175,14 +175,21 @@ namespace Engine {
 	/**
 	 * @brief Represents all the needed, or neeeded in order to obtain, information to run any call in the Vulkan API.
 	 */
-	class VulkanContext {
+	class VkContext {
 	public:
-		VkInstance _instance = nullptr;
-		VkDevice _logicalDevice = nullptr;
-		VkPhysicalDevice _physicalDevice = nullptr;
+		VkInstance _instance;
+		VkDevice _logicalDevice;
+		VkPhysicalDevice _physicalDevice;
 		VkCommandPool _commandPool;
+		VkSurfaceKHR _windowSurface;
 		VkQueue _queue;
-		int _queueFamilyIndex;
+		uint32_t _queueFamilyIndex;
+		VkFence _queueFence;
+	};
+
+	class VkRenderContext {
+	public:
+		// TODO
 	};
 
 	/**
@@ -194,7 +201,7 @@ namespace Engine {
 		/**
 		 * @brief Function called on implementing classes in each iteration of the main loop. The main loop is defined in VulkanApplication.cpp.
 		 */
-		virtual void Update(VulkanContext& context) = 0;
+		virtual void Update(VkContext& context) = 0;
 	};
 
 	/**
@@ -1772,7 +1779,7 @@ namespace Engine {
 			memcpy(_buffers[0]._cpuMemory, &_lightData, sizeof(_lightData));
 		}
 
-		void Update(VulkanContext& vkContext) {
+		void Update(VkContext& vkContext) {
 			auto& input = KeyboardMouse::Instance();
 
 			if (input.IsKeyHeldDown(GLFW_KEY_UP)) {
@@ -3452,7 +3459,7 @@ namespace Engine {
 
 		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts);
 		void UpdateShaderResources();
-		void Update(VulkanContext& vkContext);
+		void Update(VkContext& vkContext);
 		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer);
 	};
 
@@ -3506,7 +3513,7 @@ namespace Engine {
 		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts);
 		Transform GetWorldSpaceTransform();
 		void UpdateShaderResources();
-		void Update(VulkanContext& vkContext);
+		void Update(VkContext& vkContext);
 		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer);
 	};
 
@@ -3554,7 +3561,7 @@ namespace Engine {
 			return _materials[0];
 		}
 
-		void Update(VulkanContext& vkContext) {
+		void Update(VkContext& vkContext) {
 			for (auto& light : _pointLights) {
 				light.Update(vkContext);
 			}
@@ -3676,7 +3683,7 @@ namespace Engine {
 		memcpy(_buffers[0]._cpuMemory, &_gameObjectData, sizeof(_gameObjectData));
 	}
 
-	void GameObject::Update(VulkanContext& vkContext) {
+	void GameObject::Update(VkContext& vkContext) {
 		if (_pMesh != nullptr) {
 			_pMesh->Update(vkContext);
 		}
@@ -3811,7 +3818,7 @@ namespace Engine {
 		// TODO
 	}
 
-	void Mesh::Update(VulkanContext& vkContext) {
+	void Mesh::Update(VkContext& vkContext) {
 		auto& vkBuffer = _vertices._vertexBuffer._buffer;
 		auto& vertexData = _vertices._vertexData;
 
@@ -4228,7 +4235,7 @@ namespace Engine {
 			memcpy(_buffers[0]._cpuMemory, &_cameraData, sizeof(_cameraData));
 		}
 
-		void Update(VulkanContext& vkContext) {
+		void Update(VkContext& vkContext) {
 			auto& input = KeyboardMouse::Instance();
 			auto& time = Time::Instance();
 			auto mouseSens = GlobalSettings::Instance()._mouseSensitivity;
@@ -5040,22 +5047,10 @@ namespace Engine {
 
 	static void OnWindowResized(GLFWwindow* window, int width, int height) {
 		windowResized = true;
-
-		if (width == 0 && height == 0) {
-			windowMinimized = true;
-			return;
-		}
-
+		if (width == 0 && height == 0) windowMinimized = true; return;
 		windowMinimized = false;
 		GlobalSettings::Instance()._windowWidth = width;
 		GlobalSettings::Instance()._windowHeight = height;
-	}
-
-	void InitializeWindow() {
-		glfwInit();
-		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		_pWindow = glfwCreateWindow(_settings._windowWidth, _settings._windowHeight, "Hold The Line!", nullptr, nullptr);
-		glfwSetWindowSizeCallback(_pWindow, OnWindowResized);
 	}
 
 	void DestroyRenderPass() {
@@ -5090,144 +5085,19 @@ namespace Engine {
 				}
 			}
 
-			if (!layerFound) {
-				return false;
-			}
+			if (!layerFound) return false;
 		}
 		return true;
 	}
 
-	VkInstance CreateInstance() {
-		VkApplicationInfo appInfo = {};
-		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-		appInfo.pApplicationName = "Hold The Line!";
-		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.pEngineName = "Celeritas Engine";
-		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.apiVersion = VK_API_VERSION_1_0;
-
-		// Get instance extensions required by GLFW to draw to the window.
-		unsigned int glfwExtensionCount;
-		const char** glfwExtensions;
-		glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-		std::vector<const char*> extensions;
-		for (size_t i = 0; i < glfwExtensionCount; i++) {
-			extensions.push_back(glfwExtensions[i]);
-		}
-
-		if (_settings._enableValidationLayers) {
-			extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-		}
-
-		uint32_t extensionCount = 0;
-		CheckResult(vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr));
-
-		if (extensionCount == 0) {
-			Exit(1, "no extensions supported");
-		}
-
-		std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-		CheckResult(vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, availableExtensions.data()));
-
-		VkInstanceCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-		createInfo.pApplicationInfo = &appInfo;
-		createInfo.enabledExtensionCount = (uint32_t)extensions.size();
-		createInfo.ppEnabledExtensionNames = extensions.data();
-
-		if (_settings._enableValidationLayers) {
-			if (ValidationLayersSupported(_settings._pValidationLayers)) {
-				createInfo.enabledLayerCount = 1;
-				createInfo.ppEnabledLayerNames = _settings._pValidationLayers.data();
-			}
-		}
-
-		VkInstance outInstance;
-		CheckResult(vkCreateInstance(&createInfo, nullptr, &outInstance));
-		return outInstance;
-	}
-
-	VkSurfaceKHR CreateWindowSurface(VkInstance& instance) {
-		VkSurfaceKHR outSurface;
-		CheckResult(glfwCreateWindowSurface(instance, _pWindow, NULL, &outSurface));
-		return outSurface;
-	}
-
-	VkPhysicalDevice CreatePhysicalDevice(VkInstance instance) {
-		// Try to find 1 Vulkan supported device.
-		// Note: perhaps refactor to loop through devices and find first one that supports all required features and extensions.
-		uint32_t deviceCount = 0;
-		CheckResult(vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr));
-
-		if (deviceCount <= 0) {
-			Exit(1, "device count was zero");
-		}
-
-		deviceCount = 1;
-		std::vector<VkPhysicalDevice> outDevice(deviceCount);
-		vkEnumeratePhysicalDevices(instance, &deviceCount, outDevice.data());
-
-		if (deviceCount <= 0) {
-			Exit(1, "device count was zero");
-		}
-
-		// Check device features
-		// Note: will apiVersion >= appInfo.apiVersion? Probably yes, but spec is unclear.
-		/*VkPhysicalDeviceProperties deviceProperties;
-		VkPhysicalDeviceFeatures deviceFeatures;
-		vkGetPhysicalDeviceProperties(_handle, &deviceProperties);
-		vkGetPhysicalDeviceFeatures(_handle, &deviceFeatures);
-
-		uint32_t supportedVersion[] = {
-			VK_VERSION_MAJOR(deviceProperties.apiVersion),
-			VK_VERSION_MINOR(deviceProperties.apiVersion),
-			VK_VERSION_PATCH(deviceProperties.apiVersion)
-		};
-
-		std::cout << "physical device supports version " << supportedVersion[0] << "." << supportedVersion[1] << "." << supportedVersion[2] << std::endl;*/
-
-		return outDevice[0];
-	}
-
-	VkDevice CreateLogicalDevice(VkPhysicalDevice& physicalDevice, const std::vector<VkDeviceQueueCreateInfo>& queueCreateInfos) {
-		VkDeviceCreateInfo deviceCreateInfo = {};
-		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
-		deviceCreateInfo.queueCreateInfoCount = (uint32_t)queueCreateInfos.size();
-
-		// Devices features to enable.
-		VkPhysicalDeviceFeatures enabledFeatures = {};
-		enabledFeatures.samplerAnisotropy = VK_TRUE;
-		enabledFeatures.shaderClipDistance = VK_TRUE;
-		enabledFeatures.shaderCullDistance = VK_TRUE;
-
-		const char* deviceExtensions = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
-		deviceCreateInfo.enabledExtensionCount = 1;
-		deviceCreateInfo.ppEnabledExtensionNames = &deviceExtensions;
-		deviceCreateInfo.pEnabledFeatures = &enabledFeatures;
-
-		if (_settings._enableValidationLayers) {
-			deviceCreateInfo.enabledLayerCount = 1;
-			deviceCreateInfo.ppEnabledLayerNames = _settings._pValidationLayers.data();
-		}
-
-		VkDevice outDevice;
-		vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &outDevice);
-		return outDevice;
-	}
-
-	void CreateDebugCallback(VkInstance& instance) {
-		if (_settings._enableValidationLayers) {
-			VkDebugReportCallbackCreateInfoEXT createInfo = {};
-			createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
-			createInfo.pfnCallback = (PFN_vkDebugReportCallbackEXT)DebugCallback;
-			createInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
-
-			PFN_vkCreateDebugReportCallbackEXT createDebugReportCallback = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
-
-			CheckResult(createDebugReportCallback(instance, &createInfo, nullptr, &_callback));
-		}
+	void CreateDebugCallback(VkInstance& instance, GlobalSettings& settings) {
+		if (!settings._enableValidationLayers) return;
+		VkDebugReportCallbackCreateInfoEXT createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
+		createInfo.pfnCallback = (PFN_vkDebugReportCallbackEXT)DebugCallback;
+		createInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
+		PFN_vkCreateDebugReportCallbackEXT createDebugReportCallback = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
+		createDebugReportCallback(instance, &createInfo, nullptr, &_callback);
 	}
 
 	void CreateSemaphores() {
@@ -5310,62 +5180,6 @@ namespace Engine {
 		else {
 			return surfaceCapabilities.currentExtent;
 		}
-	}
-
-	void CreateSwapchain() {
-		// Get physical device capabilities for the window surface.
-		VkSurfaceCapabilitiesKHR surfaceCapabilities = PhysicalDevice::GetSurfaceCapabilities(_physicalDevice, _windowSurface);
-		std::vector<VkSurfaceFormatKHR> surfaceFormats = PhysicalDevice::GetSupportedFormatsForSurface(_physicalDevice, _windowSurface);
-		std::vector<VkPresentModeKHR> presentModes = PhysicalDevice::GetSupportedPresentModesForSurface(_physicalDevice, _windowSurface);
-
-		// Determine number of images for swapchain.
-		uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
-		if (surfaceCapabilities.maxImageCount != 0 && imageCount > surfaceCapabilities.maxImageCount) {
-			imageCount = surfaceCapabilities.maxImageCount;
-		}
-
-		VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat(surfaceFormats);
-		_swapchain._framebufferSize = ChooseFramebufferSize(surfaceCapabilities);
-
-		// Determine transformation to use (preferring no transform).
-		VkSurfaceTransformFlagBitsKHR surfaceTransform;
-		if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
-			surfaceTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-		}
-		else {
-			surfaceTransform = surfaceCapabilities.currentTransform;
-		}
-
-		// Choose presentation mode (preferring MAILBOX ~= triple buffering).
-		VkPresentModeKHR presentMode = ChoosePresentMode(presentModes);
-
-		// Finally, create the swap chain.
-		VkSwapchainCreateInfoKHR createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		createInfo.surface = _windowSurface;
-		createInfo.minImageCount = imageCount;
-		createInfo.imageFormat = surfaceFormat.format;
-		createInfo.imageColorSpace = surfaceFormat.colorSpace;
-		createInfo.imageExtent = _swapchain._framebufferSize;
-		createInfo.imageArrayLayers = 1;
-		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		createInfo.queueFamilyIndexCount = 0;
-		createInfo.pQueueFamilyIndices = nullptr;
-		createInfo.preTransform = surfaceTransform;
-		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-		createInfo.presentMode = presentMode;
-		createInfo.clipped = VK_TRUE;
-		createInfo.oldSwapchain = _swapchain._oldSwapchainHandle;
-
-		CheckResult(vkCreateSwapchainKHR(_logicalDevice, &createInfo, nullptr, &_swapchain._handle));
-
-		if (_swapchain._oldSwapchainHandle != VK_NULL_HANDLE) {
-			vkDestroySwapchainKHR(_logicalDevice, _swapchain._oldSwapchainHandle, nullptr);
-		}
-
-		_swapchain._oldSwapchainHandle = _swapchain._handle;
-		_swapchain._surfaceFormat = surfaceFormat;
 	}
 
 	void CreateGraphicsPipelines(VkRenderPass renderPass, VkPipelineLayout scenePipelineLayout, VkPipelineLayout uiPipelineLayout) {
@@ -5646,7 +5460,7 @@ namespace Engine {
 		}
 	}
 
-	std::vector<DescriptorSetLayout> CreateDescriptorSetLayouts() {
+	std::vector<DescriptorSetLayout> CreateDescriptorSetLayouts(VkContext& ctx) {
 		VkDescriptorSetLayout cameraLayout;
 		VkDescriptorSetLayout gameObjectLayout;
 		VkDescriptorSetLayout meshLayout;
@@ -5659,7 +5473,7 @@ namespace Engine {
 			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 			layoutCreateInfo.bindingCount = 1;
 			layoutCreateInfo.pBindings = bindings;
-			vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, nullptr, &cameraLayout);
+			vkCreateDescriptorSetLayout(ctx._logicalDevice, &layoutCreateInfo, nullptr, &cameraLayout);
 		}
 
 		{
@@ -5668,7 +5482,7 @@ namespace Engine {
 			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 			layoutCreateInfo.bindingCount = 1;
 			layoutCreateInfo.pBindings = bindings;
-			vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, nullptr, &gameObjectLayout);
+			vkCreateDescriptorSetLayout(ctx._logicalDevice, &layoutCreateInfo, nullptr, &gameObjectLayout);
 		}
 
 		{
@@ -5677,7 +5491,7 @@ namespace Engine {
 			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 			layoutCreateInfo.bindingCount = 1;
 			layoutCreateInfo.pBindings = bindings;
-			vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, nullptr, &lightLayout);
+			vkCreateDescriptorSetLayout(ctx._logicalDevice, &layoutCreateInfo, nullptr, &lightLayout);
 		}
 
 		{
@@ -5689,7 +5503,7 @@ namespace Engine {
 			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 			layoutCreateInfo.bindingCount = 3;
 			layoutCreateInfo.pBindings = bindings;
-			vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, nullptr, &meshLayout);
+			vkCreateDescriptorSetLayout(ctx._logicalDevice, &layoutCreateInfo, nullptr, &meshLayout);
 		}
 
 		{
@@ -5699,7 +5513,7 @@ namespace Engine {
 			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 			layoutCreateInfo.bindingCount = 1;
 			layoutCreateInfo.pBindings = bindings;
-			vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, nullptr, &miscLayout);
+			vkCreateDescriptorSetLayout(ctx._logicalDevice, &layoutCreateInfo, nullptr, &miscLayout);
 		}
 
 		return {
@@ -5711,7 +5525,7 @@ namespace Engine {
 		};
 	}
 
-	VkPipelineLayout CreatePipelineLayout(std::vector<DescriptorSetLayout>& descriptorSetLayouts) {
+	VkPipelineLayout CreatePipelineLayout(VkContext& ctx, std::vector<DescriptorSetLayout>& descriptorSetLayouts) {
 		// Select the layout from each descriptor set to create a layout-only vector.
 		std::vector<VkDescriptorSetLayout> layouts;
 		std::transform(descriptorSetLayouts.begin(), descriptorSetLayouts.end(), std::back_inserter(layouts),
@@ -5724,7 +5538,7 @@ namespace Engine {
 		pipelineLayoutCreateInfo.setLayoutCount = (uint32_t)layouts.size();
 		pipelineLayoutCreateInfo.pSetLayouts = layouts.data();
 		VkPipelineLayout outLayout;
-		CheckResult(vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &outLayout));
+		CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, nullptr, &outLayout));
 		return outLayout;
 	}
 
@@ -5739,44 +5553,65 @@ namespace Engine {
 		_scene.UpdateShaderResources();
 	}
 
-	void SetupVulkan() {
-		_instance = CreateInstance();
-		CreateDebugCallback(_instance);
-		_windowSurface = CreateWindowSurface(_instance);
-		_physicalDevice = CreatePhysicalDevice(_instance);
+	void CreateRenderingResources(VkContext& ctx) {
+		// Get physical device capabilities for the window surface.
+		VkSurfaceCapabilitiesKHR surfaceCapabilities = PhysicalDevice::GetSurfaceCapabilities(ctx._physicalDevice, ctx._windowSurface);
+		std::vector<VkSurfaceFormatKHR> surfaceFormats = PhysicalDevice::GetSupportedFormatsForSurface(ctx._physicalDevice, ctx._windowSurface);
+		std::vector<VkPresentModeKHR> presentModes = PhysicalDevice::GetSupportedPresentModesForSurface(ctx._physicalDevice, ctx._windowSurface);
 
-		auto flags = (VkQueueFlagBits)(VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT);
-		_queueFamilyIndex = VkHelper::FindQueueFamilyIndex(_physicalDevice, flags);
-		if (!PhysicalDevice::SupportsSurface(_physicalDevice, _queueFamilyIndex, _windowSurface)) std::exit(1);
+		// Determine number of images for swapchain.
+		uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
+		if (surfaceCapabilities.maxImageCount != 0 && imageCount > surfaceCapabilities.maxImageCount) {
+			imageCount = surfaceCapabilities.maxImageCount;
+		}
 
-		VkDeviceQueueCreateInfo graphicsQueueInfo{};
-		float queuePriority = 1.0f;
-		graphicsQueueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		graphicsQueueInfo.queueFamilyIndex = _queueFamilyIndex;
-		graphicsQueueInfo.queueCount = 1;
-		graphicsQueueInfo.pQueuePriorities = &queuePriority;
+		VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat(surfaceFormats);
+		_swapchain._framebufferSize = ChooseFramebufferSize(surfaceCapabilities);
 
-		_logicalDevice = CreateLogicalDevice(_physicalDevice, { graphicsQueueInfo });
-		vkGetDeviceQueue(_logicalDevice, _queueFamilyIndex, 0, &_queue);
-		VkFenceCreateInfo fci = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, 0 };
-		vkCreateFence(_logicalDevice, &fci, NULL, &_queueFence);
-		_commandPool = VkHelper::CreateCommandPool(_logicalDevice, _queueFamilyIndex);
+		// Determine transformation to use (preferring no transform).
+		VkSurfaceTransformFlagBitsKHR surfaceTransform;
+		if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+			surfaceTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+		else surfaceTransform = surfaceCapabilities.currentTransform;
 
-		LoadScene();
-		LoadEnvironmentMap();
+		// Choose presentation mode (preferring MAILBOX ~= triple buffering).
+		VkPresentModeKHR presentMode = ChoosePresentMode(presentModes);
 
-		auto descriptorSetLayouts = CreateDescriptorSetLayouts();
-		_graphicsPipeline._layout = CreatePipelineLayout(descriptorSetLayouts);
-		CreateShaderResources(descriptorSetLayouts);
+		// Finally, create the swap chain.
+		VkSwapchainCreateInfoKHR createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+		createInfo.surface = ctx._windowSurface;
+		createInfo.minImageCount = imageCount;
+		createInfo.imageFormat = surfaceFormat.format;
+		createInfo.imageColorSpace = surfaceFormat.colorSpace;
+		createInfo.imageExtent = _swapchain._framebufferSize;
+		createInfo.imageArrayLayers = 1;
+		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		createInfo.queueFamilyIndexCount = 0;
+		createInfo.pQueueFamilyIndices = nullptr;
+		createInfo.preTransform = surfaceTransform;
+		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+		createInfo.presentMode = presentMode;
+		createInfo.clipped = VK_TRUE;
+		createInfo.oldSwapchain = _swapchain._oldSwapchainHandle;
+
+		CheckResult(vkCreateSwapchainKHR(ctx._logicalDevice, &createInfo, nullptr, &_swapchain._handle));
+
+		if (_swapchain._oldSwapchainHandle != VK_NULL_HANDLE) {
+			vkDestroySwapchainKHR(ctx._logicalDevice, _swapchain._oldSwapchainHandle, nullptr);
+		}
+
+		_swapchain._oldSwapchainHandle = _swapchain._handle;
+		_swapchain._surfaceFormat = surfaceFormat;
 
 
-		CreateSwapchain();
 		auto& imageFormat = _swapchain._surfaceFormat.format;
 		// Store the images used by the swap chain.
 		// Note: these are the images that swap chain image indices refer to.
 		// Note: actual number of images may differ from requested number, since it's a lower bound.
 		uint32_t actualImageCount = 0;
-		CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, nullptr));
+		CheckResult(vkGetSwapchainImagesKHR(ctx._logicalDevice, _swapchain._handle, &actualImageCount, nullptr));
 
 		_renderPass._colorImages.resize(actualImageCount);
 		_swapchain._images.resize(actualImageCount);
@@ -5788,12 +5623,12 @@ namespace Engine {
 
 		std::vector<VkImage> swapchainImages;
 		swapchainImages.resize(actualImageCount);
-		CheckResult(vkGetSwapchainImagesKHR(_logicalDevice, _swapchain._handle, &actualImageCount, swapchainImages.data()));
+		CheckResult(vkGetSwapchainImagesKHR(ctx._logicalDevice, _swapchain._handle, &actualImageCount, swapchainImages.data()));
 		_swapchain._imageCount = actualImageCount;
 
 		// Create the color attachments.
 		for (uint32_t i = 0; i < actualImageCount; ++i) {
-			_drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(_logicalDevice, _commandPool);
+			_drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(ctx._logicalDevice, ctx._commandPool);
 
 			// Image view used by the UI shader as output attachment, after it has combined the UI image with the scene image output by the first subpass.
 			_swapchain._images[i]._image = swapchainImages[i];
@@ -5811,7 +5646,7 @@ namespace Engine {
 			createInfo.subresourceRange.levelCount = 1;
 			createInfo.subresourceRange.baseArrayLayer = 0;
 			createInfo.subresourceRange.layerCount = 1;
-			vkCreateImageView(_logicalDevice, &createInfo, nullptr, &_swapchain._images[i]._view);
+			vkCreateImageView(ctx._logicalDevice, &createInfo, nullptr, &_swapchain._images[i]._view);
 
 			// Scene image.
 			auto& rpColorImg = _renderPass._colorImages[i];
@@ -5825,11 +5660,11 @@ namespace Engine {
 			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 			imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-			vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &rpColorImg._image);
+			vkCreateImage(ctx._logicalDevice, &imageCreateInfo, nullptr, &rpColorImg._image);
 
 			// Allocate memory on the GPU for the image.
-			rpColorImg._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, rpColorImg._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-			vkBindImageMemory(_logicalDevice, rpColorImg._image, rpColorImg._gpuMemory, 0);
+			rpColorImg._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, rpColorImg._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			vkBindImageMemory(ctx._logicalDevice, rpColorImg._image, rpColorImg._gpuMemory, 0);
 
 			auto& imageViewCreateInfo = rpColorImg._viewCreateInfo;
 			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -5841,7 +5676,7 @@ namespace Engine {
 			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 			imageViewCreateInfo.subresourceRange.layerCount = 1;
 			imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &rpColorImg._view);
+			vkCreateImageView(ctx._logicalDevice, &imageViewCreateInfo, nullptr, &rpColorImg._view);
 
 			auto& samplerCreateInfo = rpColorImg._samplerCreateInfo;
 			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -5860,7 +5695,7 @@ namespace Engine {
 			samplerCreateInfo.mipLodBias = 0.0f;
 			samplerCreateInfo.minLod = 0.0f;
 			samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
-			vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &rpColorImg._sampler);
+			vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, nullptr, &rpColorImg._sampler);
 
 			// UI image
 			{
@@ -5878,10 +5713,10 @@ namespace Engine {
 				image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 				image_info.samples = VK_SAMPLE_COUNT_1_BIT;
 				image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-				CheckResult(vkCreateImage(_logicalDevice, &image_info, NULL, &_overlayImages[i]._image));
+				CheckResult(vkCreateImage(ctx._logicalDevice, &image_info, NULL, &_overlayImages[i]._image));
 
-				_overlayImages[i]._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, _overlayImages[i]._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-				CheckResult(vkBindImageMemory(_logicalDevice, _overlayImages[i]._image, _overlayImages[i]._gpuMemory, 0));
+				_overlayImages[i]._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, _overlayImages[i]._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+				CheckResult(vkBindImageMemory(ctx._logicalDevice, _overlayImages[i]._image, _overlayImages[i]._gpuMemory, 0));
 
 				VkImageViewCreateInfo image_view_info{};
 				image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -5897,7 +5732,7 @@ namespace Engine {
 				image_view_info.subresourceRange.baseArrayLayer = 0;
 				image_view_info.subresourceRange.layerCount = 1;
 				image_view_info.image = _overlayImages[i]._image;
-				CheckResult(vkCreateImageView(_logicalDevice, &image_view_info, NULL, &_overlayImages[i]._view));
+				CheckResult(vkCreateImageView(ctx._logicalDevice, &image_view_info, NULL, &_overlayImages[i]._view));
 
 				VkSamplerCreateInfo samplerCreateInfo{};
 				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -5915,7 +5750,7 @@ namespace Engine {
 				samplerCreateInfo.minLod = 0.0f;
 				samplerCreateInfo.maxLod = 0.0f;
 				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-				CheckResult(vkCreateSampler(_logicalDevice, &samplerCreateInfo, NULL, &_overlayImages[i]._sampler));
+				CheckResult(vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, NULL, &_overlayImages[i]._sampler));
 			}
 
 			VkDescriptorPoolSize poolSizes[2];
@@ -5933,7 +5768,7 @@ namespace Engine {
 			pool_info.maxSets = 1;
 			VkDescriptorPool dp;
 
-			CheckResult(vkCreateDescriptorPool(_logicalDevice, &pool_info, NULL, &dp));
+			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &pool_info, NULL, &dp));
 
 			VkDescriptorSetLayoutBinding setLayoutBindings[2];
 			memset(setLayoutBindings, 0, sizeof(VkDescriptorSetLayoutBinding) * 2);
@@ -5954,9 +5789,9 @@ namespace Engine {
 			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 			layoutCreateInfo.bindingCount = 2;
 			layoutCreateInfo.pBindings = setLayoutBindings;
-			CheckResult(vkCreateDescriptorSetLayout(_logicalDevice, &layoutCreateInfo, NULL, &_uiDescriptorSetLayouts[i]));
+			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &layoutCreateInfo, NULL, &_uiDescriptorSetLayouts[i]));
 
-			_uiDescriptorSets[i] = VkHelper::AllocateDescriptorSet(_logicalDevice, dp, _uiDescriptorSetLayouts[i]);
+			_uiDescriptorSets[i] = VkHelper::AllocateDescriptorSet(ctx._logicalDevice, dp, _uiDescriptorSetLayouts[i]);
 
 			std::array<VkDescriptorImageInfo, 2> descriptors{};
 			descriptors[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -5986,7 +5821,7 @@ namespace Engine {
 			write1.pImageInfo = &descriptors[1];
 
 			VkWriteDescriptorSet descriptorWrites[2] = { write0, write1 };
-			vkUpdateDescriptorSets(_logicalDevice, 2, descriptorWrites, 0, nullptr);
+			vkUpdateDescriptorSets(ctx._logicalDevice, 2, descriptorWrites, 0, nullptr);
 		}
 
 		// Create the depth image.
@@ -6000,11 +5835,11 @@ namespace Engine {
 		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		vkCreateImage(_logicalDevice, &imageCreateInfo, nullptr, &_renderPass._depthImage._image);
+		vkCreateImage(ctx._logicalDevice, &imageCreateInfo, nullptr, &_renderPass._depthImage._image);
 
 		// Allocate memory on the GPU for the image.
-		_renderPass._depthImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(_logicalDevice, _physicalDevice, _renderPass._depthImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		vkBindImageMemory(_logicalDevice, _renderPass._depthImage._image, _renderPass._depthImage._gpuMemory, 0);
+		_renderPass._depthImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, _renderPass._depthImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		vkBindImageMemory(ctx._logicalDevice, _renderPass._depthImage._image, _renderPass._depthImage._gpuMemory, 0);
 
 		auto& imageViewCreateInfo = _renderPass._depthImage._viewCreateInfo;
 		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -6017,7 +5852,7 @@ namespace Engine {
 		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
 		imageViewCreateInfo.subresourceRange.layerCount = 1;
 		imageViewCreateInfo.subresourceRange.levelCount = 1;
-		vkCreateImageView(_logicalDevice, &imageViewCreateInfo, nullptr, &_renderPass._depthImage._view);
+		vkCreateImageView(ctx._logicalDevice, &imageViewCreateInfo, nullptr, &_renderPass._depthImage._view);
 
 		auto& samplerCreateInfo = _renderPass._depthImage._samplerCreateInfo;
 		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -6028,7 +5863,7 @@ namespace Engine {
 		samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
 		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-		vkCreateSampler(_logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._depthImage._sampler);
+		vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._depthImage._sampler);
 
 		// Note: hardware will automatically transition attachment to the specified layout
 		// Note: index refers to attachment descriptions array.
@@ -6120,15 +5955,15 @@ namespace Engine {
 		VkAttachmentDescription attachmentDescriptions[] = { swapchainImageAttachmentDescription, colorAttachmentDescription, depthAttachmentDescription };
 		VkSubpassDependency subpassDependencies[] = { colorDependency, depthDependency, uiDependency };
 		VkSubpassDescription subpassDescriptions[] = { sceneRenderingSubpass, uiRenderingSubpass };
-		VkRenderPassCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		createInfo.attachmentCount = 3;
-		createInfo.pAttachments = attachmentDescriptions;
-		createInfo.subpassCount = 2;
-		createInfo.pSubpasses = subpassDescriptions;
-		createInfo.dependencyCount = 3;
-		createInfo.pDependencies = subpassDependencies;
-		CheckResult(vkCreateRenderPass(_logicalDevice, &createInfo, nullptr, &_renderPass._handle));
+		VkRenderPassCreateInfo renderPassCreateInfo = {};
+		renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassCreateInfo.attachmentCount = 3;
+		renderPassCreateInfo.pAttachments = attachmentDescriptions;
+		renderPassCreateInfo.subpassCount = 2;
+		renderPassCreateInfo.pSubpasses = subpassDescriptions;
+		renderPassCreateInfo.dependencyCount = 3;
+		renderPassCreateInfo.pDependencies = subpassDependencies;
+		CheckResult(vkCreateRenderPass(ctx._logicalDevice, &renderPassCreateInfo, nullptr, &_renderPass._handle));
 
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -6137,7 +5972,7 @@ namespace Engine {
 		pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
 		pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
 		VkPipelineLayout pipelineLayout;
-		CheckResult(vkCreatePipelineLayout(_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_uiPipelineLayout));
+		CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_uiPipelineLayout));
 
 		CreateGraphicsPipelines(_renderPass._handle, _graphicsPipeline._layout, _uiPipelineLayout);
 
@@ -6157,16 +5992,16 @@ namespace Engine {
 			createInfo.width = _swapchain._framebufferSize.width;
 			createInfo.height = _swapchain._framebufferSize.height;
 			createInfo.layers = 1;
-			CheckResult(vkCreateFramebuffer(_logicalDevice, &createInfo, nullptr, &currentFrameBuffer));
+			CheckResult(vkCreateFramebuffer(ctx._logicalDevice, &createInfo, nullptr, &currentFrameBuffer));
 
 			VkCommandBufferBeginInfo beginInfo = {};
 			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 			vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
 
-			VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _swapchain._images[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-			VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-			//VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _uiCtx._overlayImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, _swapchain._images[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+			VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, _renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			//VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, _uiCtx._overlayImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 			VkClearValue swapchainImageClear{ { 0.0f, 0.0f, 0.0f, 1.0f } }; // R, G, B, A.
 			VkClearValue sceneImageClear = { { 0.1f, 0.1f, 0.1f, 1.0f } };
@@ -6202,7 +6037,123 @@ namespace Engine {
 			vkCmdEndRenderPass(cmdBufferOfCurrentFrame);
 			CheckResult(vkEndCommandBuffer(cmdBufferOfCurrentFrame));
 		}
+	}
 
+	VkContext InitializeVulkan(GlobalSettings& settings, GLFWwindow* pWindow) {
+		VkContext ctx{};
+
+		VkApplicationInfo appInfo = {};
+		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+		appInfo.pApplicationName = "Hold The Line!";
+		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+		appInfo.pEngineName = "Celeritas Engine";
+		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+		appInfo.apiVersion = VK_API_VERSION_1_0;
+
+		// Get instance extensions required by GLFW to draw to the window.
+		unsigned int glfwExtensionCount;
+		const char** glfwExtensions;
+		glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+		std::vector<const char*> extensions;
+		for (size_t i = 0; i < glfwExtensionCount; i++) extensions.push_back(glfwExtensions[i]);
+		if (settings._enableValidationLayers) extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+
+		uint32_t extensionCount = 0;
+		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+
+		if (extensionCount == 0) Exit(1, "no extensions supported");
+
+		std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, availableExtensions.data());
+
+		VkInstanceCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+		createInfo.pApplicationInfo = &appInfo;
+		createInfo.enabledExtensionCount = (uint32_t)extensions.size();
+		createInfo.ppEnabledExtensionNames = extensions.data();
+
+		if (settings._enableValidationLayers) {
+			if (ValidationLayersSupported(settings._pValidationLayers)) {
+				createInfo.enabledLayerCount = 1;
+				createInfo.ppEnabledLayerNames = settings._pValidationLayers.data();
+			}
+		}
+
+		vkCreateInstance(&createInfo, nullptr, &ctx._instance);
+
+		Engine::CreateDebugCallback(ctx._instance, settings);
+		glfwCreateWindowSurface(ctx._instance, pWindow, NULL, &ctx._windowSurface);
+
+		uint32_t deviceCount = 0;
+		vkEnumeratePhysicalDevices(ctx._instance, &deviceCount, nullptr);
+		if (deviceCount <= 0) Exit(1, "device count was zero");
+		deviceCount = 1;
+		std::vector<VkPhysicalDevice> outDevice(deviceCount);
+		vkEnumeratePhysicalDevices(ctx._instance, &deviceCount, outDevice.data());
+		if (deviceCount <= 0) Exit(1, "device count was zero");
+		ctx._physicalDevice = outDevice[0];
+
+		auto flags = (VkQueueFlagBits)(VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT);
+		std::vector<VkQueueFamilyProperties> queueFamilyProperties = PhysicalDevice::GetAllQueueFamilyProperties(ctx._physicalDevice);
+		uint32_t queueFamilyCount = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties(ctx._physicalDevice, &queueFamilyCount, nullptr);
+		vkGetPhysicalDeviceQueueFamilyProperties(ctx._physicalDevice, &queueFamilyCount, queueFamilyProperties.data());
+
+		for (uint32_t queueFamilyIndex = 0; queueFamilyIndex < queueFamilyProperties.size(); queueFamilyIndex++) {
+			if (queueFamilyProperties[queueFamilyIndex].queueCount > 0 && queueFamilyProperties[queueFamilyIndex].queueFlags & flags) {
+				ctx._queueFamilyIndex = queueFamilyIndex; break;
+			}
+		}
+
+		ctx._queueFamilyIndex = VkHelper::FindQueueFamilyIndex(ctx._physicalDevice, flags);
+		VkBool32 presentSupport = false;
+		vkGetPhysicalDeviceSurfaceSupportKHR(ctx._physicalDevice, ctx._queueFamilyIndex, ctx._windowSurface, &presentSupport);
+
+		VkDeviceQueueCreateInfo graphicsQueueInfo{};
+		float queuePriority = 1.0f;
+		graphicsQueueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		graphicsQueueInfo.queueFamilyIndex = _queueFamilyIndex;
+		graphicsQueueInfo.queueCount = 1;
+		graphicsQueueInfo.pQueuePriorities = &queuePriority;
+
+		VkDeviceCreateInfo deviceCreateInfo = {};
+		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		deviceCreateInfo.pQueueCreateInfos = &graphicsQueueInfo;
+		deviceCreateInfo.queueCreateInfoCount = 1;
+
+		// Devices features to enable.
+		VkPhysicalDeviceFeatures enabledFeatures = {};
+		enabledFeatures.samplerAnisotropy = VK_TRUE;
+		enabledFeatures.shaderClipDistance = VK_TRUE;
+		enabledFeatures.shaderCullDistance = VK_TRUE;
+
+		const char* deviceExtensions = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+		deviceCreateInfo.enabledExtensionCount = 1;
+		deviceCreateInfo.ppEnabledExtensionNames = &deviceExtensions;
+		deviceCreateInfo.pEnabledFeatures = &enabledFeatures;
+
+		if (settings._enableValidationLayers) {
+			deviceCreateInfo.enabledLayerCount = 1;
+			deviceCreateInfo.ppEnabledLayerNames = settings._pValidationLayers.data();
+		}
+
+		vkCreateDevice(ctx._physicalDevice, &deviceCreateInfo, nullptr, &ctx._logicalDevice);
+		vkGetDeviceQueue(ctx._logicalDevice, _queueFamilyIndex, 0, &ctx._queue);
+		VkFenceCreateInfo fci = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, 0 };
+		vkCreateFence(ctx._logicalDevice, &fci, NULL, &ctx._queueFence);
+		ctx._commandPool = VkHelper::CreateCommandPool(ctx._logicalDevice, ctx._queueFamilyIndex);
+		return ctx;
+	}
+
+	void SetupVulkan(GlobalSettings& settings, GLFWwindow* pWindow, VkContext* outContext, VkRenderContext* renderCtx) {
+		VkContext ctx = InitializeVulkan(settings, pWindow);
+		LoadScene();
+		LoadEnvironmentMap();
+		auto descriptorSetLayouts = CreateDescriptorSetLayouts(ctx);
+		_graphicsPipeline._layout = CreatePipelineLayout(ctx, descriptorSetLayouts);
+		CreateShaderResources(descriptorSetLayouts);
+		CreateRenderingResources(ctx);
 		CreateSemaphores();
 	}
 
@@ -6211,16 +6162,15 @@ namespace Engine {
 
 		// Only recreate objects that are affected by framebuffer size changes.
 		Cleanup(false);
-		CreateSwapchain();
 	}
 
-	void Draw() {
+	void Draw(VkContext& ctx, GLFWwindow* pWindow) {
 		if (windowMinimized) return;
-		vkResetFences(_logicalDevice, 1, &_queueFence);
+		vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
 
 		// Acquire image.
 		uint32_t imageIndex;
-		VkResult res = vkAcquireNextImageKHR(_logicalDevice, _swapchain._handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+		VkResult res = vkAcquireNextImageKHR(ctx._logicalDevice, _swapchain._handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
 		// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
 		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) { WindowSizeChanged(); return; }
@@ -6229,7 +6179,7 @@ namespace Engine {
 		{
 			std::vector<VkImageView> views; views.resize(_overlayImages.size());
 			for (int i = 0; i < views.size(); ++i) { views[i] = _overlayImages[i]._view; }
-			_uiCtx = nk_glfw3_init(_pWindow, _logicalDevice, _physicalDevice, _queueFamilyIndex, views.data(), views.size(), _swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
+			_uiCtx = nk_glfw3_init(pWindow, ctx._logicalDevice, ctx._physicalDevice, ctx._queueFamilyIndex, views.data(), views.size(), _swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
 			/* Load Fonts: if none of these are loaded a default font will be used  */
 			/* Load Cursor: if you uncomment cursor loading please hide the cursor */
 			{
@@ -6247,7 +6197,7 @@ namespace Engine {
 					 * "../../../extra_font/ProggyTiny.ttf", 10, 0);*/
 					 /*struct nk_font *cousine = nk_font_atlas_add_from_file(atlas,
 					  * "../../../extra_font/Cousine-Regular.ttf", 13, 0);*/
-				nk_glfw3_font_stash_end(_queue);
+				nk_glfw3_font_stash_end(ctx._queue);
 				/*nk_style_load_all_cursors(ctx, atlas->cursors);*/
 				/*nk_style_set_font(ctx, &droid->handle);*/
 			}
@@ -6279,8 +6229,8 @@ namespace Engine {
 			nk_end(_uiCtx);
 		}
 
-		VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _overlayImages[imageIndex]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		auto nk_semaphore = nk_glfw3_render(_queue, imageIndex, _imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
+		VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, _overlayImages[imageIndex]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		auto nk_semaphore = nk_glfw3_render(ctx._queue, imageIndex, _imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
 		/*VkDeviceMemory stagingMemory = nullptr;
 		VkBuffer stagingBuffer = nullptr;
 		auto imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, stagingMemory, stagingBuffer);
@@ -6301,8 +6251,8 @@ namespace Engine {
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &_drawCommandBuffers[imageIndex];
 
-		vkQueueSubmit(_queue, 1, &submitInfo, _queueFence);
-		vkWaitForFences(_logicalDevice, 1, &_queueFence, VK_TRUE, UINT64_MAX);
+		vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
+		vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, UINT64_MAX);
 
 		// Present drawn image.
 		// Note: semaphore here is not strictly necessary, because commands are processed in submission order within a single queue.
@@ -6314,7 +6264,7 @@ namespace Engine {
 		presentInfo.pSwapchains = &_swapchain._handle;
 		presentInfo.pImageIndices = &imageIndex;
 
-		res = vkQueuePresentKHR(_queue, &presentInfo);
+		res = vkQueuePresentKHR(ctx._queue, &presentInfo);
 
 		if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
 			WindowSizeChanged();
@@ -6325,7 +6275,7 @@ namespace Engine {
 		}
 	}
 
-	void Update(VulkanContext& vkContext) {
+	void Update(VkContext& vkContext) {
 		Time::Instance().Update();
 		_input.Update();
 
@@ -6333,19 +6283,12 @@ namespace Engine {
 		_scene.Update(vkContext);
 	}
 
-	void MainLoop() {
+	void MainLoop(VkContext& ctx) {
 		//std::thread physicsThread(&PhysicsUpdate, this);
-		VulkanContext vkContext;
-		vkContext._instance = _instance;
-		vkContext._logicalDevice = _logicalDevice;
-		vkContext._physicalDevice = _physicalDevice;
-		vkContext._commandPool = _commandPool;
-		vkContext._queue = _queue;
-		vkContext._queueFamilyIndex = _queueFamilyIndex;
 
 		while (!glfwWindowShouldClose(_pWindow)) {
-			Update(vkContext);
-			Draw();
+			Update(ctx);
+			Draw(ctx, _pWindow);
 			glfwPollEvents();
 		}
 
@@ -6355,11 +6298,15 @@ namespace Engine {
 
 int main() {
 	Engine::GlobalSettings::Instance().Load(Engine::Paths::Settings());
+	auto& settings = Engine::GlobalSettings::Instance();
+	glfwInit();
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	GLFWwindow* pWindow = glfwCreateWindow(settings._windowWidth, settings._windowHeight, "Hold The Line!", nullptr, nullptr);
+	glfwSetWindowSizeCallback(pWindow, Engine::OnWindowResized);
 
-	Engine::InitializeWindow();
-	auto _input = Engine::KeyboardMouse();
-	_input.InitializeInput(Engine::_pWindow);
-	Engine::SetupVulkan();
+	auto input = Engine::KeyboardMouse();
+	input.InitializeInput(pWindow);
+	Engine::SetupVulkan(settings, pWindow);
 	Engine::MainLoop();
 	Engine::Cleanup(true);
 
