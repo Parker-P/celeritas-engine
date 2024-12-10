@@ -177,14 +177,14 @@ namespace Engine {
 	 */
 	class VkContext {
 	public:
-		VkInstance _instance;
-		VkDevice _logicalDevice;
-		VkPhysicalDevice _physicalDevice;
-		VkCommandPool _commandPool;
-		VkSurfaceKHR _windowSurface;
-		VkQueue _queue;
-		uint32_t _queueFamilyIndex;
-		VkFence _queueFence;
+		static VkInstance _instance;
+		static VkDevice _logicalDevice;
+		static VkPhysicalDevice _physicalDevice;
+		static VkCommandPool _commandPool;
+		static VkSurfaceKHR _windowSurface;
+		static VkQueue _queue;
+		static uint32_t _queueFamilyIndex;
+		static VkFence _queueFence;
 	};
 
 	class VkRenderContext {
@@ -590,7 +590,6 @@ namespace Engine {
 
 		void InitializeInput(GLFWwindow* pWindow) {
 			if (nullptr == pWindow) return;
-			_window = pWindow;
 
 			// Keyboard init
 			glfwSetKeyCallback(pWindow, KeyCallback);
@@ -5542,9 +5541,9 @@ namespace Engine {
 		return outLayout;
 	}
 
-	void CreateShaderResources(std::vector<DescriptorSetLayout>& descriptorSetLayouts) {
+	void CreateShaderResources(VkContext& ctx, std::vector<DescriptorSetLayout>& descriptorSetLayouts) {
 		auto& shaderResources = _graphicsPipeline._shaderResources;
-		auto cameraResources = _mainCamera.CreateDescriptorSets(_physicalDevice, _logicalDevice, _commandPool, _queue, descriptorSetLayouts);
+		auto cameraResources = _mainCamera.CreateDescriptorSets(ctx._physicalDevice, ctx._logicalDevice, ctx._commandPool, ctx._queue, descriptorSetLayouts);
 		shaderResources.MergeResources(cameraResources);
 		_mainCamera.UpdateShaderResources();
 
@@ -6146,7 +6145,7 @@ namespace Engine {
 		return ctx;
 	}
 
-	void SetupVulkan(GlobalSettings& settings, GLFWwindow* pWindow, VkContext* outContext, VkRenderContext* renderCtx) {
+	void InitializeEngine(GlobalSettings& settings, GLFWwindow* pWindow, VkContext* outContext, VkRenderContext* renderCtx) {
 		VkContext ctx = InitializeVulkan(settings, pWindow);
 		LoadScene();
 		LoadEnvironmentMap();
@@ -6306,7 +6305,7 @@ int main() {
 
 	auto input = Engine::KeyboardMouse();
 	input.InitializeInput(pWindow);
-	Engine::SetupVulkan(settings, pWindow);
+	Engine::InitializeEngine(settings, pWindow);
 	Engine::MainLoop();
 	Engine::Cleanup(true);
 
