@@ -173,10 +173,146 @@ namespace Engine {
 	}
 
 	/**
+	 * @brief Encapsulates info for a swapchain.
+	 * The swapchain is an image manager; it manages everything that involves presenting images to the screen,
+	 * or more precisely passing the contents of the framebuffers on the GPU down to the window.
+	 */
+	struct Swapchain {
+		/**
+		 * @brief Identifier for Vulkan.
+		 */
+		VkSwapchainKHR _handle;
+
+		/**
+		 * @brief These are the buffers that contain the final rendered images shown on screen.
+		 * A framebuffer is stored on a different portion of memory with respect to the depth and
+		 * color attachments used by a render pass. The depth and color images CONTRIBUTE to generating
+		 * an image for a framebuffer.
+		 */
+		std::vector<VkFramebuffer> _frameBuffers;
+
+		/**
+		 * @brief Dimensions in pixels of the framebuffers.
+		 */
+		VkExtent2D _framebufferSize;
+
+		/**
+		 * @brief Image format that the window surface expects when it has to send images from a framebuffer to a monitor.
+		 */
+		VkSurfaceFormatKHR _surfaceFormat;
+
+		/**
+		 * @brief Old swapchain handle used when the swapchain is recreated.
+		 */
+		VkSwapchainKHR _oldSwapchainHandle;
+
+		/**
+		 * @brief The amount of images used by this swapchain to show render results in turn.
+		 */
+		uint32_t _imageCount;
+
+		/**
+		 * @brief Swapchain images used for presentation (showing the render results to the window).
+		 */
+		std::vector<Image> _images;
+	};
+
+	/**
+	 * @brief Encapsulates info for a render pass.
+	 * A render pass represents a specific set of commands that generate images, called attachments.
+	 * Attachments are rendered images that contribute to rendering the final image that will go in the framebuffer.
+	 * It is the renderpass's job to also do compositing, which is defining the logic according to which the attachments are merged to create the final image.
+	 * See Swapchain to understand what framebuffers are.
+	 */
+	struct RenderPass {
+		/**
+		 * @brief Identifier for Vulkan.
+		 */
+		VkRenderPass _handle;
+
+		/**
+		 * @brief Attachments used by the GPU to write color information to.
+		 */
+		std::vector<Image> _colorImages;
+
+		/**
+		 * @brief Attachment that stores per-pixel depth information for the hardwired depth testing stage.
+		 * This makes sure that the pixels of each triangle are rendered or not, depending on which pixel
+		 * is closer to the camera, which is the information stored in this image.
+		 */
+		Image _depthImage;
+
+	};
+
+	/**
+	 * @brief The graphics pipeline represents, at the logical level, the entire process
+	 * of inputting vertices, indices and textures into the GPU and getting a 2D image that represents the scene
+	 * passed in out of it. In early GPUs, this process was hardwired into the graphics chip, but as technology improved and needs
+	 * for better and more complex graphics increased, GPU producers have taken steps to make this a much more programmable
+	 * and CPU-like process, so much so that technologies like CUDA (Compute Uniform Device Architecture) have come out.
+	 *
+	 * Nowadays the typical GPU consists of an array of clusters of microprocessors, where each micro
+	 * processor is highly multithreaded, and its ALU and instruction set (thus its circuitry) optimized for operating on
+	 * floating point numbers, vectors and matrices (as that is what is used to represent coordinates in space and space transformations).
+	 *
+	 * CUDA is the result of NVidia and Microsoft working together to improve the programmers' experience for programming
+	 * shaders; the result is a product that maps C/C++ instructions to the GPU's ALUs instruction set, to take full advantage
+	 * of the GPU's high amount of cores and threads. By doing this, things like crypto mining and machine learning have gotten
+	 * a huge boost, as the data that requires manipulation is very loosely coupled (has very few dependecies on the data in
+	 * the same set) and, as a result, can be processed by many independent threads simultaneously. This is called a compute pipeline.
+	 * Khronos, the developers of the Vulkan API, have also done something similar called OpenCL, the compute side of OpenGL.
+	 *
+	 * The typical graphics (or render) pipeline consists of programmable, configurable and hardwired stages, where:
+	 * a) The programmable stages are custom stages that will be run on the GPU's multi-purpose array of microprocessors using a program (a.k.a shader).
+	 * b) The configurable stages are hardwired stages that can perform their task a different way based on user configuration via calls to the Vulkan API.
+	 * c) The hardwired stages are immutable stages that cannot be changed unless manipulating the hardware.
+	 * The graph of a typical graphics pipeline is shown under docs/GraphicsPipeline.jpg.
+	 *
+	 * More on the programmable stages:
+	 * The programmable stages are the flexible stages that the programmer can fully customize by writing little programs called shaders.
+	 * These shader programs will run:
+	 * 1) once per vertex in the case of the vertex shader; this shader program's goal is to take vertex attrbutes in, and output
+	 * a vertex color and 2D position (more precisely, a 3D position inside of the Vulkan's coordinate range, which is -1 to 1 for X and Y and 0 to 1 for Z).
+	 * 2) once per pixel in the case of the fragment shader; this stage's goal is to take the rasterizer's output (which is a hardwired
+	 * stage on the GPU chip as of 2022, whose goal is to color pixels based on vertex colors) and textures, and output a colored pixel based on
+	 * the color of the textures and other variables such as direct and indirect lighting.
+	 * There are other shader stages, but the 2 above are the strictly needed shaders in order to be able to render something.
+
+	 * This type of execution flow has a name and is called SIMD (Single Instruction Multiple Data), as the same program (single instruction)
+	 * is run independently on different cores/threads for multiple vertices or pixels (multiple data).
+	 *
+	 * Examples of the configurable stages are anti-aliasing and tessellation.
+	 * Examples of hardwired stages are backface-culling, depth testing and alpha blending.
+	 *
+	 * For a good overall hardware and software explanation of a typical NVidia GPU, see
+	 * https://developer.nvidia.com/gpugems/gpugems2/part-iv-general-purpose-computation-gpus-primer/chapter-30-geforce-6-series-gpu
+	 */
+	struct Pipeline {
+
+		/**
+		 * @brief Identifier for Vulkan.
+		 */
+		VkPipeline _handle;
+
+		/**
+		* @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
+		* push constant ranges are combined to form a pipeline layout object describing the complete set of resources that can be accessed by a pipeline.
+		* The pipeline layout represents a sequence of descriptor sets with each having a specific layout. This sequence of layouts is used to determine
+		* the interface between shader stages and shader resources. Each pipeline is created using a pipeline layout.
+		*/
+		VkPipelineLayout _layout;
+
+		/**
+		 * @brief See ShaderResources definition.
+		 */
+		ShaderResources _shaderResources;
+
+	};
+
+	/**
 	 * @brief Represents all the needed, or neeeded in order to obtain, information to run any call in the Vulkan API.
 	 */
-	class VkContext {
-	public:
+	struct VkContext {
 		static VkInstance _instance;
 		static VkDevice _logicalDevice;
 		static VkPhysicalDevice _physicalDevice;
@@ -185,11 +321,32 @@ namespace Engine {
 		static VkQueue _queue;
 		static uint32_t _queueFamilyIndex;
 		static VkFence _queueFence;
+		/**
+		 * @brief Function pointer called by Vulkan each time it wants to report an error.
+		 * Error reporting is set by enabling validation layers.
+		 */
+		VkDebugReportCallbackEXT _callback;
 	};
 
-	class VkRenderContext {
-	public:
-		// TODO
+	/**
+	 * @brief All the information the engine needs to render the images sent to the window.
+	 */
+	struct VkRenderContext {
+		/**
+		 * @brief The images to which Nuklear renders its UI.
+		 */
+		std::vector<Image> _overlayImages;
+		nk_context* _uiCtx;
+		std::vector<VkCommandBuffer> _drawCommandBuffers;
+		Swapchain _swapchain;
+		Pipeline _scenePipeline;
+		Pipeline _uiPipeline;
+		/**
+		 * @brief Semaphore that will be used by Vulkan to signal when an image has finished
+		 * rendering and is available to be rendered to in one of the framebuffers.
+		 */
+		VkSemaphore _imageAvailableSemaphore;
+		VkSemaphore	_renderingFinishedSemaphore;
 	};
 
 	/**
@@ -211,7 +368,7 @@ namespace Engine {
 	public:
 
 		/**
-		 * @brief Function called on implementing classes in each iteration of the main loop. The main loop is defined in VulkanApplication.cpp.
+		 * @brief Function called on implementing classes in each iteration of the main loop.
 		 */
 		virtual void Update() = 0;
 	};
@@ -4691,266 +4848,6 @@ namespace Engine {
 		return shaderModule;
 	}
 
-	/**
-	 * @brief Encapsulates info for a swapchain.
-	 * The swapchain is an image manager; it manages everything that involves presenting images to the screen,
-	 * or more precisely passing the contents of the framebuffers on the GPU down to the window.
-	 */
-	class Swapchain {
-	public:
-		/**
-		 * @brief Identifier for Vulkan.
-		 */
-		VkSwapchainKHR _handle;
-
-		/**
-		 * @brief These are the buffers that contain the final rendered images shown on screen.
-		 * A framebuffer is stored on a different portion of memory with respect to the depth and
-		 * color attachments used by a render pass. The depth and color images CONTRIBUTE to generating
-		 * an image for a framebuffer.
-		 */
-		std::vector<VkFramebuffer> _frameBuffers;
-
-		/**
-		 * @brief Dimensions in pixels of the framebuffers.
-		 */
-		VkExtent2D _framebufferSize;
-
-		/**
-		 * @brief Image format that the window surface expects when it has to send images from a framebuffer to a monitor.
-		 */
-		VkSurfaceFormatKHR _surfaceFormat;
-
-		/**
-		 * @brief Used by Vulkan to know where and how to direct the contents of the framebuffers to the window on the screen.
-		 */
-		VkSurfaceKHR _windowSurface;
-
-		/**
-		 * @brief Old swapchain handle used when the swapchain is recreated.
-		 */
-		VkSwapchainKHR _oldSwapchainHandle;
-
-		/**
-		 * @brief The amount of images used by this swapchain to show render results in turn.
-		 */
-		uint32_t _imageCount;
-
-		/**
-		 * @brief Swapchain images used for presentation (showing the render results to the window).
-		 */
-		std::vector<Image> _images;
-	};
-
-	/**
-	* @brief Wrapper for the window shown on screen.
-	*/
-	GLFWwindow* _pWindow;
-
-	/**
-	 * @brief Root for all Vulkan functionality.
-	 */
-	VkInstance _instance;
-
-	/**
-	 * @brief Connects the Vulkan API to the windowing system, so that Vulkan knows how to interact with the window on the screen.
-	 */
-	VkSurfaceKHR _windowSurface;
-
-	/**
-	 * @brief Represents the physical GPU. This is mostly used for querying the GPU about its hardware properties so that we know
-	 * how to handle memory.
-	 */
-	VkPhysicalDevice _physicalDevice;
-
-	/**
-	 * @brief Represents the GPU and its inner workings at the logical level.
-	 */
-	VkDevice _logicalDevice;
-
-	/**
-	 * @brief Function pointer called by Vulkan each time it wants to report an error.
-	 * Error reporting is set by enabling validation layers.
-	 */
-	VkDebugReportCallbackEXT _callback;
-
-	/**
-	 * @brief Semaphore that will be used by Vulkan to signal when an image has finished
-	 * rendering and is available to be rendered to in one of the framebuffers.
-	 */
-	VkSemaphore _imageAvailableSemaphore;
-
-	/**
-	 * @brief Same as imageAvailableSemaphore.
-	 */
-	VkSemaphore	_renderingFinishedSemaphore;
-
-	/**
-	 * @brief .
-	 */
-	VkSemaphore	_uiRenderingFinishedSemaphore;
-
-	/**
-	 * @brief Encapsulates info for a render pass.
-	 * A render pass represents an execution of an entire graphics pipeline to create an image.
-	 * Render passes use what are called (in Vulkan gergo) attachments. Attachments are rendered images that contribute to rendering
-	 * the final image that will go in the framebuffer. It is the renderpass's job to also do compositing, which
-	 * is defining the logic according to which the attachments are merged to create the final image.
-	 * See Swapchain to understand what framebuffers are.
-	 */
-	struct {
-		/**
-		 * @brief Identifier for Vulkan.
-		 */
-		VkRenderPass _handle;
-
-		/**
-		 * @brief Attachments used by the GPU to write color information to.
-		 */
-		std::vector<Image> _colorImages;
-
-		/**
-		 * @brief Attachment that stores per-pixel depth information for the hardwired depth testing stage.
-		 * This makes sure that the pixels of each triangle are rendered or not, depending on which pixel
-		 * is closer to the camera, which is the information stored in this image.
-		 */
-		Image _depthImage;
-
-	} _renderPass;
-
-	/**
-	 * @brief The graphics pipeline represents, at the logical level, the entire process
-	 * of inputting vertices, indices and textures into the GPU and getting a 2D image that represents the scene
-	 * passed in out of it. In early GPUs, this process was hardwired into the graphics chip, but as technology improved and needs
-	 * for better and more complex graphics increased, GPU producers have taken steps to make this a much more programmable
-	 * and CPU-like process, so much so that technologies like CUDA (Compute Uniform Device Architecture) have come out.
-	 *
-	 * Nowadays the typical GPU consists of an array of clusters of microprocessors, where each micro
-	 * processor is highly multithreaded, and its ALU and instruction set (thus its circuitry) optimized for operating on
-	 * floating point numbers, vectors and matrices (as that is what is used to represent coordinates in space and space transformations).
-	 *
-	 * CUDA is the result of NVidia and Microsoft working together to improve the programmers' experience for programming
-	 * shaders; the result is a product that maps C/C++ instructions to the GPU's ALUs instruction set, to take full advantage
-	 * of the GPU's high amount of cores and threads. By doing this, things like crypto mining and machine learning have gotten
-	 * a huge boost, as the data that requires manipulation is very loosely coupled (has very few dependecies on the data in
-	 * the same set) and, as a result, can be processed by many independent threads simultaneously. This is called a compute pipeline.
-	 * Khronos, the developers of the Vulkan API, have also done something similar called OpenCL, the compute side of OpenGL.
-	 *
-	 * The typical graphics (or render) pipeline consists of programmable, configurable and hardwired stages, where:
-	 * a) The programmable stages are custom stages that will be run on the GPU's multi-purpose array of microprocessors using a program (a.k.a shader).
-	 * b) The configurable stages are hardwired stages that can perform their task a different way based on user configuration via calls to the Vulkan API.
-	 * c) The hardwired stages are immutable stages that cannot be changed unless manipulating the hardware.
-	 * The graph of a typical graphics pipeline is shown under docs/GraphicsPipeline.jpg.
-	 *
-	 * More on the programmable stages:
-	 * The programmable stages are the flexible stages that the programmer can fully customize by writing little programs called shaders.
-	 * These shader programs will run:
-	 * 1) once per vertex in the case of the vertex shader; this shader program's goal is to take vertex attrbutes in, and output
-	 * a vertex color and 2D position (more precisely, a 3D position inside of the Vulkan's coordinate range, which is -1 to 1 for X and Y and 0 to 1 for Z).
-	 * 2) once per pixel in the case of the fragment shader; this stage's goal is to take the rasterizer's output (which is a hardwired
-	 * stage on the GPU chip as of 2022, whose goal is to color pixels based on vertex colors) and textures, and output a colored pixel based on
-	 * the color of the textures and other variables such as direct and indirect lighting.
-	 * There are other shader stages, but the 2 above are the strictly needed shaders in order to be able to render something.
-
-	 * This type of execution flow has a name and is called SIMD (Single Instruction Multiple Data), as the same program (single instruction)
-	 * is run independently on different cores/threads for multiple vertices or pixels (multiple data).
-	 *
-	 * Examples of the configurable stages are anti-aliasing and tessellation.
-	 * Examples of hardwired stages are backface-culling, depth testing and alpha blending.
-	 *
-	 * For a good overall hardware and software explanation of a typical NVidia GPU, see
-	 * https://developer.nvidia.com/gpugems/gpugems2/part-iv-general-purpose-computation-gpus-primer/chapter-30-geforce-6-series-gpu
-	 */
-	struct {
-
-		/**
-		 * @brief Identifier for Vulkan.
-		 */
-		VkPipeline _handle;
-
-		/**
-		 * This variable contains:
-		 * 1) binding: the binding number of the vertex buffer defined when calling vkCmdBindVertexBuffers;
-		 * 2) stride: the offset in bytes between each set of vertex attributes in the vertex buffer identified by the binding number above;
-		 * 3) inputRate: unknown (info hard to find on this)
-		 *
-		 * Useful information:
-		 * Vertex shaders can define input variables, which receive vertex attribute data transferred from
-		 * one or more VkBuffer(s) by drawing commands. Vertex attribute data can be anything, but it's usually
-		 * things like its position, normal and uv coordinates. Vertex shader input variables are bound to vertex buffers
-		 * via an indirect binding, where the vertex shader associates a vertex input attribute number with
-		 * each variable: the "location" decorator. Vertex input attributes (location) are associated to vertex input
-		 * bindings (binding) on a per-pipeline basis, and vertex input bindings (binding) are associated with specific buffers
-		 * (VkBuffer) on a per-draw basis via the vkCmdBindVertexBuffers command. Vertex input attributes and vertex input
-		 * binding descriptions also contain format information controlling how data is extracted from buffer
-		 * memory and converted to the format expected by the vertex shader.
-		 *
-		 * In short:
-		 * Each vertex buffer is identified by a binding number, defined when calling vkCmdBindVertexBuffers.
-		 * Each attribute inside a vertex buffer is identified by a location number, defined when creating a pipeline in a VkVertexInputBindingDescription struct.
-		 */
-		VkVertexInputBindingDescription	_vertexBindingDescription;
-
-		/**
-		 * Each VkVertexInputAttributeDescription contains:
-		 * 1) location: identifier for the vertex attribute; also defined in the vertex shader definition of the attribute;
-		 * 2) binding: the binding number of the vertex buffer defined when calling vkCmdBindVertexBuffers;
-		 * 3) format: the format of this attribute/variable, VkFormat;
-		 * 4) offset: the offset of the attribute in bytes within the set of vertex attributes.
-		 *
-		 * Useful information:
-		 * Vertex shaders can define input variables, which receive vertex attribute data transferred from
-		 * one or more VkBuffer(s) by drawing commands. Vertex attribute data can be anything, but it's usually
-		 * things like its position, normal and uv coordinates. Vertex shader input variables are bound to vertex buffers
-		 * via an indirect binding, where the vertex shader associates a vertex input attribute number with
-		 * each variable: the "location" decorator. Vertex input attributes (location) are associated to vertex input
-		 * bindings (binding) on a per-pipeline basis, and vertex input bindings (binding) are associated with specific buffers
-		 * (VkBuffer) on a per-draw basis via the vkCmdBindVertexBuffers command. Vertex input attribute and vertex input
-		 * binding descriptions also contain format information controlling how data is extracted from buffer
-		 * memory and converted to the format expected by the vertex shader.
-		 *
-		 * In short:
-		 * Each vertex buffer is identified by a binding number, defined every time we draw something by calling vkCmdBindVertexBuffers.
-		 * Each attribute inside a vertex buffer is identified by a location number, defined here. The location number is defined when creating a pipeline.
-		 */
-		std::vector<VkVertexInputAttributeDescription> _vertexAttributeDescriptions;
-
-		/**
-		* @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
-		* push constant ranges are combined to form a pipeline layout object describing the complete set of resources that can be accessed by a pipeline.
-		* The pipeline layout represents a sequence of descriptor sets with each having a specific layout. This sequence of layouts is used to determine
-		* the interface between shader stages and shader resources. Each pipeline is created using a pipeline layout.
-		*/
-		VkPipelineLayout _layout;
-
-		/**
-		 * @brief See ShaderResources definition.
-		 */
-		ShaderResources _shaderResources;
-
-	} _graphicsPipeline;
-
-	VkPipeline _uiPipeline;
-
-	/**
-	 * @brief The images to which Nuklear renders its UI.
-	 */
-	std::vector<Image> _overlayImages;
-	VkDescriptorPool _uiDescriptorPool;
-	std::vector<VkDescriptorSet> _uiDescriptorSets;
-	std::vector<VkDescriptorSetLayout> _uiDescriptorSetLayouts;
-	VkPipelineLayout _uiPipelineLayout;
-	nk_context* _uiCtx;
-
-	Swapchain _swapchain;
-
-	// Vulkan commands.
-	VkCommandPool _commandPool;
-	VkQueue _queue;
-	VkFence _queueFence;
-	uint32_t _queueFamilyIndex;
-	std::vector<VkCommandBuffer> _drawCommandBuffers;
-
 	// Game.
 	KeyboardMouse& _input = KeyboardMouse::Instance();
 	GlobalSettings& _settings = GlobalSettings::Instance();
@@ -4975,8 +4872,8 @@ namespace Engine {
 		return VK_FALSE;
 	}
 
-	void PhysicsUpdate() {
-		while (!glfwWindowShouldClose(_pWindow)) {
+	void PhysicsUpdate(GLFWwindow* pWindow) {
+		while (!glfwWindowShouldClose(pWindow)) {
 			auto& time = Time::Instance();
 			time.PhysicsUpdate();
 
@@ -5099,14 +4996,14 @@ namespace Engine {
 		createDebugReportCallback(instance, &createInfo, nullptr, &_callback);
 	}
 
-	void CreateSemaphores() {
+	void CreateSemaphores(VkContext& ctx, VkRenderContext& rCtx) {
 		VkSemaphoreCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_imageAvailableSemaphore));
-		CheckResult(vkCreateSemaphore(_logicalDevice, &createInfo, nullptr, &_renderingFinishedSemaphore));
+		CheckResult(vkCreateSemaphore(ctx._logicalDevice, &createInfo, nullptr, &ctx._imageAvailableSemaphore));
+		CheckResult(vkCreateSemaphore(ctx._logicalDevice, &createInfo, nullptr, &ctx._renderingFinishedSemaphore));
 	}
 
-	void LoadScene() {
+	void LoadScene(VkContext& ctx) {
 		//auto scenePath = Paths::ModelsPath() /= "MaterialSphere.glb";
 		//auto scenePath = Paths::ModelsPath() /= "cubes.glb";
 		//auto scenePath = Paths::ModelsPath() /= "directions.glb";
@@ -5126,11 +5023,11 @@ namespace Engine {
 		//auto scenePath = Paths::ModelsPath() /= "SampleMap.glb";
 		//auto scenePath = Paths::ModelsPath() /= "monster.glb";
 		//auto scenePath = Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb";
-		_scene = SceneLoader::LoadFile(scenePath, _logicalDevice, _physicalDevice, _commandPool, _queue);
+		_scene = SceneLoader::LoadFile(scenePath, ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue);
 	}
 
-	void LoadEnvironmentMap() {
-		_scene._environmentMap = CubicalEnvironmentMap(_physicalDevice, _logicalDevice);
+	void LoadEnvironmentMap(VkContext& ctx) {
+		_scene._environmentMap = CubicalEnvironmentMap(ctx._physicalDevice, ctx._logicalDevice);
 		_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Waterfall.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Debug.png");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "ModernBuilding.hdr");
@@ -5143,7 +5040,7 @@ namespace Engine {
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "texture.jpg");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Test1.png");
 
-		_scene._environmentMap.CreateImage(_logicalDevice, _physicalDevice, _commandPool, _queue);
+		_scene._environmentMap.CreateImage(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue);
 	}
 
 	VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes) {
@@ -5547,12 +5444,12 @@ namespace Engine {
 		shaderResources.MergeResources(cameraResources);
 		_mainCamera.UpdateShaderResources();
 
-		auto sceneResources = _scene.CreateDescriptorSets(_physicalDevice, _logicalDevice, _commandPool, _queue, descriptorSetLayouts);
+		auto sceneResources = _scene.CreateDescriptorSets(ctx._physicalDevice, ctx._logicalDevice, ctx._commandPool, ctx._queue, descriptorSetLayouts);
 		shaderResources.MergeResources(sceneResources);
 		_scene.UpdateShaderResources();
 	}
 
-	void CreateRenderingResources(VkContext& ctx) {
+	VkRenderContext CreateRenderingResources(VkContext& ctx) {
 		// Get physical device capabilities for the window surface.
 		VkSurfaceCapabilitiesKHR surfaceCapabilities = PhysicalDevice::GetSurfaceCapabilities(ctx._physicalDevice, ctx._windowSurface);
 		std::vector<VkSurfaceFormatKHR> surfaceFormats = PhysicalDevice::GetSupportedFormatsForSurface(ctx._physicalDevice, ctx._windowSurface);
@@ -6145,14 +6042,14 @@ namespace Engine {
 		return ctx;
 	}
 
-	void InitializeEngine(GlobalSettings& settings, GLFWwindow* pWindow, VkContext* outContext, VkRenderContext* renderCtx) {
-		VkContext ctx = InitializeVulkan(settings, pWindow);
-		LoadScene();
-		LoadEnvironmentMap();
-		auto descriptorSetLayouts = CreateDescriptorSetLayouts(ctx);
-		_graphicsPipeline._layout = CreatePipelineLayout(ctx, descriptorSetLayouts);
-		CreateShaderResources(descriptorSetLayouts);
-		CreateRenderingResources(ctx);
+	void InitializeEngine(GlobalSettings& settings, GLFWwindow* pWindow, VkContext* outContext, VkRenderContext* outRenderCtx) {
+		*outContext = InitializeVulkan(settings, pWindow);
+		LoadScene(*outContext);
+		LoadEnvironmentMap(*outContext);
+		auto descriptorSetLayouts = CreateDescriptorSetLayouts(*outContext);
+		_scenePipeline._layout = CreatePipelineLayout(*outContext, descriptorSetLayouts);
+		CreateShaderResources(*outContext, descriptorSetLayouts);
+		CreateRenderingResources(*outContext);
 		CreateSemaphores();
 	}
 
@@ -6300,13 +6197,15 @@ int main() {
 	auto& settings = Engine::GlobalSettings::Instance();
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	GLFWwindow* pWindow = glfwCreateWindow(settings._windowWidth, settings._windowHeight, "Hold The Line!", nullptr, nullptr);
+	GLFWwindow* pWindow = glfwCreateWindow(settings._windowWidth, settings._windowHeight, "Frontline Legacy", nullptr, nullptr);
 	glfwSetWindowSizeCallback(pWindow, Engine::OnWindowResized);
 
 	auto input = Engine::KeyboardMouse();
 	input.InitializeInput(pWindow);
-	Engine::InitializeEngine(settings, pWindow);
-	Engine::MainLoop();
+	Engine::VkContext ctx;
+	Engine::VkRenderContext rCtx;
+	Engine::InitializeEngine(settings, pWindow, &ctx, &rCtx);
+	Engine::MainLoop(ctx);
 	Engine::Cleanup(true);
 
 	return 0;
