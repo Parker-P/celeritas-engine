@@ -306,7 +306,6 @@ namespace Engine {
 		 * @brief See ShaderResources definition.
 		 */
 		ShaderResources _shaderResources;
-
 	};
 
 	/**
@@ -341,6 +340,7 @@ namespace Engine {
 		Swapchain _swapchain;
 		Pipeline _scenePipeline;
 		Pipeline _uiPipeline;
+		RenderPass _renderPass;
 		/**
 		 * @brief Semaphore that will be used by Vulkan to signal when an image has finished
 		 * rendering and is available to be rendered to in one of the framebuffers.
@@ -1714,7 +1714,7 @@ namespace Engine {
 		 * @param physicalDevice Intended to be used to gather GPU information when allocating buffers or images.
 		 * @param logicalDevice Intended to be used for binding created buffers, images, descriptors, descriptor sets etc. to the GPU.
 		 */
-		virtual ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) = 0;
+		virtual ShaderResources CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts) = 0;
 
 		/**
 		 * @brief Function that is meant for deriving classes to update the shader resources that have been created with CreateDescriptorSets.
@@ -1872,7 +1872,7 @@ namespace Engine {
 			_transform.SetPosition(glm::vec3(3.0f, 10.0f, -10.0f));
 		}
 
-		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
+		ShaderResources CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts) {
 			auto descriptorSetID = 2;
 
 			// Create a temporary buffer.
@@ -1881,16 +1881,16 @@ namespace Engine {
 			buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 			buffer._createInfo.size = bufferSizeBytes;
 			buffer._createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-			vkCreateBuffer(logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
+			vkCreateBuffer(ctx._logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
 
 			// Allocate memory for the buffer.
 			VkMemoryRequirements requirements{};
-			vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
-			buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+			vkGetBufferMemoryRequirements(ctx._logicalDevice, buffer._buffer, &requirements);
+			buffer._gpuMemory = PhysicalDevice::AllocateMemory(ctx._physicalDevice, ctx._logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
 			// Map memory to the correct GPU and CPU ranges for the buffer.
-			vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
-			vkMapMemory(logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
+			vkBindBufferMemory(ctx._logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
+			vkMapMemory(ctx._logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
 			memcpy(buffer._cpuMemory, &_lightData, bufferSizeBytes);
 
 			_buffers.push_back(buffer);
@@ -1902,7 +1902,7 @@ namespace Engine {
 			createInfo.maxSets = (uint32_t)1;
 			createInfo.poolSizeCount = (uint32_t)1;
 			createInfo.pPoolSizes = poolSizes;
-			vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
+			vkCreateDescriptorPool(ctx._logicalDevice, &createInfo, nullptr, &descriptorPool);
 
 			// Create the descriptor set.
 			VkDescriptorSetAllocateInfo allocInfo = {};
@@ -1911,7 +1911,7 @@ namespace Engine {
 			allocInfo.descriptorSetCount = (uint32_t)1;
 			allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
 			VkDescriptorSet descriptorSet;
-			vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
+			vkAllocateDescriptorSets(ctx._logicalDevice, &allocInfo, &descriptorSet);
 
 			// Update the descriptor set's data.
 			VkDescriptorBufferInfo bufferInfo{ buffer._buffer, 0, buffer._createInfo.size };
@@ -1922,7 +1922,7 @@ namespace Engine {
 			writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			writeInfo.pBufferInfo = &bufferInfo;
 			writeInfo.dstBinding = 0;
-			vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
+			vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeInfo, 0, nullptr);
 
 			auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
 			_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
@@ -3434,7 +3434,7 @@ namespace Engine {
 			}
 		}
 
-		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
+		ShaderResources CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts) {
 			auto descriptorSetID = 4;
 
 			// Map the cubemap image to the fragment shader.
@@ -3445,7 +3445,7 @@ namespace Engine {
 			createInfo.maxSets = (uint32_t)1;
 			createInfo.poolSizeCount = (uint32_t)1;
 			createInfo.pPoolSizes = poolSizes;
-			vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
+			vkCreateDescriptorPool(ctx._logicalDevice, &createInfo, nullptr, &descriptorPool);
 
 			// Create the descriptor set.
 			VkDescriptorSet set{};
@@ -3454,7 +3454,7 @@ namespace Engine {
 			allocInfo.descriptorPool = descriptorPool;
 			allocInfo.descriptorSetCount = (uint32_t)1;
 			allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
-			vkAllocateDescriptorSets(logicalDevice, &allocInfo, &set);
+			vkAllocateDescriptorSets(ctx._logicalDevice, &allocInfo, &set);
 
 			// Update the descriptor set's data with the environment map's image.
 			VkDescriptorImageInfo imageInfo{ _cubeMapImage._sampler, _cubeMapImage._view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
@@ -3465,7 +3465,7 @@ namespace Engine {
 			writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			writeInfo.pImageInfo = &imageInfo;
 			writeInfo.dstBinding = 0;
-			vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
+			vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeInfo, 0, nullptr);
 
 			auto descriptorSets = std::vector<VkDescriptorSet>{ set };
 			_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
@@ -3613,7 +3613,7 @@ namespace Engine {
 		int _materialIndex = 0;
 		GameObject* _pGameObject = nullptr;
 
-		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts);
+		ShaderResources CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts);
 		void UpdateShaderResources();
 		void Update(VkContext& vkContext);
 		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer);
@@ -3666,7 +3666,7 @@ namespace Engine {
 
 		GameObject() = default;
 		GameObject(const std::string& name, Scene* pScene);
-		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts);
+		ShaderResources CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts);
 		Transform GetWorldSpaceTransform();
 		void UpdateShaderResources();
 		void Update(VkContext& vkContext);
@@ -3727,21 +3727,21 @@ namespace Engine {
 			}
 		}
 
-		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
+		ShaderResources CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts) {
 			for (auto& gameObject : _pRootGameObject->_children) {
 				if (gameObject->_pMesh != nullptr) {
-					auto gameObjectResources = gameObject->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+					auto gameObjectResources = gameObject->CreateDescriptorSets(ctx, layouts);
 					_shaderResources.MergeResources(gameObjectResources);
 				}
 			}
 
 			for (auto& light : _pointLights) {
-				auto lightResources = light.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+				auto lightResources = light.CreateDescriptorSets(ctx, layouts);
 				_shaderResources.MergeResources(lightResources);
 				light.UpdateShaderResources();
 			}
 
-			auto environmentMapResources = _environmentMap.CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+			auto environmentMapResources = _environmentMap.CreateDescriptorSets(ctx, layouts);
 			_shaderResources.MergeResources(environmentMapResources);
 			return _shaderResources;
 		}
@@ -3757,7 +3757,7 @@ namespace Engine {
 		_pScene = pScene;
 	}
 
-	ShaderResources GameObject::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
+	ShaderResources GameObject::CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts) {
 		auto descriptorSetID = 1;
 		auto globalTransform = GetWorldSpaceTransform();
 
@@ -3767,16 +3767,16 @@ namespace Engine {
 		buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		buffer._createInfo.size = bufferSizeBytes;
 		buffer._createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-		vkCreateBuffer(logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
+		vkCreateBuffer(ctx._logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
 
 		// Allocate memory for the buffer.
 		VkMemoryRequirements requirements{};
-		vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
-		buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+		vkGetBufferMemoryRequirements(ctx._logicalDevice, buffer._buffer, &requirements);
+		buffer._gpuMemory = PhysicalDevice::AllocateMemory(ctx._physicalDevice, ctx._logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
 		// Map memory to the correct GPU and CPU ranges for the buffer.
-		vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
-		vkMapMemory(logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
+		vkBindBufferMemory(ctx._logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
+		vkMapMemory(ctx._logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
 		memcpy(buffer._cpuMemory, &globalTransform._matrix, bufferSizeBytes);
 
 		_buffers.push_back(buffer);
@@ -3788,7 +3788,7 @@ namespace Engine {
 		createInfo.maxSets = (uint32_t)1;
 		createInfo.poolSizeCount = (uint32_t)1;
 		createInfo.pPoolSizes = poolSizes;
-		vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
+		vkCreateDescriptorPool(ctx._logicalDevice, &createInfo, nullptr, &descriptorPool);
 
 		// Create the descriptor set.
 		VkDescriptorSetAllocateInfo allocInfo = {};
@@ -3797,7 +3797,7 @@ namespace Engine {
 		allocInfo.descriptorSetCount = (uint32_t)1;
 		allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
 		VkDescriptorSet descriptorSet;
-		vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
+		vkAllocateDescriptorSets(ctx._logicalDevice, &allocInfo, &descriptorSet);
 
 		// Update the descriptor set's data.
 		VkDescriptorBufferInfo bufferInfo{ buffer._buffer, 0, buffer._createInfo.size };
@@ -3808,16 +3808,16 @@ namespace Engine {
 		writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		writeInfo.pBufferInfo = &bufferInfo;
 		writeInfo.dstBinding = 0;
-		vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
+		vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeInfo, 0, nullptr);
 
 		auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
 		_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
 
-		auto meshResources = _pMesh->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+		auto meshResources = _pMesh->CreateDescriptorSets(ctx, layouts);
 		_shaderResources.MergeResources(meshResources);
 
 		for (auto& child : _children) {
-			auto childResources = child->CreateDescriptorSets(physicalDevice, logicalDevice, commandPool, queue, layouts);
+			auto childResources = child->CreateDescriptorSets(ctx, layouts);
 		}
 
 		return _shaderResources;
@@ -3864,7 +3864,7 @@ namespace Engine {
 	}
 
 	// Mesh
-	ShaderResources Mesh::CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
+	ShaderResources Mesh::CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts) {
 		auto descriptorSetID = 3;
 
 		// Get the textures to send to the shaders.
@@ -3887,11 +3887,11 @@ namespace Engine {
 		}
 
 		// Send the textures to the GPU.
-		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, albedoMap._createInfo.extent.width, albedoMap._createInfo.extent.height, albedoMap._createInfo.extent.depth, albedoMap._pData, albedoMap._sizeBytes);
-		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, roughnessMap._createInfo.extent.width, roughnessMap._createInfo.extent.height, roughnessMap._createInfo.extent.depth, roughnessMap._pData, roughnessMap._sizeBytes);
-		CopyImageToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, albedoMap._image, metalnessMap._createInfo.extent.width, metalnessMap._createInfo.extent.height, metalnessMap._createInfo.extent.depth, metalnessMap._pData, metalnessMap._sizeBytes);
+		CopyImageToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, albedoMap._image, albedoMap._createInfo.extent.width, albedoMap._createInfo.extent.height, albedoMap._createInfo.extent.depth, albedoMap._pData, albedoMap._sizeBytes);
+		CopyImageToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, albedoMap._image, roughnessMap._createInfo.extent.width, roughnessMap._createInfo.extent.height, roughnessMap._createInfo.extent.depth, roughnessMap._pData, roughnessMap._sizeBytes);
+		CopyImageToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, albedoMap._image, metalnessMap._createInfo.extent.width, metalnessMap._createInfo.extent.height, metalnessMap._createInfo.extent.depth, metalnessMap._pData, metalnessMap._sizeBytes);
 
-		auto commandBuffer = VkHelper::CreateCommandBuffer(logicalDevice, commandPool);
+		auto commandBuffer = VkHelper::CreateCommandBuffer(ctx._logicalDevice, ctx._commandPool);
 		VkHelper::StartRecording(commandBuffer);
 
 		// Transition the images to shader read layout.
@@ -3929,7 +3929,7 @@ namespace Engine {
 		}
 
 		VkHelper::StopRecording(commandBuffer);
-		VkHelper::ExecuteCommands(commandBuffer, queue);
+		VkHelper::ExecuteCommands(commandBuffer, ctx._queue);
 
 		_images.push_back(albedoMap);
 		_images.push_back(roughnessMap);
@@ -3942,7 +3942,7 @@ namespace Engine {
 		createInfo.maxSets = (uint32_t)1;
 		createInfo.poolSizeCount = (uint32_t)1;
 		createInfo.pPoolSizes = poolSizes;
-		vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
+		vkCreateDescriptorPool(ctx._logicalDevice, &createInfo, nullptr, &descriptorPool);
 
 		VkDescriptorSetAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -3950,7 +3950,7 @@ namespace Engine {
 		allocInfo.descriptorSetCount = (uint32_t)1;
 		allocInfo.pSetLayouts = &layouts[descriptorSetID]._layout;
 		VkDescriptorSet descriptorSet;
-		vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
+		vkAllocateDescriptorSets(ctx._logicalDevice, &allocInfo, &descriptorSet);
 
 		VkDescriptorImageInfo imageInfo[3];
 		imageInfo[0] = { albedoMap._sampler, albedoMap._view, albedoMap._currentLayout };
@@ -3963,7 +3963,7 @@ namespace Engine {
 		writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		writeInfo.pImageInfo = imageInfo;
 		writeInfo.dstBinding = 0;
-		vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
+		vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeInfo, 0, nullptr);
 
 		auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
 		_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
@@ -4328,7 +4328,7 @@ namespace Engine {
 			_up = glm::vec3(0.0f, 1.0f, 0.0f);
 		}
 
-		ShaderResources CreateDescriptorSets(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, std::vector<DescriptorSetLayout>& layouts) {
+		ShaderResources CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts) {
 			auto descriptorSetID = 0;
 
 			// Create a temporary buffer.
@@ -4337,16 +4337,16 @@ namespace Engine {
 			buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 			buffer._createInfo.size = bufferSizeBytes;
 			buffer._createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-			vkCreateBuffer(logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
+			vkCreateBuffer(ctx._logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
 
 			// Allocate memory for the buffer.
 			VkMemoryRequirements requirements{};
-			vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
-			buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+			vkGetBufferMemoryRequirements(ctx._logicalDevice, buffer._buffer, &requirements);
+			buffer._gpuMemory = PhysicalDevice::AllocateMemory(ctx._physicalDevice, ctx._logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
 			// Map memory to the correct GPU and CPU ranges for the buffer.
-			vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
-			vkMapMemory(logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
+			vkBindBufferMemory(ctx._logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
+			vkMapMemory(ctx._logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
 			memcpy(buffer._cpuMemory, &_cameraData, bufferSizeBytes);
 
 			_buffers.push_back(buffer);
@@ -4358,9 +4358,9 @@ namespace Engine {
 			createInfo.maxSets = (uint32_t)1;
 			createInfo.poolSizeCount = (uint32_t)1;
 			createInfo.pPoolSizes = poolSizes;
-			vkCreateDescriptorPool(logicalDevice, &createInfo, nullptr, &descriptorPool);
+			vkCreateDescriptorPool(ctx._logicalDevice, &createInfo, nullptr, &descriptorPool);
 
-			VkDescriptorSet descriptorSet = VkHelper::AllocateDescriptorSet(logicalDevice, descriptorPool, layouts[descriptorSetID]._layout);
+			VkDescriptorSet descriptorSet = VkHelper::AllocateDescriptorSet(ctx._logicalDevice, descriptorPool, layouts[descriptorSetID]._layout);
 
 			// Update the descriptor set's data with the environment map's image.
 			VkDescriptorBufferInfo bufferInfo{ buffer._buffer, 0, buffer._createInfo.size };
@@ -4371,7 +4371,7 @@ namespace Engine {
 			writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			writeInfo.pBufferInfo = &bufferInfo;
 			writeInfo.dstBinding = 0;
-			vkUpdateDescriptorSets(logicalDevice, 1, &writeInfo, 0, nullptr);
+			vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeInfo, 0, nullptr);
 
 			auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
 			_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
@@ -4986,21 +4986,21 @@ namespace Engine {
 		return true;
 	}
 
-	void CreateDebugCallback(VkInstance& instance, GlobalSettings& settings) {
+	void CreateDebugCallback(VkContext& ctx, GlobalSettings& settings) {
 		if (!settings._enableValidationLayers) return;
 		VkDebugReportCallbackCreateInfoEXT createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
 		createInfo.pfnCallback = (PFN_vkDebugReportCallbackEXT)DebugCallback;
 		createInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
-		PFN_vkCreateDebugReportCallbackEXT createDebugReportCallback = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
-		createDebugReportCallback(instance, &createInfo, nullptr, &_callback);
+		PFN_vkCreateDebugReportCallbackEXT createDebugReportCallback = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(ctx._instance, "vkCreateDebugReportCallbackEXT");
+		createDebugReportCallback(ctx._instance, &createInfo, nullptr, &ctx._callback);
 	}
 
 	void CreateSemaphores(VkContext& ctx, VkRenderContext& rCtx) {
 		VkSemaphoreCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		CheckResult(vkCreateSemaphore(ctx._logicalDevice, &createInfo, nullptr, &ctx._imageAvailableSemaphore));
-		CheckResult(vkCreateSemaphore(ctx._logicalDevice, &createInfo, nullptr, &ctx._renderingFinishedSemaphore));
+		CheckResult(vkCreateSemaphore(ctx._logicalDevice, &createInfo, nullptr, &rCtx._imageAvailableSemaphore));
+		CheckResult(vkCreateSemaphore(ctx._logicalDevice, &createInfo, nullptr, &rCtx._renderingFinishedSemaphore));
 	}
 
 	void LoadScene(VkContext& ctx) {
@@ -5078,11 +5078,11 @@ namespace Engine {
 		}
 	}
 
-	void CreateGraphicsPipelines(VkRenderPass renderPass, VkPipelineLayout scenePipelineLayout, VkPipelineLayout uiPipelineLayout) {
+	void CreateGraphicsPipelines(VkContext& ctx, VkRenderContext& rCtx) {
 		// 3D scene pipeline
 		{
-			VkShaderModule vertexShaderModule = CreateShaderModule(_logicalDevice, Paths::VertexShaderPath());
-			VkShaderModule fragmentShaderModule = CreateShaderModule(_logicalDevice, Paths::FragmentShaderPath());
+			VkShaderModule vertexShaderModule = CreateShaderModule(ctx._logicalDevice, Paths::VertexShaderPath());
+			VkShaderModule fragmentShaderModule = CreateShaderModule(ctx._logicalDevice, Paths::FragmentShaderPath());
 
 			// Set up shader stage info.
 			VkPipelineShaderStageCreateInfo vertexShaderCreateInfo = {};
@@ -5099,37 +5099,38 @@ namespace Engine {
 			VkPipelineShaderStageCreateInfo shaderStages[] = { vertexShaderCreateInfo, fragmentShaderCreateInfo };
 
 			// Vertex attribute binding - gives the vertex shader more info about a particular vertex buffer, denoted by the binding number. See binding for more info.
-			_graphicsPipeline._vertexBindingDescription.binding = 0;
-			_graphicsPipeline._vertexBindingDescription.stride = sizeof(Vertex);
-			_graphicsPipeline._vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+			VkVertexInputBindingDescription vertexBindingDescription;
+			vertexBindingDescription.binding = 0;
+			vertexBindingDescription.stride = sizeof(Vertex);
+			vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 			// Describe how the shader should read vertex attributes when getting a vertex from the vertex buffer.
 			// Object-space positions.
-			_graphicsPipeline._vertexAttributeDescriptions.resize(3);
-			_graphicsPipeline._vertexAttributeDescriptions[0].location = 0;
-			_graphicsPipeline._vertexAttributeDescriptions[0].binding = 0;
-			_graphicsPipeline._vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-			_graphicsPipeline._vertexAttributeDescriptions[0].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Position);
+			VkVertexInputAttributeDescription vertexAttributeDescriptions[3];
+			vertexAttributeDescriptions[0].location = 0;
+			vertexAttributeDescriptions[0].binding = 0;
+			vertexAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+			vertexAttributeDescriptions[0].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Position);
 
 			// Normals.
-			_graphicsPipeline._vertexAttributeDescriptions[1].location = 1;
-			_graphicsPipeline._vertexAttributeDescriptions[1].binding = 0;
-			_graphicsPipeline._vertexAttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-			_graphicsPipeline._vertexAttributeDescriptions[1].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Normal);
+			vertexAttributeDescriptions[1].location = 1;
+			vertexAttributeDescriptions[1].binding = 0;
+			vertexAttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+			vertexAttributeDescriptions[1].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Normal);
 
 			// UV coordinates.
-			_graphicsPipeline._vertexAttributeDescriptions[2].location = 2;
-			_graphicsPipeline._vertexAttributeDescriptions[2].binding = 0;
-			_graphicsPipeline._vertexAttributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-			_graphicsPipeline._vertexAttributeDescriptions[2].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::UV);
+			vertexAttributeDescriptions[2].location = 2;
+			vertexAttributeDescriptions[2].binding = 0;
+			vertexAttributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+			vertexAttributeDescriptions[2].offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::UV);
 
 			// Describe vertex input.
 			VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo = {};
 			vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 			vertexInputCreateInfo.vertexBindingDescriptionCount = 1;
-			vertexInputCreateInfo.pVertexBindingDescriptions = &_graphicsPipeline._vertexBindingDescription;
-			vertexInputCreateInfo.vertexAttributeDescriptionCount = (uint32_t)_graphicsPipeline._vertexAttributeDescriptions.size();
-			vertexInputCreateInfo.pVertexAttributeDescriptions = _graphicsPipeline._vertexAttributeDescriptions.data();
+			vertexInputCreateInfo.pVertexBindingDescriptions = &vertexBindingDescription;
+			vertexInputCreateInfo.vertexAttributeDescriptionCount = (uint32_t)3;
+			vertexInputCreateInfo.pVertexAttributeDescriptions = vertexAttributeDescriptions;
 
 			// Describe input assembly - this allows Vulkan to know how many indices make up a face for the vkCmdDrawIndexed function.
 			// The input assembly is the very first stage of the graphics pipeline, where vertices and indices are loaded from VRAM and assembled,
@@ -5143,16 +5144,16 @@ namespace Engine {
 			VkViewport viewport = {};
 			viewport.x = 0.0f;
 			viewport.y = 0.0f;
-			viewport.width = Helper::Convert<uint32_t, float>(_swapchain._framebufferSize.width);
-			viewport.height = Helper::Convert<uint32_t, float>(_swapchain._framebufferSize.height);
+			viewport.width = Helper::Convert<uint32_t, float>(rCtx._swapchain._framebufferSize.width);
+			viewport.height = Helper::Convert<uint32_t, float>(rCtx._swapchain._framebufferSize.height);
 			viewport.minDepth = 0.0f;
 			viewport.maxDepth = 1.0f;
 
 			VkRect2D scissor = {};
 			scissor.offset.x = 0;
 			scissor.offset.y = 0;
-			scissor.extent.width = _swapchain._framebufferSize.width;
-			scissor.extent.height = _swapchain._framebufferSize.height;
+			scissor.extent.width = rCtx._swapchain._framebufferSize.width;
+			scissor.extent.height = rCtx._swapchain._framebufferSize.height;
 
 			// Note: scissor test is always enabled (although dynamic scissor is possible).
 			// Number of viewports must match number of scissors.
@@ -5237,23 +5238,23 @@ namespace Engine {
 			pipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
 			pipelineCreateInfo.pMultisampleState = &multisampleCreateInfo;
 			pipelineCreateInfo.pColorBlendState = &colorBlendCreateInfo;
-			pipelineCreateInfo.layout = scenePipelineLayout;
-			pipelineCreateInfo.renderPass = renderPass;
+			pipelineCreateInfo.layout = rCtx._scenePipeline._layout;
+			pipelineCreateInfo.renderPass = rCtx._renderPass._handle;
 			pipelineCreateInfo.subpass = 0;
 			pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
 			pipelineCreateInfo.basePipelineIndex = -1;
 
-			CheckResult(vkCreateGraphicsPipelines(_logicalDevice, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_graphicsPipeline._handle));
-			vkDestroyShaderModule(_logicalDevice, vertexShaderModule, nullptr);
-			vkDestroyShaderModule(_logicalDevice, fragmentShaderModule, nullptr);
+			CheckResult(vkCreateGraphicsPipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &rCtx._scenePipeline._handle));
+			vkDestroyShaderModule(ctx._logicalDevice, vertexShaderModule, nullptr);
+			vkDestroyShaderModule(ctx._logicalDevice, fragmentShaderModule, nullptr);
 		}
 
 		// UI pipeline.
 		{
 			auto vertPath = Paths::ShadersPath() / std::filesystem::path("graphics\\NuklearUIVertexShader.spv");
 			auto fragPath = Paths::ShadersPath() / std::filesystem::path("graphics\\NuklearUIFragmentShader.spv");
-			VkShaderModule vertShaderModule = CreateShaderModule(_logicalDevice, vertPath);
-			VkShaderModule fragShaderModule = CreateShaderModule(_logicalDevice, fragPath);
+			VkShaderModule vertShaderModule = CreateShaderModule(ctx._logicalDevice, vertPath);
+			VkShaderModule fragShaderModule = CreateShaderModule(ctx._logicalDevice, fragPath);
 
 			VkPipelineShaderStageCreateInfo vert_shader_stage_info{};
 			vert_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -5283,13 +5284,13 @@ namespace Engine {
 
 			viewport.x = 0.0f;
 			viewport.y = 0.0f;
-			viewport.width = (float)_swapchain._framebufferSize.width;
-			viewport.height = (float)_swapchain._framebufferSize.height;
+			viewport.width = (float)rCtx._swapchain._framebufferSize.width;
+			viewport.height = (float)rCtx._swapchain._framebufferSize.height;
 			viewport.minDepth = 0.0f;
 			viewport.maxDepth = 1.0f;
 
-			scissor.extent.width = _swapchain._framebufferSize.width;
-			scissor.extent.height = _swapchain._framebufferSize.height;
+			scissor.extent.width = rCtx._swapchain._framebufferSize.width;
+			scissor.extent.height = rCtx._swapchain._framebufferSize.height;
 
 			VkPipelineViewportStateCreateInfo viewportState{};
 			viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -5344,15 +5345,15 @@ namespace Engine {
 			pipelineInfo.pRasterizationState = &rasterizer;
 			pipelineInfo.pMultisampleState = &multisampling;
 			pipelineInfo.pColorBlendState = &colorBlending;
-			pipelineInfo.layout = uiPipelineLayout;
-			pipelineInfo.renderPass = renderPass;
+			pipelineInfo.layout = rCtx._uiPipeline._layout;
+			pipelineInfo.renderPass = rCtx._renderPass._handle;
 			pipelineInfo.subpass = 1;
 			pipelineInfo.basePipelineHandle = NULL;
 
-			CheckResult(vkCreateGraphicsPipelines(_logicalDevice, NULL, 1, &pipelineInfo, NULL, &_uiPipeline));
+			CheckResult(vkCreateGraphicsPipelines(ctx._logicalDevice, NULL, 1, &pipelineInfo, NULL, &rCtx._uiPipeline._handle));
 
-			if (fragShaderModule) vkDestroyShaderModule(_logicalDevice, fragShaderModule, NULL);
-			if (vertShaderModule) vkDestroyShaderModule(_logicalDevice, vertShaderModule, NULL);
+			if (fragShaderModule) vkDestroyShaderModule(ctx._logicalDevice, fragShaderModule, NULL);
+			if (vertShaderModule) vkDestroyShaderModule(ctx._logicalDevice, vertShaderModule, NULL);
 		}
 	}
 
@@ -5438,18 +5439,18 @@ namespace Engine {
 		return outLayout;
 	}
 
-	void CreateShaderResources(VkContext& ctx, std::vector<DescriptorSetLayout>& descriptorSetLayouts) {
-		auto& shaderResources = _graphicsPipeline._shaderResources;
-		auto cameraResources = _mainCamera.CreateDescriptorSets(ctx._physicalDevice, ctx._logicalDevice, ctx._commandPool, ctx._queue, descriptorSetLayouts);
+	void CreateShaderResources(VkContext& ctx, VkRenderContext& rCtx, std::vector<DescriptorSetLayout>& descriptorSetLayouts) {
+		auto& shaderResources = rCtx._scenePipeline._shaderResources;
+		auto cameraResources = _mainCamera.CreateDescriptorSets(ctx, descriptorSetLayouts);
 		shaderResources.MergeResources(cameraResources);
 		_mainCamera.UpdateShaderResources();
 
-		auto sceneResources = _scene.CreateDescriptorSets(ctx._physicalDevice, ctx._logicalDevice, ctx._commandPool, ctx._queue, descriptorSetLayouts);
+		auto sceneResources = _scene.CreateDescriptorSets(ctx, descriptorSetLayouts);
 		shaderResources.MergeResources(sceneResources);
 		_scene.UpdateShaderResources();
 	}
 
-	VkRenderContext CreateRenderingResources(VkContext& ctx) {
+	VkRenderContext CreateRenderingResources(VkContext& ctx, VkRenderContext& rCtx) {
 		// Get physical device capabilities for the window surface.
 		VkSurfaceCapabilitiesKHR surfaceCapabilities = PhysicalDevice::GetSurfaceCapabilities(ctx._physicalDevice, ctx._windowSurface);
 		std::vector<VkSurfaceFormatKHR> surfaceFormats = PhysicalDevice::GetSupportedFormatsForSurface(ctx._physicalDevice, ctx._windowSurface);
@@ -5462,7 +5463,7 @@ namespace Engine {
 		}
 
 		VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat(surfaceFormats);
-		_swapchain._framebufferSize = ChooseFramebufferSize(surfaceCapabilities);
+		rCtx._swapchain._framebufferSize = ChooseFramebufferSize(surfaceCapabilities);
 
 		// Determine transformation to use (preferring no transform).
 		VkSurfaceTransformFlagBitsKHR surfaceTransform;
@@ -5480,7 +5481,7 @@ namespace Engine {
 		createInfo.minImageCount = imageCount;
 		createInfo.imageFormat = surfaceFormat.format;
 		createInfo.imageColorSpace = surfaceFormat.colorSpace;
-		createInfo.imageExtent = _swapchain._framebufferSize;
+		createInfo.imageExtent = rCtx._swapchain._framebufferSize;
 		createInfo.imageArrayLayers = 1;
 		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -5490,45 +5491,45 @@ namespace Engine {
 		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		createInfo.presentMode = presentMode;
 		createInfo.clipped = VK_TRUE;
-		createInfo.oldSwapchain = _swapchain._oldSwapchainHandle;
+		createInfo.oldSwapchain = rCtx._swapchain._oldSwapchainHandle;
 
-		CheckResult(vkCreateSwapchainKHR(ctx._logicalDevice, &createInfo, nullptr, &_swapchain._handle));
+		CheckResult(vkCreateSwapchainKHR(ctx._logicalDevice, &createInfo, nullptr, &rCtx._swapchain._handle));
 
-		if (_swapchain._oldSwapchainHandle != VK_NULL_HANDLE) {
-			vkDestroySwapchainKHR(ctx._logicalDevice, _swapchain._oldSwapchainHandle, nullptr);
+		if (rCtx._swapchain._oldSwapchainHandle != VK_NULL_HANDLE) {
+			vkDestroySwapchainKHR(ctx._logicalDevice, rCtx._swapchain._oldSwapchainHandle, nullptr);
 		}
 
-		_swapchain._oldSwapchainHandle = _swapchain._handle;
-		_swapchain._surfaceFormat = surfaceFormat;
+		rCtx._swapchain._oldSwapchainHandle = rCtx._swapchain._handle;
+		rCtx._swapchain._surfaceFormat = surfaceFormat;
 
 
-		auto& imageFormat = _swapchain._surfaceFormat.format;
+		auto& imageFormat = rCtx._swapchain._surfaceFormat.format;
 		// Store the images used by the swap chain.
 		// Note: these are the images that swap chain image indices refer to.
 		// Note: actual number of images may differ from requested number, since it's a lower bound.
 		uint32_t actualImageCount = 0;
-		CheckResult(vkGetSwapchainImagesKHR(ctx._logicalDevice, _swapchain._handle, &actualImageCount, nullptr));
+		CheckResult(vkGetSwapchainImagesKHR(ctx._logicalDevice, rCtx._swapchain._handle, &actualImageCount, nullptr));
 
-		_renderPass._colorImages.resize(actualImageCount);
-		_swapchain._images.resize(actualImageCount);
-		_overlayImages.resize(actualImageCount);
-		_uiDescriptorSets.resize(actualImageCount);
-		_uiDescriptorSetLayouts.resize(actualImageCount);
-		_swapchain._frameBuffers.resize(actualImageCount);
-		_drawCommandBuffers.resize(actualImageCount);
+		rCtx._renderPass._colorImages.resize(actualImageCount);
+		rCtx._swapchain._images.resize(actualImageCount);
+		rCtx._overlayImages.resize(actualImageCount);
+		/*rCtx._uiPipeline.resize(actualImageCount);
+		rCtx._uiDescriptorSetLayouts.resize(actualImageCount);*/
+		rCtx._swapchain._frameBuffers.resize(actualImageCount);
+		rCtx._drawCommandBuffers.resize(actualImageCount);
 
 		std::vector<VkImage> swapchainImages;
 		swapchainImages.resize(actualImageCount);
-		CheckResult(vkGetSwapchainImagesKHR(ctx._logicalDevice, _swapchain._handle, &actualImageCount, swapchainImages.data()));
-		_swapchain._imageCount = actualImageCount;
+		CheckResult(vkGetSwapchainImagesKHR(ctx._logicalDevice, rCtx._swapchain._handle, &actualImageCount, swapchainImages.data()));
+		rCtx._swapchain._imageCount = actualImageCount;
 
 		// Create the color attachments.
 		for (uint32_t i = 0; i < actualImageCount; ++i) {
-			_drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(ctx._logicalDevice, ctx._commandPool);
+			rCtx._drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(ctx._logicalDevice, ctx._commandPool);
 
 			// Image view used by the UI shader as output attachment, after it has combined the UI image with the scene image output by the first subpass.
-			_swapchain._images[i]._image = swapchainImages[i];
-			auto& createInfo = _swapchain._images[i]._viewCreateInfo;
+			rCtx._swapchain._images[i]._image = swapchainImages[i];
+			auto& createInfo = rCtx._swapchain._images[i]._viewCreateInfo;
 			createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 			createInfo.image = swapchainImages[i];
 			createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -5542,15 +5543,15 @@ namespace Engine {
 			createInfo.subresourceRange.levelCount = 1;
 			createInfo.subresourceRange.baseArrayLayer = 0;
 			createInfo.subresourceRange.layerCount = 1;
-			vkCreateImageView(ctx._logicalDevice, &createInfo, nullptr, &_swapchain._images[i]._view);
+			vkCreateImageView(ctx._logicalDevice, &createInfo, nullptr, &rCtx._swapchain._images[i]._view);
 
 			// Scene image.
-			auto& rpColorImg = _renderPass._colorImages[i];
+			auto& rpColorImg = rCtx._renderPass._colorImages[i];
 			auto& imageCreateInfo = rpColorImg._createInfo;
 			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 			imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-			imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
+			imageCreateInfo.extent = { rCtx._swapchain._framebufferSize.width, rCtx._swapchain._framebufferSize.height, 1 };
 			imageCreateInfo.mipLevels = 1;
 			imageCreateInfo.arrayLayers = 1;
 			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -5598,26 +5599,26 @@ namespace Engine {
 				VkImageCreateInfo image_info{};
 				image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 				image_info.imageType = VK_IMAGE_TYPE_2D;
-				image_info.extent.width = _swapchain._framebufferSize.width;
-				image_info.extent.height = _swapchain._framebufferSize.height;
+				image_info.extent.width = rCtx._swapchain._framebufferSize.width;
+				image_info.extent.height = rCtx._swapchain._framebufferSize.height;
 				image_info.extent.depth = 1;
 				image_info.mipLevels = 1;
 				image_info.arrayLayers = 1;
-				image_info.format = _swapchain._surfaceFormat.format;
+				image_info.format = rCtx._swapchain._surfaceFormat.format;
 				image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
 				image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 				image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 				image_info.samples = VK_SAMPLE_COUNT_1_BIT;
 				image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-				CheckResult(vkCreateImage(ctx._logicalDevice, &image_info, NULL, &_overlayImages[i]._image));
+				CheckResult(vkCreateImage(ctx._logicalDevice, &image_info, NULL, &rCtx._overlayImages[i]._image));
 
-				_overlayImages[i]._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, _overlayImages[i]._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-				CheckResult(vkBindImageMemory(ctx._logicalDevice, _overlayImages[i]._image, _overlayImages[i]._gpuMemory, 0));
+				rCtx._overlayImages[i]._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, rCtx._overlayImages[i]._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+				CheckResult(vkBindImageMemory(ctx._logicalDevice, rCtx._overlayImages[i]._image, rCtx._overlayImages[i]._gpuMemory, 0));
 
 				VkImageViewCreateInfo image_view_info{};
 				image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 				image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-				image_view_info.format = _swapchain._surfaceFormat.format;
+				image_view_info.format = rCtx._swapchain._surfaceFormat.format;
 				image_view_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
 				image_view_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
 				image_view_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -5627,8 +5628,8 @@ namespace Engine {
 				image_view_info.subresourceRange.levelCount = 1;
 				image_view_info.subresourceRange.baseArrayLayer = 0;
 				image_view_info.subresourceRange.layerCount = 1;
-				image_view_info.image = _overlayImages[i]._image;
-				CheckResult(vkCreateImageView(ctx._logicalDevice, &image_view_info, NULL, &_overlayImages[i]._view));
+				image_view_info.image = rCtx._overlayImages[i]._image;
+				CheckResult(vkCreateImageView(ctx._logicalDevice, &image_view_info, NULL, &rCtx._overlayImages[i]._view));
 
 				VkSamplerCreateInfo samplerCreateInfo{};
 				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -5646,7 +5647,7 @@ namespace Engine {
 				samplerCreateInfo.minLod = 0.0f;
 				samplerCreateInfo.maxLod = 0.0f;
 				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-				CheckResult(vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, NULL, &_overlayImages[i]._sampler));
+				CheckResult(vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, NULL, &rCtx._overlayImages[i]._sampler));
 			}
 
 			VkDescriptorPoolSize poolSizes[2];
@@ -5685,17 +5686,17 @@ namespace Engine {
 			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 			layoutCreateInfo.bindingCount = 2;
 			layoutCreateInfo.pBindings = setLayoutBindings;
-			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &layoutCreateInfo, NULL, &_uiDescriptorSetLayouts[i]));
+			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &layoutCreateInfo, NULL, &rCtx._uiDescriptorSetLayouts[i]));
 
 			_uiDescriptorSets[i] = VkHelper::AllocateDescriptorSet(ctx._logicalDevice, dp, _uiDescriptorSetLayouts[i]);
 
 			std::array<VkDescriptorImageInfo, 2> descriptors{};
 			descriptors[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			descriptors[0].imageView = _overlayImages[i]._view;
+			descriptors[0].imageView = rCtx._overlayImages[i]._view;
 			descriptors[0].sampler = _overlayImages[i]._sampler;
 
 			descriptors[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			descriptors[1].imageView = _renderPass._colorImages[i]._view;
+			descriptors[1].imageView = rCtx._renderPass._colorImages[i]._view;
 			descriptors[1].sampler = VK_NULL_HANDLE;
 
 			VkWriteDescriptorSet write0{};
@@ -5721,36 +5722,36 @@ namespace Engine {
 		}
 
 		// Create the depth image.
-		auto& imageCreateInfo = _renderPass._depthImage._createInfo;
+		auto& imageCreateInfo = rCtx._renderPass._depthImage._createInfo;
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageCreateInfo.arrayLayers = 1;
-		imageCreateInfo.extent = { _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, 1 };
+		imageCreateInfo.extent = { rCtx._swapchain._framebufferSize.width, rCtx._swapchain._framebufferSize.height, 1 };
 		imageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
 		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 		imageCreateInfo.mipLevels = 1;
 		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		vkCreateImage(ctx._logicalDevice, &imageCreateInfo, nullptr, &_renderPass._depthImage._image);
+		vkCreateImage(ctx._logicalDevice, &imageCreateInfo, nullptr, &rCtx._renderPass._depthImage._image);
 
 		// Allocate memory on the GPU for the image.
-		_renderPass._depthImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, _renderPass._depthImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		vkBindImageMemory(ctx._logicalDevice, _renderPass._depthImage._image, _renderPass._depthImage._gpuMemory, 0);
+		rCtx._renderPass._depthImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, rCtx._renderPass._depthImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		vkBindImageMemory(ctx._logicalDevice, rCtx._renderPass._depthImage._image, rCtx._renderPass._depthImage._gpuMemory, 0);
 
-		auto& imageViewCreateInfo = _renderPass._depthImage._viewCreateInfo;
+		auto& imageViewCreateInfo = rCtx._renderPass._depthImage._viewCreateInfo;
 		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		imageViewCreateInfo.components = { {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY} };
 		imageViewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-		imageViewCreateInfo.image = _renderPass._depthImage._image;
+		imageViewCreateInfo.image = rCtx._renderPass._depthImage._image;
 		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
 		imageViewCreateInfo.subresourceRange.layerCount = 1;
 		imageViewCreateInfo.subresourceRange.levelCount = 1;
-		vkCreateImageView(ctx._logicalDevice, &imageViewCreateInfo, nullptr, &_renderPass._depthImage._view);
+		vkCreateImageView(ctx._logicalDevice, &imageViewCreateInfo, nullptr, &rCtx._renderPass._depthImage._view);
 
-		auto& samplerCreateInfo = _renderPass._depthImage._samplerCreateInfo;
+		auto& samplerCreateInfo = rCtx._renderPass._depthImage._samplerCreateInfo;
 		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 		samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 		samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -5759,7 +5760,7 @@ namespace Engine {
 		samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
 		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-		vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, nullptr, &_renderPass._depthImage._sampler);
+		vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, nullptr, &rCtx._renderPass._depthImage._sampler);
 
 		// Note: hardware will automatically transition attachment to the specified layout
 		// Note: index refers to attachment descriptions array.
@@ -5859,7 +5860,7 @@ namespace Engine {
 		renderPassCreateInfo.pSubpasses = subpassDescriptions;
 		renderPassCreateInfo.dependencyCount = 3;
 		renderPassCreateInfo.pDependencies = subpassDependencies;
-		CheckResult(vkCreateRenderPass(ctx._logicalDevice, &renderPassCreateInfo, nullptr, &_renderPass._handle));
+		CheckResult(vkCreateRenderPass(ctx._logicalDevice, &renderPassCreateInfo, nullptr, &rCtx._renderPass._handle));
 
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -5870,33 +5871,33 @@ namespace Engine {
 		VkPipelineLayout pipelineLayout;
 		CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_uiPipelineLayout));
 
-		CreateGraphicsPipelines(_renderPass._handle, _graphicsPipeline._layout, _uiPipelineLayout);
+		CreateGraphicsPipelines(ctx, rCtx);
 
 		// Here we record the commands that will be executed in the render loop.
 		for (size_t i = 0; i < actualImageCount; i++) {
-			auto& currentFrameBuffer = _swapchain._frameBuffers[i];
-			auto& cmdBufferOfCurrentFrame = _drawCommandBuffers[i];
+			auto& currentFrameBuffer = rCtx._swapchain._frameBuffers[i];
+			auto& cmdBufferOfCurrentFrame = rCtx._drawCommandBuffers[i];
 
 			// We will render to the same depth image for each frame. 
 			// We can just keep clearing and reusing the same depth image for every frame.
-			VkImageView renderPassImages[3] = { _swapchain._images[i]._view, _renderPass._colorImages[i]._view, _renderPass._depthImage._view };
+			VkImageView renderPassImages[3] = { rCtx._swapchain._images[i]._view, rCtx._renderPass._colorImages[i]._view, rCtx._renderPass._depthImage._view };
 			VkFramebufferCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			createInfo.renderPass = _renderPass._handle;
+			createInfo.renderPass = rCtx._renderPass._handle;
 			createInfo.attachmentCount = 3;
 			createInfo.pAttachments = renderPassImages;
-			createInfo.width = _swapchain._framebufferSize.width;
-			createInfo.height = _swapchain._framebufferSize.height;
+			createInfo.width = rCtx._swapchain._framebufferSize.width;
+			createInfo.height = rCtx._swapchain._framebufferSize.height;
 			createInfo.layers = 1;
 			CheckResult(vkCreateFramebuffer(ctx._logicalDevice, &createInfo, nullptr, &currentFrameBuffer));
 
 			VkCommandBufferBeginInfo beginInfo = {};
 			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-			vkBeginCommandBuffer(_drawCommandBuffers[i], &beginInfo);
+			vkBeginCommandBuffer(rCtx._drawCommandBuffers[i], &beginInfo);
 
-			VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, _swapchain._images[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-			VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, _renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, rCtx._swapchain._images[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+			VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, rCtx._renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 			//VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, _uiCtx._overlayImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 			VkClearValue swapchainImageClear{ { 0.0f, 0.0f, 0.0f, 1.0f } }; // R, G, B, A.
@@ -5906,28 +5907,28 @@ namespace Engine {
 
 			VkRenderPassBeginInfo renderPassBeginInfo{};
 			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			renderPassBeginInfo.renderPass = _renderPass._handle;
+			renderPassBeginInfo.renderPass = rCtx._renderPass._handle;
 			renderPassBeginInfo.framebuffer = currentFrameBuffer;
 			renderPassBeginInfo.renderArea.offset.x = 0;
 			renderPassBeginInfo.renderArea.offset.y = 0;
-			renderPassBeginInfo.renderArea.extent = _swapchain._framebufferSize;
+			renderPassBeginInfo.renderArea.extent = rCtx._swapchain._framebufferSize;
 			renderPassBeginInfo.clearValueCount = 3;
 			renderPassBeginInfo.pClearValues = clearValues;
 
 			vkCmdBeginRenderPass(cmdBufferOfCurrentFrame, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._handle);
+			vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, rCtx._scenePipeline._handle);
 
-			auto& shaderResources = _graphicsPipeline._shaderResources;
+			auto& shaderResources = rCtx._scenePipeline._shaderResources;
 			VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
-			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
-			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
-			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
+			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, rCtx._scenePipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
+			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, rCtx._scenePipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
+			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, rCtx._scenePipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
 
 			for (auto& gameObject : _scene._pRootGameObject->_children)
-				gameObject->Draw(_graphicsPipeline._layout, cmdBufferOfCurrentFrame);
+				gameObject->Draw(rCtx._scenePipeline._layout, cmdBufferOfCurrentFrame);
 
 			vkCmdNextSubpass(cmdBufferOfCurrentFrame, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiPipeline);
+			vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, rCtx._uiPipeline._handle);
 			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiPipelineLayout, 0, 1, _uiDescriptorSets.data(), 0, nullptr);
 			vkCmdDraw(cmdBufferOfCurrentFrame, 3, 1, 0, 0);
 			vkCmdEndRenderPass(cmdBufferOfCurrentFrame);
@@ -6047,9 +6048,9 @@ namespace Engine {
 		LoadScene(*outContext);
 		LoadEnvironmentMap(*outContext);
 		auto descriptorSetLayouts = CreateDescriptorSetLayouts(*outContext);
-		_scenePipeline._layout = CreatePipelineLayout(*outContext, descriptorSetLayouts);
+		outRenderCtx->_scenePipeline._layout = CreatePipelineLayout(*outContext, descriptorSetLayouts);
 		CreateShaderResources(*outContext, descriptorSetLayouts);
-		CreateRenderingResources(*outContext);
+		CreateRenderingResources(*outContext, *outRenderCtx);
 		CreateSemaphores();
 	}
 
