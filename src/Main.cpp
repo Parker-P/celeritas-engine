@@ -172,194 +172,9 @@ namespace Engine {
 		return sizeof(decltype(vector)::value_type) * vector.size();
 	}
 
-	/**
-	 * @brief Encapsulates info for a swapchain.
-	 * The swapchain is an image manager; it manages everything that involves presenting images to the screen,
-	 * or more precisely passing the contents of the framebuffers on the GPU down to the window.
-	 */
-	struct Swapchain {
-		/**
-		 * @brief Identifier for Vulkan.
-		 */
-		VkSwapchainKHR _handle;
+	
 
-		/**
-		 * @brief These are the buffers that contain the final rendered images shown on screen.
-		 * A framebuffer is stored on a different portion of memory with respect to the depth and
-		 * color attachments used by a render pass. The depth and color images CONTRIBUTE to generating
-		 * an image for a framebuffer.
-		 */
-		std::vector<VkFramebuffer> _frameBuffers;
-
-		/**
-		 * @brief Dimensions in pixels of the framebuffers.
-		 */
-		VkExtent2D _framebufferSize;
-
-		/**
-		 * @brief Image format that the window surface expects when it has to send images from a framebuffer to a monitor.
-		 */
-		VkSurfaceFormatKHR _surfaceFormat;
-
-		/**
-		 * @brief Old swapchain handle used when the swapchain is recreated.
-		 */
-		VkSwapchainKHR _oldSwapchainHandle;
-
-		/**
-		 * @brief The amount of images used by this swapchain to show render results in turn.
-		 */
-		uint32_t _imageCount;
-
-		/**
-		 * @brief Swapchain images used for presentation (showing the render results to the window).
-		 */
-		std::vector<Image> _images;
-	};
-
-	/**
-	 * @brief Encapsulates info for a render pass.
-	 * A render pass represents a specific set of commands that generate images, called attachments.
-	 * Attachments are rendered images that contribute to rendering the final image that will go in the framebuffer.
-	 * It is the renderpass's job to also do compositing, which is defining the logic according to which the attachments are merged to create the final image.
-	 * See Swapchain to understand what framebuffers are.
-	 */
-	struct RenderPass {
-		/**
-		 * @brief Identifier for Vulkan.
-		 */
-		VkRenderPass _handle;
-
-		/**
-		 * @brief Attachments used by the GPU to write color information to.
-		 */
-		std::vector<Image> _colorImages;
-
-		/**
-		 * @brief Attachment that stores per-pixel depth information for the hardwired depth testing stage.
-		 * This makes sure that the pixels of each triangle are rendered or not, depending on which pixel
-		 * is closer to the camera, which is the information stored in this image.
-		 */
-		Image _depthImage;
-
-	};
-
-	/**
-	 * @brief The graphics pipeline represents, at the logical level, the entire process
-	 * of inputting vertices, indices and textures into the GPU and getting a 2D image that represents the scene
-	 * passed in out of it. In early GPUs, this process was hardwired into the graphics chip, but as technology improved and needs
-	 * for better and more complex graphics increased, GPU producers have taken steps to make this a much more programmable
-	 * and CPU-like process, so much so that technologies like CUDA (Compute Uniform Device Architecture) have come out.
-	 *
-	 * Nowadays the typical GPU consists of an array of clusters of microprocessors, where each micro
-	 * processor is highly multithreaded, and its ALU and instruction set (thus its circuitry) optimized for operating on
-	 * floating point numbers, vectors and matrices (as that is what is used to represent coordinates in space and space transformations).
-	 *
-	 * CUDA is the result of NVidia and Microsoft working together to improve the programmers' experience for programming
-	 * shaders; the result is a product that maps C/C++ instructions to the GPU's ALUs instruction set, to take full advantage
-	 * of the GPU's high amount of cores and threads. By doing this, things like crypto mining and machine learning have gotten
-	 * a huge boost, as the data that requires manipulation is very loosely coupled (has very few dependecies on the data in
-	 * the same set) and, as a result, can be processed by many independent threads simultaneously. This is called a compute pipeline.
-	 * Khronos, the developers of the Vulkan API, have also done something similar called OpenCL, the compute side of OpenGL.
-	 *
-	 * The typical graphics (or render) pipeline consists of programmable, configurable and hardwired stages, where:
-	 * a) The programmable stages are custom stages that will be run on the GPU's multi-purpose array of microprocessors using a program (a.k.a shader).
-	 * b) The configurable stages are hardwired stages that can perform their task a different way based on user configuration via calls to the Vulkan API.
-	 * c) The hardwired stages are immutable stages that cannot be changed unless manipulating the hardware.
-	 * The graph of a typical graphics pipeline is shown under docs/GraphicsPipeline.jpg.
-	 *
-	 * More on the programmable stages:
-	 * The programmable stages are the flexible stages that the programmer can fully customize by writing little programs called shaders.
-	 * These shader programs will run:
-	 * 1) once per vertex in the case of the vertex shader; this shader program's goal is to take vertex attrbutes in, and output
-	 * a vertex color and 2D position (more precisely, a 3D position inside of the Vulkan's coordinate range, which is -1 to 1 for X and Y and 0 to 1 for Z).
-	 * 2) once per pixel in the case of the fragment shader; this stage's goal is to take the rasterizer's output (which is a hardwired
-	 * stage on the GPU chip as of 2022, whose goal is to color pixels based on vertex colors) and textures, and output a colored pixel based on
-	 * the color of the textures and other variables such as direct and indirect lighting.
-	 * There are other shader stages, but the 2 above are the strictly needed shaders in order to be able to render something.
-
-	 * This type of execution flow has a name and is called SIMD (Single Instruction Multiple Data), as the same program (single instruction)
-	 * is run independently on different cores/threads for multiple vertices or pixels (multiple data).
-	 *
-	 * Examples of the configurable stages are anti-aliasing and tessellation.
-	 * Examples of hardwired stages are backface-culling, depth testing and alpha blending.
-	 *
-	 * For a good overall hardware and software explanation of a typical NVidia GPU, see
-	 * https://developer.nvidia.com/gpugems/gpugems2/part-iv-general-purpose-computation-gpus-primer/chapter-30-geforce-6-series-gpu
-	 */
-	struct Pipeline {
-
-		/**
-		 * @brief Identifier for Vulkan.
-		 */
-		VkPipeline _handle;
-
-		/**
-		* @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
-		* push constant ranges are combined to form a pipeline layout object describing the complete set of resources that can be accessed by a pipeline.
-		* The pipeline layout represents a sequence of descriptor sets with each having a specific layout. This sequence of layouts is used to determine
-		* the interface between shader stages and shader resources. Each pipeline is created using a pipeline layout.
-		*/
-		VkPipelineLayout _layout;
-
-		/**
-		 * @brief See ShaderResources definition.
-		 */
-		ShaderResources _shaderResources;
-	};
-
-	/**
-	 * @brief Represents all the needed, or neeeded in order to obtain, information to run any call in the Vulkan API.
-	 */
-	struct VkContext {
-		static VkInstance _instance;
-		static VkDevice _logicalDevice;
-		static VkPhysicalDevice _physicalDevice;
-		static VkCommandPool _commandPool;
-		static VkSurfaceKHR _windowSurface;
-		static VkQueue _queue;
-		static uint32_t _queueFamilyIndex;
-		static VkFence _queueFence;
-		/**
-		 * @brief Function pointer called by Vulkan each time it wants to report an error.
-		 * Error reporting is set by enabling validation layers.
-		 */
-		VkDebugReportCallbackEXT _callback;
-	};
-
-	/**
-	 * @brief All the information the engine needs to render the images sent to the window.
-	 */
-	struct VkRenderContext {
-		/**
-		 * @brief The images to which Nuklear renders its UI.
-		 */
-		std::vector<Image> _overlayImages;
-		nk_context* _uiCtx;
-		std::vector<VkCommandBuffer> _drawCommandBuffers;
-		Swapchain _swapchain;
-		Pipeline _scenePipeline;
-		Pipeline _uiPipeline;
-		RenderPass _renderPass;
-		/**
-		 * @brief Semaphore that will be used by Vulkan to signal when an image has finished
-		 * rendering and is available to be rendered to in one of the framebuffers.
-		 */
-		VkSemaphore _imageAvailableSemaphore;
-		VkSemaphore	_renderingFinishedSemaphore;
-	};
-
-	/**
-	 * @brief Used by implementing classes to mark themselves as a class that is meant to do work on each iteration of the main loop.
-	 */
-	class IVulkanUpdatable {
-	public:
-
-		/**
-		 * @brief Function called on implementing classes in each iteration of the main loop. The main loop is defined in VulkanApplication.cpp.
-		 */
-		virtual void Update(VkContext& context) = 0;
-	};
+	
 
 	/**
 	 * @brief Used by implementing classes to mark themselves as a class that is meant to do work on each iteration of the main loop.
@@ -1520,6 +1335,276 @@ namespace Engine {
 	};
 
 	/**
+	 * @brief Describes the structure of a single descriptor set to provide context on how the shader should treat the descriptor set.
+	 * To make an analogy: if descriptor sets were cars, the blueprint used to fabricate them would be the descriptor set layout, and the
+	 * people inside the car would be the descriptors (the data the sets contain).
+	 * A descriptor set is a group of descriptors. Each descriptor in the set is an entry in the shader's input variables, and can be either
+	 * a buffer or an image.
+	 */
+	class DescriptorSetLayout {
+	public:
+
+		/**
+		 * @brief To make it more recognizable when debugging.
+		 */
+		std::string _name = "";
+
+		/**
+		 * @brief ID used to make the pipeline layout and the order the descriptor sets are bound to the pipeline (via vkBindDescriptorSets) match.
+		 * In shaders, this corresponds to the "set" decorator when defining an input variable, like in this line of GLSL:
+		 * layout(set = 3, binding = 0) uniform sampler2D albedoMap;
+		 */
+		int _id;
+
+		/**
+		 * @brief Layout handle.
+		 */
+		VkDescriptorSetLayout _layout;
+
+		/**
+		 * @brief Used for ordering pipeline layouts in map structures.
+		 */
+		bool operator<(const DescriptorSetLayout& other) const {
+			return _id < other._id;
+		}
+
+		/**
+		 * @brief Used for ordering pipeline layouts in map structures.
+		 */
+		bool operator==(const DescriptorSetLayout& other) const {
+			return _id == other._id;
+		}
+	};
+
+	/**
+	 * @brief Represents a description of how data from CPU-side memory is bound to input variables in the shaders.
+	 */
+	class ShaderResources {
+	public:
+
+		std::map<DescriptorSetLayout, std::vector<VkDescriptorSet>> _data;
+
+		/**
+		 * @brief Merges this shader resources instance with another.
+		 */
+		void MergeResources(ShaderResources& other) {
+			for (const auto& pair : other._data) {
+				auto it = _data.find(pair.first);
+				if (it != _data.end()) {
+					// Here, you can decide how to merge the values.
+					// For simplicity, I'm replacing the value in map1 with the value from map2.
+					it->second = pair.second;
+				}
+				else {
+					_data.insert(pair);
+				}
+			}
+		}
+
+		/**
+		 * @brief Operator overload to index into _data.
+		 */
+		std::vector<VkDescriptorSet>& operator[](const int& index) {
+			auto it = std::find_if(_data.begin(), _data.end(), [index](const auto& pair) { return pair.first._id == index; });
+
+			if (it == _data.end()) {
+				Exit(1, "index not found");
+			}
+
+			return it->second;
+		}
+	};
+
+	/**
+	 * @brief Encapsulates info for a swapchain.
+	 * The swapchain is an image manager; it manages everything that involves presenting images to the screen,
+	 * or more precisely passing the contents of the framebuffers on the GPU down to the window.
+	 */
+	struct Swapchain {
+		/**
+		 * @brief Identifier for Vulkan.
+		 */
+		VkSwapchainKHR _handle;
+
+		/**
+		 * @brief These are the buffers that contain the final rendered images shown on screen.
+		 * A framebuffer is stored on a different portion of memory with respect to the depth and
+		 * color attachments used by a render pass. The depth and color images CONTRIBUTE to generating
+		 * an image for a framebuffer.
+		 */
+		std::vector<VkFramebuffer> _frameBuffers;
+
+		/**
+		 * @brief Dimensions in pixels of the framebuffers.
+		 */
+		VkExtent2D _framebufferSize;
+
+		/**
+		 * @brief Image format that the window surface expects when it has to send images from a framebuffer to a monitor.
+		 */
+		VkSurfaceFormatKHR _surfaceFormat;
+
+		/**
+		 * @brief Old swapchain handle used when the swapchain is recreated.
+		 */
+		VkSwapchainKHR _oldSwapchainHandle;
+
+		/**
+		 * @brief The amount of images used by this swapchain to show render results in turn.
+		 */
+		uint32_t _imageCount;
+
+		/**
+		 * @brief Swapchain images used for presentation (showing the render results to the window).
+		 */
+		std::vector<Image> _images;
+	};
+
+	/**
+	 * @brief Encapsulates info for a render pass.
+	 * A render pass represents a specific set of commands that generate images, called attachments.
+	 * Attachments are rendered images that contribute to rendering the final image that will go in the framebuffer.
+	 * It is the renderpass's job to also do compositing, which is defining the logic according to which the attachments are merged to create the final image.
+	 * See Swapchain to understand what framebuffers are.
+	 */
+	struct RenderPass {
+		/**
+		 * @brief Identifier for Vulkan.
+		 */
+		VkRenderPass _handle;
+
+		/**
+		 * @brief Attachments used by the GPU to write color information to.
+		 */
+		std::vector<Image> _colorImages;
+
+		/**
+		 * @brief Attachment that stores per-pixel depth information for the hardwired depth testing stage.
+		 * This makes sure that the pixels of each triangle are rendered or not, depending on which pixel
+		 * is closer to the camera, which is the information stored in this image.
+		 */
+		Image _depthImage;
+
+	};
+
+	/**
+	 * @brief The graphics pipeline represents, at the logical level, the entire process
+	 * of inputting vertices, indices and textures into the GPU and getting a 2D image that represents the scene
+	 * passed in out of it. In early GPUs, this process was hardwired into the graphics chip, but as technology improved and needs
+	 * for better and more complex graphics increased, GPU producers have taken steps to make this a much more programmable
+	 * and CPU-like process, so much so that technologies like CUDA (Compute Uniform Device Architecture) have come out.
+	 *
+	 * Nowadays the typical GPU consists of an array of clusters of microprocessors, where each micro
+	 * processor is highly multithreaded, and its ALU and instruction set (thus its circuitry) optimized for operating on
+	 * floating point numbers, vectors and matrices (as that is what is used to represent coordinates in space and space transformations).
+	 *
+	 * CUDA is the result of NVidia and Microsoft working together to improve the programmers' experience for programming
+	 * shaders; the result is a product that maps C/C++ instructions to the GPU's ALUs instruction set, to take full advantage
+	 * of the GPU's high amount of cores and threads. By doing this, things like crypto mining and machine learning have gotten
+	 * a huge boost, as the data that requires manipulation is very loosely coupled (has very few dependecies on the data in
+	 * the same set) and, as a result, can be processed by many independent threads simultaneously. This is called a compute pipeline.
+	 * Khronos, the developers of the Vulkan API, have also done something similar called OpenCL, the compute side of OpenGL.
+	 *
+	 * The typical graphics (or render) pipeline consists of programmable, configurable and hardwired stages, where:
+	 * a) The programmable stages are custom stages that will be run on the GPU's multi-purpose array of microprocessors using a program (a.k.a shader).
+	 * b) The configurable stages are hardwired stages that can perform their task a different way based on user configuration via calls to the Vulkan API.
+	 * c) The hardwired stages are immutable stages that cannot be changed unless manipulating the hardware.
+	 * The graph of a typical graphics pipeline is shown under docs/GraphicsPipeline.jpg.
+	 *
+	 * More on the programmable stages:
+	 * The programmable stages are the flexible stages that the programmer can fully customize by writing little programs called shaders.
+	 * These shader programs will run:
+	 * 1) once per vertex in the case of the vertex shader; this shader program's goal is to take vertex attrbutes in, and output
+	 * a vertex color and 2D position (more precisely, a 3D position inside of the Vulkan's coordinate range, which is -1 to 1 for X and Y and 0 to 1 for Z).
+	 * 2) once per pixel in the case of the fragment shader; this stage's goal is to take the rasterizer's output (which is a hardwired
+	 * stage on the GPU chip as of 2022, whose goal is to color pixels based on vertex colors) and textures, and output a colored pixel based on
+	 * the color of the textures and other variables such as direct and indirect lighting.
+	 * There are other shader stages, but the 2 above are the strictly needed shaders in order to be able to render something.
+
+	 * This type of execution flow has a name and is called SIMD (Single Instruction Multiple Data), as the same program (single instruction)
+	 * is run independently on different cores/threads for multiple vertices or pixels (multiple data).
+	 *
+	 * Examples of the configurable stages are anti-aliasing and tessellation.
+	 * Examples of hardwired stages are backface-culling, depth testing and alpha blending.
+	 *
+	 * For a good overall hardware and software explanation of a typical NVidia GPU, see
+	 * https://developer.nvidia.com/gpugems/gpugems2/part-iv-general-purpose-computation-gpus-primer/chapter-30-geforce-6-series-gpu
+	 */
+	struct Pipeline {
+
+		/**
+		 * @brief Identifier for Vulkan.
+		 */
+		VkPipeline _handle;
+
+		/**
+		* @brief Access to descriptor sets from a pipeline is accomplished through a pipeline layout. Zero or more descriptor set layouts and zero or more
+		* push constant ranges are combined to form a pipeline layout object describing the complete set of resources that can be accessed by a pipeline.
+		* The pipeline layout represents a sequence of descriptor sets with each having a specific layout. This sequence of layouts is used to determine
+		* the interface between shader stages and shader resources. Each pipeline is created using a pipeline layout.
+		*/
+		VkPipelineLayout _layout;
+
+		/**
+		 * @brief See ShaderResources definition.
+		 */
+		ShaderResources _shaderResources;
+	};
+
+	/**
+	 * @brief Represents all the needed, or neeeded in order to obtain, information to run any call in the Vulkan API.
+	 */
+	struct VkContext {
+		VkInstance _instance;
+		VkDevice _logicalDevice;
+		VkPhysicalDevice _physicalDevice;
+		VkCommandPool _commandPool;
+		VkSurfaceKHR _windowSurface;
+		VkQueue _queue;
+		uint32_t _queueFamilyIndex;
+		VkFence _queueFence;
+		/**
+		 * @brief Function pointer called by Vulkan each time it wants to report an error.
+		 * Error reporting is set by enabling validation layers.
+		 */
+		VkDebugReportCallbackEXT _callback;
+	};
+
+	/**
+	 * @brief All the information the engine needs to render the images sent to the window.
+	 */
+	struct VkRenderContext {
+		/**
+		 * @brief The images to which Nuklear renders its UI.
+		 */
+		std::vector<Image> _overlayImages;
+		nk_context* _uiCtx;
+		std::vector<VkCommandBuffer> _drawCommandBuffers;
+		Swapchain _swapchain{};
+		Pipeline _scenePipeline{};
+		Pipeline _uiPipeline{};
+		RenderPass _renderPass{};
+		/**
+		 * @brief Semaphore that will be used by Vulkan to signal when an image has finished
+		 * rendering and is available to be rendered to in one of the framebuffers.
+		 */
+		VkSemaphore _imageAvailableSemaphore;
+		VkSemaphore	_renderingFinishedSemaphore;
+	};
+
+	/**
+	 * @brief Used by implementing classes to mark themselves as a class that is meant to do work on each iteration of the main loop.
+	 */
+	class IVulkanUpdatable {
+	public:
+
+		/**
+		 * @brief Function called on implementing classes in each iteration of the main loop. The main loop is defined in VulkanApplication.cpp.
+		 */
+		virtual void Update(VkContext& context) = 0;
+	};
+
+	/**
 	 * @brief Represents a scene-level PBR material.
 	 */
 	class Material {
@@ -1598,87 +1683,6 @@ namespace Engine {
 				return sizeof(_position) + sizeof(_normal);
 			default: return 0;
 			}
-		}
-	};
-
-	/**
-	 * @brief Describes the structure of a single descriptor set to provide context on how the shader should treat the descriptor set.
-	 * To make an analogy: if descriptor sets were cars, the blueprint used to fabricate them would be the descriptor set layout, and the
-	 * people inside the car would be the descriptors (the data the sets contain).
-	 * A descriptor set is a group of descriptors. Each descriptor in the set is an entry in the shader's input variables, and can be either
-	 * a buffer or an image.
-	 */
-	class DescriptorSetLayout {
-	public:
-
-		/**
-		 * @brief To make it more recognizable when debugging.
-		 */
-		std::string _name = "";
-
-		/**
-		 * @brief ID used to make the pipeline layout and the order the descriptor sets are bound to the pipeline (via vkBindDescriptorSets) match.
-		 * In shaders, this corresponds to the "set" decorator when defining an input variable, like in this line of GLSL:
-		 * layout(set = 3, binding = 0) uniform sampler2D albedoMap;
-		 */
-		int _id;
-
-		/**
-		 * @brief Layout handle.
-		 */
-		VkDescriptorSetLayout _layout;
-
-		/**
-		 * @brief Used for ordering pipeline layouts in map structures.
-		 */
-		bool operator<(const DescriptorSetLayout& other) const {
-			return _id < other._id;
-		}
-
-		/**
-		 * @brief Used for ordering pipeline layouts in map structures.
-		 */
-		bool operator==(const DescriptorSetLayout& other) const {
-			return _id == other._id;
-		}
-	};
-
-	/**
-	 * @brief Represents a description of how data from CPU-side memory is bound to input variables in the shaders.
-	 */
-	class ShaderResources {
-	public:
-
-		std::map<DescriptorSetLayout, std::vector<VkDescriptorSet>> _data;
-
-		/**
-		 * @brief Merges this shader resources instance with another.
-		 */
-		void MergeResources(ShaderResources& other) {
-			for (const auto& pair : other._data) {
-				auto it = _data.find(pair.first);
-				if (it != _data.end()) {
-					// Here, you can decide how to merge the values.
-					// For simplicity, I'm replacing the value in map1 with the value from map2.
-					it->second = pair.second;
-				}
-				else {
-					_data.insert(pair);
-				}
-			}
-		}
-
-		/**
-		 * @brief Operator overload to index into _data.
-		 */
-		std::vector<VkDescriptorSet>& operator[](const int& index) {
-			auto it = std::find_if(_data.begin(), _data.end(), [index](const auto& pair) { return pair.first._id == index; });
-
-			if (it == _data.end()) {
-				Exit(1, "index not found");
-			}
-
-			return it->second;
 		}
 	};
 
@@ -3718,13 +3722,11 @@ namespace Engine {
 		}
 
 		void Update(VkContext& vkContext) {
-			for (auto& light : _pointLights) {
+			for (auto& light : _pointLights)
 				light.Update(vkContext);
-			}
 
-			for (auto& gameObject : _pRootGameObject->_children) {
+			for (auto& gameObject : _pRootGameObject->_children)
 				gameObject->Update(vkContext);
-			}
 		}
 
 		ShaderResources CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts) {
@@ -4949,20 +4951,20 @@ namespace Engine {
 		GlobalSettings::Instance()._windowHeight = height;
 	}
 
-	void DestroyRenderPass() {
-		//_renderPass._depthImage.Destroy();
-		/*for (auto image : _renderPass.colorImages) {
-			image.Destroy();
-		}*/
+	//void DestroyRenderPass() {
+	//	//_renderPass._depthImage.Destroy();
+	//	/*for (auto image : _renderPass.colorImages) {
+	//		image.Destroy();
+	//	}*/
 
-		vkDestroyRenderPass(_logicalDevice, _renderPass._handle, nullptr);
-	}
+	//	vkDestroyRenderPass(_logicalDevice, _renderPass._handle, nullptr);
+	//}
 
-	void DestroySwapchain() {
-		for (size_t i = 0; i < _swapchain._frameBuffers.size(); i++) {
-			vkDestroyFramebuffer(_logicalDevice, _swapchain._frameBuffers[i], nullptr);
-		}
-	}
+	//void DestroySwapchain() {
+	//	for (size_t i = 0; i < _swapchain._frameBuffers.size(); i++) {
+	//		vkDestroyFramebuffer(_logicalDevice, _swapchain._frameBuffers[i], nullptr);
+	//	}
+	//}
 
 	bool ValidationLayersSupported(const std::vector<const char*>& validationLayers) {
 		uint32_t layerCount;
@@ -5502,7 +5504,6 @@ namespace Engine {
 		rCtx._swapchain._oldSwapchainHandle = rCtx._swapchain._handle;
 		rCtx._swapchain._surfaceFormat = surfaceFormat;
 
-
 		auto& imageFormat = rCtx._swapchain._surfaceFormat.format;
 		// Store the images used by the swap chain.
 		// Note: these are the images that swap chain image indices refer to.
@@ -5513,8 +5514,6 @@ namespace Engine {
 		rCtx._renderPass._colorImages.resize(actualImageCount);
 		rCtx._swapchain._images.resize(actualImageCount);
 		rCtx._overlayImages.resize(actualImageCount);
-		/*rCtx._uiPipeline.resize(actualImageCount);
-		rCtx._uiDescriptorSetLayouts.resize(actualImageCount);*/
 		rCtx._swapchain._frameBuffers.resize(actualImageCount);
 		rCtx._drawCommandBuffers.resize(actualImageCount);
 
@@ -5523,11 +5522,11 @@ namespace Engine {
 		CheckResult(vkGetSwapchainImagesKHR(ctx._logicalDevice, rCtx._swapchain._handle, &actualImageCount, swapchainImages.data()));
 		rCtx._swapchain._imageCount = actualImageCount;
 
-		// Create the color attachments.
+		// Create the scene color attachments.
 		for (uint32_t i = 0; i < actualImageCount; ++i) {
 			rCtx._drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(ctx._logicalDevice, ctx._commandPool);
 
-			// Image view used by the UI shader as output attachment, after it has combined the UI image with the scene image output by the first subpass.
+			// Image view used by the UI shader as output attachment, after it has combined the UI image with the scene color image, which is output by the first subpass.
 			rCtx._swapchain._images[i]._image = swapchainImages[i];
 			auto& createInfo = rCtx._swapchain._images[i]._viewCreateInfo;
 			createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -5545,54 +5544,56 @@ namespace Engine {
 			createInfo.subresourceRange.layerCount = 1;
 			vkCreateImageView(ctx._logicalDevice, &createInfo, nullptr, &rCtx._swapchain._images[i]._view);
 
-			// Scene image.
-			auto& rpColorImg = rCtx._renderPass._colorImages[i];
-			auto& imageCreateInfo = rpColorImg._createInfo;
-			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-			imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-			imageCreateInfo.extent = { rCtx._swapchain._framebufferSize.width, rCtx._swapchain._framebufferSize.height, 1 };
-			imageCreateInfo.mipLevels = 1;
-			imageCreateInfo.arrayLayers = 1;
-			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-			imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-			vkCreateImage(ctx._logicalDevice, &imageCreateInfo, nullptr, &rpColorImg._image);
+			// Scene color image.
+			{
+				auto& rpColorImg = rCtx._renderPass._colorImages[i];
+				auto& imageCreateInfo = rpColorImg._createInfo;
+				imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+				imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+				imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+				imageCreateInfo.extent = { rCtx._swapchain._framebufferSize.width, rCtx._swapchain._framebufferSize.height, 1 };
+				imageCreateInfo.mipLevels = 1;
+				imageCreateInfo.arrayLayers = 1;
+				imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+				imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+				imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+				vkCreateImage(ctx._logicalDevice, &imageCreateInfo, nullptr, &rpColorImg._image);
 
-			// Allocate memory on the GPU for the image.
-			rpColorImg._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, rpColorImg._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-			vkBindImageMemory(ctx._logicalDevice, rpColorImg._image, rpColorImg._gpuMemory, 0);
+				// Allocate memory on the GPU for the image.
+				rpColorImg._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, rpColorImg._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+				vkBindImageMemory(ctx._logicalDevice, rpColorImg._image, rpColorImg._gpuMemory, 0);
 
-			auto& imageViewCreateInfo = rpColorImg._viewCreateInfo;
-			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			imageViewCreateInfo.image = rpColorImg._image;
-			imageViewCreateInfo.format = imageCreateInfo.format;
-			imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-			imageViewCreateInfo.subresourceRange.levelCount = 1;
-			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-			imageViewCreateInfo.subresourceRange.layerCount = 1;
-			imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			vkCreateImageView(ctx._logicalDevice, &imageViewCreateInfo, nullptr, &rpColorImg._view);
+				auto& imageViewCreateInfo = rpColorImg._viewCreateInfo;
+				imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+				imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+				imageViewCreateInfo.image = rpColorImg._image;
+				imageViewCreateInfo.format = imageCreateInfo.format;
+				imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+				imageViewCreateInfo.subresourceRange.levelCount = 1;
+				imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+				imageViewCreateInfo.subresourceRange.layerCount = 1;
+				imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				vkCreateImageView(ctx._logicalDevice, &imageViewCreateInfo, nullptr, &rpColorImg._view);
 
-			auto& samplerCreateInfo = rpColorImg._samplerCreateInfo;
-			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-			samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-			samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-			samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-			samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-			samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-			samplerCreateInfo.anisotropyEnable = VK_FALSE;
-			samplerCreateInfo.maxAnisotropy = 1.0f;
-			samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-			samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-			samplerCreateInfo.compareEnable = VK_FALSE;
-			samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-			samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-			samplerCreateInfo.mipLodBias = 0.0f;
-			samplerCreateInfo.minLod = 0.0f;
-			samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
-			vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, nullptr, &rpColorImg._sampler);
+				auto& samplerCreateInfo = rpColorImg._samplerCreateInfo;
+				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+				samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+				samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+				samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+				samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+				samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+				samplerCreateInfo.anisotropyEnable = VK_FALSE;
+				samplerCreateInfo.maxAnisotropy = 1.0f;
+				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+				samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+				samplerCreateInfo.compareEnable = VK_FALSE;
+				samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+				samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+				samplerCreateInfo.mipLodBias = 0.0f;
+				samplerCreateInfo.minLod = 0.0f;
+				samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
+				vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, nullptr, &rpColorImg._sampler);
+			}
 
 			// UI image
 			{
@@ -5649,118 +5650,50 @@ namespace Engine {
 				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
 				CheckResult(vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, NULL, &rCtx._overlayImages[i]._sampler));
 			}
-
-			VkDescriptorPoolSize poolSizes[2];
-			poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			poolSizes[0].descriptorCount = 1;
-
-			VkDescriptorPoolSize poolSize1{};
-			poolSizes[1].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-			poolSizes[1].descriptorCount = 1;
-
-			VkDescriptorPoolCreateInfo pool_info{};
-			pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-			pool_info.poolSizeCount = 2;
-			pool_info.pPoolSizes = poolSizes;
-			pool_info.maxSets = 1;
-			VkDescriptorPool dp;
-
-			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &pool_info, NULL, &dp));
-
-			VkDescriptorSetLayoutBinding setLayoutBindings[2];
-			memset(setLayoutBindings, 0, sizeof(VkDescriptorSetLayoutBinding) * 2);
-
-			// Input attachment from the scene subpass
-			setLayoutBindings[0].binding = 1;
-			setLayoutBindings[0].descriptorCount = 1;
-			setLayoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-			setLayoutBindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-			// Overlay image
-			setLayoutBindings[1].binding = 0;
-			setLayoutBindings[1].descriptorCount = 1;
-			setLayoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			setLayoutBindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-			VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
-			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-			layoutCreateInfo.bindingCount = 2;
-			layoutCreateInfo.pBindings = setLayoutBindings;
-			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &layoutCreateInfo, NULL, &rCtx._uiDescriptorSetLayouts[i]));
-
-			_uiDescriptorSets[i] = VkHelper::AllocateDescriptorSet(ctx._logicalDevice, dp, _uiDescriptorSetLayouts[i]);
-
-			std::array<VkDescriptorImageInfo, 2> descriptors{};
-			descriptors[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			descriptors[0].imageView = rCtx._overlayImages[i]._view;
-			descriptors[0].sampler = _overlayImages[i]._sampler;
-
-			descriptors[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			descriptors[1].imageView = rCtx._renderPass._colorImages[i]._view;
-			descriptors[1].sampler = VK_NULL_HANDLE;
-
-			VkWriteDescriptorSet write0{};
-			write0.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			write0.dstSet = _uiDescriptorSets[i];
-			write0.dstBinding = 0;
-			write0.dstArrayElement = 0;
-			write0.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			write0.descriptorCount = 1;
-			write0.pImageInfo = &descriptors[0];
-
-			VkWriteDescriptorSet write1{};
-			write1.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			write1.dstSet = _uiDescriptorSets[i];
-			write1.dstBinding = 1;
-			write1.dstArrayElement = 0;
-			write1.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-			write1.descriptorCount = 1;
-			write1.pImageInfo = &descriptors[1];
-
-			VkWriteDescriptorSet descriptorWrites[2] = { write0, write1 };
-			vkUpdateDescriptorSets(ctx._logicalDevice, 2, descriptorWrites, 0, nullptr);
 		}
 
 		// Create the depth image.
-		auto& imageCreateInfo = rCtx._renderPass._depthImage._createInfo;
-		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		imageCreateInfo.arrayLayers = 1;
-		imageCreateInfo.extent = { rCtx._swapchain._framebufferSize.width, rCtx._swapchain._framebufferSize.height, 1 };
-		imageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageCreateInfo.mipLevels = 1;
-		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		vkCreateImage(ctx._logicalDevice, &imageCreateInfo, nullptr, &rCtx._renderPass._depthImage._image);
+		{
+			auto& imageCreateInfo = rCtx._renderPass._depthImage._createInfo;
+			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+			imageCreateInfo.arrayLayers = 1;
+			imageCreateInfo.extent = { rCtx._swapchain._framebufferSize.width, rCtx._swapchain._framebufferSize.height, 1 };
+			imageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+			imageCreateInfo.mipLevels = 1;
+			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+			imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+			vkCreateImage(ctx._logicalDevice, &imageCreateInfo, nullptr, &rCtx._renderPass._depthImage._image);
 
-		// Allocate memory on the GPU for the image.
-		rCtx._renderPass._depthImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, rCtx._renderPass._depthImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		vkBindImageMemory(ctx._logicalDevice, rCtx._renderPass._depthImage._image, rCtx._renderPass._depthImage._gpuMemory, 0);
+			// Allocate memory on the GPU for the image.
+			rCtx._renderPass._depthImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, rCtx._renderPass._depthImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			vkBindImageMemory(ctx._logicalDevice, rCtx._renderPass._depthImage._image, rCtx._renderPass._depthImage._gpuMemory, 0);
 
-		auto& imageViewCreateInfo = rCtx._renderPass._depthImage._viewCreateInfo;
-		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		imageViewCreateInfo.components = { {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY} };
-		imageViewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-		imageViewCreateInfo.image = rCtx._renderPass._depthImage._image;
-		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-		imageViewCreateInfo.subresourceRange.layerCount = 1;
-		imageViewCreateInfo.subresourceRange.levelCount = 1;
-		vkCreateImageView(ctx._logicalDevice, &imageViewCreateInfo, nullptr, &rCtx._renderPass._depthImage._view);
+			auto& imageViewCreateInfo = rCtx._renderPass._depthImage._viewCreateInfo;
+			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			imageViewCreateInfo.components = { {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY} };
+			imageViewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+			imageViewCreateInfo.image = rCtx._renderPass._depthImage._image;
+			imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+			imageViewCreateInfo.subresourceRange.layerCount = 1;
+			imageViewCreateInfo.subresourceRange.levelCount = 1;
+			vkCreateImageView(ctx._logicalDevice, &imageViewCreateInfo, nullptr, &rCtx._renderPass._depthImage._view);
 
-		auto& samplerCreateInfo = rCtx._renderPass._depthImage._samplerCreateInfo;
-		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerCreateInfo.anisotropyEnable = false;
-		samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-		vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, nullptr, &rCtx._renderPass._depthImage._sampler);
+			auto& samplerCreateInfo = rCtx._renderPass._depthImage._samplerCreateInfo;
+			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			samplerCreateInfo.anisotropyEnable = false;
+			samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+			samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+			samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+			vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, nullptr, &rCtx._renderPass._depthImage._sampler);
+		}
 
 		// Note: hardware will automatically transition attachment to the specified layout
 		// Note: index refers to attachment descriptions array.
@@ -5862,14 +5795,95 @@ namespace Engine {
 		renderPassCreateInfo.pDependencies = subpassDependencies;
 		CheckResult(vkCreateRenderPass(ctx._logicalDevice, &renderPassCreateInfo, nullptr, &rCtx._renderPass._handle));
 
-		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
-		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutCreateInfo.setLayoutCount = _uiDescriptorSetLayouts.size();
-		pipelineLayoutCreateInfo.pSetLayouts = _uiDescriptorSetLayouts.data();
-		pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
-		pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
-		VkPipelineLayout pipelineLayout;
-		CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, nullptr, &_uiPipelineLayout));
+		// Create the UI descriptor sets and their layout, as well as the pipeline layout
+		{
+			VkDescriptorSetLayoutBinding setLayoutBindings[2];
+			memset(setLayoutBindings, 0, sizeof(VkDescriptorSetLayoutBinding) * 2);
+
+			// Input attachment from the scene subpass
+			setLayoutBindings[0].binding = 1;
+			setLayoutBindings[0].descriptorCount = 1;
+			setLayoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+			setLayoutBindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+			// Overlay image
+			setLayoutBindings[1].binding = 0;
+			setLayoutBindings[1].descriptorCount = 1;
+			setLayoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			setLayoutBindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+			DescriptorSetLayout uiDescriptorSetLayout;
+			uiDescriptorSetLayout._name = "overlayImageDescriptorSetLayout";
+			uiDescriptorSetLayout._id = 0;
+			VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
+			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+			layoutCreateInfo.bindingCount = 2;
+			layoutCreateInfo.pBindings = setLayoutBindings;
+			VkDescriptorSetLayout setLayout;
+			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &layoutCreateInfo, NULL, &uiDescriptorSetLayout._layout));
+
+			VkDescriptorPoolSize poolSizes[2];
+			poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			poolSizes[0].descriptorCount = 1;
+
+			VkDescriptorPoolSize poolSize1{};
+			poolSizes[1].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+			poolSizes[1].descriptorCount = 1;
+
+			VkDescriptorPoolCreateInfo pool_info{};
+			pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+			pool_info.poolSizeCount = 2;
+			pool_info.pPoolSizes = poolSizes;
+			pool_info.maxSets = 1;
+
+			std::vector<VkDescriptorSet> sets; sets.resize(actualImageCount);
+			for (int i = 0; i < actualImageCount; ++i) {
+				VkDescriptorPool dp;
+				CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &pool_info, NULL, &dp));
+				sets[i] = VkHelper::AllocateDescriptorSet(ctx._logicalDevice, dp, uiDescriptorSetLayout._layout);
+
+				std::array<VkDescriptorImageInfo, 2> descriptors{};
+				descriptors[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				descriptors[0].imageView = rCtx._overlayImages[i]._view;
+				descriptors[0].sampler = rCtx._overlayImages[i]._sampler;
+
+				descriptors[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				descriptors[1].imageView = rCtx._renderPass._colorImages[i]._view;
+				descriptors[1].sampler = VK_NULL_HANDLE;
+
+				VkWriteDescriptorSet write0{};
+				write0.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				write0.dstSet = sets[i];
+				write0.dstBinding = 0;
+				write0.dstArrayElement = 0;
+				write0.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+				write0.descriptorCount = 1;
+				write0.pImageInfo = &descriptors[0];
+
+				VkWriteDescriptorSet write1{};
+				write1.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				write1.dstSet = sets[i];
+				write1.dstBinding = 1;
+				write1.dstArrayElement = 0;
+				write1.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+				write1.descriptorCount = 1;
+				write1.pImageInfo = &descriptors[1];
+
+				VkWriteDescriptorSet descriptorWrites[2] = { write0, write1 };
+				vkUpdateDescriptorSets(ctx._logicalDevice, 2, descriptorWrites, 0, nullptr);
+			}
+
+			rCtx._uiPipeline._shaderResources._data.try_emplace(uiDescriptorSetLayout, sets);
+
+			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
+			pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+			pipelineLayoutCreateInfo.setLayoutCount = 1;
+			pipelineLayoutCreateInfo.pSetLayouts = &rCtx._uiPipeline._shaderResources._data.begin()->first._layout;
+			pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
+			pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+			VkPipelineLayout pipelineLayout;
+			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, nullptr, &rCtx._uiPipeline._layout));
+		}
 
 		CreateGraphicsPipelines(ctx, rCtx);
 
@@ -5927,13 +5941,16 @@ namespace Engine {
 			for (auto& gameObject : _scene._pRootGameObject->_children)
 				gameObject->Draw(rCtx._scenePipeline._layout, cmdBufferOfCurrentFrame);
 
+			auto& uiShaderResources = rCtx._uiPipeline._shaderResources;
 			vkCmdNextSubpass(cmdBufferOfCurrentFrame, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, rCtx._uiPipeline._handle);
-			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, _uiPipelineLayout, 0, 1, _uiDescriptorSets.data(), 0, nullptr);
+			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, rCtx._uiPipeline._layout, 0, 1, &uiShaderResources[0][i], 0, nullptr);
 			vkCmdDraw(cmdBufferOfCurrentFrame, 3, 1, 0, 0);
 			vkCmdEndRenderPass(cmdBufferOfCurrentFrame);
 			CheckResult(vkEndCommandBuffer(cmdBufferOfCurrentFrame));
 		}
+
+		return rCtx;
 	}
 
 	VkContext InitializeVulkan(GlobalSettings& settings, GLFWwindow* pWindow) {
@@ -5979,7 +5996,7 @@ namespace Engine {
 
 		vkCreateInstance(&createInfo, nullptr, &ctx._instance);
 
-		Engine::CreateDebugCallback(ctx._instance, settings);
+		Engine::CreateDebugCallback(ctx, settings);
 		glfwCreateWindowSurface(ctx._instance, pWindow, NULL, &ctx._windowSurface);
 
 		uint32_t deviceCount = 0;
@@ -6010,7 +6027,7 @@ namespace Engine {
 		VkDeviceQueueCreateInfo graphicsQueueInfo{};
 		float queuePriority = 1.0f;
 		graphicsQueueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		graphicsQueueInfo.queueFamilyIndex = _queueFamilyIndex;
+		graphicsQueueInfo.queueFamilyIndex = ctx._queueFamilyIndex;
 		graphicsQueueInfo.queueCount = 1;
 		graphicsQueueInfo.pQueuePriorities = &queuePriority;
 
@@ -6036,7 +6053,7 @@ namespace Engine {
 		}
 
 		vkCreateDevice(ctx._physicalDevice, &deviceCreateInfo, nullptr, &ctx._logicalDevice);
-		vkGetDeviceQueue(ctx._logicalDevice, _queueFamilyIndex, 0, &ctx._queue);
+		vkGetDeviceQueue(ctx._logicalDevice, ctx._queueFamilyIndex, 0, &ctx._queue);
 		VkFenceCreateInfo fci = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, 0 };
 		vkCreateFence(ctx._logicalDevice, &fci, NULL, &ctx._queueFence);
 		ctx._commandPool = VkHelper::CreateCommandPool(ctx._logicalDevice, ctx._queueFamilyIndex);
@@ -6049,9 +6066,9 @@ namespace Engine {
 		LoadEnvironmentMap(*outContext);
 		auto descriptorSetLayouts = CreateDescriptorSetLayouts(*outContext);
 		outRenderCtx->_scenePipeline._layout = CreatePipelineLayout(*outContext, descriptorSetLayouts);
-		CreateShaderResources(*outContext, descriptorSetLayouts);
+		CreateShaderResources(*outContext, *outRenderCtx, descriptorSetLayouts);
 		CreateRenderingResources(*outContext, *outRenderCtx);
-		CreateSemaphores();
+		CreateSemaphores(*outContext, *outRenderCtx);
 	}
 
 	void WindowSizeChanged() {
@@ -6061,22 +6078,22 @@ namespace Engine {
 		Cleanup(false);
 	}
 
-	void Draw(VkContext& ctx, GLFWwindow* pWindow) {
+	void Draw(VkContext& ctx, VkRenderContext rCtx, GLFWwindow* pWindow) {
 		if (windowMinimized) return;
 		vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
 
 		// Acquire image.
 		uint32_t imageIndex;
-		VkResult res = vkAcquireNextImageKHR(ctx._logicalDevice, _swapchain._handle, UINT64_MAX, _imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+		VkResult res = vkAcquireNextImageKHR(ctx._logicalDevice, rCtx._swapchain._handle, UINT64_MAX, rCtx._imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
 		// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
 		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) { WindowSizeChanged(); return; }
 		else if (res != VK_SUCCESS) { std::cerr << "failed to acquire image\n"; exit(1); }
 
 		{
-			std::vector<VkImageView> views; views.resize(_overlayImages.size());
-			for (int i = 0; i < views.size(); ++i) { views[i] = _overlayImages[i]._view; }
-			_uiCtx = nk_glfw3_init(pWindow, ctx._logicalDevice, ctx._physicalDevice, ctx._queueFamilyIndex, views.data(), views.size(), _swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
+			std::vector<VkImageView> views; views.resize(rCtx._overlayImages.size());
+			for (int i = 0; i < views.size(); ++i) { views[i] = rCtx._overlayImages[i]._view; }
+			rCtx._uiCtx = nk_glfw3_init(pWindow, ctx._logicalDevice, ctx._physicalDevice, ctx._queueFamilyIndex, views.data(), views.size(), rCtx._swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
 			/* Load Fonts: if none of these are loaded a default font will be used  */
 			/* Load Cursor: if you uncomment cursor loading please hide the cursor */
 			{
@@ -6100,34 +6117,34 @@ namespace Engine {
 			}
 
 			/* GUI */
-			if (nk_begin(_uiCtx, "Demo", nk_rect(50, 50, 230, 250),
+			if (nk_begin(rCtx._uiCtx, "Demo", nk_rect(50, 50, 230, 250),
 				NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
 				NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)) {
 				enum { EASY, HARD };
 				static int op = EASY;
 				static int property = 20;
-				nk_layout_row_static(_uiCtx, 30, 80, 1);
-				if (nk_button_label(_uiCtx, "button"))
+				nk_layout_row_static(rCtx._uiCtx, 30, 80, 1);
+				if (nk_button_label(rCtx._uiCtx, "button"))
 					fprintf(stdout, "button pressed\n");
 
-				nk_layout_row_dynamic(_uiCtx, 30, 2);
-				if (nk_option_label(_uiCtx, "easy", op == EASY))
+				nk_layout_row_dynamic(rCtx._uiCtx, 30, 2);
+				if (nk_option_label(rCtx._uiCtx, "easy", op == EASY))
 					op = EASY;
-				if (nk_option_label(_uiCtx, "hard", op == HARD))
+				if (nk_option_label(rCtx._uiCtx, "hard", op == HARD))
 					op = HARD;
 
-				nk_layout_row_dynamic(_uiCtx, 25, 1);
-				nk_property_int(_uiCtx, "Compression:", 0, &property, 100, 10, 1);
+				nk_layout_row_dynamic(rCtx._uiCtx, 25, 1);
+				nk_property_int(rCtx._uiCtx, "Compression:", 0, &property, 100, 10, 1);
 
-				nk_layout_row_dynamic(_uiCtx, 20, 1);
-				nk_label(_uiCtx, "background:", NK_TEXT_LEFT);
-				nk_layout_row_dynamic(_uiCtx, 25, 1);
+				nk_layout_row_dynamic(rCtx._uiCtx, 20, 1);
+				nk_label(rCtx._uiCtx, "background:", NK_TEXT_LEFT);
+				nk_layout_row_dynamic(rCtx._uiCtx, 25, 1);
 			}
-			nk_end(_uiCtx);
+			nk_end(rCtx._uiCtx);
 		}
 
-		VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, _overlayImages[imageIndex]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		auto nk_semaphore = nk_glfw3_render(ctx._queue, imageIndex, _imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
+		VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, rCtx._overlayImages[imageIndex]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		auto nk_semaphore = nk_glfw3_render(ctx._queue, imageIndex, rCtx._imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
 		/*VkDeviceMemory stagingMemory = nullptr;
 		VkBuffer stagingBuffer = nullptr;
 		auto imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, stagingMemory, stagingBuffer);
@@ -6143,10 +6160,10 @@ namespace Engine {
 		submitInfo.waitSemaphoreCount = 1;
 		submitInfo.pWaitSemaphores = &nk_semaphore;
 		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = &_renderingFinishedSemaphore;
+		submitInfo.pSignalSemaphores = &rCtx._renderingFinishedSemaphore;
 		submitInfo.pWaitDstStageMask = &waitDstStageMask;
 		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &_drawCommandBuffers[imageIndex];
+		submitInfo.pCommandBuffers = &rCtx._drawCommandBuffers[imageIndex];
 
 		vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
 		vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, UINT64_MAX);
@@ -6156,9 +6173,9 @@ namespace Engine {
 		VkPresentInfoKHR presentInfo{};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = &_renderingFinishedSemaphore;
+		presentInfo.pWaitSemaphores = &rCtx._renderingFinishedSemaphore;
 		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &_swapchain._handle;
+		presentInfo.pSwapchains = &rCtx._swapchain._handle;
 		presentInfo.pImageIndices = &imageIndex;
 
 		res = vkQueuePresentKHR(ctx._queue, &presentInfo);
@@ -6175,17 +6192,16 @@ namespace Engine {
 	void Update(VkContext& vkContext) {
 		Time::Instance().Update();
 		_input.Update();
-
 		_mainCamera.Update(vkContext);
 		_scene.Update(vkContext);
 	}
 
-	void MainLoop(VkContext& ctx) {
+	void MainLoop(VkContext& ctx, VkRenderContext& rCtx, GLFWwindow* pWindow) {
 		//std::thread physicsThread(&PhysicsUpdate, this);
 
-		while (!glfwWindowShouldClose(_pWindow)) {
+		while (!glfwWindowShouldClose(pWindow)) {
 			Update(ctx);
-			Draw(ctx, _pWindow);
+			Draw(ctx, rCtx, pWindow);
 			glfwPollEvents();
 		}
 
@@ -6206,7 +6222,7 @@ int main() {
 	Engine::VkContext ctx;
 	Engine::VkRenderContext rCtx;
 	Engine::InitializeEngine(settings, pWindow, &ctx, &rCtx);
-	Engine::MainLoop(ctx);
+	Engine::MainLoop(ctx, rCtx, pWindow);
 	Engine::Cleanup(true);
 
 	return 0;
