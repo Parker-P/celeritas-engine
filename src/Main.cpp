@@ -172,10 +172,6 @@ namespace Engine {
 		return sizeof(decltype(vector)::value_type) * vector.size();
 	}
 
-	
-
-	
-
 	/**
 	 * @brief Used by implementing classes to mark themselves as a class that is meant to do work on each iteration of the main loop.
 	 */
@@ -489,7 +485,7 @@ namespace Engine {
 	class KeyboardMouse : public Singleton<KeyboardMouse>, public IUpdatable {
 		double _lastMouseX;
 		double _lastMouseY;
-		GLFWwindow* _window;
+		GLFWwindow* _pWindow;
 
 	public:
 
@@ -560,16 +556,16 @@ namespace Engine {
 		 */
 		KeyboardMouse() = default;
 
-		void InitializeInput(GLFWwindow* pWindow) {
+		void Initialize(GLFWwindow* pWindow) {
 			if (nullptr == pWindow) return;
+			_pWindow = pWindow;
 
 			// Keyboard init
 			glfwSetKeyCallback(pWindow, KeyCallback);
 
 			// Mouse init
 			glfwSetInputMode(pWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-			if (glfwRawMouseMotionSupported())
-				glfwSetInputMode(pWindow, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+			if (glfwRawMouseMotionSupported()) glfwSetInputMode(pWindow, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
 			glfwSetCursorPosCallback(pWindow, CursorPositionCallback);
 			glfwSetScrollCallback(pWindow, ScrollWheelCallback);
 
@@ -588,12 +584,12 @@ namespace Engine {
 			return wasPressed;
 		}
 
-		void ToggleCursor(GLFWwindow* window) {
+		void ToggleCursor() {
 			if (_cursorEnabled) {
-				glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+				glfwSetInputMode(_pWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 			}
 			else {
-				glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+				glfwSetInputMode(_pWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 			}
 			_cursorEnabled = !_cursorEnabled;
 		}
@@ -605,9 +601,7 @@ namespace Engine {
 			_lastMouseX = _mouseX;
 			_lastMouseY = _mouseY;
 
-			if (WasKeyPressed(GLFW_KEY_ESCAPE)) {
-				ToggleCursor(_window);
-			}
+			if (WasKeyPressed(GLFW_KEY_ESCAPE)) ToggleCursor();
 		}
 	};
 
@@ -983,6 +977,12 @@ namespace Engine {
 
 			ExecuteCommands(commandBuffer, queue);
 			vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
+		}
+
+		static void DestroyImage(VkDevice logicalDevice, VkImage image, VkImageView imageView = nullptr, VkSampler sampler = nullptr) {
+			vkDestroyImage(logicalDevice, image, nullptr);
+			if (imageView != nullptr) vkDestroyImageView(logicalDevice, imageView, nullptr);
+			if (imageView != nullptr) vkDestroySampler(logicalDevice, sampler, nullptr);
 		}
 	};
 
@@ -1584,6 +1584,7 @@ namespace Engine {
 		Pipeline _scenePipeline{};
 		Pipeline _uiPipeline{};
 		RenderPass _renderPass{};
+		GLFWwindow* _pWindow;
 		/**
 		 * @brief Semaphore that will be used by Vulkan to signal when an image has finished
 		 * rendering and is available to be rendered to in one of the framebuffers.
@@ -4293,15 +4294,15 @@ namespace Engine {
 		glm::vec3 _up;
 
 		// Temp
-		float _lastYaw;
-		float _lastPitch;
-		float _lastRoll;
+		float _lastYaw = 0.0f;
+		float _lastPitch = 0.0f;
+		float _lastRoll = 0.0f;
 
-		float _yaw;
-		float _pitch;
-		float _roll;
+		float _yaw = 0.0f;
+		float _pitch = 0.0f;
+		float _roll = 0.0f;
 
-		float _lastScrollY;
+		float _lastScrollY = 0.0f;
 
 		/**
 		 * @brief Camera related data directed to the vertex shader. Knowing this, the vertex shader is able to calculate the correct
@@ -4393,8 +4394,7 @@ namespace Engine {
 			memcpy(_buffers[0]._cpuMemory, &_cameraData, sizeof(_cameraData));
 		}
 
-		void Update(VkContext& vkContext) {
-			auto& input = KeyboardMouse::Instance();
+		void Update(VkContext& vkContext, KeyboardMouse& input) {
 			auto& time = Time::Instance();
 			auto mouseSens = GlobalSettings::Instance()._mouseSensitivity;
 			_yaw += (float)input._deltaMouseX * mouseSens;
@@ -4825,6 +4825,17 @@ namespace Engine {
 		}
 	};
 
+	/**
+	 * @brief All the high-level information needed by the engine to perform user-related tasks such as managing cameras and scenes.
+	 */
+	struct EngineContext {
+		Scene _scene;
+		Camera _mainCamera;
+		Time& _time = Time::Instance();
+		KeyboardMouse& _input = KeyboardMouse::Instance();
+		GlobalSettings& _globalSettings = Engine::GlobalSettings::Instance();
+	};
+
 	VkShaderModule CreateShaderModule(VkDevice logicalDevice, const std::filesystem::path& absolutePath) {
 		std::ifstream file(absolutePath.c_str(), std::ios::ate | std::ios::binary);
 		VkShaderModule shaderModule = nullptr;
@@ -4849,12 +4860,6 @@ namespace Engine {
 
 		return shaderModule;
 	}
-
-	// Game.
-	KeyboardMouse& _input = KeyboardMouse::Instance();
-	GlobalSettings& _settings = GlobalSettings::Instance();
-	Scene _scene;
-	Camera _mainCamera;
 
 	static VkBool32 DebugCallback(VkDebugReportFlagsEXT flags,
 		VkDebugReportObjectTypeEXT objType,
@@ -4998,14 +5003,7 @@ namespace Engine {
 		createDebugReportCallback(ctx._instance, &createInfo, nullptr, &ctx._callback);
 	}
 
-	void CreateSemaphores(VkContext& ctx, VkRenderContext& rCtx) {
-		VkSemaphoreCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		CheckResult(vkCreateSemaphore(ctx._logicalDevice, &createInfo, nullptr, &rCtx._imageAvailableSemaphore));
-		CheckResult(vkCreateSemaphore(ctx._logicalDevice, &createInfo, nullptr, &rCtx._renderingFinishedSemaphore));
-	}
-
-	void LoadScene(VkContext& ctx) {
+	Scene LoadScene(VkContext& ctx) {
 		//auto scenePath = Paths::ModelsPath() /= "MaterialSphere.glb";
 		//auto scenePath = Paths::ModelsPath() /= "cubes.glb";
 		//auto scenePath = Paths::ModelsPath() /= "directions.glb";
@@ -5025,12 +5023,12 @@ namespace Engine {
 		//auto scenePath = Paths::ModelsPath() /= "SampleMap.glb";
 		//auto scenePath = Paths::ModelsPath() /= "monster.glb";
 		//auto scenePath = Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb";
-		_scene = SceneLoader::LoadFile(scenePath, ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue);
+		return SceneLoader::LoadFile(scenePath, ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue);
 	}
 
-	void LoadEnvironmentMap(VkContext& ctx) {
-		_scene._environmentMap = CubicalEnvironmentMap(ctx._physicalDevice, ctx._logicalDevice);
-		_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Waterfall.hdr");
+	void LoadEnvironmentMap(VkContext& ctx, EngineContext& eCtx) {
+		eCtx._scene._environmentMap = CubicalEnvironmentMap(ctx._physicalDevice, ctx._logicalDevice);
+		eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Waterfall.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Debug.png");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "ModernBuilding.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Workshop.png");
@@ -5042,7 +5040,7 @@ namespace Engine {
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "texture.jpg");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Test1.png");
 
-		_scene._environmentMap.CreateImage(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue);
+		eCtx._scene._environmentMap.CreateImage(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue);
 	}
 
 	VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR> presentModes) {
@@ -5359,7 +5357,7 @@ namespace Engine {
 		}
 	}
 
-	std::vector<DescriptorSetLayout> CreateDescriptorSetLayouts(VkContext& ctx) {
+	std::vector<DescriptorSetLayout> CreateSceneDescriptorSetLayouts(VkContext& ctx, Scene scene) {
 		VkDescriptorSetLayout cameraLayout;
 		VkDescriptorSetLayout gameObjectLayout;
 		VkDescriptorSetLayout meshLayout;
@@ -5395,9 +5393,9 @@ namespace Engine {
 
 		{
 			VkDescriptorSetLayoutBinding bindings[3];
-			bindings[0] = { VkDescriptorSetLayoutBinding {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._materials[0]._albedo._sampler} };
-			bindings[1] = { VkDescriptorSetLayoutBinding {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._materials[0]._roughness._sampler} };
-			bindings[2] = { VkDescriptorSetLayoutBinding {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._materials[0]._metalness._sampler} };
+			bindings[0] = { VkDescriptorSetLayoutBinding {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &scene._materials[0]._albedo._sampler} };
+			bindings[1] = { VkDescriptorSetLayoutBinding {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &scene._materials[0]._roughness._sampler} };
+			bindings[2] = { VkDescriptorSetLayoutBinding {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &scene._materials[0]._metalness._sampler} };
 			VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
 			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 			layoutCreateInfo.bindingCount = 3;
@@ -5407,7 +5405,7 @@ namespace Engine {
 
 		{
 			VkDescriptorSetLayoutBinding bindings[1];
-			bindings[0] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &_scene._environmentMap._cubeMapImage._sampler } };
+			bindings[0] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &scene._environmentMap._cubeMapImage._sampler } };
 			VkDescriptorSetLayoutCreateInfo layoutCreateInfo{};
 			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 			layoutCreateInfo.bindingCount = 1;
@@ -5424,7 +5422,7 @@ namespace Engine {
 		};
 	}
 
-	VkPipelineLayout CreatePipelineLayout(VkContext& ctx, std::vector<DescriptorSetLayout>& descriptorSetLayouts) {
+	VkPipelineLayout CreateScenePipelineLayout(VkContext& ctx, std::vector<DescriptorSetLayout>& descriptorSetLayouts) {
 		// Select the layout from each descriptor set to create a layout-only vector.
 		std::vector<VkDescriptorSetLayout> layouts;
 		std::transform(descriptorSetLayouts.begin(), descriptorSetLayouts.end(), std::back_inserter(layouts),
@@ -5441,18 +5439,19 @@ namespace Engine {
 		return outLayout;
 	}
 
-	void CreateShaderResources(VkContext& ctx, VkRenderContext& rCtx, std::vector<DescriptorSetLayout>& descriptorSetLayouts) {
+	void CreateSceneShaderResources(VkContext& ctx, VkRenderContext& rCtx, EngineContext& eCtx, std::vector<DescriptorSetLayout>& descriptorSetLayouts) {
 		auto& shaderResources = rCtx._scenePipeline._shaderResources;
-		auto cameraResources = _mainCamera.CreateDescriptorSets(ctx, descriptorSetLayouts);
+		auto cameraResources = eCtx._mainCamera.CreateDescriptorSets(ctx, descriptorSetLayouts);
 		shaderResources.MergeResources(cameraResources);
-		_mainCamera.UpdateShaderResources();
+		eCtx._mainCamera.UpdateShaderResources();
 
-		auto sceneResources = _scene.CreateDescriptorSets(ctx, descriptorSetLayouts);
+		auto sceneResources = eCtx._scene.CreateDescriptorSets(ctx, descriptorSetLayouts);
 		shaderResources.MergeResources(sceneResources);
-		_scene.UpdateShaderResources();
+		eCtx._scene.UpdateShaderResources();
 	}
 
-	VkRenderContext CreateRenderingResources(VkContext& ctx, VkRenderContext& rCtx) {
+	void CreateRenderingResources(VkContext& ctx, EngineContext& eCtx, VkRenderContext* outRenderCtx) {
+		// Create the swapchain.
 		// Get physical device capabilities for the window surface.
 		VkSurfaceCapabilitiesKHR surfaceCapabilities = PhysicalDevice::GetSurfaceCapabilities(ctx._physicalDevice, ctx._windowSurface);
 		std::vector<VkSurfaceFormatKHR> surfaceFormats = PhysicalDevice::GetSupportedFormatsForSurface(ctx._physicalDevice, ctx._windowSurface);
@@ -5465,12 +5464,11 @@ namespace Engine {
 		}
 
 		VkSurfaceFormatKHR surfaceFormat = ChooseSurfaceFormat(surfaceFormats);
-		rCtx._swapchain._framebufferSize = ChooseFramebufferSize(surfaceCapabilities);
+		outRenderCtx->_swapchain._framebufferSize = ChooseFramebufferSize(surfaceCapabilities);
 
 		// Determine transformation to use (preferring no transform).
 		VkSurfaceTransformFlagBitsKHR surfaceTransform;
-		if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
-			surfaceTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+		if (surfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) surfaceTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 		else surfaceTransform = surfaceCapabilities.currentTransform;
 
 		// Choose presentation mode (preferring MAILBOX ~= triple buffering).
@@ -5483,7 +5481,7 @@ namespace Engine {
 		createInfo.minImageCount = imageCount;
 		createInfo.imageFormat = surfaceFormat.format;
 		createInfo.imageColorSpace = surfaceFormat.colorSpace;
-		createInfo.imageExtent = rCtx._swapchain._framebufferSize;
+		createInfo.imageExtent = outRenderCtx->_swapchain._framebufferSize;
 		createInfo.imageArrayLayers = 1;
 		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -5493,42 +5491,43 @@ namespace Engine {
 		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		createInfo.presentMode = presentMode;
 		createInfo.clipped = VK_TRUE;
-		createInfo.oldSwapchain = rCtx._swapchain._oldSwapchainHandle;
+		createInfo.oldSwapchain = outRenderCtx->_swapchain._oldSwapchainHandle;
 
-		CheckResult(vkCreateSwapchainKHR(ctx._logicalDevice, &createInfo, nullptr, &rCtx._swapchain._handle));
+		CheckResult(vkCreateSwapchainKHR(ctx._logicalDevice, &createInfo, nullptr, &outRenderCtx->_swapchain._handle));
 
-		if (rCtx._swapchain._oldSwapchainHandle != VK_NULL_HANDLE) {
-			vkDestroySwapchainKHR(ctx._logicalDevice, rCtx._swapchain._oldSwapchainHandle, nullptr);
+		if (outRenderCtx->_swapchain._oldSwapchainHandle != VK_NULL_HANDLE) {
+			vkDestroySwapchainKHR(ctx._logicalDevice, outRenderCtx->_swapchain._oldSwapchainHandle, nullptr);
 		}
 
-		rCtx._swapchain._oldSwapchainHandle = rCtx._swapchain._handle;
-		rCtx._swapchain._surfaceFormat = surfaceFormat;
+		outRenderCtx->_swapchain._oldSwapchainHandle = outRenderCtx->_swapchain._handle;
+		outRenderCtx->_swapchain._surfaceFormat = surfaceFormat;
 
-		auto& imageFormat = rCtx._swapchain._surfaceFormat.format;
+
+		auto& imageFormat = outRenderCtx->_swapchain._surfaceFormat.format;
 		// Store the images used by the swap chain.
 		// Note: these are the images that swap chain image indices refer to.
 		// Note: actual number of images may differ from requested number, since it's a lower bound.
 		uint32_t actualImageCount = 0;
-		CheckResult(vkGetSwapchainImagesKHR(ctx._logicalDevice, rCtx._swapchain._handle, &actualImageCount, nullptr));
+		CheckResult(vkGetSwapchainImagesKHR(ctx._logicalDevice, outRenderCtx->_swapchain._handle, &actualImageCount, nullptr));
 
-		rCtx._renderPass._colorImages.resize(actualImageCount);
-		rCtx._swapchain._images.resize(actualImageCount);
-		rCtx._overlayImages.resize(actualImageCount);
-		rCtx._swapchain._frameBuffers.resize(actualImageCount);
-		rCtx._drawCommandBuffers.resize(actualImageCount);
+		outRenderCtx->_renderPass._colorImages.resize(actualImageCount);
+		outRenderCtx->_swapchain._images.resize(actualImageCount);
+		outRenderCtx->_overlayImages.resize(actualImageCount);
+		outRenderCtx->_swapchain._frameBuffers.resize(actualImageCount);
+		outRenderCtx->_drawCommandBuffers.resize(actualImageCount);
 
 		std::vector<VkImage> swapchainImages;
 		swapchainImages.resize(actualImageCount);
-		CheckResult(vkGetSwapchainImagesKHR(ctx._logicalDevice, rCtx._swapchain._handle, &actualImageCount, swapchainImages.data()));
-		rCtx._swapchain._imageCount = actualImageCount;
+		CheckResult(vkGetSwapchainImagesKHR(ctx._logicalDevice, outRenderCtx->_swapchain._handle, &actualImageCount, swapchainImages.data()));
+		outRenderCtx->_swapchain._imageCount = actualImageCount;
 
-		// Create the scene color attachments.
+		// Create the scene and UI color attachments.
 		for (uint32_t i = 0; i < actualImageCount; ++i) {
-			rCtx._drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(ctx._logicalDevice, ctx._commandPool);
+			outRenderCtx->_drawCommandBuffers[i] = VkHelper::CreateCommandBuffer(ctx._logicalDevice, ctx._commandPool);
 
 			// Image view used by the UI shader as output attachment, after it has combined the UI image with the scene color image, which is output by the first subpass.
-			rCtx._swapchain._images[i]._image = swapchainImages[i];
-			auto& createInfo = rCtx._swapchain._images[i]._viewCreateInfo;
+			outRenderCtx->_swapchain._images[i]._image = swapchainImages[i];
+			auto& createInfo = outRenderCtx->_swapchain._images[i]._viewCreateInfo;
 			createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 			createInfo.image = swapchainImages[i];
 			createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -5542,16 +5541,16 @@ namespace Engine {
 			createInfo.subresourceRange.levelCount = 1;
 			createInfo.subresourceRange.baseArrayLayer = 0;
 			createInfo.subresourceRange.layerCount = 1;
-			vkCreateImageView(ctx._logicalDevice, &createInfo, nullptr, &rCtx._swapchain._images[i]._view);
+			vkCreateImageView(ctx._logicalDevice, &createInfo, nullptr, &outRenderCtx->_swapchain._images[i]._view);
 
 			// Scene color image.
 			{
-				auto& rpColorImg = rCtx._renderPass._colorImages[i];
+				auto& rpColorImg = outRenderCtx->_renderPass._colorImages[i];
 				auto& imageCreateInfo = rpColorImg._createInfo;
 				imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 				imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 				imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-				imageCreateInfo.extent = { rCtx._swapchain._framebufferSize.width, rCtx._swapchain._framebufferSize.height, 1 };
+				imageCreateInfo.extent = { outRenderCtx->_swapchain._framebufferSize.width, outRenderCtx->_swapchain._framebufferSize.height, 1 };
 				imageCreateInfo.mipLevels = 1;
 				imageCreateInfo.arrayLayers = 1;
 				imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -5595,31 +5594,31 @@ namespace Engine {
 				vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, nullptr, &rpColorImg._sampler);
 			}
 
-			// UI image
+			// UI image.
 			{
 				VkImageCreateInfo image_info{};
 				image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 				image_info.imageType = VK_IMAGE_TYPE_2D;
-				image_info.extent.width = rCtx._swapchain._framebufferSize.width;
-				image_info.extent.height = rCtx._swapchain._framebufferSize.height;
+				image_info.extent.width = outRenderCtx->_swapchain._framebufferSize.width;
+				image_info.extent.height = outRenderCtx->_swapchain._framebufferSize.height;
 				image_info.extent.depth = 1;
 				image_info.mipLevels = 1;
 				image_info.arrayLayers = 1;
-				image_info.format = rCtx._swapchain._surfaceFormat.format;
+				image_info.format = outRenderCtx->_swapchain._surfaceFormat.format;
 				image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
 				image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 				image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 				image_info.samples = VK_SAMPLE_COUNT_1_BIT;
 				image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-				CheckResult(vkCreateImage(ctx._logicalDevice, &image_info, NULL, &rCtx._overlayImages[i]._image));
+				CheckResult(vkCreateImage(ctx._logicalDevice, &image_info, NULL, &outRenderCtx->_overlayImages[i]._image));
 
-				rCtx._overlayImages[i]._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, rCtx._overlayImages[i]._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-				CheckResult(vkBindImageMemory(ctx._logicalDevice, rCtx._overlayImages[i]._image, rCtx._overlayImages[i]._gpuMemory, 0));
+				outRenderCtx->_overlayImages[i]._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, outRenderCtx->_overlayImages[i]._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+				CheckResult(vkBindImageMemory(ctx._logicalDevice, outRenderCtx->_overlayImages[i]._image, outRenderCtx->_overlayImages[i]._gpuMemory, 0));
 
 				VkImageViewCreateInfo image_view_info{};
 				image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 				image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-				image_view_info.format = rCtx._swapchain._surfaceFormat.format;
+				image_view_info.format = outRenderCtx->_swapchain._surfaceFormat.format;
 				image_view_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
 				image_view_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
 				image_view_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -5629,8 +5628,8 @@ namespace Engine {
 				image_view_info.subresourceRange.levelCount = 1;
 				image_view_info.subresourceRange.baseArrayLayer = 0;
 				image_view_info.subresourceRange.layerCount = 1;
-				image_view_info.image = rCtx._overlayImages[i]._image;
-				CheckResult(vkCreateImageView(ctx._logicalDevice, &image_view_info, NULL, &rCtx._overlayImages[i]._view));
+				image_view_info.image = outRenderCtx->_overlayImages[i]._image;
+				CheckResult(vkCreateImageView(ctx._logicalDevice, &image_view_info, NULL, &outRenderCtx->_overlayImages[i]._view));
 
 				VkSamplerCreateInfo samplerCreateInfo{};
 				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -5648,42 +5647,42 @@ namespace Engine {
 				samplerCreateInfo.minLod = 0.0f;
 				samplerCreateInfo.maxLod = 0.0f;
 				samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-				CheckResult(vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, NULL, &rCtx._overlayImages[i]._sampler));
+				CheckResult(vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, NULL, &outRenderCtx->_overlayImages[i]._sampler));
 			}
 		}
 
 		// Create the depth image.
 		{
-			auto& imageCreateInfo = rCtx._renderPass._depthImage._createInfo;
+			auto& imageCreateInfo = outRenderCtx->_renderPass._depthImage._createInfo;
 			imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 			imageCreateInfo.arrayLayers = 1;
-			imageCreateInfo.extent = { rCtx._swapchain._framebufferSize.width, rCtx._swapchain._framebufferSize.height, 1 };
+			imageCreateInfo.extent = { outRenderCtx->_swapchain._framebufferSize.width, outRenderCtx->_swapchain._framebufferSize.height, 1 };
 			imageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
 			imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 			imageCreateInfo.mipLevels = 1;
 			imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 			imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 			imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-			vkCreateImage(ctx._logicalDevice, &imageCreateInfo, nullptr, &rCtx._renderPass._depthImage._image);
+			vkCreateImage(ctx._logicalDevice, &imageCreateInfo, nullptr, &outRenderCtx->_renderPass._depthImage._image);
 
 			// Allocate memory on the GPU for the image.
-			rCtx._renderPass._depthImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, rCtx._renderPass._depthImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-			vkBindImageMemory(ctx._logicalDevice, rCtx._renderPass._depthImage._image, rCtx._renderPass._depthImage._gpuMemory, 0);
+			outRenderCtx->_renderPass._depthImage._gpuMemory = VkHelper::AllocateGpuMemoryForImage(ctx._logicalDevice, ctx._physicalDevice, outRenderCtx->_renderPass._depthImage._image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			vkBindImageMemory(ctx._logicalDevice, outRenderCtx->_renderPass._depthImage._image, outRenderCtx->_renderPass._depthImage._gpuMemory, 0);
 
-			auto& imageViewCreateInfo = rCtx._renderPass._depthImage._viewCreateInfo;
+			auto& imageViewCreateInfo = outRenderCtx->_renderPass._depthImage._viewCreateInfo;
 			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 			imageViewCreateInfo.components = { {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY}, {VK_COMPONENT_SWIZZLE_IDENTITY} };
 			imageViewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-			imageViewCreateInfo.image = rCtx._renderPass._depthImage._image;
+			imageViewCreateInfo.image = outRenderCtx->_renderPass._depthImage._image;
 			imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 			imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 			imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
 			imageViewCreateInfo.subresourceRange.layerCount = 1;
 			imageViewCreateInfo.subresourceRange.levelCount = 1;
-			vkCreateImageView(ctx._logicalDevice, &imageViewCreateInfo, nullptr, &rCtx._renderPass._depthImage._view);
+			vkCreateImageView(ctx._logicalDevice, &imageViewCreateInfo, nullptr, &outRenderCtx->_renderPass._depthImage._view);
 
-			auto& samplerCreateInfo = rCtx._renderPass._depthImage._samplerCreateInfo;
+			auto& samplerCreateInfo = outRenderCtx->_renderPass._depthImage._samplerCreateInfo;
 			samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 			samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 			samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -5692,108 +5691,114 @@ namespace Engine {
 			samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
 			samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 			samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-			vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, nullptr, &rCtx._renderPass._depthImage._sampler);
+			vkCreateSampler(ctx._logicalDevice, &samplerCreateInfo, nullptr, &outRenderCtx->_renderPass._depthImage._sampler);
 		}
 
-		// Note: hardware will automatically transition attachment to the specified layout
-		// Note: index refers to attachment descriptions array.
-		VkAttachmentReference swapchainImageAttachmentReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-		VkAttachmentReference colorAttachmentRefSubpass0 = { 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-		VkAttachmentReference inputAttachmentRefSubpass1 = { 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-		VkAttachmentReference depthAttachmentReference = { 2, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
+		// Create the render pass. The render pass defines, at a high level, the order of operations needed to render an image. Each frame buffer needs to reference a render pass,
+		// meaning that frame buffers and render passes are tightly coupled. A frame buffer is a container for the image generated by its render pass - in the simplest case,
+		// frame buffer images (called attachments) will reference the swapchain image as attachment, which is an immutable (by the user application) image that is exclusively used to present
+		// to a window surface.
+		{
+			// Note: hardware will automatically transition attachment to the specified layout
+			// Note: index refers to attachment descriptions array.
+			VkAttachmentReference swapchainImageAttachmentReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+			VkAttachmentReference colorAttachmentRefSubpass0 = { 1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+			VkAttachmentReference inputAttachmentRefSubpass1 = { 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+			VkAttachmentReference depthAttachmentReference = { 2, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
 
-		// Note: this is a description of how the attachments of the render pass will be used in this sub pass
-		// e.g. if they will be read in shaders and/or drawn to.
-		VkSubpassDescription sceneRenderingSubpass = {};
-		sceneRenderingSubpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		sceneRenderingSubpass.colorAttachmentCount = 1;
-		sceneRenderingSubpass.pColorAttachments = &colorAttachmentRefSubpass0;
-		sceneRenderingSubpass.pDepthStencilAttachment = &depthAttachmentReference;
+			// Note: this is a description of how the attachments of the render pass will be used in this sub pass
+			// e.g. if they will be read in shaders and/or drawn to.
+			VkSubpassDescription sceneRenderingSubpass = {};
+			sceneRenderingSubpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			sceneRenderingSubpass.colorAttachmentCount = 1;
+			sceneRenderingSubpass.pColorAttachments = &colorAttachmentRefSubpass0;
+			sceneRenderingSubpass.pDepthStencilAttachment = &depthAttachmentReference;
 
-		VkSubpassDescription uiRenderingSubpass = {};
-		uiRenderingSubpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		uiRenderingSubpass.colorAttachmentCount = 1;
-		uiRenderingSubpass.inputAttachmentCount = 1;
-		uiRenderingSubpass.pInputAttachments = &inputAttachmentRefSubpass1;
-		uiRenderingSubpass.pColorAttachments = &swapchainImageAttachmentReference;
+			VkSubpassDescription uiRenderingSubpass = {};
+			uiRenderingSubpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+			uiRenderingSubpass.colorAttachmentCount = 1;
+			uiRenderingSubpass.inputAttachmentCount = 1;
+			uiRenderingSubpass.pInputAttachments = &inputAttachmentRefSubpass1;
+			uiRenderingSubpass.pColorAttachments = &swapchainImageAttachmentReference;
 
-		// Now we have to adjust the renderpass synchronization. Previously, it was possible that multiple frames 
-		// were rendered simultaneously by the GPU. This is a problem when using depth buffers, because one frame 
-		// could overwrite the depth buffer while a previous frame is still rendering to it.
-		// We keep the subpass dependency for the color attachment we were already using.
-		VkSubpassDependency colorDependency = {};
-		colorDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		colorDependency.dstSubpass = 0;
-		colorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		colorDependency.srcAccessMask = 0;
-		colorDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		colorDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			// Now we have to adjust the renderpass synchronization. Previously, it was possible that multiple frames 
+			// were rendered simultaneously by the GPU. This is a problem when using depth buffers, because one frame 
+			// could overwrite the depth buffer while a previous frame is still rendering to it.
+			// We keep the subpass dependency for the color attachment we were already using.
+			VkSubpassDependency colorDependency = {};
+			colorDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+			colorDependency.dstSubpass = 0;
+			colorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			colorDependency.srcAccessMask = 0;
+			colorDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			colorDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-		// This dependency tells Vulkan that the depth attachment in a renderpass cannot be used before 
-		// previous subpasses have finished using it.
-		VkSubpassDependency depthDependency = {};
-		depthDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		depthDependency.dstSubpass = 0;
-		depthDependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-		depthDependency.srcAccessMask = 0;
-		depthDependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-		depthDependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+			// This dependency tells Vulkan that the depth attachment in a renderpass cannot be used before 
+			// previous subpasses have finished using it.
+			VkSubpassDependency depthDependency = {};
+			depthDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+			depthDependency.dstSubpass = 0;
+			depthDependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+			depthDependency.srcAccessMask = 0;
+			depthDependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+			depthDependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-		VkSubpassDependency uiDependency = {};
-		uiDependency.srcSubpass = 0;
-		uiDependency.dstSubpass = 1;
-		uiDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		uiDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		uiDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-		uiDependency.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+			VkSubpassDependency uiDependency = {};
+			uiDependency.srcSubpass = 0;
+			uiDependency.dstSubpass = 1;
+			uiDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			uiDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			uiDependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			uiDependency.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 
-		VkAttachmentDescription swapchainImageAttachmentDescription = {};
-		swapchainImageAttachmentDescription.format = VK_FORMAT_R8G8B8A8_SRGB;
-		swapchainImageAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-		swapchainImageAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		swapchainImageAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		swapchainImageAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		swapchainImageAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		swapchainImageAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		swapchainImageAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			VkAttachmentDescription swapchainImageAttachmentDescription = {};
+			swapchainImageAttachmentDescription.format = VK_FORMAT_R8G8B8A8_SRGB;
+			swapchainImageAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+			swapchainImageAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			swapchainImageAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			swapchainImageAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			swapchainImageAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			swapchainImageAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			swapchainImageAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-		// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for "image used for a render pass".
-		VkAttachmentDescription colorAttachmentDescription = {};
-		colorAttachmentDescription.format = VK_FORMAT_R8G8B8A8_SRGB;
-		colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-		colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			// Describes how the render pass is going to use the main color attachment. An attachment is a fancy word for "image used for a render pass".
+			VkAttachmentDescription colorAttachmentDescription = {};
+			colorAttachmentDescription.format = VK_FORMAT_R8G8B8A8_SRGB;
+			colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+			colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-		// Describes how the render pass is going to use the depth attachment.
-		VkAttachmentDescription depthAttachmentDescription = {};
-		depthAttachmentDescription.flags = 0;
-		depthAttachmentDescription.format = VK_FORMAT_D32_SFLOAT;
-		depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
-		depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			// Describes how the render pass is going to use the depth attachment.
+			VkAttachmentDescription depthAttachmentDescription = {};
+			depthAttachmentDescription.flags = 0;
+			depthAttachmentDescription.format = VK_FORMAT_D32_SFLOAT;
+			depthAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+			depthAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			depthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			depthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			depthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			depthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			depthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-		// Create the render pass. We pass in the main image attachment (color) and the depth image attachment, so the GPU knows how to treat
-		// the images.
-		VkAttachmentDescription attachmentDescriptions[] = { swapchainImageAttachmentDescription, colorAttachmentDescription, depthAttachmentDescription };
-		VkSubpassDependency subpassDependencies[] = { colorDependency, depthDependency, uiDependency };
-		VkSubpassDescription subpassDescriptions[] = { sceneRenderingSubpass, uiRenderingSubpass };
-		VkRenderPassCreateInfo renderPassCreateInfo = {};
-		renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassCreateInfo.attachmentCount = 3;
-		renderPassCreateInfo.pAttachments = attachmentDescriptions;
-		renderPassCreateInfo.subpassCount = 2;
-		renderPassCreateInfo.pSubpasses = subpassDescriptions;
-		renderPassCreateInfo.dependencyCount = 3;
-		renderPassCreateInfo.pDependencies = subpassDependencies;
-		CheckResult(vkCreateRenderPass(ctx._logicalDevice, &renderPassCreateInfo, nullptr, &rCtx._renderPass._handle));
+			// Create the render pass. We pass in the main image attachment (color) and the depth image attachment, so the GPU knows how to treat
+			// the images.
+			VkAttachmentDescription attachmentDescriptions[] = { swapchainImageAttachmentDescription, colorAttachmentDescription, depthAttachmentDescription };
+			VkSubpassDependency subpassDependencies[] = { colorDependency, depthDependency, uiDependency };
+			VkSubpassDescription subpassDescriptions[] = { sceneRenderingSubpass, uiRenderingSubpass };
+			VkRenderPassCreateInfo renderPassCreateInfo = {};
+			renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+			renderPassCreateInfo.attachmentCount = 3;
+			renderPassCreateInfo.pAttachments = attachmentDescriptions;
+			renderPassCreateInfo.subpassCount = 2;
+			renderPassCreateInfo.pSubpasses = subpassDescriptions;
+			renderPassCreateInfo.dependencyCount = 3;
+			renderPassCreateInfo.pDependencies = subpassDependencies;
+			CheckResult(vkCreateRenderPass(ctx._logicalDevice, &renderPassCreateInfo, nullptr, &outRenderCtx->_renderPass._handle));
+		}
 
 		// Create the UI descriptor sets and their layout, as well as the pipeline layout
 		{
@@ -5844,11 +5849,11 @@ namespace Engine {
 
 				std::array<VkDescriptorImageInfo, 2> descriptors{};
 				descriptors[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				descriptors[0].imageView = rCtx._overlayImages[i]._view;
-				descriptors[0].sampler = rCtx._overlayImages[i]._sampler;
+				descriptors[0].imageView = outRenderCtx->_overlayImages[i]._view;
+				descriptors[0].sampler = outRenderCtx->_overlayImages[i]._sampler;
 
 				descriptors[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				descriptors[1].imageView = rCtx._renderPass._colorImages[i]._view;
+				descriptors[1].imageView = outRenderCtx->_renderPass._colorImages[i]._view;
 				descriptors[1].sampler = VK_NULL_HANDLE;
 
 				VkWriteDescriptorSet write0{};
@@ -5873,45 +5878,46 @@ namespace Engine {
 				vkUpdateDescriptorSets(ctx._logicalDevice, 2, descriptorWrites, 0, nullptr);
 			}
 
-			rCtx._uiPipeline._shaderResources._data.try_emplace(uiDescriptorSetLayout, sets);
+			if (outRenderCtx->_uiPipeline._shaderResources._data.contains(uiDescriptorSetLayout)) outRenderCtx->_uiPipeline._shaderResources._data[uiDescriptorSetLayout] = sets;
+			else outRenderCtx->_uiPipeline._shaderResources._data.try_emplace(uiDescriptorSetLayout, sets);
 
 			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
 			pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 			pipelineLayoutCreateInfo.setLayoutCount = 1;
-			pipelineLayoutCreateInfo.pSetLayouts = &rCtx._uiPipeline._shaderResources._data.begin()->first._layout;
+			pipelineLayoutCreateInfo.pSetLayouts = &outRenderCtx->_uiPipeline._shaderResources._data.begin()->first._layout;
 			pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
 			pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
 			VkPipelineLayout pipelineLayout;
-			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, nullptr, &rCtx._uiPipeline._layout));
+			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, nullptr, &outRenderCtx->_uiPipeline._layout));
 		}
 
-		CreateGraphicsPipelines(ctx, rCtx);
+		CreateGraphicsPipelines(ctx, *outRenderCtx);
 
 		// Here we record the commands that will be executed in the render loop.
 		for (size_t i = 0; i < actualImageCount; i++) {
-			auto& currentFrameBuffer = rCtx._swapchain._frameBuffers[i];
-			auto& cmdBufferOfCurrentFrame = rCtx._drawCommandBuffers[i];
+			auto& currentFrameBuffer = outRenderCtx->_swapchain._frameBuffers[i];
+			auto& cmdBufferOfCurrentFrame = outRenderCtx->_drawCommandBuffers[i];
 
 			// We will render to the same depth image for each frame. 
 			// We can just keep clearing and reusing the same depth image for every frame.
-			VkImageView renderPassImages[3] = { rCtx._swapchain._images[i]._view, rCtx._renderPass._colorImages[i]._view, rCtx._renderPass._depthImage._view };
+			VkImageView renderPassImages[3] = { outRenderCtx->_swapchain._images[i]._view, outRenderCtx->_renderPass._colorImages[i]._view, outRenderCtx->_renderPass._depthImage._view };
 			VkFramebufferCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			createInfo.renderPass = rCtx._renderPass._handle;
+			createInfo.renderPass = outRenderCtx->_renderPass._handle;
 			createInfo.attachmentCount = 3;
 			createInfo.pAttachments = renderPassImages;
-			createInfo.width = rCtx._swapchain._framebufferSize.width;
-			createInfo.height = rCtx._swapchain._framebufferSize.height;
+			createInfo.width = outRenderCtx->_swapchain._framebufferSize.width;
+			createInfo.height = outRenderCtx->_swapchain._framebufferSize.height;
 			createInfo.layers = 1;
 			CheckResult(vkCreateFramebuffer(ctx._logicalDevice, &createInfo, nullptr, &currentFrameBuffer));
 
 			VkCommandBufferBeginInfo beginInfo = {};
 			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-			vkBeginCommandBuffer(rCtx._drawCommandBuffers[i], &beginInfo);
+			vkBeginCommandBuffer(outRenderCtx->_drawCommandBuffers[i], &beginInfo);
 
-			VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, rCtx._swapchain._images[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-			VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, rCtx._renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, outRenderCtx->_swapchain._images[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+			VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, outRenderCtx->_renderPass._colorImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 			//VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, _uiCtx._overlayImages[i]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 			VkClearValue swapchainImageClear{ { 0.0f, 0.0f, 0.0f, 1.0f } }; // R, G, B, A.
@@ -5921,36 +5927,60 @@ namespace Engine {
 
 			VkRenderPassBeginInfo renderPassBeginInfo{};
 			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			renderPassBeginInfo.renderPass = rCtx._renderPass._handle;
+			renderPassBeginInfo.renderPass = outRenderCtx->_renderPass._handle;
 			renderPassBeginInfo.framebuffer = currentFrameBuffer;
 			renderPassBeginInfo.renderArea.offset.x = 0;
 			renderPassBeginInfo.renderArea.offset.y = 0;
-			renderPassBeginInfo.renderArea.extent = rCtx._swapchain._framebufferSize;
+			renderPassBeginInfo.renderArea.extent = outRenderCtx->_swapchain._framebufferSize;
 			renderPassBeginInfo.clearValueCount = 3;
 			renderPassBeginInfo.pClearValues = clearValues;
 
 			vkCmdBeginRenderPass(cmdBufferOfCurrentFrame, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, rCtx._scenePipeline._handle);
+			vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_scenePipeline._handle);
 
-			auto& shaderResources = rCtx._scenePipeline._shaderResources;
+			auto& shaderResources = outRenderCtx->_scenePipeline._shaderResources;
 			VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
-			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, rCtx._scenePipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
-			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, rCtx._scenePipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
-			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, rCtx._scenePipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
+			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_scenePipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
+			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_scenePipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
+			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_scenePipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
 
-			for (auto& gameObject : _scene._pRootGameObject->_children)
-				gameObject->Draw(rCtx._scenePipeline._layout, cmdBufferOfCurrentFrame);
+			for (auto& gameObject : eCtx._scene._pRootGameObject->_children)
+				gameObject->Draw(outRenderCtx->_scenePipeline._layout, cmdBufferOfCurrentFrame);
 
-			auto& uiShaderResources = rCtx._uiPipeline._shaderResources;
+			auto& uiShaderResources = outRenderCtx->_uiPipeline._shaderResources;
 			vkCmdNextSubpass(cmdBufferOfCurrentFrame, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, rCtx._uiPipeline._handle);
-			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, rCtx._uiPipeline._layout, 0, 1, &uiShaderResources[0][i], 0, nullptr);
+			vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_uiPipeline._handle);
+			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_uiPipeline._layout, 0, 1, &uiShaderResources[0][i], 0, nullptr);
 			vkCmdDraw(cmdBufferOfCurrentFrame, 3, 1, 0, 0);
 			vkCmdEndRenderPass(cmdBufferOfCurrentFrame);
 			CheckResult(vkEndCommandBuffer(cmdBufferOfCurrentFrame));
 		}
 
-		return rCtx;
+		// Create sempahores to synchronize drawing operations
+		{
+			VkSemaphoreCreateInfo createInfo = {};
+			createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+			CheckResult(vkCreateSemaphore(ctx._logicalDevice, &createInfo, nullptr, &outRenderCtx->_imageAvailableSemaphore));
+			CheckResult(vkCreateSemaphore(ctx._logicalDevice, &createInfo, nullptr, &outRenderCtx->_renderingFinishedSemaphore));
+		}
+	}
+
+	void DestroyRenderingResources(VkContext& ctx, VkRenderContext& rCtx) {
+		vkQueueWaitIdle(ctx._queue);
+		for (int i = 0; i < rCtx._swapchain._frameBuffers.size(); ++i) {
+			vkDestroyFramebuffer(ctx._logicalDevice, rCtx._swapchain._frameBuffers[i], nullptr);
+			VkHelper::DestroyImage(ctx._logicalDevice, rCtx._overlayImages[i]._image, rCtx._overlayImages[i]._view, rCtx._overlayImages[i]._sampler);
+			VkHelper::DestroyImage(ctx._logicalDevice, rCtx._renderPass._colorImages[i]._image, rCtx._renderPass._colorImages[i]._view, rCtx._renderPass._colorImages[i]._sampler);
+		}
+		VkHelper::DestroyImage(ctx._logicalDevice, rCtx._renderPass._depthImage._image, rCtx._renderPass._depthImage._view, rCtx._renderPass._depthImage._sampler);
+		vkDestroyRenderPass(ctx._logicalDevice, rCtx._renderPass._handle, nullptr);
+		vkDestroySwapchainKHR(ctx._logicalDevice, rCtx._swapchain._handle, nullptr);
+		rCtx._swapchain._handle = nullptr;
+		rCtx._swapchain._oldSwapchainHandle = nullptr;
+		vkDestroyPipeline(ctx._logicalDevice, rCtx._uiPipeline._handle, nullptr);
+		vkDestroyPipeline(ctx._logicalDevice, rCtx._scenePipeline._handle, nullptr);
+		vkDestroySemaphore(ctx._logicalDevice, rCtx._imageAvailableSemaphore, nullptr);
+		vkDestroySemaphore(ctx._logicalDevice, rCtx._renderingFinishedSemaphore, nullptr);
 	}
 
 	VkContext InitializeVulkan(GlobalSettings& settings, GLFWwindow* pWindow) {
@@ -6060,40 +6090,53 @@ namespace Engine {
 		return ctx;
 	}
 
-	void InitializeEngine(GlobalSettings& settings, GLFWwindow* pWindow, VkContext* outContext, VkRenderContext* outRenderCtx) {
-		*outContext = InitializeVulkan(settings, pWindow);
-		LoadScene(*outContext);
-		LoadEnvironmentMap(*outContext);
-		auto descriptorSetLayouts = CreateDescriptorSetLayouts(*outContext);
-		outRenderCtx->_scenePipeline._layout = CreatePipelineLayout(*outContext, descriptorSetLayouts);
-		CreateShaderResources(*outContext, *outRenderCtx, descriptorSetLayouts);
-		CreateRenderingResources(*outContext, *outRenderCtx);
-		CreateSemaphores(*outContext, *outRenderCtx);
+	void InitializeEngine(VkContext* outCtx, VkRenderContext* outRenderCtx, EngineContext* outEngineCtx) {
+		outEngineCtx->_globalSettings.Load(Engine::Paths::Settings());
+		glfwInit();
+		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+		outRenderCtx->_pWindow = glfwCreateWindow(outEngineCtx->_globalSettings._windowWidth, outEngineCtx->_globalSettings._windowHeight, "Frontline Legacy", nullptr, nullptr);
+		glfwSetWindowSizeCallback(outRenderCtx->_pWindow, Engine::OnWindowResized);
+		outEngineCtx->_input.Initialize(outRenderCtx->_pWindow);
+
+		*outCtx = InitializeVulkan(outEngineCtx->_globalSettings, outRenderCtx->_pWindow);
+		outEngineCtx->_scene = LoadScene(*outCtx);
+		LoadEnvironmentMap(*outCtx, *outEngineCtx);
+		auto descriptorSetLayouts = CreateSceneDescriptorSetLayouts(*outCtx, outEngineCtx->_scene);
+		outRenderCtx->_scenePipeline._layout = CreateScenePipelineLayout(*outCtx, descriptorSetLayouts);
+		CreateSceneShaderResources(*outCtx, *outRenderCtx, *outEngineCtx, descriptorSetLayouts);
+		CreateRenderingResources(*outCtx, *outEngineCtx, outRenderCtx);
 	}
 
-	void WindowSizeChanged() {
+	void WindowSizeChanged(VkContext& ctx, VkRenderContext& rCtx, EngineContext& eCtx) {
 		windowResized = false;
-
+		DestroyRenderingResources(ctx, rCtx);
+		CreateRenderingResources(ctx, eCtx, &rCtx);
 		// Only recreate objects that are affected by framebuffer size changes.
 		Cleanup(false);
 	}
 
-	void Draw(VkContext& ctx, VkRenderContext rCtx, GLFWwindow* pWindow) {
+	void Draw(VkContext& ctx, VkRenderContext& rCtx, EngineContext& eCtx) {
 		if (windowMinimized) return;
 		vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
 
 		// Acquire image.
 		uint32_t imageIndex;
-		VkResult res = vkAcquireNextImageKHR(ctx._logicalDevice, rCtx._swapchain._handle, UINT64_MAX, rCtx._imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+		VkResult swapImageState = vkAcquireNextImageKHR(ctx._logicalDevice, rCtx._swapchain._handle, UINT64_MAX, rCtx._imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
-		// Unless surface is out of date right now, defer swap chain recreation until end of this frame.
-		if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR || windowResized) { WindowSizeChanged(); return; }
-		else if (res != VK_SUCCESS) { std::cerr << "failed to acquire image\n"; exit(1); }
+		// Declare a lambda that takes three arguments
+		auto checkSwapchainImageState = [&]() -> bool {
+			if (swapImageState == VK_SUBOPTIMAL_KHR || swapImageState == VK_ERROR_OUT_OF_DATE_KHR || windowResized) { WindowSizeChanged(ctx, rCtx, eCtx); return false; }
+			else if (swapImageState != VK_SUCCESS) { std::cerr << "Error: image state is VkResult = " << swapImageState << std::endl; exit(1); }
+			return true;
+			};
 
+		if (!checkSwapchainImageState()) return;
+
+		// Refresh UI
 		{
 			std::vector<VkImageView> views; views.resize(rCtx._overlayImages.size());
 			for (int i = 0; i < views.size(); ++i) { views[i] = rCtx._overlayImages[i]._view; }
-			rCtx._uiCtx = nk_glfw3_init(pWindow, ctx._logicalDevice, ctx._physicalDevice, ctx._queueFamilyIndex, views.data(), views.size(), rCtx._swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
+			rCtx._uiCtx = nk_glfw3_init(rCtx._pWindow, ctx._logicalDevice, ctx._physicalDevice, ctx._queueFamilyIndex, views.data(), views.size(), rCtx._swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
 			/* Load Fonts: if none of these are loaded a default font will be used  */
 			/* Load Cursor: if you uncomment cursor loading please hide the cursor */
 			{
@@ -6178,30 +6221,23 @@ namespace Engine {
 		presentInfo.pSwapchains = &rCtx._swapchain._handle;
 		presentInfo.pImageIndices = &imageIndex;
 
-		res = vkQueuePresentKHR(ctx._queue, &presentInfo);
-
-		if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR || windowResized) {
-			WindowSizeChanged();
-		}
-		else if (res != VK_SUCCESS) {
-			std::cerr << "failed to submit present command buffer" << std::endl;
-			exit(1);
-		}
+		swapImageState = vkQueuePresentKHR(ctx._queue, &presentInfo);
+		checkSwapchainImageState();
 	}
 
-	void Update(VkContext& vkContext) {
-		Time::Instance().Update();
-		_input.Update();
-		_mainCamera.Update(vkContext);
-		_scene.Update(vkContext);
+	void Update(VkContext& ctx, EngineContext& eCtx) {
+		eCtx._time.Update();
+		eCtx._input.Update();
+		eCtx._mainCamera.Update(ctx, eCtx._input);
+		eCtx._scene.Update(ctx);
 	}
 
-	void MainLoop(VkContext& ctx, VkRenderContext& rCtx, GLFWwindow* pWindow) {
+	void MainLoop(VkContext& ctx, VkRenderContext& rCtx, EngineContext& eCtx) {
 		//std::thread physicsThread(&PhysicsUpdate, this);
 
-		while (!glfwWindowShouldClose(pWindow)) {
-			Update(ctx);
-			Draw(ctx, rCtx, pWindow);
+		while (!glfwWindowShouldClose(rCtx._pWindow)) {
+			Update(ctx, eCtx);
+			Draw(ctx, rCtx, eCtx);
 			glfwPollEvents();
 		}
 
@@ -6210,19 +6246,11 @@ namespace Engine {
 }
 
 int main() {
-	Engine::GlobalSettings::Instance().Load(Engine::Paths::Settings());
-	auto& settings = Engine::GlobalSettings::Instance();
-	glfwInit();
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	GLFWwindow* pWindow = glfwCreateWindow(settings._windowWidth, settings._windowHeight, "Frontline Legacy", nullptr, nullptr);
-	glfwSetWindowSizeCallback(pWindow, Engine::OnWindowResized);
-
-	auto input = Engine::KeyboardMouse();
-	input.InitializeInput(pWindow);
-	Engine::VkContext ctx;
-	Engine::VkRenderContext rCtx;
-	Engine::InitializeEngine(settings, pWindow, &ctx, &rCtx);
-	Engine::MainLoop(ctx, rCtx, pWindow);
+	Engine::VkContext ctx{};
+	Engine::VkRenderContext rCtx{};
+	Engine::EngineContext eCtx{};
+	Engine::InitializeEngine(&ctx, &rCtx, &eCtx);
+	Engine::MainLoop(ctx, rCtx, eCtx);
 	Engine::Cleanup(true);
 
 	return 0;
