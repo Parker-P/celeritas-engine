@@ -1504,10 +1504,11 @@ VkSemaphore nk_glfw3_render(VkQueue graphics_queue, uint32_t buffer_index,
                 }
 
                 if (!found) {
+                    if (i >= NK_GLFW_MAX_TEXTURES) i = NK_GLFW_MAX_TEXTURES - 1;
+                    else dev->texture_descriptor_sets_len++;
                     update_texture_descriptor_set(
                         dev, &dev->texture_descriptor_sets[i],
                         (VkImageView)cmd->texture.ptr);
-                    dev->texture_descriptor_sets_len++;
                 }
                 vkCmdBindDescriptorSets(
                     command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
