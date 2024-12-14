@@ -6105,6 +6105,10 @@ namespace Engine {
 		outRenderCtx->_scenePipeline._layout = CreateScenePipelineLayout(*outCtx, descriptorSetLayouts);
 		CreateSceneShaderResources(*outCtx, *outRenderCtx, *outEngineCtx, descriptorSetLayouts);
 		CreateRenderingResources(*outCtx, *outEngineCtx, outRenderCtx);
+
+		std::vector<VkImageView> views; views.resize(outRenderCtx->_overlayImages.size());
+		for (int i = 0; i < views.size(); ++i) { views[i] = outRenderCtx->_overlayImages[i]._view; }
+		outRenderCtx->_uiCtx = nk_glfw3_init(outRenderCtx->_pWindow, outCtx->_logicalDevice, outCtx->_physicalDevice, outCtx->_queueFamilyIndex, views.data(), views.size(), outRenderCtx->_swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
 	}
 
 	void WindowSizeChanged(VkContext& ctx, VkRenderContext& rCtx, EngineContext& eCtx) {
@@ -6134,9 +6138,6 @@ namespace Engine {
 
 		// Refresh UI
 		{
-			std::vector<VkImageView> views; views.resize(rCtx._overlayImages.size());
-			for (int i = 0; i < views.size(); ++i) { views[i] = rCtx._overlayImages[i]._view; }
-			rCtx._uiCtx = nk_glfw3_init(rCtx._pWindow, ctx._logicalDevice, ctx._physicalDevice, ctx._queueFamilyIndex, views.data(), views.size(), rCtx._swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
 			/* Load Fonts: if none of these are loaded a default font will be used  */
 			/* Load Cursor: if you uncomment cursor loading please hide the cursor */
 			{
