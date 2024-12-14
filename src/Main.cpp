@@ -4909,6 +4909,7 @@ namespace Engine {
 	}
 
 	void Cleanup(bool fullClean) {
+		nk_glfw3_shutdown();
 		//vkDeviceWaitIdle(_logicalDevice);
 		//vkFreeCommandBuffers(_logicalDevice, _commandPool, (uint32_t)_drawCommandBuffers.size(), _drawCommandBuffers.data());
 		//vkDestroyPipeline(_logicalDevice, _graphicsPipeline._handle, nullptr);
@@ -6138,6 +6139,8 @@ namespace Engine {
 
 		// Refresh UI
 		{
+			nk_glfw3_new_frame();
+
 			/* Load Fonts: if none of these are loaded a default font will be used  */
 			/* Load Cursor: if you uncomment cursor loading please hide the cursor */
 			{
@@ -6253,6 +6256,6 @@ int main() {
 	Engine::InitializeEngine(&ctx, &rCtx, &eCtx);
 	Engine::MainLoop(ctx, rCtx, eCtx);
 	Engine::Cleanup(true);
-
+	
 	return 0;
 }
