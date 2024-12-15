@@ -311,6 +311,10 @@ namespace Engine {
 		 */
 		float _mouseSensitivity;
 
+		/**
+		 * @brief Gamma correction to make images look more or less bright.
+		 */
+		float _gammaCorrection;
 
 		/**
 		 * @brief Trims the ends of a string by removing the first and last characters from it.
@@ -359,6 +363,10 @@ namespace Engine {
 			auto input = sjson::jobject::parse(rootObj.get("Input"));
 			auto sens = input.get("MouseSensitivity");
 			_mouseSensitivity = Helper::Convert<std::string, float>(sens);
+
+			auto graphics = sjson::jobject::parse(rootObj.get("Graphics"));
+			auto gc = graphics.get("GammaCorrection");
+			_gammaCorrection = Helper::Convert<std::string, float>(gc);
 		}
 	};
 
@@ -5010,7 +5018,7 @@ namespace Engine {
 		//auto scenePath = Paths::ModelsPath() /= "directions.glb";
 		//auto scenePath = Paths::ModelsPath() /= "f.glb";
 		//auto scenePath = Paths::ModelsPath() /= "fr.glb";
-		auto scenePath = Paths::ModelsPath() /= "mp5k.glb";
+		//auto scenePath = Paths::ModelsPath() /= "mp5k.glb";
 		//auto scenePath = Paths::ModelsPath() /= "collision.glb";
 		//auto scenePath = Paths::ModelsPath() /= "forces.glb";
 		//auto scenePath = Paths::ModelsPath() /= "hierarchy.glb";
@@ -5021,7 +5029,7 @@ namespace Engine {
 		//auto scenePath = Paths::ModelsPath() /= "clipping.glb";
 		//auto scenePath = Paths::ModelsPath() /= "Cube.glb";
 		//auto scenePath = Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
-		//auto scenePath = Paths::ModelsPath() /= "SampleMap.glb";
+		auto scenePath = Paths::ModelsPath() /= "SampleMap.glb";
 		//auto scenePath = Paths::ModelsPath() /= "monster.glb";
 		//auto scenePath = Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb";
 		return SceneLoader::LoadFile(scenePath, ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue);
@@ -5029,11 +5037,11 @@ namespace Engine {
 
 	void LoadEnvironmentMap(VkContext& ctx, EngineContext& eCtx) {
 		eCtx._scene._environmentMap = CubicalEnvironmentMap(ctx._physicalDevice, ctx._logicalDevice);
-		eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Waterfall.hdr");
+		//eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Waterfall.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Debug.png");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "ModernBuilding.hdr");
+		//eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "ModernBuilding.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Workshop.png");
-		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Workshop.hdr");
+		eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Workshop.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "garden.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "ItalianFlag.png");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "TestPng.png");
@@ -5801,18 +5809,18 @@ namespace Engine {
 			CheckResult(vkCreateRenderPass(ctx._logicalDevice, &renderPassCreateInfo, nullptr, &outRenderCtx->_renderPass._handle));
 		}
 
-		// Create the UI descriptor sets and their layout, as well as the pipeline layout
+		// Create the UI descriptor sets and their layout, as well as the pipeline layout.
 		{
 			VkDescriptorSetLayoutBinding setLayoutBindings[2];
 			memset(setLayoutBindings, 0, sizeof(VkDescriptorSetLayoutBinding) * 2);
 
-			// Input attachment from the scene subpass
+			// Input attachment from the scene subpass.
 			setLayoutBindings[0].binding = 1;
 			setLayoutBindings[0].descriptorCount = 1;
 			setLayoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
 			setLayoutBindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-			// Overlay image
+			// Overlay image.
 			setLayoutBindings[1].binding = 0;
 			setLayoutBindings[1].descriptorCount = 1;
 			setLayoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -5882,19 +5890,25 @@ namespace Engine {
 			if (outRenderCtx->_uiPipeline._shaderResources._data.contains(uiDescriptorSetLayout)) outRenderCtx->_uiPipeline._shaderResources._data[uiDescriptorSetLayout] = sets;
 			else outRenderCtx->_uiPipeline._shaderResources._data.try_emplace(uiDescriptorSetLayout, sets);
 
+			VkPushConstantRange pushConstantRange = {};
+			pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; // Push constant used in the fragment shader
+			pushConstantRange.offset = 0;
+			pushConstantRange.size = sizeof(float); // We're only passing one float (gamma correction)
+
 			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
 			pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 			pipelineLayoutCreateInfo.setLayoutCount = 1;
 			pipelineLayoutCreateInfo.pSetLayouts = &outRenderCtx->_uiPipeline._shaderResources._data.begin()->first._layout;
-			pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
-			pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+			pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+			pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
 			VkPipelineLayout pipelineLayout;
 			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, nullptr, &outRenderCtx->_uiPipeline._layout));
 		}
 
 		CreateGraphicsPipelines(ctx, *outRenderCtx);
 
-		// Here we record the commands that will be executed in the render loop.
+		// Here we record the commands that will be executed in the render loop. The engine uses deferred command execution, meaning that it will execute the command buffers 
+		// that are recorded now in the future.
 		for (size_t i = 0; i < actualImageCount; i++) {
 			auto& currentFrameBuffer = outRenderCtx->_swapchain._frameBuffers[i];
 			auto& cmdBufferOfCurrentFrame = outRenderCtx->_drawCommandBuffers[i];
@@ -5952,12 +5966,13 @@ namespace Engine {
 			vkCmdNextSubpass(cmdBufferOfCurrentFrame, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_uiPipeline._handle);
 			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_uiPipeline._layout, 0, 1, &uiShaderResources[0][i], 0, nullptr);
+			vkCmdPushConstants(cmdBufferOfCurrentFrame, outRenderCtx->_uiPipeline._layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float), &eCtx._globalSettings._gammaCorrection);
 			vkCmdDraw(cmdBufferOfCurrentFrame, 3, 1, 0, 0);
 			vkCmdEndRenderPass(cmdBufferOfCurrentFrame);
 			CheckResult(vkEndCommandBuffer(cmdBufferOfCurrentFrame));
 		}
 
-		// Create sempahores to synchronize drawing operations
+		// Create sempahores to synchronize drawing operations.
 		{
 			VkSemaphoreCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -6091,6 +6106,12 @@ namespace Engine {
 		return ctx;
 	}
 
+	void InitializeNuklearUI(VkContext& ctx, VkRenderContext& rCtx) {
+		std::vector<VkImageView> views; views.resize(rCtx._overlayImages.size());
+		for (int i = 0; i < views.size(); ++i) views[i] = rCtx._overlayImages[i]._view;
+		rCtx._uiCtx = nk_glfw3_init(rCtx._pWindow, ctx._logicalDevice, ctx._physicalDevice, ctx._queueFamilyIndex, views.data(), views.size(), rCtx._swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
+	}
+
 	void InitializeEngine(VkContext* outCtx, VkRenderContext* outRenderCtx, EngineContext* outEngineCtx) {
 		outEngineCtx->_globalSettings.Load(Engine::Paths::Settings());
 		glfwInit();
@@ -6106,18 +6127,13 @@ namespace Engine {
 		outRenderCtx->_scenePipeline._layout = CreateScenePipelineLayout(*outCtx, descriptorSetLayouts);
 		CreateSceneShaderResources(*outCtx, *outRenderCtx, *outEngineCtx, descriptorSetLayouts);
 		CreateRenderingResources(*outCtx, *outEngineCtx, outRenderCtx);
-
-		std::vector<VkImageView> views; views.resize(outRenderCtx->_overlayImages.size());
-		for (int i = 0; i < views.size(); ++i) { views[i] = outRenderCtx->_overlayImages[i]._view; }
-		outRenderCtx->_uiCtx = nk_glfw3_init(outRenderCtx->_pWindow, outCtx->_logicalDevice, outCtx->_physicalDevice, outCtx->_queueFamilyIndex, views.data(), views.size(), outRenderCtx->_swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
+		InitializeNuklearUI(*outCtx, *outRenderCtx);
 	}
 
 	void WindowSizeChanged(VkContext& ctx, VkRenderContext& rCtx, EngineContext& eCtx) {
-		windowResized = false;
 		DestroyRenderingResources(ctx, rCtx);
 		CreateRenderingResources(ctx, eCtx, &rCtx);
-		// Only recreate objects that are affected by framebuffer size changes.
-		Cleanup(false);
+		InitializeNuklearUI(ctx, rCtx);
 	}
 
 	void Draw(VkContext& ctx, VkRenderContext& rCtx, EngineContext& eCtx) {
@@ -6130,7 +6146,7 @@ namespace Engine {
 
 		// Declare a lambda that takes three arguments
 		auto checkSwapchainImageState = [&]() -> bool {
-			if (swapImageState == VK_SUBOPTIMAL_KHR || swapImageState == VK_ERROR_OUT_OF_DATE_KHR || windowResized) { WindowSizeChanged(ctx, rCtx, eCtx); return false; }
+			if (swapImageState == VK_SUBOPTIMAL_KHR || swapImageState == VK_ERROR_OUT_OF_DATE_KHR || windowResized) { windowResized = false; WindowSizeChanged(ctx, rCtx, eCtx); return false; }
 			else if (swapImageState != VK_SUCCESS) { std::cerr << "Error: image state is VkResult = " << swapImageState << std::endl; exit(1); }
 			return true;
 			};

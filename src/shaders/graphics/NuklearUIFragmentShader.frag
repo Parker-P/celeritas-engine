@@ -8,6 +8,11 @@ layout(location = 0) in vec2 inUV;
 
 layout(location = 0) out vec4 outColor;
 
+// Declare a push constant for gamma correction
+layout(push_constant) uniform PushConstants {
+    float gamma; // Gamma value
+} pushConstants;
+
 void main() {
     // Sample the input attachment (base color)
     vec4 baseColor = subpassLoad(sceneColorImage);
@@ -15,6 +20,10 @@ void main() {
     vec4 overlayColor = texture(overlay, inUV);
 
     // Blend the overlay on top of the base color using alpha blending
-    outColor = overlayColor * overlayColor.a + baseColor * (1.0 - overlayColor.a);
-//    outColor = sceneColorImage;
+    vec4 blendedColor = overlayColor * overlayColor.a + baseColor * (1.0 - overlayColor.a);
+
+    // Apply gamma correction (adjust gamma as needed, e.g., 2.2)
+    blendedColor.rgb = pow(blendedColor.rgb, vec3(1.0 / pushConstants.gamma));
+
+    outColor = blendedColor;
 }
