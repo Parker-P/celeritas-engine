@@ -546,10 +546,9 @@ namespace Engine {
 		}
 
 		static void CursorPositionCallback(GLFWwindow* pWindow, double xPos, double yPos) {
-			if (!Instance()._cursorEnabled) {
-				Instance()._mouseX = xPos;
-				Instance()._mouseY = yPos;
-			}
+			if (Instance()._cursorEnabled) return;
+			Instance()._mouseX = xPos;
+			Instance()._mouseY = yPos;
 		}
 
 		static void ScrollWheelCallback(GLFWwindow* pWindow, double xPos, double yPos) {
@@ -572,7 +571,8 @@ namespace Engine {
 			glfwSetKeyCallback(pWindow, KeyCallback);
 
 			// Mouse init
-			glfwSetInputMode(pWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			_cursorEnabled = true;
+			glfwSetInputMode(_pWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 			if (glfwRawMouseMotionSupported()) glfwSetInputMode(pWindow, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
 			glfwSetCursorPosCallback(pWindow, CursorPositionCallback);
 			glfwSetScrollCallback(pWindow, ScrollWheelCallback);
@@ -593,23 +593,21 @@ namespace Engine {
 		}
 
 		void ToggleCursor() {
-			if (_cursorEnabled) {
-				glfwSetInputMode(_pWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-			}
-			else {
-				glfwSetInputMode(_pWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-			}
 			_cursorEnabled = !_cursorEnabled;
+			glfwSetInputMode(_pWindow, GLFW_CURSOR, _cursorEnabled ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
 		}
 
 		void Update() {
+			if (WasKeyPressed(GLFW_KEY_ESCAPE)) {
+				ToggleCursor();
+				if (!_cursorEnabled) glfwSetCursorPos(_pWindow, _lastMouseX, _lastMouseY);
+			};
+
 			_deltaMouseX = (_mouseX - _lastMouseX);
 			_deltaMouseY = (_mouseY - _lastMouseY);
 
 			_lastMouseX = _mouseX;
 			_lastMouseY = _mouseY;
-
-			if (WasKeyPressed(GLFW_KEY_ESCAPE)) ToggleCursor();
 		}
 	};
 
@@ -6180,7 +6178,7 @@ namespace Engine {
 			}
 
 			/* GUI */
-			if (nk_begin(rCtx._uiCtx, "Demo", nk_rect(50, 50, 230, 250),
+			/*if (nk_begin(rCtx._uiCtx, "Demo", nk_rect(50, 50, 230, 250),
 				NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
 				NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)) {
 				enum { EASY, HARD };
@@ -6202,6 +6200,38 @@ namespace Engine {
 				nk_layout_row_dynamic(rCtx._uiCtx, 20, 1);
 				nk_label(rCtx._uiCtx, "background:", NK_TEXT_LEFT);
 				nk_layout_row_dynamic(rCtx._uiCtx, 25, 1);
+			}
+			nk_end(rCtx._uiCtx);*/
+
+			// Define the panel bounds to cover the entire screen
+			float windowWidth = rCtx._swapchain._framebufferSize.width;
+			float windowHeight = rCtx._swapchain._framebufferSize.height;
+
+			// Begin a panel with no title, no borders, and non-movable
+			if (nk_begin(rCtx._uiCtx, "Fullscreen Panel", nk_rect(0, 0, windowWidth, windowHeight), NK_WINDOW_NO_SCROLLBAR | NK_WINDOW_BACKGROUND)) {
+				// Style the panel background
+				struct nk_style* style = &rCtx._uiCtx->style;
+				style->window.fixed_background = nk_style_item_color(nk_rgba(10, 10, 10, 200)); // Semi-transparent black
+
+				float buttonWidth = 150.0f;  // Example button width
+				float buttonHeight = 50.0f; // Example button height
+
+				nk_layout_space_begin(rCtx._uiCtx, NK_STATIC, windowHeight, INT_MAX);
+				float buttonX = (windowWidth - buttonWidth) / 2.0f;  // Center horizontally
+				float buttonY = (windowHeight - buttonHeight) / 2.0f; // Center vertically
+				nk_layout_space_push(rCtx._uiCtx, nk_rect(buttonX, buttonY, buttonWidth, buttonHeight));
+				if (nk_button_label(rCtx._uiCtx, "Play")) {
+					printf("Button clicked!\n");
+				}
+
+				//float buttonX = (windowWidth - buttonWidth) / 2.0f;  // Center horizontally
+				//float buttonY = (windowHeight - buttonHeight) / 2.0f; // Center vertically
+				buttonY += buttonHeight + 5; // Center vertically
+				nk_layout_space_push(rCtx._uiCtx, nk_rect(buttonX, buttonY, buttonWidth, buttonHeight));
+				if (nk_button_label(rCtx._uiCtx, "Settings")) {
+					printf("Button clicked!\n");
+				}
+				nk_layout_space_end(rCtx._uiCtx);
 			}
 			nk_end(rCtx._uiCtx);
 		}
@@ -6272,6 +6302,6 @@ int main() {
 	Engine::InitializeEngine(&ctx, &rCtx, &eCtx);
 	Engine::MainLoop(ctx, rCtx, eCtx);
 	Engine::Cleanup(true);
-	
+
 	return 0;
 }
