@@ -37,6 +37,7 @@
 #include <Json.h>
 #include <nuklear/nuklear.h>
 #include <nuklear/nuklear_glfw_vulkan.h>
+#include <tinyphysicsengine/tinyphysicsengine.h>
 
 namespace Engine {
 
