@@ -1599,16 +1599,6 @@ namespace Engine {
 		 */
 		VkSemaphore _imageAvailableSemaphore;
 		VkSemaphore	_renderingFinishedSemaphore;
-		float _skyBoxVertices[24] {
-			-1.0f, -1.0f, -1.0f, // Vertex 0
-			 1.0f, -1.0f, -1.0f, // Vertex 1
-			 1.0f,  1.0f, -1.0f, // Vertex 2
-			-1.0f,  1.0f, -1.0f, // Vertex 3
-			-1.0f, -1.0f,  1.0f, // Vertex 4
-			 1.0f, -1.0f,  1.0f, // Vertex 5
-			 1.0f,  1.0f,  1.0f, // Vertex 6
-			-1.0f,  1.0f,  1.0f  // Vertex 7
-		};
 	};
 
 	/**
@@ -1758,7 +1748,7 @@ namespace Engine {
 		 */
 		struct {
 			/**
-			 * @brief List of vertices that make up the mesh.
+			 * @brief List of vertices that make up the drawable object.
 			 */
 			std::vector<Vertex> _vertexData;
 
@@ -1797,7 +1787,7 @@ namespace Engine {
 
 		} _faceIndices;
 
-		void CreateVertexBuffer(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, const std::vector<Vertex>& vertices) {
+		void CreateVertexBuffer(VkContext& ctx, const std::vector<Vertex>& vertices) {
 			_vertices._vertexData = vertices;
 
 			// Create a temporary buffer.
@@ -1806,25 +1796,25 @@ namespace Engine {
 			buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 			buffer._createInfo.size = bufferSizeBytes;
 			buffer._createInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-			vkCreateBuffer(logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
+			vkCreateBuffer(ctx._logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
 
 			// Allocate memory for the buffer.
 			VkMemoryRequirements requirements{};
-			vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
-			buffer._gpuMemory = PhysicalDevice::PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, (VkMemoryPropertyFlagBits)(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT));
+			vkGetBufferMemoryRequirements(ctx._logicalDevice, buffer._buffer, &requirements);
+			buffer._gpuMemory = PhysicalDevice::AllocateMemory(ctx._physicalDevice, ctx._logicalDevice, requirements, (VkMemoryPropertyFlagBits)(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT));
 
-			vkMapMemory(logicalDevice, buffer._gpuMemory, 0, GetVectorSizeInBytes(vertices), 0, &buffer._cpuMemory);
+			vkMapMemory(ctx._logicalDevice, buffer._gpuMemory, 0, GetVectorSizeInBytes(vertices), 0, &buffer._cpuMemory);
 
 			// Map memory to the correct GPU and CPU ranges for the buffer.
-			vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
+			vkBindBufferMemory(ctx._logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
 
 			// Send the buffer to GPU.
 			buffer._pData = (void*)vertices.data();
 			buffer._sizeBytes = bufferSizeBytes;
-			Buffer::CopyToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
+			Buffer::CopyToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
 		}
 
-		void CreateIndexBuffer(VkPhysicalDevice& physicalDevice, VkDevice& logicalDevice, VkCommandPool& commandPool, VkQueue& queue, const std::vector<unsigned int>& indices) {
+		void CreateIndexBuffer(VkContext& ctx, const std::vector<unsigned int>& indices) {
 			_faceIndices._indexData = indices;
 
 			// Create a temporary buffer.
@@ -1833,20 +1823,20 @@ namespace Engine {
 			buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 			buffer._createInfo.size = bufferSizeBytes;
 			buffer._createInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-			vkCreateBuffer(logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
+			vkCreateBuffer(ctx._logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
 
 			// Allocate memory for the buffer.
 			VkMemoryRequirements requirements{};
-			vkGetBufferMemoryRequirements(logicalDevice, buffer._buffer, &requirements);
-			buffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			vkGetBufferMemoryRequirements(ctx._logicalDevice, buffer._buffer, &requirements);
+			buffer._gpuMemory = PhysicalDevice::AllocateMemory(ctx._physicalDevice, ctx._logicalDevice, requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 			// Map memory to the correct GPU and CPU ranges for the buffer.
-			vkBindBufferMemory(logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
+			vkBindBufferMemory(ctx._logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
 
 			// TODO: send the buffer to GPU.
 			buffer._pData = (void*)indices.data();
 			buffer._sizeBytes = bufferSizeBytes;
-			Buffer::CopyToDeviceMemory(logicalDevice, physicalDevice, commandPool, queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
+			Buffer::CopyToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
 		}
 
 		/**
@@ -2761,7 +2751,7 @@ namespace Engine {
 	 * @brief Represents a cubical environment map, used as an image-based light source
 	 * in the shaders.
 	 */
-	class CubicalEnvironmentMap : public IPipelineable {
+	class CubicalEnvironmentMap : public IPipelineable, public IDrawable {
 
 	public:
 
@@ -3496,6 +3486,52 @@ namespace Engine {
 		}
 
 		void UpdateShaderResources() {
+		}
+
+		void CreateVertexBuffer(VkContext& ctx) {
+			float skyBoxVertices[24]{
+				-1.0f, -1.0f, -1.0f, // Vertex 0
+				 1.0f, -1.0f, -1.0f, // Vertex 1
+				 1.0f,  1.0f, -1.0f, // Vertex 2
+				-1.0f,  1.0f, -1.0f, // Vertex 3
+				-1.0f, -1.0f,  1.0f, // Vertex 4
+				 1.0f, -1.0f,  1.0f, // Vertex 5
+				 1.0f,  1.0f,  1.0f, // Vertex 6
+				-1.0f,  1.0f,  1.0f  // Vertex 7
+			};
+
+			// Create a temporary buffer.
+			auto& buffer = _vertices._vertexBuffer;
+			auto bufferSizeBytes = 24 * sizeof(float);
+			buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			buffer._createInfo.size = bufferSizeBytes;
+			buffer._createInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+			vkCreateBuffer(ctx._logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
+
+			// Allocate memory for the buffer.
+			VkMemoryRequirements requirements{};
+			vkGetBufferMemoryRequirements(ctx._logicalDevice, buffer._buffer, &requirements);
+			buffer._gpuMemory = PhysicalDevice::AllocateMemory(ctx._physicalDevice, ctx._logicalDevice, requirements, (VkMemoryPropertyFlagBits)(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT));
+
+			vkMapMemory(ctx._logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
+
+			// Map memory to the correct GPU and CPU ranges for the buffer.
+			vkBindBufferMemory(ctx._logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
+
+			// Send the buffer to GPU.
+			buffer._pData = skyBoxVertices;
+			buffer._sizeBytes = bufferSizeBytes;
+			Buffer::CopyToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
+		}
+
+		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer) {
+			VkDescriptorSet sets[2] = { _shaderResources[0][0], _shaderResources[4][0] };
+			vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, sets, 0, nullptr);
+			vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &sets[1], 0, nullptr);
+
+			VkDeviceSize offset = 0;
+			vkCmdBindVertexBuffers(drawCommandBuffer, 0, 1, &_vertices._vertexBuffer._buffer, &offset);
+			vkCmdDraw(drawCommandBuffer, 36, 1, 0, 0);
 		}
 	};
 
@@ -4576,7 +4612,7 @@ namespace Engine {
 			return outMaterials;
 		}
 
-		static Mesh* ProcessMesh(tinygltf::Mesh& gltfMesh, tinygltf::Model& gltfScene, Scene& scene, VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue) {
+		static Mesh* ProcessMesh(tinygltf::Mesh& gltfMesh, tinygltf::Model& gltfScene, Scene& scene, VkContext& ctx) {
 			for (auto& gltfPrimitive : gltfMesh.primitives) {
 
 				auto faceIndicesAccessorIndex = gltfPrimitive.indices;
@@ -4676,10 +4712,10 @@ namespace Engine {
 				}
 
 				// Copy vertices to the GPU.
-				mesh->CreateVertexBuffer(physicalDevice, logicalDevice, commandPool, queue, vertices);
+				mesh->CreateVertexBuffer(ctx, vertices);
 
 				// Copy face indices to the GPU.
-				mesh->CreateIndexBuffer(physicalDevice, logicalDevice, commandPool, queue, faceIndices);
+				mesh->CreateIndexBuffer(ctx, faceIndices);
 
 				return mesh;
 			}
@@ -4725,29 +4761,29 @@ namespace Engine {
 			std::vector<Node*> children;
 		};
 
-		static GameObject* ProcessNode(Node node, tinygltf::Model& gltfScene, Scene& scene, VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue) {
+		static GameObject* ProcessNode(Node node, tinygltf::Model& gltfScene, Scene& scene, VkContext& ctx) {
 			auto& gltfNode = gltfScene.nodes[node.gltfSceneIndex];
 			auto gameObject = new GameObject(gltfNode.name, &scene);
 			auto gltfNodeTransform = GetGltfNodeTransform(gltfNode);
 			gameObject->_localTransform = gltfNodeTransform._matrix;
 
 			auto gltfMesh = gltfScene.meshes[gltfNode.mesh];
-			gameObject->_pMesh = ProcessMesh(gltfMesh, gltfScene, scene, logicalDevice, physicalDevice, commandPool, queue);
+			gameObject->_pMesh = ProcessMesh(gltfMesh, gltfScene, scene, ctx);
 			gameObject->_pMesh->_pGameObject = gameObject;
 			return gameObject;
 		}
 
-		static GameObject* ProcessNodeHierarchy(Node root, tinygltf::Model& gltfScene, Scene& scene, VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue) {
+		static GameObject* ProcessNodeHierarchy(Node root, tinygltf::Model& gltfScene, Scene& scene, VkContext& ctx) {
 			GameObject* outGameObject;
 			if (root.gltfSceneIndex >= 0) {
-				outGameObject = ProcessNode(root, gltfScene, scene, logicalDevice, physicalDevice, commandPool, queue);
+				outGameObject = ProcessNode(root, gltfScene, scene, ctx);
 			}
 			else {
 				outGameObject = new GameObject("Root", &scene);
 			}
 
 			for (int i = 0; i < root.children.size(); ++i) {
-				auto child = ProcessNodeHierarchy(*root.children[i], gltfScene, scene, logicalDevice, physicalDevice, commandPool, queue);
+				auto child = ProcessNodeHierarchy(*root.children[i], gltfScene, scene, ctx);
 				child->_pParent = outGameObject;
 				outGameObject->_children.push_back(child);
 			}
@@ -4815,8 +4851,8 @@ namespace Engine {
 			root = nullptr;
 		}
 
-		static Scene LoadFile(std::filesystem::path filePath, VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& queue) {
-			auto s = new Scene(logicalDevice, physicalDevice);
+		static Scene LoadFile(std::filesystem::path filePath, VkContext& ctx) {
+			auto s = new Scene(ctx._logicalDevice, ctx._physicalDevice);
 			auto& scene = *s;
 			scene._pointLights.push_back(PointLight("DefaultLight"));
 
@@ -4829,13 +4865,13 @@ namespace Engine {
 			std::cout << warn << std::endl;
 			std::cout << err << std::endl;
 
-			auto materials = LoadMaterials(logicalDevice, physicalDevice, gltfScene);
+			auto materials = LoadMaterials(ctx._logicalDevice, ctx._physicalDevice, gltfScene);
 			scene._materials.insert(scene._materials.end(), materials.begin(), materials.end());
 
 			// Creates a hierarchy of nodes from the flat list of nodes that tinygltf's loader filled.
 			// This is done because the transforms of each node are relative to the parent, and having a tree-like structure makes it much easier to apply transforms hierarchically.
 			Node* rootNode = CreateNodeHierarchy(gltfScene);
-			scene._pRootGameObject = ProcessNodeHierarchy(*rootNode, gltfScene, scene, logicalDevice, physicalDevice, commandPool, queue);
+			scene._pRootGameObject = ProcessNodeHierarchy(*rootNode, gltfScene, scene, ctx);
 			DestroyNodeHierarchy(rootNode);
 			rootNode = nullptr;
 
@@ -5042,7 +5078,7 @@ namespace Engine {
 		auto scenePath = Paths::ModelsPath() /= "SampleMap.glb";
 		//auto scenePath = Paths::ModelsPath() /= "monster.glb";
 		//auto scenePath = Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb";
-		return SceneLoader::LoadFile(scenePath, ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue);
+		return SceneLoader::LoadFile(scenePath, ctx);
 	}
 
 	void LoadEnvironmentMap(VkContext& ctx, EngineContext& eCtx) {
@@ -5102,8 +5138,8 @@ namespace Engine {
 		{
 			auto vertPath = Paths::ShadersPath() / std::filesystem::path("graphics\\EnvMapVertShader.spv");
 			auto fragPath = Paths::ShadersPath() / std::filesystem::path("graphics\\EnvMapFragShader.spv");
-			VkShaderModule vertexShaderModule = CreateShaderModule(ctx._logicalDevice, Paths::VertexShaderPath());
-			VkShaderModule fragmentShaderModule = CreateShaderModule(ctx._logicalDevice, Paths::FragmentShaderPath());
+			VkShaderModule vertexShaderModule = CreateShaderModule(ctx._logicalDevice, vertPath);
+			VkShaderModule fragmentShaderModule = CreateShaderModule(ctx._logicalDevice, fragPath);
 
 			// Set up shader stage info.
 			VkPipelineShaderStageCreateInfo vertexShaderCreateInfo = {};
@@ -5131,7 +5167,7 @@ namespace Engine {
 			vertexAttributeDescriptions.location = 0;
 			vertexAttributeDescriptions.binding = 0;
 			vertexAttributeDescriptions.format = VK_FORMAT_R32G32B32_SFLOAT;
-			vertexAttributeDescriptions.offset = (uint32_t)Vertex::OffsetOf(Vertex::AttributeType::Position);
+			vertexAttributeDescriptions.offset = 0;
 
 			// Describe vertex input.
 			VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo = {};
@@ -5247,7 +5283,7 @@ namespace Engine {
 			pipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
 			pipelineCreateInfo.pMultisampleState = &multisampleCreateInfo;
 			pipelineCreateInfo.pColorBlendState = &colorBlendCreateInfo;
-			pipelineCreateInfo.layout = rCtx._scenePipeline._layout;
+			pipelineCreateInfo.layout = rCtx._envMapPipeline._layout;
 			pipelineCreateInfo.renderPass = rCtx._renderPass._handle;
 			pipelineCreateInfo.subpass = 0;
 			pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
@@ -5257,7 +5293,7 @@ namespace Engine {
 			vkDestroyShaderModule(ctx._logicalDevice, vertexShaderModule, nullptr);
 			vkDestroyShaderModule(ctx._logicalDevice, fragmentShaderModule, nullptr);
 		}
-		
+
 		// 3D scene pipeline
 		{
 			VkShaderModule vertexShaderModule = CreateShaderModule(ctx._logicalDevice, Paths::VertexShaderPath());
@@ -5541,7 +5577,7 @@ namespace Engine {
 		VkDescriptorSetLayout gameObjectLayout;
 		VkDescriptorSetLayout meshLayout;
 		VkDescriptorSetLayout lightLayout;
-		VkDescriptorSetLayout miscLayout;
+		VkDescriptorSetLayout envMapLayout;
 
 		{
 			VkDescriptorSetLayoutBinding bindings[1] = { VkDescriptorSetLayoutBinding { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr } };
@@ -5589,7 +5625,7 @@ namespace Engine {
 			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 			layoutCreateInfo.bindingCount = 1;
 			layoutCreateInfo.pBindings = bindings;
-			vkCreateDescriptorSetLayout(ctx._logicalDevice, &layoutCreateInfo, nullptr, &miscLayout);
+			vkCreateDescriptorSetLayout(ctx._logicalDevice, &layoutCreateInfo, nullptr, &envMapLayout);
 		}
 
 		return {
@@ -5597,7 +5633,7 @@ namespace Engine {
 			DescriptorSetLayout{ "gameObjectLayout", 1, gameObjectLayout },
 			DescriptorSetLayout{ "lightLayout", 2, lightLayout },
 			DescriptorSetLayout{ "meshLayout", 3, meshLayout },
-			DescriptorSetLayout{ "miscLayout", 4, miscLayout }
+			DescriptorSetLayout{ "envMapLayout", 4, envMapLayout }
 		};
 	}
 
@@ -5625,6 +5661,15 @@ namespace Engine {
 		eCtx._mainCamera.UpdateShaderResources();
 
 		auto sceneResources = eCtx._scene.CreateDescriptorSets(ctx, descriptorSetLayouts);
+
+		VkDescriptorSetLayout envMapPipelineDescriptorSetLayouts[2]{ descriptorSetLayouts[0]._layout, descriptorSetLayouts[4]._layout };
+		VkPipelineLayoutCreateInfo layoutCreateInfo{};
+		layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		layoutCreateInfo.setLayoutCount = 2;
+		layoutCreateInfo.pSetLayouts = envMapPipelineDescriptorSetLayouts;
+		vkCreatePipelineLayout(ctx._logicalDevice, &layoutCreateInfo, nullptr, &rCtx._envMapPipeline._layout);
+		eCtx._scene._environmentMap.CreateVertexBuffer(ctx);
+		
 		shaderResources.MergeResources(sceneResources);
 		eCtx._scene.UpdateShaderResources();
 	}
@@ -6120,11 +6165,16 @@ namespace Engine {
 			renderPassBeginInfo.clearValueCount = 3;
 			renderPassBeginInfo.pClearValues = clearValues;
 
+			// Draw the environment map as a skybox.
 			vkCmdBeginRenderPass(cmdBufferOfCurrentFrame, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_scenePipeline._handle);
+			vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_envMapPipeline._handle);
+			eCtx._scene._environmentMap._shaderResources.MergeResources(eCtx._mainCamera._shaderResources);
+			eCtx._scene._environmentMap.Draw(outRenderCtx->_envMapPipeline._layout, cmdBufferOfCurrentFrame);
 
+			// Draw the 3D objects.
 			auto& shaderResources = outRenderCtx->_scenePipeline._shaderResources;
 			VkDescriptorSet sets[4] = { shaderResources[0][0], shaderResources[1][0], shaderResources[2][0], shaderResources[4][0] };
+			vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_scenePipeline._handle);
 			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_scenePipeline._layout, 0, 1, &shaderResources[0][0], 0, nullptr);
 			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_scenePipeline._layout, 2, 1, &shaderResources[2][0], 0, nullptr);
 			vkCmdBindDescriptorSets(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_scenePipeline._layout, 4, 1, &shaderResources[4][0], 0, nullptr);
@@ -6132,6 +6182,7 @@ namespace Engine {
 			for (auto& gameObject : eCtx._scene._pRootGameObject->_children)
 				gameObject->Draw(outRenderCtx->_scenePipeline._layout, cmdBufferOfCurrentFrame);
 
+			// Draw UI.
 			auto& uiShaderResources = outRenderCtx->_uiPipeline._shaderResources;
 			vkCmdNextSubpass(cmdBufferOfCurrentFrame, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdBindPipeline(cmdBufferOfCurrentFrame, VK_PIPELINE_BIND_POINT_GRAPHICS, outRenderCtx->_uiPipeline._handle);

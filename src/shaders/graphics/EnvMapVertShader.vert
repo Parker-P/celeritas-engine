@@ -1,13 +1,9 @@
 #version 450
-
 // https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html
 
-// Input attributes coming from a vertex buffer.
-layout(location = 0) in vec3 inPosition;
-
-// Output variables to send to the next shader stages.
-layout (location = 0) out vec2 outUVCoord;
-layout (location = 1) out vec3 outWorldSpaceNormal;
+// Input attributes coming from the CubicalEnvironmentMap vertex buffer, which is created from a hardcoded list of vertices.
+layout (location = 0) in vec3 inPosition;
+layout (location = 0) out vec3 outFragCoords;
 
 // Data used to project the world space coordinates of the vertex into Vulkan's viewable volume.
 layout(set = 0, binding = 0) uniform CameraData {
@@ -19,16 +15,9 @@ layout(set = 0, binding = 0) uniform CameraData {
 	vec3 worldSpacePosition;
 } cameraData;
 
-// Variables coming from descriptor with binding number 0 at descriptor set 1.
-layout(set = 1, binding = 0) uniform ObjectData {
-	mat4 objectToWorld;
-} objectData;
-
 void main() 
 {
-	vec4 vertexWorldSpacePosition = objectData.objectToWorld * vec4(inPosition.xyz, 1.0f);
-	vec4 worldSpaceNormal = objectData.objectToWorld * vec4(inNormal.xyz, 0.0f);
-	vec4 cameraSpacePosition = cameraData.worldToCamera * vertexWorldSpacePosition;
+	vec4 cameraSpacePosition = cameraData.worldToCamera * vec4(inPosition, 1.0);
 
 	// The idea behind the projection transformation is using the camera as if you were standing behind a glass window: whatever you see out the window gets projected onto
 	// the glass.
@@ -50,9 +39,5 @@ void main()
 	// Remember that the next stages are going to divide each component of gl_position by its w component, meaning that
 	// gl_position = vec4(gl_position.x / gl_position.w, gl_position.y / gl_position.w, gl_position.z / gl_position.w, gl_position.w / gl_position.w)
 	gl_Position = vec4(xCoord, yCoord, zCoord, cameraSpacePosition.z);
-	
-	// Forward the uv coordinate of the vertex to the fragment stage.
-	outUVCoord = inUv;
-	outWorldSpaceNormal = vec3(worldSpaceNormal.xyz);
-//	outWorldSpaceNormal = vec4(inNormal.xyz, 1.0f);
+	outFragCoords = inPosition;
 }
