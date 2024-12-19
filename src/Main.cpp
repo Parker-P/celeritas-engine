@@ -5669,7 +5669,7 @@ namespace Engine {
 		layoutCreateInfo.pSetLayouts = envMapPipelineDescriptorSetLayouts;
 		vkCreatePipelineLayout(ctx._logicalDevice, &layoutCreateInfo, nullptr, &rCtx._envMapPipeline._layout);
 		eCtx._scene._environmentMap.CreateVertexBuffer(ctx);
-		
+
 		shaderResources.MergeResources(sceneResources);
 		eCtx._scene.UpdateShaderResources();
 	}
@@ -6191,6 +6191,7 @@ namespace Engine {
 			vkCmdDraw(cmdBufferOfCurrentFrame, 3, 1, 0, 0);
 			vkCmdEndRenderPass(cmdBufferOfCurrentFrame);
 			CheckResult(vkEndCommandBuffer(cmdBufferOfCurrentFrame));
+			
 		}
 
 		// Create sempahores to synchronize drawing operations.
@@ -6376,6 +6377,7 @@ namespace Engine {
 
 		// Refresh UI
 		{
+			if (!eCtx._input._cursorEnabled) goto skipUi;
 			nk_glfw3_new_frame();
 
 			/* Load Fonts: if none of these are loaded a default font will be used  */
@@ -6458,6 +6460,7 @@ namespace Engine {
 			}
 			nk_end(rCtx._uiCtx);
 		}
+	skipUi:
 
 		VkHelper::TransitionImageLayout(ctx._logicalDevice, ctx._commandPool, ctx._queue, rCtx._overlayImages[imageIndex]._image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		auto nk_semaphore = nk_glfw3_render(ctx._queue, imageIndex, rCtx._imageAvailableSemaphore, NK_ANTI_ALIASING_ON);
