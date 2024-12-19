@@ -3489,20 +3489,49 @@ namespace Engine {
 		}
 
 		void CreateVertexBuffer(VkContext& ctx) {
-			float skyBoxVertices[24]{
+			//  _right, _left, _upper, _lower, _front, _back 
+			const unsigned int coordinateCount = 72;
+			float skyBoxVertices[coordinateCount] = {
+				// Back face (-Z)
 				-1.0f, -1.0f, -1.0f, // Vertex 0
-				 1.0f, -1.0f, -1.0f, // Vertex 1
-				 1.0f,  1.0f, -1.0f, // Vertex 2
+				1.0f, -1.0f, -1.0f, // Vertex 1
+				1.0f,  1.0f, -1.0f, // Vertex 2
 				-1.0f,  1.0f, -1.0f, // Vertex 3
+
+				// Front face (+Z)
 				-1.0f, -1.0f,  1.0f, // Vertex 4
-				 1.0f, -1.0f,  1.0f, // Vertex 5
-				 1.0f,  1.0f,  1.0f, // Vertex 6
-				-1.0f,  1.0f,  1.0f  // Vertex 7
+				1.0f, -1.0f,  1.0f, // Vertex 5
+				1.0f,  1.0f,  1.0f, // Vertex 6
+				-1.0f,  1.0f,  1.0f, // Vertex 7
+
+				// Left face (-X)
+				-1.0f, -1.0f,  1.0f, // Vertex 4
+				-1.0f, -1.0f, -1.0f, // Vertex 0
+				-1.0f,  1.0f, -1.0f, // Vertex 3
+				-1.0f,  1.0f,  1.0f, // Vertex 7
+
+				// Right face (+X)
+				1.0f, -1.0f, -1.0f, // Vertex 1
+				1.0f, -1.0f,  1.0f, // Vertex 5
+				1.0f,  1.0f,  1.0f, // Vertex 6
+				1.0f,  1.0f, -1.0f, // Vertex 2
+
+				// Bottom face (-Y)
+				-1.0f, -1.0f, -1.0f, // Vertex 0
+				-1.0f, -1.0f,  1.0f, // Vertex 4
+				1.0f, -1.0f,  1.0f, // Vertex 5
+				1.0f, -1.0f, -1.0f, // Vertex 1
+
+				// Top face (+Y)
+				-1.0f,  1.0f,  1.0f, // Vertex 7
+				-1.0f,  1.0f, -1.0f, // Vertex 3
+				1.0f,  1.0f, -1.0f, // Vertex 2
+				1.0f,  1.0f,  1.0f  // Vertex 6
 			};
 
 			// Create a temporary buffer.
 			auto& buffer = _vertices._vertexBuffer;
-			auto bufferSizeBytes = 24 * sizeof(float);
+			auto bufferSizeBytes = coordinateCount * sizeof(float);
 			buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 			buffer._createInfo.size = bufferSizeBytes;
 			buffer._createInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
@@ -3524,6 +3553,60 @@ namespace Engine {
 			Buffer::CopyToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
 		}
 
+		void CreateIndexBuffer(VkContext& ctx) {
+			//  _right, _left, _upper, _lower, _front, _back 
+			const unsigned int indexCount = 36;
+			uint32_t skyBoxFaceIndices[indexCount] = {
+
+				// Right face (+X)
+				1, 5, 6, // First triangle
+				6, 2, 1, // Second triangle
+
+				// Left face (-X)
+				4, 0, 3, // First triangle
+				3, 7, 4, // Second triangle
+
+				// Top face (+Y)
+				7, 3, 2, // First triangle
+				2, 6, 7,  // Second triangle
+
+				// Bottom face (-Y)
+				0, 4, 5, // First triangle
+				5, 1, 0, // Second triangle
+				
+				// Front face (+Z)
+				4, 5, 6, // First triangle
+				6, 7, 4, // Second triangle
+
+				// Back face (-Z)
+				0, 1, 2, // First triangle
+				2, 3, 0 // Second triangle
+			};
+
+			// Create a temporary buffer.
+			auto& buffer = _faceIndices._indexBuffer;
+			auto bufferSizeBytes = indexCount * sizeof(uint32_t);
+			buffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			buffer._createInfo.size = bufferSizeBytes;
+			buffer._createInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+			vkCreateBuffer(ctx._logicalDevice, &buffer._createInfo, nullptr, &buffer._buffer);
+
+			// Allocate memory for the buffer.
+			VkMemoryRequirements requirements{};
+			vkGetBufferMemoryRequirements(ctx._logicalDevice, buffer._buffer, &requirements);
+			buffer._gpuMemory = PhysicalDevice::AllocateMemory(ctx._physicalDevice, ctx._logicalDevice, requirements, (VkMemoryPropertyFlagBits)(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT));
+
+			vkMapMemory(ctx._logicalDevice, buffer._gpuMemory, 0, bufferSizeBytes, 0, &buffer._cpuMemory);
+
+			// Map memory to the correct GPU and CPU ranges for the buffer.
+			vkBindBufferMemory(ctx._logicalDevice, buffer._buffer, buffer._gpuMemory, 0);
+
+			// Send the buffer to GPU.
+			buffer._pData = skyBoxFaceIndices;
+			buffer._sizeBytes = bufferSizeBytes;
+			Buffer::CopyToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, buffer._buffer, buffer._pData, buffer._sizeBytes);
+		}
+
 		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer) {
 			VkDescriptorSet sets[2] = { _shaderResources[0][0], _shaderResources[4][0] };
 			vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, sets, 0, nullptr);
@@ -3531,7 +3614,8 @@ namespace Engine {
 
 			VkDeviceSize offset = 0;
 			vkCmdBindVertexBuffers(drawCommandBuffer, 0, 1, &_vertices._vertexBuffer._buffer, &offset);
-			vkCmdDraw(drawCommandBuffer, 36, 1, 0, 0);
+			vkCmdBindIndexBuffer(drawCommandBuffer, _faceIndices._indexBuffer._buffer, 0, VkIndexType::VK_INDEX_TYPE_UINT32);
+			vkCmdDrawIndexed(drawCommandBuffer, 36, 1, 0, 0, 0);
 		}
 	};
 
@@ -5084,10 +5168,11 @@ namespace Engine {
 	void LoadEnvironmentMap(VkContext& ctx, EngineContext& eCtx) {
 		eCtx._scene._environmentMap = CubicalEnvironmentMap(ctx._physicalDevice, ctx._logicalDevice);
 		//eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Waterfall.hdr");
+		eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "MountainsClearSky.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Debug.png");
 		//eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "ModernBuilding.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Workshop.png");
-		eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Workshop.hdr");
+		//eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Workshop.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "garden.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "ItalianFlag.png");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "TestPng.png");
@@ -5134,7 +5219,7 @@ namespace Engine {
 	}
 
 	void CreateGraphicsPipelines(VkContext& ctx, VkRenderContext& rCtx) {
-		// Environment map pipeline to draw it as a skybox
+		// Environment map pipeline to draw it as a skybox.
 		{
 			auto vertPath = Paths::ShadersPath() / std::filesystem::path("graphics\\EnvMapVertShader.spv");
 			auto fragPath = Paths::ShadersPath() / std::filesystem::path("graphics\\EnvMapFragShader.spv");
@@ -5230,7 +5315,7 @@ namespace Engine {
 			depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 			depthStencilCreateInfo.pNext = nullptr;
 			depthStencilCreateInfo.depthTestEnable = VK_TRUE;
-			depthStencilCreateInfo.depthWriteEnable = VK_TRUE;
+			depthStencilCreateInfo.depthWriteEnable = VK_FALSE;
 			depthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
 			depthStencilCreateInfo.depthBoundsTestEnable = VK_FALSE;
 			depthStencilCreateInfo.stencilTestEnable = VK_FALSE;
@@ -5294,7 +5379,7 @@ namespace Engine {
 			vkDestroyShaderModule(ctx._logicalDevice, fragmentShaderModule, nullptr);
 		}
 
-		// 3D scene pipeline
+		// 3D scene pipeline.
 		{
 			VkShaderModule vertexShaderModule = CreateShaderModule(ctx._logicalDevice, Paths::VertexShaderPath());
 			VkShaderModule fragmentShaderModule = CreateShaderModule(ctx._logicalDevice, Paths::FragmentShaderPath());
@@ -5669,6 +5754,7 @@ namespace Engine {
 		layoutCreateInfo.pSetLayouts = envMapPipelineDescriptorSetLayouts;
 		vkCreatePipelineLayout(ctx._logicalDevice, &layoutCreateInfo, nullptr, &rCtx._envMapPipeline._layout);
 		eCtx._scene._environmentMap.CreateVertexBuffer(ctx);
+		eCtx._scene._environmentMap.CreateIndexBuffer(ctx);
 
 		shaderResources.MergeResources(sceneResources);
 		eCtx._scene.UpdateShaderResources();
@@ -6191,7 +6277,7 @@ namespace Engine {
 			vkCmdDraw(cmdBufferOfCurrentFrame, 3, 1, 0, 0);
 			vkCmdEndRenderPass(cmdBufferOfCurrentFrame);
 			CheckResult(vkEndCommandBuffer(cmdBufferOfCurrentFrame));
-			
+
 		}
 
 		// Create sempahores to synchronize drawing operations.

@@ -17,7 +17,7 @@ layout(set = 0, binding = 0) uniform CameraData {
 
 void main() 
 {
-	vec4 cameraSpacePosition = cameraData.worldToCamera * vec4(inPosition, 1.0);
+	vec4 cameraSpacePosition = cameraData.worldToCamera * vec4(inPosition, 0.0); // Setting the last element to zero cancels out the world space position column when multiplying by the camera matrix.
 
 	// The idea behind the projection transformation is using the camera as if you were standing behind a glass window: whatever you see out the window gets projected onto
 	// the glass.
