@@ -6301,6 +6301,7 @@ namespace Engine {
 		vkDestroySwapchainKHR(ctx._logicalDevice, rCtx._swapchain._handle, nullptr);
 		rCtx._swapchain._handle = nullptr;
 		rCtx._swapchain._oldSwapchainHandle = nullptr;
+		vkDestroyPipeline(ctx._logicalDevice, rCtx._envMapPipeline._handle, nullptr);
 		vkDestroyPipeline(ctx._logicalDevice, rCtx._uiPipeline._handle, nullptr);
 		vkDestroyPipeline(ctx._logicalDevice, rCtx._scenePipeline._handle, nullptr);
 		vkDestroySemaphore(ctx._logicalDevice, rCtx._imageAvailableSemaphore, nullptr);
