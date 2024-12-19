@@ -3575,8 +3575,8 @@ namespace Engine {
 				5, 1, 0, // Second triangle
 				
 				// Front face (+Z)
-				4, 5, 6, // First triangle
-				6, 7, 4, // Second triangle
+				6, 5, 4, // First triangle
+				6, 4, 7, // Second triangle
 
 				// Back face (-Z)
 				0, 1, 2, // First triangle
@@ -5089,7 +5089,7 @@ namespace Engine {
 
 	static void OnWindowResized(GLFWwindow* window, int width, int height) {
 		windowResized = true;
-		if (width == 0 && height == 0) windowMinimized = true; return;
+		if (width == 0 && height == 0) { windowMinimized = true; return; }
 		windowMinimized = false;
 		GlobalSettings::Instance()._windowWidth = width;
 		GlobalSettings::Instance()._windowHeight = height;
