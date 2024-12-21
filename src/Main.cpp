@@ -39,6 +39,8 @@
 #include <nuklear/nuklear_glfw_vulkan.h>
 #include <tinyphysicsengine/tinyphysicsengine.h>
 
+using namespace std::chrono_literals;
+
 namespace Engine {
 
 	using namespace Engine;
@@ -206,9 +208,7 @@ namespace Engine {
 		 * @return
 		 */
 		template <typename FromType, typename ToType>
-		static ToType Convert(FromType value) {
-			return Convert<ToType>(value);
-		}
+		static ToType Convert(FromType value) { return Convert<ToType>(value); }
 
 		/**
 		 * @brief Converts uint32_t to float.
@@ -233,9 +233,7 @@ namespace Engine {
 		template<>
 		static bool Convert(std::string value) {
 			std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return std::tolower(c); });
-			if (value == "true" || value == "1") {
-				return true;
-			}
+			if (value == "true" || value == "1") { return true; }
 			return false;
 		}
 
@@ -245,8 +243,17 @@ namespace Engine {
 		 * @return
 		 */
 		template<>
-		static int Convert(std::string value) {
-			return std::stoi(value);
+		static int Convert(std::string value) { return std::stoi(value); }
+
+		/**
+		 * @brief Converts tinyphysicslibrary vector 3 to glm vector 3.
+		 * @param value
+		 * @return
+		 */
+		template<>
+		static glm::vec3 Convert(TPE_Vec3 value) {
+			float div = (float)TPE_F;
+			return glm::vec3((float)value.x / div, (float)value.y / div, (float)value.z / div);
 		}
 
 		/**
@@ -445,6 +452,12 @@ namespace Engine {
 		 * @brief The amount of time since the last physics simulation update in milliseconds.
 		 */
 		double _physicsDeltaTime;
+
+		/**
+		 * @brief Fixed physics update time in milliseconds.
+		 * The engine will wait for (_fixedPhysicsDeltaTime - _physicsDeltaTime) milliseconds if _physicsDeltaTime is lower than this number.
+		 */
+		double _fixedPhysicsDeltaTime = 33.333;
 
 		/**
 		 * @brief Constructor.
@@ -3573,7 +3586,7 @@ namespace Engine {
 				// Bottom face (-Y)
 				0, 4, 5, // First triangle
 				5, 1, 0, // Second triangle
-				
+
 				// Front face (+Z)
 				6, 5, 4, // First triangle
 				6, 4, 7, // Second triangle
@@ -5017,35 +5030,6 @@ namespace Engine {
 		return VK_FALSE;
 	}
 
-	void PhysicsUpdate(GLFWwindow* pWindow) {
-		while (!glfwWindowShouldClose(pWindow)) {
-			auto& time = Time::Instance();
-			time.PhysicsUpdate();
-
-			/*for (auto& gameObject : _scene._pRootGameObject->_children) {
-				if (gameObject->_pMesh == nullptr) {
-					continue;
-				}
-
-				if (gameObject->_name != "falling" && gameObject->_name != "ground") {
-					continue;
-				}
-
-				auto& body = gameObject->_body;
-				if (gameObject->_name == "falling" && !gameObject->_body._isInitialized) {
-					body._updateImplementation = Falling;
-				}
-
-				if (gameObject->_name == "ground" && !gameObject->_body._isInitialized) {
-					body._updateImplementation = Ground;
-				}
-
-				body.Initialize(gameObject->_pMesh);
-				body.PhysicsUpdate();
-			}*/
-		}
-	}
-
 	void Cleanup(bool fullClean) {
 		nk_glfw3_shutdown();
 		//vkDeviceWaitIdle(_logicalDevice);
@@ -5144,7 +5128,7 @@ namespace Engine {
 
 	Scene LoadScene(VkContext& ctx) {
 		//auto scenePath = Paths::ModelsPath() /= "MaterialSphere.glb";
-		//auto scenePath = Paths::ModelsPath() /= "cubes.glb";
+		auto scenePath = Paths::ModelsPath() /= "cubes.glb";
 		//auto scenePath = Paths::ModelsPath() /= "directions.glb";
 		//auto scenePath = Paths::ModelsPath() /= "f.glb";
 		//auto scenePath = Paths::ModelsPath() /= "fr.glb";
@@ -5159,7 +5143,7 @@ namespace Engine {
 		//auto scenePath = Paths::ModelsPath() /= "clipping.glb";
 		//auto scenePath = Paths::ModelsPath() /= "Cube.glb";
 		//auto scenePath = Paths::ModelsPath() /= "stanford_dragon_pbr.glb";
-		auto scenePath = Paths::ModelsPath() /= "SampleMap.glb";
+		//auto scenePath = Paths::ModelsPath() /= "SampleMap.glb";
 		//auto scenePath = Paths::ModelsPath() /= "monster.glb";
 		//auto scenePath = Paths::ModelsPath() /= "free_1972_datsun_4k_textures.glb";
 		return SceneLoader::LoadFile(scenePath, ctx);
@@ -6595,8 +6579,75 @@ namespace Engine {
 		eCtx._scene.Update(ctx);
 	}
 
+#define ROOM_SIZE (3000 * TPE_F)
+
+	TPE_Vec3 environmentDistance(TPE_Vec3 point, TPE_Unit maxDistance)
+	{
+		// our environemnt: just a simple room
+		auto b = TPE_envAABoxInside(point, TPE_vec3(0, ROOM_SIZE / 2, 0), TPE_vec3(ROOM_SIZE, ROOM_SIZE, ROOM_SIZE));
+		auto p = Helper::Convert<TPE_Vec3, glm::vec3>(point);
+		auto x = Helper::Convert<TPE_Vec3, glm::vec3>(b);
+		return b;
+	}
+
+	void PhysicsUpdate(GLFWwindow* pWindow, EngineContext* eCtx) {
+		auto& time = Time::Instance();
+		time._lastPhysicsUpdateTime = std::chrono::high_resolution_clock::now();
+
+		TPE_Body stationaryCube{};
+		TPE_Body fallingCube{};
+		TPE_World world{};
+
+		// Create the stationary cube
+		TPE_Joint stationaryJoints[8];
+		TPE_Connection stationaryConnections[16];
+		TPE_makeBox(stationaryJoints, stationaryConnections, TPE_F, TPE_F, TPE_F, 0);
+		TPE_bodyInit(&stationaryCube, stationaryJoints, 8, stationaryConnections, 16, 0);
+		TPE_bodyMoveBy(&stationaryCube, TPE_vec3(TPE_F * -10, TPE_F * -10, 0)); // Set the position of the stationary cube (e.g., at ground level)
+
+		// Create the falling cube
+		TPE_Joint fallingJoints[8];
+		TPE_Connection fallingConnections[16];
+		TPE_makeBox(fallingJoints, fallingConnections, TPE_F, TPE_F, TPE_F, 0);
+		TPE_bodyInit(&fallingCube, fallingJoints, 8, fallingConnections, 16, 2 * TPE_F);
+		TPE_bodyMoveBy(&fallingCube, TPE_vec3(TPE_F * 3, TPE_F * 50, TPE_F * 20)); // Set the initial position of the falling cube (e.g., above the stationary cube)
+
+		// Initialize the physics world
+		TPE_Body bodies[] = { stationaryCube, fallingCube };
+		TPE_worldInit(&world, bodies, 2, environmentDistance); // Set environment distance large enough for simulation
+
+		GameObject* falling = nullptr;
+
+		for (int i = 0; i < eCtx->_scene._pRootGameObject->_children.size(); ++i)
+			if (eCtx->_scene._pRootGameObject->_children[i]->_name == "FreeCube") falling = eCtx->_scene._pRootGameObject->_children[i];
+		falling->_localTransform.SetPosition({ 3.0f, 50.0f, 20.0f });
+
+		if (!falling) return;
+
+		int i = 0;
+		while (!glfwWindowShouldClose(pWindow)) {
+			//time.PhysicsUpdate();
+			time._lastPhysicsUpdateTime = std::chrono::high_resolution_clock::now();
+			TPE_bodyApplyGravity(&fallingCube, TPE_F / 100);
+			auto fallingPos = Helper::Convert<TPE_Vec3, glm::vec3>(TPE_bodyGetCenterOfMass(&fallingCube));
+			falling->_localTransform.SetPosition(fallingPos);
+			//auto velocity = Helper::Convert<TPE_Vec3, glm::vec3>(TPE_bodyGetLinearVelocity(&fallingCube));
+			//falling->_localTransform.SetPosition(falling->_localTransform.Position() += velocity * (float)time._physicsDeltaTime);
+			/*for (double dt = time._physicsDeltaTime; dt < time._fixedPhysicsDeltaTime; ++dt) {
+				falling->_localTransform.SetPosition(falling->_localTransform.Position() + (velocity * (((float)time._fixedPhysicsDeltaTime) * 0.001f)));
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			}*/
+
+			//std::cout << Helper::Convert<TPE_Vec3, glm::vec3>(TPE_bodyGetLinearVelocity(&fallingCube)) << std::endl;
+			long long timeTaken = (std::chrono::high_resolution_clock::now() - time._lastPhysicsUpdateTime).count();
+			auto timeToSleep = std::chrono::milliseconds((long long)time._fixedPhysicsDeltaTime - (timeTaken / 1000000));
+			std::this_thread::sleep_for(timeToSleep);
+			TPE_worldStep(&world);
+		}
+	}
+
 	void MainLoop(VkContext& ctx, VkRenderContext& rCtx, EngineContext& eCtx) {
-		//std::thread physicsThread(&PhysicsUpdate, this);
+		std::thread physicsThread(&PhysicsUpdate, rCtx._pWindow, &eCtx);
 
 		while (!glfwWindowShouldClose(rCtx._pWindow)) {
 			Update(ctx, eCtx);
@@ -6604,7 +6655,7 @@ namespace Engine {
 			glfwPollEvents();
 		}
 
-		//physicsThread.join();
+		physicsThread.join();
 	}
 }
 
