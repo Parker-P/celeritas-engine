@@ -37,7 +37,6 @@
 #include <Json.h>
 #include <nuklear/nuklear.h>
 #include <nuklear/nuklear_glfw_vulkan.h>
-#include <tinyphysicsengine/tinyphysicsengine.h>
 
 using namespace std::chrono_literals;
 
@@ -127,21 +126,18 @@ namespace Engine {
 		glm::vec3 rayCrossE2 = glm::cross(rayVector, edge2);
 		float determinant = dot(edge1, rayCrossE2);
 
-		if (determinant > -epsilon && determinant < epsilon)
-			return false;    // This ray is parallel to this triangle.
+		if (determinant > -epsilon && determinant < epsilon) return false;    // This ray is parallel to this triangle.
 
 		float inverseDeterminant = 1.0f / determinant;
 		glm::vec3 s = rayOrigin - v1;
 		float u = inverseDeterminant * dot(s, rayCrossE2);
 
-		if (u < 0 || u > 1)
-			return false;
+		if (u < 0 || u > 1) return false;
 
 		glm::vec3 sCrossE1 = cross(s, edge1);
 		float v = inverseDeterminant * glm::dot(rayVector, sCrossE1);
 
-		if (v < 0 || u + v > 1)
-			return false;
+		if (v < 0 || u + v > 1) return false;
 
 		// At this stage we can compute t to find out where the intersection point is along the ray.
 		float t = inverseDeterminant * dot(edge2, sCrossE1);
@@ -150,8 +146,7 @@ namespace Engine {
 			outIntersectionPoint = rayOrigin + rayVector * t;
 			return true;
 		}
-		else // This means that the origin of the ray is inside the triangle.
-			return false;
+		else return false; // This means that the origin of the ray is inside the triangle.
 	}
 
 	/**
@@ -244,17 +239,6 @@ namespace Engine {
 		 */
 		template<>
 		static int Convert(std::string value) { return std::stoi(value); }
-
-		/**
-		 * @brief Converts tinyphysicslibrary vector 3 to glm vector 3.
-		 * @param value
-		 * @return
-		 */
-		template<>
-		static glm::vec3 Convert(TPE_Vec3 value) {
-			float div = (float)TPE_F;
-			return glm::vec3((float)value.x / div, (float)value.y / div, (float)value.z / div);
-		}
 
 		/**
 		 * @brief Converts string to float.
@@ -3664,12 +3648,7 @@ namespace Engine {
 		/**
 		 * @brief Face indices.
 		 */
-		std::vector<unsigned int> _faceIndices;
-
-		/**
-		 * @brief Visual mesh that appears rendered on screen, which this physics mesh class simulates physics for.
-		 */
-		Mesh* _pMesh;
+		std::vector<uint32_t> _faceIndices;
 	};
 
 	/**
@@ -3724,6 +3703,11 @@ namespace Engine {
 		void(*_updateImplementation)(GameObject&);
 
 		/**
+		 * @brief GameObject tied to this RigidBody.
+		 */
+		GameObject* _pGameObject;
+
+		/**
 		 * @brief Map where the key is the index of a vertex in _pMesh, and the value is a list of vertex indices directly connected to the vertex represented by the key.
 		 */
 		 //std::map<unsigned int, std::vector<unsigned int>> _neighbors;
@@ -3738,13 +3722,15 @@ namespace Engine {
 			return stream << "(" << vector.x << ", " << vector.y << ", " << vector.z << ")";
 		}*/
 
-		bool IsVectorZero(const glm::vec3& vector, float tolerance = 0.0f);
+		bool IsVectorZero(const glm::vec3& vector, float tolerance = std::numeric_limits<float>::epsilon());
 
 		glm::vec3 CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition);
 
 		glm::vec3 GetCenterOfMass();
 
-		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool ignoreTranslation);
+		glm::vec3 GetVelocityAtPosition(const glm::vec3& position);
+
+		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace = false, bool ignoreTranslation = false);
 
 		void AddForce(const glm::vec3& force, bool ignoreMass);
 
@@ -3754,9 +3740,9 @@ namespace Engine {
 
 		std::vector<GameObject*> GetOtherGameObjects(GameObject* pGameObject);
 
-		std::vector<glm::vec3> GetContactPoints();
+		std::vector<glm::vec3> DetectCollisions();
 
-		void Initialize(Mesh* pMesh, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass);
+		void Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass);
 
 		void PhysicsUpdate();
 	};
@@ -4183,16 +4169,21 @@ namespace Engine {
 		return glm::vec3(totalX / vertexCount, totalY / vertexCount, totalZ / vertexCount);
 	}
 
-	void RigidBody::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool ignoreTranslation) {
+	glm::vec3 RigidBody::GetVelocityAtPosition(const glm::vec3& position) {
+		glm::vec3 outVelocity = _velocity;
+
+	}
+
+	void RigidBody::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool ignoreTranslation) {
 		auto& time = Time::Instance();
 		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
-		auto vertexCount = _mesh._pMesh->_vertices._vertexData.size();
-		auto& vertices = _mesh._pMesh->_vertices._vertexData;
-		auto worldSpaceTransform = _mesh._pMesh->_pGameObject->GetWorldSpaceTransform()._matrix;
+		auto vertexCount = _mesh._vertices.size();
+		auto& vertices = _mesh._vertices;
+		auto worldSpaceTransform = _pGameObject->GetWorldSpaceTransform()._matrix;
 
 		// First calculate the translation component of the force to apply.
 		auto worldSpaceCom = glm::vec3(worldSpaceTransform * glm::vec4(GetCenterOfMass(), 1.0f));
-		auto worldSpacePointOfApplication = glm::vec3(worldSpaceTransform * glm::vec4(pointOfApplication, 1.0f));
+		auto worldSpacePointOfApplication = isApplicationPointWorldSpace ? pointOfApplication : glm::vec3(worldSpaceTransform * glm::vec4(pointOfApplication, 1.0f));
 
 		if (!ignoreTranslation) {
 			glm::vec3 translationForce = CalculateTransmittedForce(worldSpacePointOfApplication, force, worldSpaceCom);
@@ -4221,9 +4212,7 @@ namespace Engine {
 		for (int i = 0; i < vertexCount; ++i) {
 			auto worldSpaceVertexPosition = glm::vec3(worldSpaceTransform * glm::vec4(vertices[i]._position, 1.0f));
 
-			if (worldSpaceVertexPosition == worldSpaceCom) {
-				continue;
-			}
+			if (worldSpaceVertexPosition == worldSpaceCom) continue;
 
 			auto comToVertexDirection = glm::normalize(worldSpaceVertexPosition - worldSpaceCom);
 			auto cathetus = comToVertexDirection * glm::dot(rotationAxis, comToVertexDirection);
@@ -4248,13 +4237,13 @@ namespace Engine {
 		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
 		auto translationDelta = ignoreMass ? (force * deltaTimeSeconds) : ((force / _mass) * deltaTimeSeconds);
 		_velocity += translationDelta;
-		_mesh._pMesh->_pGameObject->_localTransform.Translate(translationDelta);
+		_pGameObject->_localTransform.Translate(translationDelta);
 	}
 
 	std::vector<glm::vec3> RigidBody::GetContactPoints(const RigidBody& other) {
 		std::vector<glm::vec3> outContactPoints;
-		auto worldSpaceOther = other._mesh._pMesh->_pGameObject->GetWorldSpaceTransform();
-		auto worldSpaceCurrent = _mesh._pMesh->_pGameObject->GetWorldSpaceTransform();
+		auto worldSpaceOther = other._pGameObject->GetWorldSpaceTransform();
+		auto worldSpaceCurrent = _pGameObject->GetWorldSpaceTransform();
 
 		for (int i = 0; i < other._mesh._faceIndices.size(); i += 3) {
 			for (int j = 0; j < _mesh._faceIndices.size(); j += 3) {
@@ -4271,17 +4260,16 @@ namespace Engine {
 				glm::vec3 intersectionPoint2;
 				glm::vec3 intersectionPoint3;
 
-				if (IsRayIntersectingTriangle(v1Other, v2Other - v1Other, v1, v2, v3, intersectionPoint1)) {
-					outContactPoints.push_back(intersectionPoint1);
-				}
+				// Check collision testing the other body's edges as rays against the current body's face.
+				if (IsRayIntersectingTriangle(v1Other, v2Other - v1Other, v1, v2, v3, intersectionPoint1)) outContactPoints.push_back(intersectionPoint1);
+				if (IsRayIntersectingTriangle(v1Other, v3Other - v1Other, v1, v2, v3, intersectionPoint2)) outContactPoints.push_back(intersectionPoint2);
+				if (IsRayIntersectingTriangle(v3Other, v2Other - v3Other, v1, v2, v3, intersectionPoint3)) outContactPoints.push_back(intersectionPoint3);
+				if (!IsVectorZero(intersectionPoint1) || !IsVectorZero(intersectionPoint2) || !IsVectorZero(intersectionPoint3)) return outContactPoints;
 
-				if (IsRayIntersectingTriangle(v1Other, v3Other - v1Other, v1, v2, v3, intersectionPoint2)) {
-					outContactPoints.push_back(intersectionPoint2);
-				}
-
-				if (IsRayIntersectingTriangle(v3Other, v2Other - v3Other, v1, v2, v3, intersectionPoint3)) {
-					outContactPoints.push_back(intersectionPoint3);
-				}
+				// Check collision this body's edges as rays against the other body's face.
+				if (IsRayIntersectingTriangle(v1, v2 - v1, v1Other, v2Other, v3Other, intersectionPoint1)) outContactPoints.push_back(intersectionPoint1);
+				if (IsRayIntersectingTriangle(v1, v3 - v1, v1Other, v2Other, v3Other, intersectionPoint2)) outContactPoints.push_back(intersectionPoint2);
+				if (IsRayIntersectingTriangle(v3, v2 - v3, v1Other, v2Other, v3Other, intersectionPoint3)) outContactPoints.push_back(intersectionPoint3);
 			}
 		}
 		return outContactPoints;
@@ -4297,55 +4285,49 @@ namespace Engine {
 		return outGameObjects;
 	}
 
-	std::vector<GameObject*> RigidBody::GetOtherGameObjects(GameObject* pGameObject) {
-		auto allGameObjects = GetAllGameObjects(pGameObject->_pScene->_pRootGameObject);
+	std::vector<GameObject*> RigidBody::GetOtherGameObjects(GameObject* pExcludedGameObject) {
+		auto allGameObjects = GetAllGameObjects(pExcludedGameObject->_pScene->_pRootGameObject);
 		for (int i = 0; i < allGameObjects.size(); ++i) {
-			if (pGameObject == allGameObjects[i]) {
+			if (pExcludedGameObject == allGameObjects[i]) {
 				allGameObjects.erase(allGameObjects.begin() + i);
 			}
 		}
 		return allGameObjects;
 	}
 
-	std::vector<glm::vec3> RigidBody::GetContactPoints() {
-		auto otherGameObjects = GetOtherGameObjects(_mesh._pMesh->_pGameObject);
+	std::vector<glm::vec3> RigidBody::DetectCollisions() {
+		auto otherGameObjects = GetOtherGameObjects(_pGameObject);
 		std::vector<glm::vec3> outContactPoints;
 		for (int i = 0; i < otherGameObjects.size(); ++i) {
-			if (otherGameObjects[i]->_body._mesh._pMesh == nullptr) {
-				continue;
-			}
+			if (otherGameObjects[i]->_body._mesh._vertices.size() < 1) continue;
 			auto contactPoints = GetContactPoints(otherGameObjects[i]->_body);
 			outContactPoints.insert(outContactPoints.end(), contactPoints.begin(), contactPoints.end());
 		}
 		return outContactPoints;
 	}
 
-	void RigidBody::Initialize(Mesh* pMesh, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass) {
-		if (pMesh == nullptr || mass <= 0.001f) {
-			return;
-		}
+	void RigidBody::Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass) {
+		if (mass <= 0.001f || vertices.size() < 1 || faceIndices.size() < 1) return;
 
+		_pGameObject = pGameObject;
 		_mass = mass;
-		_mesh._pMesh = pMesh;
 		_isCenterOfMassOverridden = overrideCenterOfMass;
 		_overriddenCenterOfMass = overriddenCenterOfMass;
-		auto& vertices = pMesh->_vertices._vertexData;
-		auto& indices = pMesh->_faceIndices._indexData;
 		_mesh._vertices.resize(vertices.size());
-		_mesh._faceIndices.resize(indices.size());
+		_mesh._faceIndices = faceIndices;
 
 		// TODO: Decide how you want to initialize your physics mesh.
 		for (int i = 0; i < vertices.size(); ++i) {
-			_mesh._vertices[i]._position = vertices[i]._position;
+			_mesh._vertices[i]._position = vertices[i];
 		}
 
-		memcpy(_mesh._faceIndices.data(), indices.data(), GetVectorSizeInBytes(indices));
+		memcpy(_mesh._faceIndices.data(), faceIndices.data(), GetVectorSizeInBytes(faceIndices));
 
 		_isInitialized = true;
 	}
 
 	void RigidBody::PhysicsUpdate() {
-		if (_isCollidable) {
+		/*if (_isCollidable) {
 
 		}
 
@@ -4355,7 +4337,7 @@ namespace Engine {
 
 		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
 		_mesh._pMesh->_pGameObject->_localTransform.RotateAroundPosition(GetCenterOfMass(), glm::normalize(_angularVelocity), glm::length(_angularVelocity) * deltaTimeSeconds);
-		_mesh._pMesh->_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
+		_mesh._pMesh->_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);*/
 	}
 
 	/**
@@ -6579,70 +6561,39 @@ namespace Engine {
 		eCtx._scene.Update(ctx);
 	}
 
-#define ROOM_SIZE (3000 * TPE_F)
-
-	TPE_Vec3 environmentDistance(TPE_Vec3 point, TPE_Unit maxDistance)
-	{
-		// our environemnt: just a simple room
-		auto b = TPE_envAABoxInside(point, TPE_vec3(0, ROOM_SIZE / 2, 0), TPE_vec3(ROOM_SIZE, ROOM_SIZE, ROOM_SIZE));
-		auto p = Helper::Convert<TPE_Vec3, glm::vec3>(point);
-		auto x = Helper::Convert<TPE_Vec3, glm::vec3>(b);
-		return b;
-	}
-
 	void PhysicsUpdate(GLFWwindow* pWindow, EngineContext* eCtx) {
 		auto& time = Time::Instance();
-		time._lastPhysicsUpdateTime = std::chrono::high_resolution_clock::now();
+		time.PhysicsUpdate();
 
-		TPE_Body stationaryCube{};
-		TPE_Body fallingCube{};
-		TPE_World world{};
+		GameObject* freeCube = nullptr;
+		GameObject* stationaryCube = nullptr;
+		GameObject* terrain = nullptr;
 
-		// Create the stationary cube
-		TPE_Joint stationaryJoints[8];
-		TPE_Connection stationaryConnections[16];
-		TPE_makeBox(stationaryJoints, stationaryConnections, TPE_F, TPE_F, TPE_F, 0);
-		TPE_bodyInit(&stationaryCube, stationaryJoints, 8, stationaryConnections, 16, 0);
-		TPE_bodyMoveBy(&stationaryCube, TPE_vec3(TPE_F * -10, TPE_F * -10, 0)); // Set the position of the stationary cube (e.g., at ground level)
+		for (int i = 0; i < eCtx->_scene._pRootGameObject->_children.size(); ++i) {
+			if (eCtx->_scene._pRootGameObject->_children[i]->_name == "FreeCube") freeCube = eCtx->_scene._pRootGameObject->_children[i];
+			if (eCtx->_scene._pRootGameObject->_children[i]->_name == "StationaryCube") stationaryCube = eCtx->_scene._pRootGameObject->_children[i];
+			if (eCtx->_scene._pRootGameObject->_children[i]->_name == "Terrain") terrain = eCtx->_scene._pRootGameObject->_children[i];
+		}
 
-		// Create the falling cube
-		TPE_Joint fallingJoints[8];
-		TPE_Connection fallingConnections[16];
-		TPE_makeBox(fallingJoints, fallingConnections, TPE_F, TPE_F, TPE_F, 0);
-		TPE_bodyInit(&fallingCube, fallingJoints, 8, fallingConnections, 16, 2 * TPE_F);
-		TPE_bodyMoveBy(&fallingCube, TPE_vec3(TPE_F * 3, TPE_F * 50, TPE_F * 20)); // Set the initial position of the falling cube (e.g., above the stationary cube)
+		std::vector<glm::vec3> vertices;
+		for (int i = 0; i < freeCube->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(freeCube->_pMesh->_vertices._vertexData[i]._position);
+		freeCube->_body.Initialize(freeCube, vertices, freeCube->_pMesh->_faceIndices._indexData, 1, false, { 0,0,0 });
 
-		// Initialize the physics world
-		TPE_Body bodies[] = { stationaryCube, fallingCube };
-		TPE_worldInit(&world, bodies, 2, environmentDistance); // Set environment distance large enough for simulation
+		vertices.clear();
+		for (int i = 0; i < terrain->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(terrain->_pMesh->_vertices._vertexData[i]._position);
+		terrain->_body.Initialize(terrain, vertices, terrain->_pMesh->_faceIndices._indexData, 1, false, { 0,0,0 });
 
-		GameObject* falling = nullptr;
-
-		for (int i = 0; i < eCtx->_scene._pRootGameObject->_children.size(); ++i)
-			if (eCtx->_scene._pRootGameObject->_children[i]->_name == "FreeCube") falling = eCtx->_scene._pRootGameObject->_children[i];
-		falling->_localTransform.SetPosition({ 3.0f, 50.0f, 20.0f });
-
-		if (!falling) return;
-
-		int i = 0;
 		while (!glfwWindowShouldClose(pWindow)) {
-			//time.PhysicsUpdate();
-			time._lastPhysicsUpdateTime = std::chrono::high_resolution_clock::now();
-			TPE_bodyApplyGravity(&fallingCube, TPE_F / 100);
-			auto fallingPos = Helper::Convert<TPE_Vec3, glm::vec3>(TPE_bodyGetCenterOfMass(&fallingCube));
-			falling->_localTransform.SetPosition(fallingPos);
-			//auto velocity = Helper::Convert<TPE_Vec3, glm::vec3>(TPE_bodyGetLinearVelocity(&fallingCube));
-			//falling->_localTransform.SetPosition(falling->_localTransform.Position() += velocity * (float)time._physicsDeltaTime);
-			/*for (double dt = time._physicsDeltaTime; dt < time._fixedPhysicsDeltaTime; ++dt) {
-				falling->_localTransform.SetPosition(falling->_localTransform.Position() + (velocity * (((float)time._fixedPhysicsDeltaTime) * 0.001f)));
-				std::this_thread::sleep_for(std::chrono::milliseconds(1));
-			}*/
-
-			//std::cout << Helper::Convert<TPE_Vec3, glm::vec3>(TPE_bodyGetLinearVelocity(&fallingCube)) << std::endl;
-			long long timeTaken = (std::chrono::high_resolution_clock::now() - time._lastPhysicsUpdateTime).count();
-			auto timeToSleep = std::chrono::milliseconds((long long)time._fixedPhysicsDeltaTime - (timeTaken / 1000000));
-			std::this_thread::sleep_for(timeToSleep);
-			TPE_worldStep(&world);
+			time.PhysicsUpdate();
+			float gravity = -9.81f;
+			freeCube->_body.AddForce({ 0.0f, -9.81f, 0.0f }, false);
+			auto collisionPoints = freeCube->_body.DetectCollisions();
+			if (collisionPoints.size() > 0)
+				std::cout << collisionPoints[0] << std::endl;
+			auto f = gravity / (float)collisionPoints.size();
+			for (int i = 0; i < collisionPoints.size(); ++i) {
+				freeCube->_body.AddForceAtPosition({ 0.0f, -f, 0.0f }, collisionPoints[i], true);
+			}
 		}
 	}
 
