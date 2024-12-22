@@ -3651,6 +3651,11 @@ namespace Engine {
 		std::vector<uint32_t> _faceIndices;
 	};
 
+	struct CollisionContext {
+		RigidBody* _collidee; // Collision receiver
+		std::vector<glm::vec3> _collisionPositions;
+	};
+
 	/**
 	 * @brief Base class for a body that performs physics simulation.
 	 */
@@ -3668,12 +3673,13 @@ namespace Engine {
 		bool _isCollidable = false;
 
 		/**
-		 * @brief The velocity vector of this physics body in units per second.
+		 * @brief The velocity vector of this physics body in units per second in world space.
 		 */
 		glm::vec3 _velocity = glm::vec3(0.0f, 0.0f, 0.0f);
 
 		/**
-		 * @brief The angular velocity in radians per second.
+		 * @brief The angular velocity in radians per second. The direction of the vector represents the axis of rotation in world space, whereas the
+		 * length of the vector is the actual value in radians per second.
 		 */
 		glm::vec3 _angularVelocity = glm::vec3(0.0f, 0.0f, 0.0f);
 
@@ -3730,17 +3736,19 @@ namespace Engine {
 
 		glm::vec3 GetVelocityAtPosition(const glm::vec3& position);
 
-		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace = false, bool ignoreTranslation = false);
+		void CalculateForceOpposingCollision(const glm::vec3& velocityAtCollision, const float& massOfCollidedBody);
+
+		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace = false, bool ignoreTranslation = false, bool isInstantVelocityChange = false);
 
 		void AddForce(const glm::vec3& force, bool ignoreMass);
 
-		std::vector<glm::vec3> GetContactPoints(const RigidBody& other);
+		CollisionContext DetectCollision(RigidBody& other);
 
 		std::vector< GameObject*> GetAllGameObjects(GameObject* pRoot);
 
 		std::vector<GameObject*> GetOtherGameObjects(GameObject* pGameObject);
 
-		std::vector<glm::vec3> DetectCollisions();
+		std::vector<CollisionContext> DetectCollisions();
 
 		void Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass);
 
@@ -4140,19 +4148,14 @@ namespace Engine {
 	}
 
 	glm::vec3 RigidBody::CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition) {
-		if (IsVectorZero(receiverPosition - transmitterPosition, 0.001f)) {
-			return force;
-		}
-
+		if (IsVectorZero(receiverPosition - transmitterPosition, 0.001f)) return force;
 		auto effectiveForce = glm::normalize(receiverPosition - transmitterPosition);
 		auto scaleFactor = glm::dot(effectiveForce, force);
 		return effectiveForce * scaleFactor;
 	}
 
 	glm::vec3 RigidBody::GetCenterOfMass() {
-		if (_isCenterOfMassOverridden) {
-			return _overriddenCenterOfMass;
-		}
+		if (_isCenterOfMassOverridden) return _overriddenCenterOfMass;
 
 		auto& vertices = _mesh._vertices;
 		int vertexCount = (int)vertices.size();
@@ -4169,12 +4172,27 @@ namespace Engine {
 		return glm::vec3(totalX / vertexCount, totalY / vertexCount, totalZ / vertexCount);
 	}
 
-	glm::vec3 RigidBody::GetVelocityAtPosition(const glm::vec3& position) {
-		glm::vec3 outVelocity = _velocity;
+	glm::vec3 RigidBody::GetVelocityAtPosition(const glm::vec3& positionWorldSpace) {
+		auto worldSpaceTransform = _pGameObject->GetWorldSpaceTransform()._matrix;
+		glm::vec3 linearVelocityContributionFromAngularVelocityAtPosition;
+		if (!IsVectorZero(_angularVelocity)) {
+			auto rotationAxis = glm::normalize(_angularVelocity);
+			auto worldSpaceCom = glm::vec3(worldSpaceTransform * glm::vec4(GetCenterOfMass(), 1.0f));
+			auto posToCom = worldSpaceCom - positionWorldSpace;
+			glm::vec3 directionOfAngularVelocityContributionAtPosition = -glm::normalize(glm::cross(rotationAxis, posToCom));
+			linearVelocityContributionFromAngularVelocityAtPosition = directionOfAngularVelocityContributionAtPosition * (glm::length(posToCom) * glm::length(_angularVelocity));
+		}
+		return linearVelocityContributionFromAngularVelocityAtPosition + _velocity;
+	}
+
+	void RigidBody::CalculateForceOpposingCollision(const glm::vec3& collisionPoint, const float& massOfCollidedBody) {
+		auto worldSpaceCom = glm::vec3(_pGameObject->GetWorldSpaceTransform()._matrix * glm::vec4(GetCenterOfMass(), 1.0f));
+		auto pointToCom = worldSpaceCom - collisionPoint;
+		auto velocityAtCollisionPoint = GetVelocityAtPosition(collisionPoint);
 
 	}
 
-	void RigidBody::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool ignoreTranslation) {
+	void RigidBody::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool ignoreTranslation, bool isInstantVelocityChange) {
 		auto& time = Time::Instance();
 		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
 		auto vertexCount = _mesh._vertices.size();
@@ -4188,25 +4206,21 @@ namespace Engine {
 		if (!ignoreTranslation) {
 			glm::vec3 translationForce = CalculateTransmittedForce(worldSpacePointOfApplication, force, worldSpaceCom);
 			glm::vec3 translationAcceleration = translationForce / _mass;
-			glm::vec3 translationDelta = translationForce * deltaTimeSeconds;
+			glm::vec3 translationDelta = translationForce * (isInstantVelocityChange ? 1.0f : deltaTimeSeconds);
 			_velocity += translationDelta;
 		}
 
 		// Now calculate the rotation component.
 		auto positionToCom = worldSpaceCom - worldSpacePointOfApplication;
-		if (IsVectorZero(positionToCom, 0.001f)) {
-			return;
-		}
+		if (IsVectorZero(positionToCom, 0.001f)) return;
 
 		auto rotationAxis = -glm::normalize(glm::cross(positionToCom, force));
-		if (glm::isnan(rotationAxis.x) || glm::isnan(rotationAxis.y) || glm::isnan(rotationAxis.x)) {
-			return;
-		}
+		if (glm::isnan(rotationAxis.x) || glm::isnan(rotationAxis.y) || glm::isnan(rotationAxis.x)) return;
 
 		auto comPerpendicularDirection = glm::normalize(glm::cross(positionToCom, rotationAxis));
 		auto rotationalForce = comPerpendicularDirection * glm::dot(comPerpendicularDirection, force);
 
-		// Calculate or approximate rotational inertia.
+		// Approximate rotational inertia.
 		auto rotationalInertia = 0.0f;
 		auto singleVertexMass = _mass / vertexCount;
 		for (int i = 0; i < vertexCount; ++i) {
@@ -4228,7 +4242,7 @@ namespace Engine {
 		}
 
 		auto angularAcceleration = glm::cross(rotationalForce, positionToCom) / rotationalInertia;
-		auto rotationDelta = angularAcceleration * deltaTimeSeconds;
+		auto rotationDelta = angularAcceleration * (isInstantVelocityChange ? 1.0f : deltaTimeSeconds);
 		_angularVelocity += rotationDelta;
 	}
 
@@ -4237,11 +4251,11 @@ namespace Engine {
 		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
 		auto translationDelta = ignoreMass ? (force * deltaTimeSeconds) : ((force / _mass) * deltaTimeSeconds);
 		_velocity += translationDelta;
-		_pGameObject->_localTransform.Translate(translationDelta);
 	}
 
-	std::vector<glm::vec3> RigidBody::GetContactPoints(const RigidBody& other) {
-		std::vector<glm::vec3> outContactPoints;
+	CollisionContext RigidBody::DetectCollision(RigidBody& other) {
+		CollisionContext outCtx;
+		outCtx._collidee = &other;
 		auto worldSpaceOther = other._pGameObject->GetWorldSpaceTransform();
 		auto worldSpaceCurrent = _pGameObject->GetWorldSpaceTransform();
 
@@ -4261,18 +4275,18 @@ namespace Engine {
 				glm::vec3 intersectionPoint3;
 
 				// Check collision testing the other body's edges as rays against the current body's face.
-				if (IsRayIntersectingTriangle(v1Other, v2Other - v1Other, v1, v2, v3, intersectionPoint1)) outContactPoints.push_back(intersectionPoint1);
-				if (IsRayIntersectingTriangle(v1Other, v3Other - v1Other, v1, v2, v3, intersectionPoint2)) outContactPoints.push_back(intersectionPoint2);
-				if (IsRayIntersectingTriangle(v3Other, v2Other - v3Other, v1, v2, v3, intersectionPoint3)) outContactPoints.push_back(intersectionPoint3);
-				if (!IsVectorZero(intersectionPoint1) || !IsVectorZero(intersectionPoint2) || !IsVectorZero(intersectionPoint3)) return outContactPoints;
+				if (IsRayIntersectingTriangle(v1Other, v2Other - v1Other, v1, v2, v3, intersectionPoint1)) outCtx._collisionPositions.push_back(intersectionPoint1);
+				if (IsRayIntersectingTriangle(v1Other, v3Other - v1Other, v1, v2, v3, intersectionPoint2)) outCtx._collisionPositions.push_back(intersectionPoint2);
+				if (IsRayIntersectingTriangle(v3Other, v2Other - v3Other, v1, v2, v3, intersectionPoint3)) outCtx._collisionPositions.push_back(intersectionPoint3);
+				if (!IsVectorZero(intersectionPoint1) || !IsVectorZero(intersectionPoint2) || !IsVectorZero(intersectionPoint3)) return outCtx;
 
 				// Check collision this body's edges as rays against the other body's face.
-				if (IsRayIntersectingTriangle(v1, v2 - v1, v1Other, v2Other, v3Other, intersectionPoint1)) outContactPoints.push_back(intersectionPoint1);
-				if (IsRayIntersectingTriangle(v1, v3 - v1, v1Other, v2Other, v3Other, intersectionPoint2)) outContactPoints.push_back(intersectionPoint2);
-				if (IsRayIntersectingTriangle(v3, v2 - v3, v1Other, v2Other, v3Other, intersectionPoint3)) outContactPoints.push_back(intersectionPoint3);
+				if (IsRayIntersectingTriangle(v1, v2 - v1, v1Other, v2Other, v3Other, intersectionPoint1)) outCtx._collisionPositions.push_back(intersectionPoint1);
+				if (IsRayIntersectingTriangle(v1, v3 - v1, v1Other, v2Other, v3Other, intersectionPoint2)) outCtx._collisionPositions.push_back(intersectionPoint2);
+				if (IsRayIntersectingTriangle(v3, v2 - v3, v1Other, v2Other, v3Other, intersectionPoint3)) outCtx._collisionPositions.push_back(intersectionPoint3);
 			}
 		}
-		return outContactPoints;
+		return outCtx;
 	}
 
 	std::vector< GameObject*> RigidBody::GetAllGameObjects(GameObject* pRoot) {
@@ -4295,15 +4309,15 @@ namespace Engine {
 		return allGameObjects;
 	}
 
-	std::vector<glm::vec3> RigidBody::DetectCollisions() {
+	std::vector<CollisionContext> RigidBody::DetectCollisions() {
 		auto otherGameObjects = GetOtherGameObjects(_pGameObject);
-		std::vector<glm::vec3> outContactPoints;
+		std::vector<CollisionContext> outCollisions;
 		for (int i = 0; i < otherGameObjects.size(); ++i) {
 			if (otherGameObjects[i]->_body._mesh._vertices.size() < 1) continue;
-			auto contactPoints = GetContactPoints(otherGameObjects[i]->_body);
-			outContactPoints.insert(outContactPoints.end(), contactPoints.begin(), contactPoints.end());
+			auto collision = DetectCollision(otherGameObjects[i]->_body);
+			if (collision._collisionPositions.size() > 0) outCollisions.push_back(collision);
 		}
-		return outContactPoints;
+		return outCollisions;
 	}
 
 	void RigidBody::Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass) {
@@ -4333,11 +4347,11 @@ namespace Engine {
 
 		if (_updateImplementation) {
 			_updateImplementation(*_mesh._pMesh->_pGameObject);
-		}
+		}*/
 
 		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
-		_mesh._pMesh->_pGameObject->_localTransform.RotateAroundPosition(GetCenterOfMass(), glm::normalize(_angularVelocity), glm::length(_angularVelocity) * deltaTimeSeconds);
-		_mesh._pMesh->_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);*/
+		_pGameObject->_localTransform.RotateAroundPosition(GetCenterOfMass(), glm::normalize(_angularVelocity), glm::length(_angularVelocity) * deltaTimeSeconds);
+		_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
 	}
 
 	/**
@@ -6585,14 +6599,18 @@ namespace Engine {
 
 		while (!glfwWindowShouldClose(pWindow)) {
 			time.PhysicsUpdate();
+			freeCube->_body.PhysicsUpdate();
+
 			float gravity = -9.81f;
 			freeCube->_body.AddForce({ 0.0f, -9.81f, 0.0f }, false);
-			auto collisionPoints = freeCube->_body.DetectCollisions();
-			if (collisionPoints.size() > 0)
-				std::cout << collisionPoints[0] << std::endl;
-			auto f = gravity / (float)collisionPoints.size();
-			for (int i = 0; i < collisionPoints.size(); ++i) {
-				freeCube->_body.AddForceAtPosition({ 0.0f, -f, 0.0f }, collisionPoints[i], true);
+			auto collisions = freeCube->_body.DetectCollisions();
+			//if (collisionPoints.size() > 0)
+				//std::cout << collisionPoints[0] << std::endl;
+			for (int i = 0; i < collisions.size(); ++i) {
+				auto averagePosition = std::accumulate(collisions[i]._collisionPositions.begin(), collisions[i]._collisionPositions.end(), glm::vec3()) / (float)collisions[i]._collisionPositions.size();
+				auto velocity = freeCube->_body.GetVelocityAtPosition(averagePosition);
+				if (glm::isnan(velocity.x)) continue;
+				freeCube->_body.AddForceAtPosition(-velocity, averagePosition, true, false, true);
 			}
 		}
 	}
