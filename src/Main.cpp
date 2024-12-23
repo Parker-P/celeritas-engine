@@ -151,7 +151,7 @@ namespace Engine {
 
 	bool IsSegmentIntersectingTriangle(glm::vec3 rayOrigin, glm::vec3 rayVector, const glm::vec3& v1, const glm::vec3& v2, const glm::vec3& v3, glm::vec3& outIntersectionPoint) {
 		if (IsRayIntersectingTriangle(rayOrigin, rayVector, v1, v2, v3, outIntersectionPoint))
-			return glm::length(rayVector) < glm::length(outIntersectionPoint - rayOrigin);
+			return glm::length(outIntersectionPoint - rayOrigin) < glm::length(rayVector);
 		return false;
 	}
 
@@ -1190,12 +1190,12 @@ namespace Engine {
 			_matrix[3][2] += offset.z;
 		}
 
-		void RotateAroundPosition(const glm::vec3& position, const glm::vec3& axis, const float& angleRadians) {
+		void RotateAroundPosition(const glm::vec3& positionWorldSpace, const glm::vec3& axis, const float& angleRadians) {
 			if (angleRadians == 0) { return; }
 
 			auto rotation = MakeQuaternionRotation(axis, angleRadians);
 			auto currentPosition = Position();
-			SetPosition(position + (rotation * (currentPosition - position)));
+			SetPosition(positionWorldSpace + (rotation * (currentPosition - positionWorldSpace)));
 			Rotate(rotation);
 		}
 
@@ -3745,7 +3745,7 @@ namespace Engine {
 
 		void CalculateForceOpposingCollision(const glm::vec3& velocityAtCollision, const float& massOfCollidedBody);
 
-		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace = false, bool ignoreTranslation = false, bool isInstantVelocityChange = false);
+		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool isForceWorldSpace, bool ignoreTranslation, bool isInstantVelocityChange);
 
 		void AddForce(const glm::vec3& force, bool ignoreMass);
 
@@ -4199,19 +4199,20 @@ namespace Engine {
 
 	}
 
-	void RigidBody::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool ignoreTranslation, bool isInstantVelocityChange) {
+	void RigidBody::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool isForceWorldSpace, bool ignoreTranslation, bool isInstantVelocityChange) {
 		auto& time = Time::Instance();
 		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
 		auto vertexCount = _mesh._vertices.size();
 		auto& vertices = _mesh._vertices;
 		auto worldSpaceTransform = _pGameObject->GetWorldSpaceTransform()._matrix;
+		auto worldSpaceForce = isForceWorldSpace ? force : glm::vec3(worldSpaceTransform * glm::vec4(force, 1.0f));
 
 		// First calculate the translation component of the force to apply.
 		auto worldSpaceCom = glm::vec3(worldSpaceTransform * glm::vec4(GetCenterOfMass(), 1.0f));
 		auto worldSpacePointOfApplication = isApplicationPointWorldSpace ? pointOfApplication : glm::vec3(worldSpaceTransform * glm::vec4(pointOfApplication, 1.0f));
 
 		if (!ignoreTranslation) {
-			glm::vec3 translationForce = CalculateTransmittedForce(worldSpacePointOfApplication, force, worldSpaceCom);
+			glm::vec3 translationForce = CalculateTransmittedForce(worldSpacePointOfApplication, worldSpaceForce, worldSpaceCom);
 			glm::vec3 translationAcceleration = translationForce / _mass;
 			glm::vec3 translationDelta = translationForce * (isInstantVelocityChange ? 1.0f : deltaTimeSeconds);
 			_velocity += translationDelta;
@@ -4221,11 +4222,11 @@ namespace Engine {
 		auto positionToCom = worldSpaceCom - worldSpacePointOfApplication;
 		if (IsVectorZero(positionToCom, 0.001f)) return;
 
-		auto rotationAxis = -glm::normalize(glm::cross(positionToCom, force));
+		auto rotationAxis = -glm::normalize(glm::cross(positionToCom, worldSpaceForce));
 		if (glm::isnan(rotationAxis.x) || glm::isnan(rotationAxis.y) || glm::isnan(rotationAxis.x)) return;
 
 		auto comPerpendicularDirection = glm::normalize(glm::cross(positionToCom, rotationAxis));
-		auto rotationalForce = comPerpendicularDirection * glm::dot(comPerpendicularDirection, force);
+		auto rotationalForce = comPerpendicularDirection * glm::dot(comPerpendicularDirection, worldSpaceForce);
 
 		// Approximate rotational inertia.
 		auto rotationalInertia = 0.0f;
@@ -4359,7 +4360,10 @@ namespace Engine {
 		}*/
 
 		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
-		_pGameObject->_localTransform.RotateAroundPosition(GetCenterOfMass(), glm::normalize(_angularVelocity), glm::length(_angularVelocity) * deltaTimeSeconds);
+		auto localSpaceAngularVelocity = glm::vec3(_pGameObject->_localTransform._matrix * glm::vec4(_angularVelocity, 0.0f));
+		auto localSpaceVelocity = glm::vec3(_pGameObject->_localTransform._matrix * glm::vec4(_velocity, 0.0f));
+		auto worldSpaceCom = glm::vec3(_pGameObject->GetWorldSpaceTransform()._matrix * glm::vec4(GetCenterOfMass(), 1.0f));
+		_pGameObject->_localTransform.RotateAroundPosition(worldSpaceCom, localSpaceAngularVelocity, glm::length(localSpaceAngularVelocity) * deltaTimeSeconds);
 		_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
 	}
 
@@ -6606,13 +6610,26 @@ namespace Engine {
 		for (int i = 0; i < terrain->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(terrain->_pMesh->_vertices._vertexData[i]._position);
 		terrain->_body.Initialize(terrain, vertices, terrain->_pMesh->_faceIndices._indexData, 1, false, { 0,0,0 });
 
+		vertices.clear();
+		for (int i = 0; i < stationaryCube->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(stationaryCube->_pMesh->_vertices._vertexData[i]._position);
+		stationaryCube->_body.Initialize(stationaryCube, vertices, stationaryCube->_pMesh->_faceIndices._indexData, 1, false, { 0,0,0 });
+		float gravity = -9.8f;
+
 		while (!glfwWindowShouldClose(pWindow)) {
 			time.PhysicsUpdate();
 			freeCube->_body.PhysicsUpdate();
 			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
+			freeCube->_body.AddForce({ 0.0f, gravity, 0.0f }, false);
+			//auto pos = (freeCube->_body._mesh._vertices[3]._position + freeCube->_body._mesh._vertices[9]._position + freeCube->_body._mesh._vertices[15]._position + freeCube->_body._mesh._vertices[21]._position) / 4.0f;
+			auto pos = freeCube->_body._mesh._vertices[3]._position;
+			auto wst = freeCube->GetWorldSpaceTransform()._matrix;
+			pos = glm::vec3(wst * glm::vec4(pos, 1.0f));
+			glm::vec3 f = {0.0f, 15.0f, 0.0f};
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP))
+				freeCube->_body.AddForceAtPosition(f, pos, true, true, false, false);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_DOWN))
+				freeCube->_body.AddForceAtPosition(-f, pos, true, true, false, false);
 
-			float gravity = -9.81f;
-			freeCube->_body.AddForce({ 0.0f, -9.81f, 0.0f }, false);
 			auto collisions = freeCube->_body.DetectCollisions();
 			for (int i = 0; i < collisions.size(); ++i) {
 				// Correct the body's position by moving the object by its negative velocity until there are no more collision points.
@@ -6624,20 +6641,41 @@ namespace Engine {
 					collisionInfo = freeCube->_body.DetectCollision(*collisions[i]._collidee);
 				}
 
-				// Apply enough force on the object at the collision points so that the object's velocity at the collision points becomes zero.[
-				// This basically involves calculating a force reversing the GetVelocityAtPosition function.
-				
-				// First we calculate the average collision position grouped by normal.
-				auto averagePositions
-				for()
+				// Once a rigid object strikes another rigid object, it will not be able to move into the surface it striked, so it can either bounce off, slide off,
+				// or stop on the surface, meaning that its velocity relative to that surface normal needs to either go in the same direction (bounce), be perpendicular (slide), or zero (stop).
+				// Given this fact, we need to apply enough force on the object at the collision points so that the object's velocity is zero relative to the normal of each collision point.
 
-				std::vector<glm::vec3> velocities(collisions[i]._collisionPositions.size());
-				for (int j = 0; j < collisions[i]._collisionPositions.size(); ++j)
-					velocities[j] = freeCube->_body.GetVelocityAtPosition(collisions[i]._collisionPositions[j]) / (float)collisions[i]._collisionPositions.size();
-				for (int j = 0; j < collisions[i]._collisionPositions.size(); ++j) {
-					velocities[j] *= glm::dot(glm::normalize(velocities[j]), collisions[i]._collisionNormals[j]);
-					if (glm::isnan(velocities[j].x)) continue;
-					freeCube->_body.AddForceAtPosition(velocities[j], collisions[i]._collisionPositions[j], true, false, true);
+				// To do this, first we find the average collision position for each different normal vector. We group vectors using their dot products and a tolerance value.
+				// If 2 vectors point in roughly the same direction, they will be grouped together.
+				auto& normals = collisions[i]._collisionNormals;
+				auto tolerance = 0.1f;
+				std::vector<std::vector<int>> groups; // A list of indices of grouped normals.
+
+				for (int j = 0; j < normals.size(); ++j) {
+					bool addedToGroup = false;
+					for (int groupIndex = 0; groupIndex < groups.size(); ++groupIndex) {
+						if (groups[groupIndex].empty()) continue;
+
+						// Compare with the first vector in the group, since they will all have the same (almost) direction.
+						float dotProduct = glm::dot(normals[j], normals[groups[groupIndex][0]]);
+						if (dotProduct < (1.0f - tolerance)) continue;
+						groups[groupIndex].push_back(j);
+						addedToGroup = true;
+						break;
+					}
+
+					if (!addedToGroup) groups.push_back({ j }); // If no suitable group was found, create a new group
+				}
+
+				// Now that we grouped the normals, apply a countering force to the average position of each group such that the resulting velocity of the object, at the average 
+				// position is zero (relative to the collision normal).
+				for (int j = 0; j < groups.size(); ++j) {
+					glm::vec3 averageCollisionPosition;
+					for (int k = 0; k < groups[j].size(); ++k) averageCollisionPosition += collisions[i]._collisionPositions[groups[j][k]];
+					averageCollisionPosition /= groups[j].size();
+					auto velocity = freeCube->_body.GetVelocityAtPosition(averageCollisionPosition);
+					velocity *= glm::dot(glm::normalize(velocity), collisions[i]._collisionNormals[groups[j][0]]);
+					freeCube->_body.AddForceAtPosition(velocity, averageCollisionPosition, true, true, false, true);
 				}
 			}
 		}
