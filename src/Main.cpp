@@ -95,12 +95,12 @@ namespace Engine {
 
 	/**
 	 * @brief Returns true if rayVector intersects the plane formed by the triangle formed by v1, v2, v3 and the intersection point falls within said triangle.
-	 * @param rayOrigin The origin point of the ray, in local space.
+	 * @param rayOrigin The origin point of the ray, in world space.
 	 * @param rayVector The ray vector. Can be normalized or not.
-	 * @param v1 Coordinates of vertex 1 in local space.
-	 * @param v2 Coordinates of vertex 2 in local space.
-	 * @param v3 Coordinates of vertex 3 in local space.
-	 * @param outIntersectionPoint Intersection point in local space. This will remain unchanged if the function returns false.
+	 * @param v1 Coordinates of vertex 1 in world space.
+	 * @param v2 Coordinates of vertex 2 in world space.
+	 * @param v3 Coordinates of vertex 3 in world space.
+	 * @param outIntersectionPoint Intersection point in world space. This will remain unchanged if the function returns false.
 	 */
 	bool IsRayIntersectingTriangle(glm::vec3 rayOrigin, glm::vec3 rayVector, const glm::vec3& v1, const glm::vec3& v2, const glm::vec3& v3, glm::vec3& outIntersectionPoint) {
 		/**
@@ -147,6 +147,12 @@ namespace Engine {
 			return true;
 		}
 		else return false; // This means that the origin of the ray is inside the triangle.
+	}
+
+	bool IsSegmentIntersectingTriangle(glm::vec3 rayOrigin, glm::vec3 rayVector, const glm::vec3& v1, const glm::vec3& v2, const glm::vec3& v3, glm::vec3& outIntersectionPoint) {
+		if (IsRayIntersectingTriangle(rayOrigin, rayVector, v1, v2, v3, outIntersectionPoint))
+			return glm::length(rayVector) < glm::length(outIntersectionPoint - rayOrigin);
+		return false;
 	}
 
 	/**
@@ -3652,8 +3658,9 @@ namespace Engine {
 	};
 
 	struct CollisionContext {
-		RigidBody* _collidee; // Collision receiver
-		std::vector<glm::vec3> _collisionPositions;
+		RigidBody* _collidee; // Collision receiver.
+		std::vector<glm::vec3> _collisionPositions; // List of points where a collision was detected in world space.
+		std::vector<glm::vec3> _collisionNormals; // List of normals for each. There is always one normal for each position.
 	};
 
 	/**
@@ -4270,20 +4277,22 @@ namespace Engine {
 				auto v2 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j + 1]]._position, 1.0f));
 				auto v3 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j + 2]]._position, 1.0f));
 
-				glm::vec3 intersectionPoint1;
-				glm::vec3 intersectionPoint2;
-				glm::vec3 intersectionPoint3;
+				glm::vec3 intersectionPoint1, intersectionPoint2, intersectionPoint3;
+				auto edge1 = v2Other - v1Other;
+				auto edge2 = v3Other - v1Other;
+				auto edge3 = v2Other - v3Other;
+				glm::vec3 normal = -glm::normalize(glm::cross(edge1, edge2));
 
-				// Check collision testing the other body's edges as rays against the current body's face.
-				if (IsRayIntersectingTriangle(v1Other, v2Other - v1Other, v1, v2, v3, intersectionPoint1)) outCtx._collisionPositions.push_back(intersectionPoint1);
-				if (IsRayIntersectingTriangle(v1Other, v3Other - v1Other, v1, v2, v3, intersectionPoint2)) outCtx._collisionPositions.push_back(intersectionPoint2);
-				if (IsRayIntersectingTriangle(v3Other, v2Other - v3Other, v1, v2, v3, intersectionPoint3)) outCtx._collisionPositions.push_back(intersectionPoint3);
+				// Check collision by testing the other body's edges as segments against the current body's face.
+				if (IsSegmentIntersectingTriangle(v1Other, edge1, v1, v2, v3, intersectionPoint1)) { outCtx._collisionPositions.push_back(intersectionPoint1); outCtx._collisionNormals.push_back(normal); }
+				if (IsSegmentIntersectingTriangle(v1Other, edge2, v1, v2, v3, intersectionPoint2)) { outCtx._collisionPositions.push_back(intersectionPoint2); outCtx._collisionNormals.push_back(normal); }
+				if (IsSegmentIntersectingTriangle(v3Other, edge3, v1, v2, v3, intersectionPoint3)) { outCtx._collisionPositions.push_back(intersectionPoint3); outCtx._collisionNormals.push_back(normal); }
 				if (!IsVectorZero(intersectionPoint1) || !IsVectorZero(intersectionPoint2) || !IsVectorZero(intersectionPoint3)) return outCtx;
 
-				// Check collision this body's edges as rays against the other body's face.
-				if (IsRayIntersectingTriangle(v1, v2 - v1, v1Other, v2Other, v3Other, intersectionPoint1)) outCtx._collisionPositions.push_back(intersectionPoint1);
-				if (IsRayIntersectingTriangle(v1, v3 - v1, v1Other, v2Other, v3Other, intersectionPoint2)) outCtx._collisionPositions.push_back(intersectionPoint2);
-				if (IsRayIntersectingTriangle(v3, v2 - v3, v1Other, v2Other, v3Other, intersectionPoint3)) outCtx._collisionPositions.push_back(intersectionPoint3);
+				// Check collision by testing this body's edges as segments against the other body's face.
+				if (IsSegmentIntersectingTriangle(v1, v2 - v1, v1Other, v2Other, v3Other, intersectionPoint1)) { outCtx._collisionPositions.push_back(intersectionPoint1); outCtx._collisionNormals.push_back(normal); }
+				if (IsSegmentIntersectingTriangle(v1, v3 - v1, v1Other, v2Other, v3Other, intersectionPoint2)) { outCtx._collisionPositions.push_back(intersectionPoint2); outCtx._collisionNormals.push_back(normal); }
+				if (IsSegmentIntersectingTriangle(v3, v2 - v3, v1Other, v2Other, v3Other, intersectionPoint3)) { outCtx._collisionPositions.push_back(intersectionPoint3); outCtx._collisionNormals.push_back(normal); }
 			}
 		}
 		return outCtx;
@@ -6600,17 +6609,36 @@ namespace Engine {
 		while (!glfwWindowShouldClose(pWindow)) {
 			time.PhysicsUpdate();
 			freeCube->_body.PhysicsUpdate();
+			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
 
 			float gravity = -9.81f;
 			freeCube->_body.AddForce({ 0.0f, -9.81f, 0.0f }, false);
 			auto collisions = freeCube->_body.DetectCollisions();
-			//if (collisionPoints.size() > 0)
-				//std::cout << collisionPoints[0] << std::endl;
 			for (int i = 0; i < collisions.size(); ++i) {
-				auto averagePosition = std::accumulate(collisions[i]._collisionPositions.begin(), collisions[i]._collisionPositions.end(), glm::vec3()) / (float)collisions[i]._collisionPositions.size();
-				auto velocity = freeCube->_body.GetVelocityAtPosition(averagePosition);
-				if (glm::isnan(velocity.x)) continue;
-				freeCube->_body.AddForceAtPosition(-velocity, averagePosition, true, false, true);
+				// Correct the body's position by moving the object by its negative velocity until there are no more collision points.
+				// This basically moves it back in time before the collision even happened.
+				CollisionContext collisionInfo = collisions[i];
+				for (float dtTest = -deltaTimeSeconds; !collisionInfo._collisionPositions.empty() && dtTest < 0.00001f; dtTest *= 0.5f) {
+					freeCube->_localTransform.RotateAroundPosition(freeCube->_body.GetCenterOfMass(), glm::normalize(freeCube->_body._angularVelocity), glm::length(freeCube->_body._angularVelocity) * dtTest);
+					freeCube->_localTransform.Translate(freeCube->_body._velocity * dtTest);
+					collisionInfo = freeCube->_body.DetectCollision(*collisions[i]._collidee);
+				}
+
+				// Apply enough force on the object at the collision points so that the object's velocity at the collision points becomes zero.[
+				// This basically involves calculating a force reversing the GetVelocityAtPosition function.
+				
+				// First we calculate the average collision position grouped by normal.
+				auto averagePositions
+				for()
+
+				std::vector<glm::vec3> velocities(collisions[i]._collisionPositions.size());
+				for (int j = 0; j < collisions[i]._collisionPositions.size(); ++j)
+					velocities[j] = freeCube->_body.GetVelocityAtPosition(collisions[i]._collisionPositions[j]) / (float)collisions[i]._collisionPositions.size();
+				for (int j = 0; j < collisions[i]._collisionPositions.size(); ++j) {
+					velocities[j] *= glm::dot(glm::normalize(velocities[j]), collisions[i]._collisionNormals[j]);
+					if (glm::isnan(velocities[j].x)) continue;
+					freeCube->_body.AddForceAtPosition(velocities[j], collisions[i]._collisionPositions[j], true, false, true);
+				}
 			}
 		}
 	}
