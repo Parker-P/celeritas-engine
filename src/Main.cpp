@@ -6624,7 +6624,7 @@ namespace Engine {
 			auto pos = freeCube->_body._mesh._vertices[3]._position;
 			auto wst = freeCube->GetWorldSpaceTransform()._matrix;
 			pos = glm::vec3(wst * glm::vec4(pos, 1.0f));
-			glm::vec3 f = {0.0f, 15.0f, 0.0f};
+			glm::vec3 f = { 0.0f, 15.0f, 0.0f };
 			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP))
 				freeCube->_body.AddForceAtPosition(f, pos, true, true, false, false);
 			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_DOWN))
@@ -6675,6 +6675,7 @@ namespace Engine {
 					averageCollisionPosition /= groups[j].size();
 					auto velocity = freeCube->_body.GetVelocityAtPosition(averageCollisionPosition);
 					velocity *= glm::dot(glm::normalize(velocity), collisions[i]._collisionNormals[groups[j][0]]);
+					if (glm::isnan(velocity.x) || glm::isnan(velocity.y) || glm::isnan(velocity.z)) continue;
 					freeCube->_body.AddForceAtPosition(velocity, averageCollisionPosition, true, true, false, true);
 				}
 			}
