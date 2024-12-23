@@ -6635,7 +6635,7 @@ namespace Engine {
 				// Correct the body's position by moving the object by its negative velocity until there are no more collision points.
 				// This basically moves it back in time before the collision even happened.
 				CollisionContext collisionInfo = collisions[i];
-				for (float dtTest = -deltaTimeSeconds; !collisionInfo._collisionPositions.empty() && dtTest < 0.00001f; dtTest *= 0.5f) {
+				for (float dtTest = -deltaTimeSeconds; !collisionInfo._collisionPositions.empty() && dtTest < -0.00001f; dtTest *= 0.5f) {
 					freeCube->_localTransform.RotateAroundPosition(freeCube->_body.GetCenterOfMass(), glm::normalize(freeCube->_body._angularVelocity), glm::length(freeCube->_body._angularVelocity) * dtTest);
 					freeCube->_localTransform.Translate(freeCube->_body._velocity * dtTest);
 					collisionInfo = freeCube->_body.DetectCollision(*collisions[i]._collidee);
