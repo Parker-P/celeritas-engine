@@ -461,7 +461,7 @@ namespace Engine {
 		 * @brief Fixed physics update time in milliseconds.
 		 * The engine will wait for (_fixedPhysicsDeltaTime - _physicsDeltaTime) milliseconds if _physicsDeltaTime is lower than this number.
 		 */
-		double _fixedPhysicsDeltaTime = 33.333;
+		double _fixedPhysicsDeltaTime = 16;
 
 		/**
 		 * @brief Constructor.
@@ -4316,7 +4316,7 @@ namespace Engine {
 				if (IsSegmentIntersectingTriangle(v1, v3 - v1, v1Other, v2Other, v3Other, intersectionPoint2)) { outCtx._collisionPositions.push_back(intersectionPoint2); outCtx._collisionNormals.push_back(normal); }
 				if (IsSegmentIntersectingTriangle(v3, v2 - v3, v1Other, v2Other, v3Other, intersectionPoint3)) { outCtx._collisionPositions.push_back(intersectionPoint3); outCtx._collisionNormals.push_back(normal); }
 				//if (!IsVectorZero(intersectionPoint1) || !IsVectorZero(intersectionPoint2) || !IsVectorZero(intersectionPoint3)) return outCtx;
-				
+
 				// Check collision by testing the other body's edges as segments against the current body's face.
 				if (IsSegmentIntersectingTriangle(v1Other, edge1, v1, v2, v3, intersectionPoint1)) { outCtx._collisionPositions.push_back(intersectionPoint1); outCtx._collisionNormals.push_back(normal); }
 				if (IsSegmentIntersectingTriangle(v1Other, edge2, v1, v2, v3, intersectionPoint2)) { outCtx._collisionPositions.push_back(intersectionPoint2); outCtx._collisionNormals.push_back(normal); }
@@ -6633,8 +6633,10 @@ namespace Engine {
 		float gravity = -9.8f;
 
 		while (!glfwWindowShouldClose(pWindow)) {
+			auto timePhysicsUpdateStart = std::chrono::high_resolution_clock::now();
 			time.PhysicsUpdate();
 			freeCube->_body.PhysicsUpdate();
+			std::cout << time._physicsDeltaTime << std::endl;
 
 			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
 			freeCube->_body.AddForce({ 0.0f, gravity, 0.0f }, false);
@@ -6664,63 +6666,48 @@ namespace Engine {
 			auto collisions = freeCube->_body.DetectCollisions();
 			auto centerOfMassWorldSpace = glm::vec3(wst * glm::vec4(freeCube->_body.GetCenterOfMass(), 1.0f));
 			for (int i = 0; i < collisions.size(); ++i) {
+				glm::vec3 averageCollisionPosition;
+				glm::vec3 averageCollisionNormal;
+				auto count = collisions[i]._collisionPositions.size();
+				for (int j = 0; j < count; ++j) averageCollisionNormal += collisions[i]._collisionNormals[j];
+				for (int j = 0; j < count; ++j) averageCollisionPosition += collisions[i]._collisionPositions[j];
+				averageCollisionNormal /= count; averageCollisionPosition /= count;
+
+				CollisionContext collisionInfo = collisions[i];
 				// Correct the body's position by moving the object by its negative velocity until there are no more collision points.
 				// This basically moves it back in time before the collision even happened.
-				freeCube->_localTransform.RotateAroundPosition(centerOfMassWorldSpace, glm::normalize(freeCube->_body._angularVelocity), glm::length(freeCube->_body._angularVelocity) * (time._physicsDeltaTime * 0.001f * -0.5f));
-				freeCube->_localTransform.Translate(freeCube->_body._velocity * (((float)time._physicsDeltaTime * 0.001f * -0.5f)));
-
-
-				// Once a rigid object strikes another rigid object, it will not be able to move into the surface it striked, so it can either bounce off, slide off,
-				// or stop on the surface, meaning that its velocity relative to that surface normal needs to either go in the same direction (bounce), be perpendicular (slide), or zero (stop).
-				// Given this fact, we need to apply enough force on the object at the collision points so that the object's velocity is zero relative to the normal of each collision point.
-
-				// To do this, first we find the average collision position for each different normal vector. We group vectors using their dot products and a tolerance value.
-				// If 2 vectors point in roughly the same direction, they will be grouped together.
-				auto& normals = collisions[i]._collisionNormals;
-				auto tolerance = 0.1f;
-				std::vector<std::vector<int>> groupedNormalIndices; // A list of indices of grouped normals.
-
-				for (int j = 0; j < normals.size(); ++j) {
-					bool addedToGroup = false;
-					for (int groupIndex = 0; groupIndex < groupedNormalIndices.size(); ++groupIndex) {
-						if (groupedNormalIndices[groupIndex].empty()) continue;
-
-						// Compare with the first vector in the group, since they will all have the same (almost) direction.
-						float dotProduct = glm::dot(normals[j], normals[groupedNormalIndices[groupIndex][0]]);
-						if (dotProduct < (1.0f - tolerance)) continue;
-						groupedNormalIndices[groupIndex].push_back(j);
-						addedToGroup = true;
-						break;
-					}
-
-					if (!addedToGroup) groupedNormalIndices.push_back({ j }); // If no suitable group was found, create a new group
+				for (; !collisionInfo._collisionPositions.empty();) {
+					/*freeCube->_localTransform.RotateAroundPosition(centerOfMassWorldSpace, glm::normalize(freeCube->_body._angularVelocity), glm::length(freeCube->_body._angularVelocity) * (time._physicsDeltaTime * 0.001f * -0.5f));*/
+					freeCube->_localTransform.Translate(averageCollisionNormal * ((float)time._physicsDeltaTime * 0.001f));
+					collisionInfo = freeCube->_body.DetectCollision(*collisionInfo._collidee);
 				}
 
-				// Now apply a countering force to the collision position such that the relative movement at the collision position becomes zero.
-				for (int j = 0; j < groupedNormalIndices.size(); ++j) {
-					glm::vec3 averageCollisionPosition;
-					for (int k = 0; k < groupedNormalIndices[j].size(); ++k) averageCollisionPosition += collisions[i]._collisionPositions[groupedNormalIndices[j][k]];
-					averageCollisionPosition /= groupedNormalIndices[j].size();
-					auto velAtPosition = freeCube->_body.GetVelocityAtPosition(averageCollisionPosition);
-					auto collisionNormal = collisions[i]._collisionNormals[groupedNormalIndices[j][0]];
-					auto collisionPointToCenterOfMass = centerOfMassWorldSpace - averageCollisionPosition;
-					auto collisionPointToComDirection = glm::normalize(collisionPointToCenterOfMass);
-					auto translationMultiplier = glm::dot(collisionPointToComDirection, collisionNormal);
-					freeCube->_body._velocity += -velAtPosition * translationMultiplier;
+				auto velAtPosition = freeCube->_body.GetVelocityAtPosition(averageCollisionPosition);
+				auto collisionPointToCenterOfMass = centerOfMassWorldSpace - averageCollisionPosition;
+				auto collisionPointToComDirection = glm::normalize(collisionPointToCenterOfMass);
+				auto translationMultiplier = glm::dot(collisionPointToComDirection, averageCollisionNormal);
+				freeCube->_body._velocity += averageCollisionNormal * glm::length(velAtPosition);
 
-					auto rotationMultiplier = 1.0f - translationMultiplier;
-					auto rotationAxis = -glm::cross(collisionPointToComDirection, collisionNormal);
-					auto angularAcceleration = -velAtPosition * rotationMultiplier * glm::length(collisionPointToCenterOfMass);
-					auto angularVelocity = rotationAxis * glm::length(angularAcceleration);
-					freeCube->_body._angularVelocity += rotationAxis * 0.1f;
+				//velAtPosition += averageCollisionNormal;
+				//auto rotationMultiplier = 1.0f - translationMultiplier;
+				//auto rotationAxis = glm::normalize(glm::cross(collisionPointToComDirection, velAtPosition));/*
+				//auto angularAcceleration = -velAtPosition * rotationMultiplier * glm::length(collisionPointToCenterOfMass);
+				//auto angularVelocity = rotationAxis * glm::length(angularAcceleration);*/
+				//freeCube->_body._angularVelocity += rotationAxis;
 
-					std::cout << "Average collision position: " << averageCollisionPosition << std::endl;
-					std::cout << "Collision normal: " << collisionNormal << std::endl;
-					std::cout << "CollisionPointToCenterOfMass: " << collisionPointToCenterOfMass << std::endl;
-					std::cout << "TranslationMultiplier: " << translationMultiplier << std::endl;
-					std::cout << "VelocityAtCollisionPosition: " << translationMultiplier << std::endl;
-				}
+				/*std::cout << "Average collision position: " << averageCollisionPosition << std::endl;
+				std::cout << "Collision normal: " << collisionNormal << std::endl;
+				std::cout << "CollisionPointToCenterOfMass: " << collisionPointToCenterOfMass << std::endl;
+				std::cout << "TranslationMultiplier: " << translationMultiplier << std::endl;
+				std::cout << "VelocityAtCollisionPosition: " << translationMultiplier << std::endl;*/
 			}
+
+			/*auto timeDelta = std::chrono::high_resolution_clock::now() - timePhysicsUpdateStart;
+			auto fixedDeltaTimeNanoseconds = (long long)time._fixedPhysicsDeltaTime * 1000000;
+			if (timeDelta.count() < std::chrono::nanoseconds(fixedDeltaTimeNanoseconds).count()) {
+				auto timeToWait = std::chrono::nanoseconds(fixedDeltaTimeNanoseconds - timeDelta.count());
+				std::this_thread::sleep_for(timeToWait);
+			}*/
 		}
 	}
 
