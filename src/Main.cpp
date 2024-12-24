@@ -200,8 +200,7 @@ namespace Engine {
 		virtual void PhysicsUpdate() = 0;
 	};
 
-	class Helper {
-	public:
+	struct Helper {
 
 		/**
 		 * @brief Convert values. Returns the converted value.
@@ -278,6 +277,21 @@ namespace Engine {
 
 		static void SaveImageAsPng(std::filesystem::path absolutePath, void* data, uint32_t width, uint32_t height) {
 			stbi_write_png(absolutePath.string().c_str(), width, height, 4, data, width * 4);
+		}
+
+		/**
+		 * @brief Mirrors a glm::vec3 vector across a given axis vector.
+		 * 
+		 * @param vector The vector to mirror.
+		 * @param axis The axis vector (not necessarily normalized).
+		 * @return glm::vec3 The mirrored vector.
+		 */
+		static glm::vec3 MirrorVectorAcrossAxis(const glm::vec3& vector, const glm::vec3& axis) {
+			glm::vec3 normalizedAxis = glm::normalize(axis); // Normalize the axis vector
+			glm::vec3 projection = glm::dot(vector, normalizedAxis) * normalizedAxis; // Project the vector onto the axis
+			glm::vec3 perpendicular = vector - projection; // Compute the perpendicular component
+			glm::vec3 mirroredVector = projection - perpendicular; // Compute the mirrored vector
+			return mirroredVector;
 		}
 	};
 
@@ -3660,7 +3674,7 @@ namespace Engine {
 	struct CollisionContext {
 		RigidBody* _collidee; // Collision receiver.
 		std::vector<glm::vec3> _collisionPositions; // List of points where a collision was detected in world space.
-		std::vector<glm::vec3> _collisionNormals; // List of normals for each. There is always one normal for each position.
+		std::vector<glm::vec3> _collisionNormals; // List of normals for each collision position.
 	};
 
 	/**
@@ -3703,7 +3717,7 @@ namespace Engine {
 		/**
 		 * @brief Overridden center of mass in local space.
 		 */
-		glm::vec3 _overriddenCenterOfMass;
+		glm::vec3 _overriddenCenterOfMassLocalSpace;
 
 		/**
 		 * @brief Physics mesh used as a bridge between this physics body and its visual counterpart.
@@ -3739,6 +3753,10 @@ namespace Engine {
 
 		glm::vec3 CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition);
 
+		/**
+		 * @brief Returns the center of mass in local space.
+		 * @return 
+		 */
 		glm::vec3 GetCenterOfMass();
 
 		glm::vec3 GetVelocityAtPosition(const glm::vec3& position);
@@ -4164,7 +4182,7 @@ namespace Engine {
 	}
 
 	glm::vec3 RigidBody::GetCenterOfMass() {
-		if (_isCenterOfMassOverridden) return _overriddenCenterOfMass;
+		if (_isCenterOfMassOverridden) return _overriddenCenterOfMassLocalSpace;
 
 		auto& vertices = _mesh._vertices;
 		int vertexCount = (int)vertices.size();
@@ -4345,7 +4363,7 @@ namespace Engine {
 		_pGameObject = pGameObject;
 		_mass = mass;
 		_isCenterOfMassOverridden = overrideCenterOfMass;
-		_overriddenCenterOfMass = overriddenCenterOfMass;
+		_overriddenCenterOfMassLocalSpace = overriddenCenterOfMass;
 		_mesh._vertices.resize(vertices.size());
 		_mesh._faceIndices = faceIndices;
 
@@ -6619,7 +6637,7 @@ namespace Engine {
 			freeCube->_body.PhysicsUpdate();
 
 			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
-			//freeCube->_body.AddForce({ 0.0f, gravity, 0.0f }, false);
+			freeCube->_body.AddForce({ 0.0f, gravity, 0.0f }, false);
 			//auto pos = (freeCube->_body._mesh._vertices[3]._position + freeCube->_body._mesh._vertices[9]._position + freeCube->_body._mesh._vertices[15]._position + freeCube->_body._mesh._vertices[21]._position) / 4.0f;
 			auto pos = freeCube->_body._mesh._vertices[3]._position;
 			auto pos1 = freeCube->_body._mesh._vertices[15]._position;
@@ -6637,26 +6655,24 @@ namespace Engine {
 			}
 
 			// Approximate air resistance/rotational friction.
-			auto velocityLength = glm::length(freeCube->_body._velocity);
-			auto angularVelocityLength = glm::length(freeCube->_body._angularVelocity);
-			if (velocityLength > 0.0f) {
-				freeCube->_body.AddForce(-(freeCube->_body._velocity * (float)pow(glm::length(freeCube->_body._velocity), 2)), true);
-			}
-			if (angularVelocityLength > 0.0f) {
-				freeCube->_body.AddTorque(-(freeCube->_body._angularVelocity * (float)pow(glm::length(freeCube->_body._angularVelocity), 2)), true);
-			}
+			auto airFrictionCoefficient = 0.15f;
+			auto frictionMultiplier = -airFrictionCoefficient / powf(freeCube->_body._mass, 2.0f);
+			freeCube->_body.AddForce(freeCube->_body._velocity * frictionMultiplier, true);
+			freeCube->_body.AddTorque(freeCube->_body._angularVelocity * frictionMultiplier, true);
 
 			// Resolve collisions.
 			auto collisions = freeCube->_body.DetectCollisions();
 			for (int i = 0; i < collisions.size(); ++i) {
 				// Correct the body's position by moving the object by its negative velocity until there are no more collision points.
 				// This basically moves it back in time before the collision even happened.
-				CollisionContext collisionInfo = collisions[i];
-				for (float dtTest = -deltaTimeSeconds; !collisionInfo._collisionPositions.empty(); dtTest -= (deltaTimeSeconds * 0.5f)) {
+				/*CollisionContext collisionInfo = collisions[i];
+				int j = 0;
+				auto backwardsStep = deltaTimeSeconds * 0.5f;
+				for (float dtTest = -deltaTimeSeconds; !collisionInfo._collisionPositions.empty() && j < 10; dtTest -= backwardsStep, ++j) {
 					freeCube->_localTransform.RotateAroundPosition(freeCube->_body.GetCenterOfMass(), glm::normalize(freeCube->_body._angularVelocity), glm::length(freeCube->_body._angularVelocity) * dtTest);
 					freeCube->_localTransform.Translate(freeCube->_body._velocity * dtTest);
 					collisionInfo = freeCube->_body.DetectCollision(*collisions[i]._collidee);
-				}
+				}*/
 
 				// Once a rigid object strikes another rigid object, it will not be able to move into the surface it striked, so it can either bounce off, slide off,
 				// or stop on the surface, meaning that its velocity relative to that surface normal needs to either go in the same direction (bounce), be perpendicular (slide), or zero (stop).
@@ -6684,25 +6700,20 @@ namespace Engine {
 					if (!addedToGroup) groupedNormalIndices.push_back({ j }); // If no suitable group was found, create a new group
 				}
 
-				// Now apply a countering force to the collision position such that the relative movement becomes zero.
-				glm::vec3 averageCollisionPosition;
+				// Now apply a countering force to the collision position such that the relative movement at the collision position becomes zero.
 				for (int j = 0; j < groupedNormalIndices.size(); ++j) {
-					for (int k = 0; k < groupedNormalIndices.size(); ++k) averageCollisionPosition += collisions[i]._collisionPositions[groupedNormalIndices[j][k]];
+					glm::vec3 averageCollisionPosition;
+					for (int k = 0; k < groupedNormalIndices[j].size(); ++k) averageCollisionPosition += collisions[i]._collisionPositions[groupedNormalIndices[j][k]];
 					averageCollisionPosition /= groupedNormalIndices[j].size();
-					auto velocity = freeCube->_body.GetVelocityAtPosition(averageCollisionPosition);
-					velocity -= collisions[i]._collisionNormals[j] * glm::dot(velocity, collisions[i]._collisionNormals[j]) * 2.0f;
-					freeCube->_body.AddForceAtPosition(velocity, collisions[i]._collisionPositions[j], true, true, false, true);
+					auto velAtPosition = freeCube->_body.GetVelocityAtPosition(averageCollisionPosition);
+					auto collisionNormal = collisions[i]._collisionNormals[groupedNormalIndices[j][0]];
+					auto wst = freeCube->GetWorldSpaceTransform();
+					auto centerOfMassWorldSpace = glm::vec3(wst._matrix * glm::vec4(freeCube->_body.GetCenterOfMass(), 1.0f));
+					auto collisionPointToComDirection = glm::normalize(centerOfMassWorldSpace - averageCollisionPosition);
+					auto rotationMultiplier = glm::dot(collisionPointToComDirection, collisionNormal);
+					auto translationMultiplier = 1.0f - glm::dot(collisionPointToComDirection, collisionNormal);
+					freeCube->_body._velocity += Helper::MirrorVectorAcrossAxis(-velAtPosition, collisionNormal) * translationMultiplier;
 				}
-
-
-				//std::vector<glm::vec3> velocities(collisions[i]._collisionPositions.size());
-				//for (int j = 0; j < collisions[i]._collisionPositions.size(); ++j) velocities[j] = freeCube->_body.GetVelocityAtPosition(collisions[i]._collisionPositions[j]) / (float)collisions[i]._collisionPositions.size();
-				////if(glm::length(freeCube->_body._velocity) > )
-				//for (int j = 0; j < collisions[i]._collisionPositions.size(); ++j) {
-				//	velocities[j] -= collisions[i]._collisionNormals[j] * glm::dot(velocities[j], collisions[i]._collisionNormals[j]) * 2.0f;
-				//	if (glm::isnan(velocities[j].x) || glm::isnan(velocities[j].y) || glm::isnan(velocities[j].z)) continue;
-				//	freeCube->_body.AddForceAtPosition(velocities[j], collisions[i]._collisionPositions[j], true, true, false, true);
-				//}
 			}
 		}
 	}
