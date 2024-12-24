@@ -281,7 +281,7 @@ namespace Engine {
 
 		/**
 		 * @brief Mirrors a glm::vec3 vector across a given axis vector.
-		 * 
+		 *
 		 * @param vector The vector to mirror.
 		 * @param axis The axis vector (not necessarily normalized).
 		 * @return glm::vec3 The mirrored vector.
@@ -3755,7 +3755,7 @@ namespace Engine {
 
 		/**
 		 * @brief Returns the center of mass in local space.
-		 * @return 
+		 * @return
 		 */
 		glm::vec3 GetCenterOfMass();
 
@@ -6662,17 +6662,13 @@ namespace Engine {
 
 			// Resolve collisions.
 			auto collisions = freeCube->_body.DetectCollisions();
+			auto centerOfMassWorldSpace = glm::vec3(wst * glm::vec4(freeCube->_body.GetCenterOfMass(), 1.0f));
 			for (int i = 0; i < collisions.size(); ++i) {
 				// Correct the body's position by moving the object by its negative velocity until there are no more collision points.
 				// This basically moves it back in time before the collision even happened.
-				/*CollisionContext collisionInfo = collisions[i];
-				int j = 0;
-				auto backwardsStep = deltaTimeSeconds * 0.5f;
-				for (float dtTest = -deltaTimeSeconds; !collisionInfo._collisionPositions.empty() && j < 10; dtTest -= backwardsStep, ++j) {
-					freeCube->_localTransform.RotateAroundPosition(freeCube->_body.GetCenterOfMass(), glm::normalize(freeCube->_body._angularVelocity), glm::length(freeCube->_body._angularVelocity) * dtTest);
-					freeCube->_localTransform.Translate(freeCube->_body._velocity * dtTest);
-					collisionInfo = freeCube->_body.DetectCollision(*collisions[i]._collidee);
-				}*/
+				freeCube->_localTransform.RotateAroundPosition(centerOfMassWorldSpace, glm::normalize(freeCube->_body._angularVelocity), glm::length(freeCube->_body._angularVelocity) * (time._physicsDeltaTime * 0.001f * -0.5f));
+				freeCube->_localTransform.Translate(freeCube->_body._velocity * (((float)time._physicsDeltaTime * 0.001f * -0.5f)));
+
 
 				// Once a rigid object strikes another rigid object, it will not be able to move into the surface it striked, so it can either bounce off, slide off,
 				// or stop on the surface, meaning that its velocity relative to that surface normal needs to either go in the same direction (bounce), be perpendicular (slide), or zero (stop).
@@ -6707,12 +6703,22 @@ namespace Engine {
 					averageCollisionPosition /= groupedNormalIndices[j].size();
 					auto velAtPosition = freeCube->_body.GetVelocityAtPosition(averageCollisionPosition);
 					auto collisionNormal = collisions[i]._collisionNormals[groupedNormalIndices[j][0]];
-					auto wst = freeCube->GetWorldSpaceTransform();
-					auto centerOfMassWorldSpace = glm::vec3(wst._matrix * glm::vec4(freeCube->_body.GetCenterOfMass(), 1.0f));
-					auto collisionPointToComDirection = glm::normalize(centerOfMassWorldSpace - averageCollisionPosition);
-					auto rotationMultiplier = glm::dot(collisionPointToComDirection, collisionNormal);
-					auto translationMultiplier = 1.0f - glm::dot(collisionPointToComDirection, collisionNormal);
-					freeCube->_body._velocity += Helper::MirrorVectorAcrossAxis(-velAtPosition, collisionNormal) * translationMultiplier;
+					auto collisionPointToCenterOfMass = centerOfMassWorldSpace - averageCollisionPosition;
+					auto collisionPointToComDirection = glm::normalize(collisionPointToCenterOfMass);
+					auto translationMultiplier = glm::dot(collisionPointToComDirection, collisionNormal);
+					freeCube->_body._velocity += -velAtPosition * translationMultiplier;
+
+					auto rotationMultiplier = 1.0f - translationMultiplier;
+					auto rotationAxis = -glm::cross(collisionPointToComDirection, collisionNormal);
+					auto angularAcceleration = -velAtPosition * rotationMultiplier * glm::length(collisionPointToCenterOfMass);
+					auto angularVelocity = rotationAxis * glm::length(angularAcceleration);
+					freeCube->_body._angularVelocity += rotationAxis * 0.1f;
+
+					std::cout << "Average collision position: " << averageCollisionPosition << std::endl;
+					std::cout << "Collision normal: " << collisionNormal << std::endl;
+					std::cout << "CollisionPointToCenterOfMass: " << collisionPointToCenterOfMass << std::endl;
+					std::cout << "TranslationMultiplier: " << translationMultiplier << std::endl;
+					std::cout << "VelocityAtCollisionPosition: " << translationMultiplier << std::endl;
 				}
 			}
 		}
