@@ -4311,16 +4311,16 @@ namespace Engine {
 				auto edge3 = v2Other - v3Other;
 				glm::vec3 normal = -glm::normalize(glm::cross(edge1, edge2));
 
-				// Check collision by testing the other body's edges as segments against the current body's face.
-				if (IsSegmentIntersectingTriangle(v1Other, edge1, v1, v2, v3, intersectionPoint1)) { outCtx._collisionPositions.push_back(intersectionPoint1); outCtx._collisionNormals.push_back(normal); }
-				if (IsSegmentIntersectingTriangle(v1Other, edge2, v1, v2, v3, intersectionPoint2)) { outCtx._collisionPositions.push_back(intersectionPoint2); outCtx._collisionNormals.push_back(normal); }
-				if (IsSegmentIntersectingTriangle(v3Other, edge3, v1, v2, v3, intersectionPoint3)) { outCtx._collisionPositions.push_back(intersectionPoint3); outCtx._collisionNormals.push_back(normal); }
-				if (!IsVectorZero(intersectionPoint1) || !IsVectorZero(intersectionPoint2) || !IsVectorZero(intersectionPoint3)) return outCtx;
-
 				// Check collision by testing this body's edges as segments against the other body's face.
 				if (IsSegmentIntersectingTriangle(v1, v2 - v1, v1Other, v2Other, v3Other, intersectionPoint1)) { outCtx._collisionPositions.push_back(intersectionPoint1); outCtx._collisionNormals.push_back(normal); }
 				if (IsSegmentIntersectingTriangle(v1, v3 - v1, v1Other, v2Other, v3Other, intersectionPoint2)) { outCtx._collisionPositions.push_back(intersectionPoint2); outCtx._collisionNormals.push_back(normal); }
 				if (IsSegmentIntersectingTriangle(v3, v2 - v3, v1Other, v2Other, v3Other, intersectionPoint3)) { outCtx._collisionPositions.push_back(intersectionPoint3); outCtx._collisionNormals.push_back(normal); }
+				//if (!IsVectorZero(intersectionPoint1) || !IsVectorZero(intersectionPoint2) || !IsVectorZero(intersectionPoint3)) return outCtx;
+				
+				// Check collision by testing the other body's edges as segments against the current body's face.
+				if (IsSegmentIntersectingTriangle(v1Other, edge1, v1, v2, v3, intersectionPoint1)) { outCtx._collisionPositions.push_back(intersectionPoint1); outCtx._collisionNormals.push_back(normal); }
+				if (IsSegmentIntersectingTriangle(v1Other, edge2, v1, v2, v3, intersectionPoint2)) { outCtx._collisionPositions.push_back(intersectionPoint2); outCtx._collisionNormals.push_back(normal); }
+				if (IsSegmentIntersectingTriangle(v3Other, edge3, v1, v2, v3, intersectionPoint3)) { outCtx._collisionPositions.push_back(intersectionPoint3); outCtx._collisionNormals.push_back(normal); }
 			}
 		}
 		return outCtx;
