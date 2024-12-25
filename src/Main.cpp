@@ -6679,28 +6679,37 @@ namespace Engine {
 				auto collisionPointToCenterOfMass = centerOfMassWorldSpace - averageCollisionPosition;
 				auto velAtPosition = freeCube->_body.GetVelocityAtPosition(averageCollisionPosition);
 				auto collisionPointToComDirection = glm::normalize(collisionPointToCenterOfMass);
-				auto rotationAxis = glm::normalize(glm::cross(collisionPointToComDirection, velAtPosition));
+				auto rotationAxis = glm::normalize(glm::cross(collisionPointToCenterOfMass, velAtPosition));
+				auto rotationMagnitude = velAtPosition - freeCube->_body._velocity;
 
 				CollisionContext collisionInfo = collisions[i];
 				// Correct the body's position by moving the object by its negative velocity until there are no more collision points.
 				// This basically moves it back in time before the collision even happened.
 				for (; !collisionInfo._collisionPositions.empty();) {
 					//freeCube->_localTransform.RotateAroundPosition(centerOfMassWorldSpace, rotationAxis, 1.0f);
-					freeCube->_localTransform.Translate(averageCollisionNormal * ((float)time._physicsDeltaTime * 0.001f));
+					freeCube->_localTransform.Translate(averageCollisionNormal * ((float)time._deltaTime * 0.001f));
 					collisionInfo = freeCube->_body.DetectCollision(*collisionInfo._collidee);
 				}
 
 				auto velocityMagnitude = abs(glm::dot(averageCollisionNormal, velAtPosition));
-				freeCube->_body._velocity += averageCollisionNormal * velocityMagnitude * (float)time._physicsDeltaTime;
+				freeCube->_body._velocity += averageCollisionNormal * velocityMagnitude * (float)time._physicsDeltaTime * 0.001f;
 				freeCube->_body._velocity -= glm::normalize(freeCube->_body._velocity) * bodyFrictionCoefficient;
 
+				auto torque = glm::length(collisionPointToCenterOfMass) * velAtPosition;
+
 				//auto rotationMultiplier = 1.0f - translationMultiplier;
-				auto velProjection = glm::normalize(glm::cross(rotationAxis, collisionPointToComDirection));
-				auto desiredRotationalVelocityAtPosition = 
+				//auto angularVelocityMagnitude = (glm::dot(rotationAxis, velAtPosition) * rotationAxis);
+				//auto magn = -glm::dot(collisionPointToComDirection, velAtPosition);
+				//freeCube->_body.AddForceAtPosition(averageCollisionNormal * magn, averageCollisionPosition, true, true, true, false);
+				//freeCube->_localTransform.RotateAroundPosition(averageCollisionPosition, rotationAxis, glm::length(velAtPosition - freeCube->_body._velocity) * (float)time._physicsDeltaTime);
+				//+= rotationAxis * magn * (float)time._physicsDeltaTime * 0.2f;
+				freeCube->_body.AddForceAtPosition(-velAtPosition, averageCollisionPosition, true, true, true, false);
 
 				/*auto angularAcceleration = -velAtPosition * rotationMultiplier * glm::length(collisionPointToCenterOfMass);
 				auto angularVelocity = rotationAxis * glm::length(angularAcceleration);*/
-				//freeCube->_body._angularVelocity = rotationAxis * glm::length(velAtPosition) * rotationMultiplier; /** glm::dot(glm::normalize(velAtPosition), averageCollisionNormal)*//* * rotationMultiplier*/;
+				/*auto s = glm::dot(averageCollisionNormal, velAtPosition)* averageCollisionNormal;
+				auto r = glm::cross(collisionPointToCenterOfMass, velAtPosition);
+				freeCube->_body._angularVelocity += r * (float)time._physicsDeltaTime *;*/ /** glm::dot(glm::normalize(velAtPosition), averageCollisionNormal)*//* * rotationMultiplier*/;
 
 				/*std::cout << "Average collision position: " << averageCollisionPosition << std::endl;
 				std::cout << "Collision normal: " << collisionNormal << std::endl;
