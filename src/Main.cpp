@@ -5178,7 +5178,8 @@ namespace Engine {
 	void LoadEnvironmentMap(VkContext& ctx, EngineContext& eCtx) {
 		eCtx._scene._environmentMap = CubicalEnvironmentMap(ctx._physicalDevice, ctx._logicalDevice);
 		//eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Waterfall.hdr");
-		eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "MountainsClearSky.hdr");
+		//eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "MountainsClearSky.hdr");
+		eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "BlueSky.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Debug.png");
 		//eCtx._scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "ModernBuilding.hdr");
 		//_scene._environmentMap.LoadFromSphericalHDRI(Paths::TexturesPath() /= "Workshop.png");
@@ -6631,12 +6632,12 @@ namespace Engine {
 		for (int i = 0; i < stationaryCube->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(stationaryCube->_pMesh->_vertices._vertexData[i]._position);
 		stationaryCube->_body.Initialize(stationaryCube, vertices, stationaryCube->_pMesh->_faceIndices._indexData, 1, false, { 0,0,0 });
 		float gravity = -9.8f;
+		auto bounciness = 0.1f;
 
 		while (!glfwWindowShouldClose(pWindow)) {
 			auto timePhysicsUpdateStart = std::chrono::high_resolution_clock::now();
 			time.PhysicsUpdate();
 			freeCube->_body.PhysicsUpdate();
-			std::cout << time._physicsDeltaTime << std::endl;
 
 			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
 			freeCube->_body.AddForce({ 0.0f, gravity, 0.0f }, false);
@@ -6658,12 +6659,14 @@ namespace Engine {
 
 			// Approximate air resistance/rotational friction.
 			auto airFrictionCoefficient = 0.15f;
+			auto bodyFrictionCoefficient = 0.0f;
 			auto frictionMultiplier = -airFrictionCoefficient / powf(freeCube->_body._mass, 2.0f);
 			freeCube->_body.AddForce(freeCube->_body._velocity * frictionMultiplier, true);
 			freeCube->_body.AddTorque(freeCube->_body._angularVelocity * frictionMultiplier, true);
 
 			// Resolve collisions.
 			auto collisions = freeCube->_body.DetectCollisions();
+
 			auto centerOfMassWorldSpace = glm::vec3(wst * glm::vec4(freeCube->_body.GetCenterOfMass(), 1.0f));
 			for (int i = 0; i < collisions.size(); ++i) {
 				glm::vec3 averageCollisionPosition;
@@ -6673,27 +6676,31 @@ namespace Engine {
 				for (int j = 0; j < count; ++j) averageCollisionPosition += collisions[i]._collisionPositions[j];
 				averageCollisionNormal /= count; averageCollisionPosition /= count;
 
+				auto collisionPointToCenterOfMass = centerOfMassWorldSpace - averageCollisionPosition;
+				auto velAtPosition = freeCube->_body.GetVelocityAtPosition(averageCollisionPosition);
+				auto collisionPointToComDirection = glm::normalize(collisionPointToCenterOfMass);
+				auto rotationAxis = glm::normalize(glm::cross(collisionPointToComDirection, velAtPosition));
+
 				CollisionContext collisionInfo = collisions[i];
 				// Correct the body's position by moving the object by its negative velocity until there are no more collision points.
 				// This basically moves it back in time before the collision even happened.
 				for (; !collisionInfo._collisionPositions.empty();) {
-					/*freeCube->_localTransform.RotateAroundPosition(centerOfMassWorldSpace, glm::normalize(freeCube->_body._angularVelocity), glm::length(freeCube->_body._angularVelocity) * (time._physicsDeltaTime * 0.001f * -0.5f));*/
+					//freeCube->_localTransform.RotateAroundPosition(centerOfMassWorldSpace, rotationAxis, 1.0f);
 					freeCube->_localTransform.Translate(averageCollisionNormal * ((float)time._physicsDeltaTime * 0.001f));
 					collisionInfo = freeCube->_body.DetectCollision(*collisionInfo._collidee);
 				}
 
-				auto velAtPosition = freeCube->_body.GetVelocityAtPosition(averageCollisionPosition);
-				auto collisionPointToCenterOfMass = centerOfMassWorldSpace - averageCollisionPosition;
-				auto collisionPointToComDirection = glm::normalize(collisionPointToCenterOfMass);
-				auto translationMultiplier = glm::dot(collisionPointToComDirection, averageCollisionNormal);
-				freeCube->_body._velocity += averageCollisionNormal * glm::length(velAtPosition);
+				auto velocityMagnitude = abs(glm::dot(averageCollisionNormal, velAtPosition));
+				freeCube->_body._velocity += averageCollisionNormal * velocityMagnitude * (float)time._physicsDeltaTime;
+				freeCube->_body._velocity -= glm::normalize(freeCube->_body._velocity) * bodyFrictionCoefficient;
 
-				//velAtPosition += averageCollisionNormal;
 				//auto rotationMultiplier = 1.0f - translationMultiplier;
-				//auto rotationAxis = glm::normalize(glm::cross(collisionPointToComDirection, velAtPosition));/*
-				//auto angularAcceleration = -velAtPosition * rotationMultiplier * glm::length(collisionPointToCenterOfMass);
-				//auto angularVelocity = rotationAxis * glm::length(angularAcceleration);*/
-				//freeCube->_body._angularVelocity += rotationAxis;
+				auto velProjection = glm::normalize(glm::cross(rotationAxis, collisionPointToComDirection));
+				auto desiredRotationalVelocityAtPosition = 
+
+				/*auto angularAcceleration = -velAtPosition * rotationMultiplier * glm::length(collisionPointToCenterOfMass);
+				auto angularVelocity = rotationAxis * glm::length(angularAcceleration);*/
+				//freeCube->_body._angularVelocity = rotationAxis * glm::length(velAtPosition) * rotationMultiplier; /** glm::dot(glm::normalize(velAtPosition), averageCollisionNormal)*//* * rotationMultiplier*/;
 
 				/*std::cout << "Average collision position: " << averageCollisionPosition << std::endl;
 				std::cout << "Collision normal: " << collisionNormal << std::endl;
@@ -6708,7 +6715,9 @@ namespace Engine {
 				auto timeToWait = std::chrono::nanoseconds(fixedDeltaTimeNanoseconds - timeDelta.count());
 				std::this_thread::sleep_for(timeToWait);
 			}*/
+			std::cout << "Speed: " << glm::length(freeCube->_body._velocity) << std::endl;
 		}
+
 	}
 
 	void MainLoop(VkContext& ctx, VkRenderContext& rCtx, EngineContext& eCtx) {
