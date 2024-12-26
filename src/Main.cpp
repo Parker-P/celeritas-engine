@@ -3767,7 +3767,7 @@ namespace Engine {
 
 		void CalculateForceOpposingCollision(const glm::vec3& velocityAtCollision, const float& massOfCollidedBody);
 
-		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool isForceWorldSpace, bool ignoreTranslation, bool isInstantVelocityChange);
+		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool isForceWorldSpace, bool ignoreTranslation, const float& deltaTimeSeconds);
 
 		void AddForce(const glm::vec3& force, bool ignoreMass);
 
@@ -4216,9 +4216,7 @@ namespace Engine {
 
 	}
 
-	void RigidBody::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool isForceWorldSpace, bool ignoreTranslation, bool isInstantVelocityChange) {
-		auto& time = Time::Instance();
-		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
+	void RigidBody::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool isForceWorldSpace, bool ignoreTranslation, const float& deltaTimeSeconds) {
 		auto vertexCount = _mesh._vertices.size();
 		auto& vertices = _mesh._vertices;
 		auto worldSpaceTransform = _pGameObject->GetWorldSpaceTransform()._matrix;
@@ -4231,7 +4229,7 @@ namespace Engine {
 		if (!ignoreTranslation) {
 			glm::vec3 translationForce = CalculateTransmittedForce(worldSpacePointOfApplication, worldSpaceForce, worldSpaceCom);
 			glm::vec3 translationAcceleration = translationForce / _mass;
-			glm::vec3 translationDelta = translationForce * (isInstantVelocityChange ? 1.0f : deltaTimeSeconds);
+			glm::vec3 translationDelta = translationForce * deltaTimeSeconds;
 			_velocity += translationDelta;
 		}
 
@@ -4247,27 +4245,10 @@ namespace Engine {
 
 		// Approximate rotational inertia.
 		auto rotationalInertia = _mass * 4.0f;
-		//auto singleVertexMass = _mass / vertexCount;
-		//for (int i = 0; i < vertexCount; ++i) {
-			//auto worldSpaceVertexPosition = glm::vec3(worldSpaceTransform * glm::vec4(vertices[i]._position, 1.0f));
-
-			//if (worldSpaceVertexPosition == worldSpaceCom) continue;
-
-			//auto comToVertexDirection = glm::normalize(worldSpaceVertexPosition - worldSpaceCom);
-			//auto cathetus = comToVertexDirection * glm::dot(rotationAxis, comToVertexDirection);
-
-			//if (IsVectorZero(cathetus), 0.001f) {
-			//	rotationalInertia += (/*vertex.mass **/ glm::length(worldSpaceVertexPosition - worldSpaceCom));
-			//	continue;
-			//}
-
-			//auto endPosition = worldSpaceCom + cathetus;
-			//auto perpDistance = glm::length(endPosition - worldSpaceVertexPosition);
-			//rotationalInertia += (singleVertexMass * (perpDistance * perpDistance));
-		//}
+		// TODO: better approximation for rotational inertia.
 
 		auto angularAcceleration = glm::cross(rotationalForce, positionToCom) / rotationalInertia;
-		auto rotationDelta = angularAcceleration * (isInstantVelocityChange ? 1.0f : deltaTimeSeconds);
+		auto rotationDelta = angularAcceleration * deltaTimeSeconds;
 		_angularVelocity += rotationDelta;
 	}
 
@@ -6628,7 +6609,7 @@ namespace Engine {
 		vertices.clear();
 		for (int i = 0; i < stationaryCube->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(stationaryCube->_pMesh->_vertices._vertexData[i]._position);
 		stationaryCube->_body.Initialize(stationaryCube, vertices, stationaryCube->_pMesh->_faceIndices._indexData, 1, false, { 0,0,0 });
-		float gravity = -9.8f;
+		float gravity = -10.0f;
 		auto bounciness = 0.1f;
 		bool wasCollidingLastFrame = false;
 
@@ -6638,7 +6619,7 @@ namespace Engine {
 			freeCube->_body.PhysicsUpdate();
 
 			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
-			//freeCube->_body.AddForce({ 0.0f, gravity, 0.0f }, false);
+			freeCube->_body.AddForce({ 0.0f, gravity, 0.0f }, false);
 			//auto pos = (freeCube->_body._mesh._vertices[3]._position + freeCube->_body._mesh._vertices[9]._position + freeCube->_body._mesh._vertices[15]._position + freeCube->_body._mesh._vertices[21]._position) / 4.0f;
 			auto pos = freeCube->_body._mesh._vertices[3]._position;
 			auto pos1 = freeCube->_body._mesh._vertices[15]._position;
@@ -6647,17 +6628,17 @@ namespace Engine {
 			pos1 = glm::vec3(wst * glm::vec4(pos1, 1.0f));
 			glm::vec3 f = { 0.0f, 15.0f, 0.0f };
 			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) {
-				freeCube->_body.AddForceAtPosition(f, pos, true, true, false, false);
-				freeCube->_body.AddForceAtPosition(f, pos1, true, true, false, false);
+				freeCube->_body.AddForceAtPosition(f, pos, true, true, false, deltaTimeSeconds);
+				freeCube->_body.AddForceAtPosition(f, pos1, true, true, false, deltaTimeSeconds);
 			}
 			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_DOWN)) {
-				freeCube->_body.AddForceAtPosition(-f, pos, true, true, false, false);
-				freeCube->_body.AddForceAtPosition(-f, pos1, true, true, false, false);
+				freeCube->_body.AddForceAtPosition(-f, pos, true, true, false, deltaTimeSeconds);
+				freeCube->_body.AddForceAtPosition(-f, pos1, true, true, false, deltaTimeSeconds);
 			}
 
 			// Approximate air resistance/rotational friction.
-			auto airFrictionCoefficient = 0.15f;
-			auto bodyFrictionCoefficient = 0.0f;
+			auto airFrictionCoefficient = 0.09f;
+			auto bodyFrictionCoefficient = 1.0f;
 			auto frictionMultiplier = -airFrictionCoefficient / powf(freeCube->_body._mass, 2.0f);
 			freeCube->_body.AddForce(freeCube->_body._velocity * frictionMultiplier, true);
 			freeCube->_body.AddTorque(freeCube->_body._angularVelocity * frictionMultiplier, true);
@@ -6681,16 +6662,18 @@ namespace Engine {
 				auto rotationMagnitude = velAtPosition - freeCube->_body._velocity;
 
 				CollisionContext collisionInfo = collisions[i];
-				// Correct the body's position by moving the object by its negative velocity until there are no more collision points.
-				// This basically moves it back in time before the collision even happened.
+				// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
+				// and make the collision detection seem more accurate.
 				for (; !collisionInfo._collisionPositions.empty();) {
-					//freeCube->_localTransform.RotateAroundPosition(centerOfMassWorldSpace, rotationAxis, 1.0f);
-					freeCube->_localTransform.Translate(averageCollisionNormal * ((float)time._deltaTime * 0.001f));
+					// TODO: make this more accurate by moving also rotating the object backwards by its angular velocity.
+					freeCube->_localTransform.Translate(averageCollisionNormal * ((float)time._physicsDeltaTime * 0.001f));
 					collisionInfo = freeCube->_body.DetectCollision(*collisionInfo._collidee);
 				}
 
-				freeCube->_body.AddForceAtPosition((averageCollisionNormal * bounciness) - (velAtPosition * bodyFrictionCoefficient), averageCollisionPosition, true, true, false, true);
+				// Add an opposing force to the object to approximate the surface pushing back on the object.
+				freeCube->_body.AddForceAtPosition((averageCollisionNormal * bounciness) - (velAtPosition * bodyFrictionCoefficient), averageCollisionPosition, true, true, false, 1.0f);
 			}
+
 
 			/*auto timeDelta = std::chrono::high_resolution_clock::now() - timePhysicsUpdateStart;
 			auto fixedDeltaTimeNanoseconds = (long long)time._fixedPhysicsDeltaTime * 1000000;
