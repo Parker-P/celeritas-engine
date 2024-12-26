@@ -293,6 +293,12 @@ namespace Engine {
 			glm::vec3 mirroredVector = projection - perpendicular; // Compute the mirrored vector
 			return mirroredVector;
 		}
+
+		static bool IsVectorZero(const glm::vec3& vector, float tolerance = std::numeric_limits<float>::epsilon()) {
+			return (vector.x >= -tolerance && vector.x <= tolerance &&
+				vector.y >= -tolerance && vector.y <= tolerance &&
+				vector.z >= -tolerance && vector.z <= tolerance);
+		}
 	};
 
 	class GlobalSettings : public Singleton<GlobalSettings> {
@@ -3749,8 +3755,6 @@ namespace Engine {
 			return stream << "(" << vector.x << ", " << vector.y << ", " << vector.z << ")";
 		}*/
 
-		bool IsVectorZero(const glm::vec3& vector, float tolerance = std::numeric_limits<float>::epsilon());
-
 		glm::vec3 CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition);
 
 		/**
@@ -4167,15 +4171,8 @@ namespace Engine {
 		vkCmdDrawIndexed(drawCommandBuffer, (uint32_t)_faceIndices._indexData.size(), 1, 0, 0, 0);
 	}
 
-	// Rigidbody
-	bool RigidBody::IsVectorZero(const glm::vec3& vector, float tolerance) {
-		return (vector.x >= -tolerance && vector.x <= tolerance &&
-			vector.y >= -tolerance && vector.y <= tolerance &&
-			vector.z >= -tolerance && vector.z <= tolerance);
-	}
-
 	glm::vec3 RigidBody::CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition) {
-		if (IsVectorZero(receiverPosition - transmitterPosition, 0.001f)) return force;
+		if (Helper::IsVectorZero(receiverPosition - transmitterPosition, 0.001f)) return force;
 		auto effectiveForce = glm::normalize(receiverPosition - transmitterPosition);
 		auto scaleFactor = glm::dot(effectiveForce, force);
 		return effectiveForce * scaleFactor;
@@ -4202,7 +4199,7 @@ namespace Engine {
 	glm::vec3 RigidBody::GetVelocityAtPosition(const glm::vec3& positionWorldSpace) {
 		auto worldSpaceTransform = _pGameObject->GetWorldSpaceTransform()._matrix;
 		glm::vec3 linearVelocityContributionFromAngularVelocityAtPosition;
-		if (!IsVectorZero(_angularVelocity)) {
+		if (!Helper::IsVectorZero(_angularVelocity)) {
 			auto rotationAxis = glm::normalize(_angularVelocity);
 			auto worldSpaceCom = glm::vec3(worldSpaceTransform * glm::vec4(GetCenterOfMass(), 1.0f));
 			auto posToCom = worldSpaceCom - positionWorldSpace;
@@ -4240,7 +4237,7 @@ namespace Engine {
 
 		// Now calculate the rotation component.
 		auto positionToCom = worldSpaceCom - worldSpacePointOfApplication;
-		if (IsVectorZero(positionToCom, 0.001f)) return;
+		if (Helper::IsVectorZero(positionToCom, 0.001f)) return;
 
 		auto rotationAxis = -glm::normalize(glm::cross(positionToCom, worldSpaceForce));
 		if (glm::isnan(rotationAxis.x) || glm::isnan(rotationAxis.y) || glm::isnan(rotationAxis.x)) return;
@@ -6633,6 +6630,7 @@ namespace Engine {
 		stationaryCube->_body.Initialize(stationaryCube, vertices, stationaryCube->_pMesh->_faceIndices._indexData, 1, false, { 0,0,0 });
 		float gravity = -9.8f;
 		auto bounciness = 0.1f;
+		bool wasCollidingLastFrame = false;
 
 		while (!glfwWindowShouldClose(pWindow)) {
 			auto timePhysicsUpdateStart = std::chrono::high_resolution_clock::now();
@@ -6640,7 +6638,7 @@ namespace Engine {
 			freeCube->_body.PhysicsUpdate();
 
 			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
-			freeCube->_body.AddForce({ 0.0f, gravity, 0.0f }, false);
+			//freeCube->_body.AddForce({ 0.0f, gravity, 0.0f }, false);
 			//auto pos = (freeCube->_body._mesh._vertices[3]._position + freeCube->_body._mesh._vertices[9]._position + freeCube->_body._mesh._vertices[15]._position + freeCube->_body._mesh._vertices[21]._position) / 4.0f;
 			auto pos = freeCube->_body._mesh._vertices[3]._position;
 			auto pos1 = freeCube->_body._mesh._vertices[15]._position;
@@ -6691,31 +6689,7 @@ namespace Engine {
 					collisionInfo = freeCube->_body.DetectCollision(*collisionInfo._collidee);
 				}
 
-				auto velocityMagnitude = abs(glm::dot(averageCollisionNormal, velAtPosition));
-				freeCube->_body._velocity += averageCollisionNormal * velocityMagnitude * (float)time._physicsDeltaTime * 0.001f;
-				freeCube->_body._velocity -= glm::normalize(freeCube->_body._velocity) * bodyFrictionCoefficient;
-
-				auto torque = glm::length(collisionPointToCenterOfMass) * velAtPosition;
-
-				//auto rotationMultiplier = 1.0f - translationMultiplier;
-				//auto angularVelocityMagnitude = (glm::dot(rotationAxis, velAtPosition) * rotationAxis);
-				//auto magn = -glm::dot(collisionPointToComDirection, velAtPosition);
-				//freeCube->_body.AddForceAtPosition(averageCollisionNormal * magn, averageCollisionPosition, true, true, true, false);
-				//freeCube->_localTransform.RotateAroundPosition(averageCollisionPosition, rotationAxis, glm::length(velAtPosition - freeCube->_body._velocity) * (float)time._physicsDeltaTime);
-				//+= rotationAxis * magn * (float)time._physicsDeltaTime * 0.2f;
-				freeCube->_body.AddForceAtPosition(-velAtPosition, averageCollisionPosition, true, true, true, false);
-
-				/*auto angularAcceleration = -velAtPosition * rotationMultiplier * glm::length(collisionPointToCenterOfMass);
-				auto angularVelocity = rotationAxis * glm::length(angularAcceleration);*/
-				/*auto s = glm::dot(averageCollisionNormal, velAtPosition)* averageCollisionNormal;
-				auto r = glm::cross(collisionPointToCenterOfMass, velAtPosition);
-				freeCube->_body._angularVelocity += r * (float)time._physicsDeltaTime *;*/ /** glm::dot(glm::normalize(velAtPosition), averageCollisionNormal)*//* * rotationMultiplier*/;
-
-				/*std::cout << "Average collision position: " << averageCollisionPosition << std::endl;
-				std::cout << "Collision normal: " << collisionNormal << std::endl;
-				std::cout << "CollisionPointToCenterOfMass: " << collisionPointToCenterOfMass << std::endl;
-				std::cout << "TranslationMultiplier: " << translationMultiplier << std::endl;
-				std::cout << "VelocityAtCollisionPosition: " << translationMultiplier << std::endl;*/
+				freeCube->_body.AddForceAtPosition((averageCollisionNormal * bounciness) - (velAtPosition * bodyFrictionCoefficient), averageCollisionPosition, true, true, false, true);
 			}
 
 			/*auto timeDelta = std::chrono::high_resolution_clock::now() - timePhysicsUpdateStart;
