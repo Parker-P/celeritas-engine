@@ -323,6 +323,11 @@ namespace Engine {
 		float _gammaCorrection;
 
 		/**
+		 * @brief Air friction coefficient that affects physics simulation.
+		 */
+		float _airFrictionCoefficient;
+
+		/**
 		 * @brief Trims the ends of a string by removing the first and last characters from it.
 		 * @param quotedString
 		 * @return A new string with the 2 ends trimmed by one character.
@@ -373,6 +378,10 @@ namespace Engine {
 			auto graphics = sjson::jobject::parse(rootObj.get("Graphics"));
 			auto gc = graphics.get("GammaCorrection");
 			_gammaCorrection = Helper::Convert<std::string, float>(gc);
+
+			auto physics = sjson::jobject::parse(rootObj.get("Physics"));
+			auto af = physics.get("AirFrictionCoefficient");
+			_airFrictionCoefficient = Helper::Convert<std::string, float>(af);
 		}
 	};
 
@@ -3793,7 +3802,7 @@ namespace Engine {
 
 		std::vector<CollisionContext> DetectCollisions();
 
-		void Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass);
+		void Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& isCollidable, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass);
 
 		void PhysicsUpdate(EngineContext& eCtx);
 	};
@@ -4357,7 +4366,7 @@ namespace Engine {
 		return outCollisions;
 	}
 
-	void RigidBody::Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass) {
+	void RigidBody::Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& isCollidable, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass) {
 		if (mass <= 0.001f || vertices.size() < 1 || faceIndices.size() < 1) return;
 
 		_pGameObject = pGameObject;
@@ -4366,6 +4375,7 @@ namespace Engine {
 		_overriddenCenterOfMassLocalSpace = overriddenCenterOfMass;
 		_mesh._vertices.resize(vertices.size());
 		_mesh._faceIndices = faceIndices;
+		_isCollidable = isCollidable;
 
 		// TODO: Decide how you want to initialize your physics mesh.
 		for (int i = 0; i < vertices.size(); ++i) {
@@ -4614,13 +4624,15 @@ namespace Engine {
 
 	void RigidBody::PhysicsUpdate(EngineContext& eCtx) {
 		// Approximate air resistance/rotational friction.
-		auto airFrictionCoefficient = 0.09f;
-		auto frictionMultiplier = -airFrictionCoefficient / powf(_mass, 2.0f);
+		auto frictionMultiplier = -eCtx._globalSettings._airFrictionCoefficient / powf(_mass, 2.0f);
 		AddForce(_velocity * frictionMultiplier, true);
 		AddTorque(_angularVelocity * frictionMultiplier, true);
 
+		std::vector<CollisionContext> collisions;
+		if (!_isCollidable) goto updatePosition;
+
 		// Resolve collisions.
-		auto collisions = DetectCollisions();
+		collisions = DetectCollisions();
 
 		for (int i = 0; i < collisions.size(); ++i) {
 			glm::vec3 averageCollisionPosition;
@@ -4645,6 +4657,7 @@ namespace Engine {
 			AddForceAtPosition((averageCollisionNormal * _bounciness) - (relativeVelocityAtPosition * _friction), averageCollisionPosition, true, true, false, 1.0f);
 		}
 
+	updatePosition:
 		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
 		auto worldSpaceCom = glm::vec3(_pGameObject->GetWorldSpaceTransform()._matrix * glm::vec4(GetCenterOfMass(), 1.0f));
 		_pGameObject->_localTransform.RotateAroundPosition(worldSpaceCom, _angularVelocity, glm::length(_angularVelocity) * deltaTimeSeconds);
@@ -6639,15 +6652,15 @@ namespace Engine {
 
 		std::vector<glm::vec3> vertices;
 		for (int i = 0; i < freeCube->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(freeCube->_pMesh->_vertices._vertexData[i]._position);
-		freeCube->_body.Initialize(freeCube, vertices, freeCube->_pMesh->_faceIndices._indexData, 1, false, { 0,0,0 });
+		freeCube->_body.Initialize(freeCube, vertices, freeCube->_pMesh->_faceIndices._indexData, 1, true, false, { 0,0,0 });
 
 		vertices.clear();
 		for (int i = 0; i < terrain->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(terrain->_pMesh->_vertices._vertexData[i]._position);
-		terrain->_body.Initialize(terrain, vertices, terrain->_pMesh->_faceIndices._indexData, 1, false, { 0,0,0 });
+		terrain->_body.Initialize(terrain, vertices, terrain->_pMesh->_faceIndices._indexData, 1, true, false, { 0,0,0 });
 
 		vertices.clear();
 		for (int i = 0; i < stationaryCube->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(stationaryCube->_pMesh->_vertices._vertexData[i]._position);
-		stationaryCube->_body.Initialize(stationaryCube, vertices, stationaryCube->_pMesh->_faceIndices._indexData, 1, false, { 0,0,0 });
+		stationaryCube->_body.Initialize(stationaryCube, vertices, stationaryCube->_pMesh->_faceIndices._indexData, 1, true, false, { 0,0,0 });
 		float gravity = -10.0f;
 		auto bounciness = 0.1f;
 		bool wasCollidingLastFrame = false;

@@ -12,5 +12,8 @@
   },
   "Graphics": {
     "GammaCorrection": 0.7
+  },
+  "Physics": {
+    "AirFrictionCoefficient": 0.09
   }
 }
