@@ -3685,8 +3685,6 @@ namespace Engine {
 		}
 	};
 
-
-
 	/**
 	 * @brief Base class for a body that performs physics simulation.
 	 */
@@ -4706,10 +4704,6 @@ namespace Engine {
 		}
 	};
 
-
-
-
-
 	class SceneLoader {
 	public:
 		static std::vector<Material> LoadMaterials(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, tinygltf::Model& gltfScene) {
@@ -5142,21 +5136,6 @@ namespace Engine {
 		GlobalSettings::Instance()._windowWidth = width;
 		GlobalSettings::Instance()._windowHeight = height;
 	}
-
-	//void DestroyRenderPass() {
-	//	//_renderPass._depthImage.Destroy();
-	//	/*for (auto image : _renderPass.colorImages) {
-	//		image.Destroy();
-	//	}*/
-
-	//	vkDestroyRenderPass(_logicalDevice, _renderPass._handle, nullptr);
-	//}
-
-	//void DestroySwapchain() {
-	//	for (size_t i = 0; i < _swapchain._frameBuffers.size(); i++) {
-	//		vkDestroyFramebuffer(_logicalDevice, _swapchain._frameBuffers[i], nullptr);
-	//	}
-	//}
 
 	bool ValidationLayersSupported(const std::vector<const char*>& validationLayers) {
 		uint32_t layerCount;
