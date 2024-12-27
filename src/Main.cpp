@@ -188,18 +188,6 @@ namespace Engine {
 		virtual void Update() = 0;
 	};
 
-	/**
-		 * @brief Used by implementing classes to mark themselves as a class that is meant to do work on the main loop of the physics thread.
-		 */
-	class IPhysicsUpdatable {
-	public:
-
-		/**
-		 * @brief Function called on implementing classes in each iteration of the main loop. The main loop is defined in VulkanApplication.cpp.
-		 */
-		virtual void PhysicsUpdate() = 0;
-	};
-
 	struct Helper {
 
 		/**
@@ -433,70 +421,6 @@ namespace Engine {
 		 * @brief Function returning the path to the models folder.
 		 */
 		static inline auto ModelsPath = []() -> std::filesystem::path { return CurrentWorkingDirectory() /= L"models"; };
-	};
-
-	class Time : public Singleton<Time>, public IUpdatable, public IPhysicsUpdatable {
-	public:
-
-		/**
-		 * @brief The time this instance was created, assigned to in the constructor.
-		 */
-		std::chrono::high_resolution_clock::time_point _timeStart;
-
-		/**
-		 * @brief Time last frame started.
-		 */
-		std::chrono::high_resolution_clock::time_point _lastUpdateTime;
-
-		/**
-		 * @brief Time last physics update happened.
-		 */
-		std::chrono::high_resolution_clock::time_point _lastPhysicsUpdateTime;
-
-		/**
-		 * @brief The amount of time since last frame started in milliseconds.
-		 */
-		double _deltaTime;
-
-		/**
-		 * @brief The amount of time since the last physics simulation update in milliseconds.
-		 */
-		double _physicsDeltaTime;
-
-		/**
-		 * @brief Fixed physics update time in milliseconds.
-		 * The engine will wait for (_fixedPhysicsDeltaTime - _physicsDeltaTime) milliseconds if _physicsDeltaTime is lower than this number.
-		 */
-		double _fixedPhysicsDeltaTime = 16;
-
-		/**
-		 * @brief Constructor.
-		 */
-		Time() {
-			_timeStart = std::chrono::high_resolution_clock::now();
-			_deltaTime = 0.0;
-			_physicsDeltaTime = 0.0;
-			_lastUpdateTime = _timeStart;
-			_lastPhysicsUpdateTime = _timeStart;
-		}
-
-		/**
-		 * @brief See IUpdatable.
-		 */
-		void Update() {
-			auto now = std::chrono::high_resolution_clock::now();
-			_deltaTime = (now - _lastUpdateTime).count() * 0.000001;
-			_lastUpdateTime = now;
-		}
-
-		/**
-		 * @brief See IPhysicsUpdatable.
-		 */
-		void PhysicsUpdate() {
-			auto now = std::chrono::high_resolution_clock::now();
-			_physicsDeltaTime = (now - _lastPhysicsUpdateTime).count() * 0.000001;
-			_lastPhysicsUpdateTime = now;
-		}
 	};
 
 	class Key {
@@ -3683,6 +3607,86 @@ namespace Engine {
 		std::vector<glm::vec3> _collisionNormals; // List of normals for each collision position.
 	};
 
+	struct EngineContext;
+
+	/**
+		 * @brief Used by implementing classes to mark themselves as a class that is meant to do work on the main loop of the physics thread.
+		 */
+	class IPhysicsUpdatable {
+	public:
+
+		/**
+		 * @brief Function called on implementing classes in each iteration of the main loop.
+		 */
+		virtual void PhysicsUpdate(EngineContext& eCtx) = 0;
+	};
+
+	class Time : public Singleton<Time>, public IUpdatable, public IPhysicsUpdatable {
+	public:
+
+		/**
+		 * @brief The time this instance was created, assigned to in the constructor.
+		 */
+		std::chrono::high_resolution_clock::time_point _timeStart;
+
+		/**
+		 * @brief Time last frame started.
+		 */
+		std::chrono::high_resolution_clock::time_point _lastUpdateTime;
+
+		/**
+		 * @brief Time last physics update happened.
+		 */
+		std::chrono::high_resolution_clock::time_point _lastPhysicsUpdateTime;
+
+		/**
+		 * @brief The amount of time since last frame started in milliseconds.
+		 */
+		double _deltaTime;
+
+		/**
+		 * @brief The amount of time since the last physics simulation update in milliseconds.
+		 */
+		double _physicsDeltaTime;
+
+		/**
+		 * @brief Fixed physics update time in milliseconds.
+		 * The engine will wait for (_fixedPhysicsDeltaTime - _physicsDeltaTime) milliseconds if _physicsDeltaTime is lower than this number.
+		 */
+		double _fixedPhysicsDeltaTime = 16;
+
+		/**
+		 * @brief Constructor.
+		 */
+		Time() {
+			_timeStart = std::chrono::high_resolution_clock::now();
+			_deltaTime = 0.0;
+			_physicsDeltaTime = 0.0;
+			_lastUpdateTime = _timeStart;
+			_lastPhysicsUpdateTime = _timeStart;
+		}
+
+		/**
+		 * @brief See IUpdatable.
+		 */
+		void Update() {
+			auto now = std::chrono::high_resolution_clock::now();
+			_deltaTime = (now - _lastUpdateTime).count() * 0.000001;
+			_lastUpdateTime = now;
+		}
+
+		/**
+		 * @brief See IPhysicsUpdatable.
+		 */
+		void PhysicsUpdate(EngineContext& eCtx) {
+			auto now = std::chrono::high_resolution_clock::now();
+			_physicsDeltaTime = (now - _lastPhysicsUpdateTime).count() * 0.000001;
+			_lastPhysicsUpdateTime = now;
+		}
+	};
+
+
+
 	/**
 	 * @brief Base class for a body that performs physics simulation.
 	 */
@@ -3714,6 +3718,16 @@ namespace Engine {
 		 * @brief Mass in kg.
 		 */
 		float _mass;
+
+		/**
+		 * @brief Friction coefficient. 0 for no friction, 1 for max friction.
+		 */
+		float _friction;
+
+		/**
+		 * @brief Bounciness coefficient 0 for no bounciness, 1 for maximum bounciness.
+		 */
+		float _bounciness;
 
 		/**
 		 * @brief If this is set to true, _overriddenCenterOfMass will be used as center of mass.
@@ -3783,7 +3797,7 @@ namespace Engine {
 
 		void Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass);
 
-		void PhysicsUpdate();
+		void PhysicsUpdate(EngineContext& eCtx);
 	};
 
 	class Mesh : public IVulkanUpdatable, public IDrawable, public IPipelineable {
@@ -3850,6 +3864,7 @@ namespace Engine {
 		ShaderResources CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts);
 		Transform GetWorldSpaceTransform();
 		void UpdateShaderResources();
+		void PhysicsUpdate(EngineContext& eCtx);
 		void Update(VkContext& vkContext);
 		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer);
 	};
@@ -3896,6 +3911,11 @@ namespace Engine {
 				std::exit(1);
 			}
 			return _materials[0];
+		}
+
+		void PhysicsUpdate(EngineContext& eCtx) {
+			for (auto& gameObject : _pRootGameObject->_children)
+				gameObject->PhysicsUpdate(eCtx);
 		}
 
 		void Update(VkContext& vkContext) {
@@ -4016,6 +4036,10 @@ namespace Engine {
 	void GameObject::UpdateShaderResources() {
 		_gameObjectData.transform = GetWorldSpaceTransform()._matrix;
 		memcpy(_buffers[0]._cpuMemory, &_gameObjectData, sizeof(_gameObjectData));
+	}
+
+	void GameObject::PhysicsUpdate(EngineContext& eCtx) {
+		_body.PhysicsUpdate(eCtx);
 	}
 
 	void GameObject::Update(VkContext& vkContext) {
@@ -4355,66 +4379,6 @@ namespace Engine {
 		_isInitialized = true;
 	}
 
-	void RigidBody::PhysicsUpdate() {
-		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
-		auto worldSpaceCom = glm::vec3(_pGameObject->GetWorldSpaceTransform()._matrix * glm::vec4(GetCenterOfMass(), 1.0f));
-		_pGameObject->_localTransform.RotateAroundPosition(worldSpaceCom, _angularVelocity, glm::length(_angularVelocity) * deltaTimeSeconds);
-		_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
-	}
-
-	/**
-	 * @brief Represents a three-dimensional bounding box.
-	 */
-	class BoundingBox {
-	public:
-
-		/**
-		 * @brief Low bound, or more accurately, the position whose components are all the lowest number calculated from a collection of positions.
-		 */
-		glm::vec3 _min;
-
-		/**
-		 * @brief High bound, or more accurately, the position whose components are all the highest number calculated from a collection of positions.
-		 */
-		glm::vec3 _max;
-
-		glm::vec3 GetCenter() {
-			return glm::vec3((_min.x + _max.x) * 0.5f, (_min.y + _max.y) * 0.5f, (_min.z + _max.z) * 0.5f);
-		}
-
-		static BoundingBox Create(const Mesh& mesh) {
-			auto& vertices = mesh._vertices._vertexData;
-			BoundingBox boundingBox;
-
-			if (vertices.size() <= 0) {
-				return boundingBox;
-			}
-
-			float minimumX = vertices[0]._position.x;
-			float minimumY = vertices[0]._position.y;
-			float minimumZ = vertices[0]._position.z;
-
-			float maximumX = minimumX;
-			float maximumY = minimumY;
-			float maximumZ = minimumZ;
-
-			for (int i = 0; i < vertices.size(); ++i) {
-				minimumX = std::min(minimumX, vertices[i]._position.x);
-				minimumY = std::min(minimumY, vertices[i]._position.y);
-				minimumZ = std::min(minimumZ, vertices[i]._position.z);
-
-				maximumX = std::max(maximumX, vertices[i]._position.x);
-				maximumY = std::max(maximumY, vertices[i]._position.y);
-				maximumZ = std::max(maximumZ, vertices[i]._position.z);
-			}
-
-			boundingBox._min = glm::vec3(minimumX, minimumY, minimumZ);
-			boundingBox._max = glm::vec3(maximumX, maximumY, maximumZ);
-
-			return boundingBox;
-		}
-	};
-
 	/**
 	 * @brief Represents a general-purpose camera.
 	 */
@@ -4638,6 +4602,113 @@ namespace Engine {
 			UpdateShaderResources();
 		}
 	};
+
+	/**
+	 * @brief All the high-level information needed by the engine to perform user-related tasks such as managing cameras and scenes.
+	 */
+	struct EngineContext {
+		Scene _scene;
+		Camera _mainCamera;
+		Time& _time = Time::Instance();
+		KeyboardMouse& _input = KeyboardMouse::Instance();
+		GlobalSettings& _globalSettings = Engine::GlobalSettings::Instance();
+	};
+
+	void RigidBody::PhysicsUpdate(EngineContext& eCtx) {
+		// Approximate air resistance/rotational friction.
+		auto airFrictionCoefficient = 0.09f;
+		auto frictionMultiplier = -airFrictionCoefficient / powf(_mass, 2.0f);
+		AddForce(_velocity * frictionMultiplier, true);
+		AddTorque(_angularVelocity * frictionMultiplier, true);
+
+		// Resolve collisions.
+		auto collisions = DetectCollisions();
+
+		for (int i = 0; i < collisions.size(); ++i) {
+			glm::vec3 averageCollisionPosition;
+			glm::vec3 averageCollisionNormal;
+			auto count = collisions[i]._collisionPositions.size();
+			for (int j = 0; j < count; ++j) averageCollisionNormal += collisions[i]._collisionNormals[j];
+			for (int j = 0; j < count; ++j) averageCollisionPosition += collisions[i]._collisionPositions[j];
+			averageCollisionNormal /= count; averageCollisionPosition /= count;
+
+			auto relativeVelocityAtPosition = GetVelocityAtPosition(averageCollisionPosition) - collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition);
+
+			CollisionContext collisionInfo = collisions[i];
+			// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
+			// and make the collision detection seem more accurate.
+			for (int i = 0; !collisionInfo._collisionPositions.empty() && i < 10; ++i) {
+				// TODO: make this more accurate by moving also rotating the object backwards by its angular velocity.
+				_pGameObject->_localTransform.Translate(averageCollisionNormal * ((float)eCtx._time._physicsDeltaTime * 0.0005f));
+				collisionInfo = DetectCollision(*collisionInfo._collidee);
+			}
+
+			// Add an opposing force to the object to approximate the surface pushing back on the object.
+			AddForceAtPosition((averageCollisionNormal * _bounciness) - (relativeVelocityAtPosition * _friction), averageCollisionPosition, true, true, false, 1.0f);
+		}
+
+		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
+		auto worldSpaceCom = glm::vec3(_pGameObject->GetWorldSpaceTransform()._matrix * glm::vec4(GetCenterOfMass(), 1.0f));
+		_pGameObject->_localTransform.RotateAroundPosition(worldSpaceCom, _angularVelocity, glm::length(_angularVelocity) * deltaTimeSeconds);
+		_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
+	}
+
+	/**
+	 * @brief Represents a three-dimensional bounding box.
+	 */
+	class BoundingBox {
+	public:
+
+		/**
+		 * @brief Low bound, or more accurately, the position whose components are all the lowest number calculated from a collection of positions.
+		 */
+		glm::vec3 _min;
+
+		/**
+		 * @brief High bound, or more accurately, the position whose components are all the highest number calculated from a collection of positions.
+		 */
+		glm::vec3 _max;
+
+		glm::vec3 GetCenter() {
+			return glm::vec3((_min.x + _max.x) * 0.5f, (_min.y + _max.y) * 0.5f, (_min.z + _max.z) * 0.5f);
+		}
+
+		static BoundingBox Create(const Mesh& mesh) {
+			auto& vertices = mesh._vertices._vertexData;
+			BoundingBox boundingBox;
+
+			if (vertices.size() <= 0) {
+				return boundingBox;
+			}
+
+			float minimumX = vertices[0]._position.x;
+			float minimumY = vertices[0]._position.y;
+			float minimumZ = vertices[0]._position.z;
+
+			float maximumX = minimumX;
+			float maximumY = minimumY;
+			float maximumZ = minimumZ;
+
+			for (int i = 0; i < vertices.size(); ++i) {
+				minimumX = std::min(minimumX, vertices[i]._position.x);
+				minimumY = std::min(minimumY, vertices[i]._position.y);
+				minimumZ = std::min(minimumZ, vertices[i]._position.z);
+
+				maximumX = std::max(maximumX, vertices[i]._position.x);
+				maximumY = std::max(maximumY, vertices[i]._position.y);
+				maximumZ = std::max(maximumZ, vertices[i]._position.z);
+			}
+
+			boundingBox._min = glm::vec3(minimumX, minimumY, minimumZ);
+			boundingBox._max = glm::vec3(maximumX, maximumY, maximumZ);
+
+			return boundingBox;
+		}
+	};
+
+
+
+
 
 	class SceneLoader {
 	public:
@@ -4978,17 +5049,6 @@ namespace Engine {
 
 			return scene;
 		}
-	};
-
-	/**
-	 * @brief All the high-level information needed by the engine to perform user-related tasks such as managing cameras and scenes.
-	 */
-	struct EngineContext {
-		Scene _scene;
-		Camera _mainCamera;
-		Time& _time = Time::Instance();
-		KeyboardMouse& _input = KeyboardMouse::Instance();
-		GlobalSettings& _globalSettings = Engine::GlobalSettings::Instance();
 	};
 
 	VkShaderModule CreateShaderModule(VkDevice logicalDevice, const std::filesystem::path& absolutePath) {
@@ -6586,7 +6646,7 @@ namespace Engine {
 
 	void PhysicsUpdate(GLFWwindow* pWindow, EngineContext* eCtx) {
 		auto& time = Time::Instance();
-		time.PhysicsUpdate();
+		time.PhysicsUpdate(*eCtx);
 
 		GameObject* freeCube = nullptr;
 		GameObject* stationaryCube = nullptr;
@@ -6615,8 +6675,8 @@ namespace Engine {
 
 		while (!glfwWindowShouldClose(pWindow)) {
 			auto timePhysicsUpdateStart = std::chrono::high_resolution_clock::now();
-			time.PhysicsUpdate();
-			freeCube->_body.PhysicsUpdate();
+			time.PhysicsUpdate(*eCtx);
+			eCtx->_scene.PhysicsUpdate(*eCtx);
 
 			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
 			freeCube->_body.AddForce({ 0.0f, gravity, 0.0f }, false);
@@ -6627,6 +6687,7 @@ namespace Engine {
 			pos = glm::vec3(wst * glm::vec4(pos, 1.0f));
 			pos1 = glm::vec3(wst * glm::vec4(pos1, 1.0f));
 			glm::vec3 f = { 0.0f, 15.0f, 0.0f };
+
 			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) {
 				freeCube->_body.AddForceAtPosition(f, pos, true, true, false, deltaTimeSeconds);
 				freeCube->_body.AddForceAtPosition(f, pos1, true, true, false, deltaTimeSeconds);
@@ -6635,53 +6696,6 @@ namespace Engine {
 				freeCube->_body.AddForceAtPosition(-f, pos, true, true, false, deltaTimeSeconds);
 				freeCube->_body.AddForceAtPosition(-f, pos1, true, true, false, deltaTimeSeconds);
 			}
-
-			// Approximate air resistance/rotational friction.
-			auto airFrictionCoefficient = 0.09f;
-			auto friction = 0.6f;
-			auto frictionMultiplier = -airFrictionCoefficient / powf(freeCube->_body._mass, 2.0f);
-			freeCube->_body.AddForce(freeCube->_body._velocity * frictionMultiplier, true);
-			freeCube->_body.AddTorque(freeCube->_body._angularVelocity * frictionMultiplier, true);
-
-			// Resolve collisions.
-			auto collisions = freeCube->_body.DetectCollisions();
-
-			auto centerOfMassWorldSpace = glm::vec3(wst * glm::vec4(freeCube->_body.GetCenterOfMass(), 1.0f));
-			for (int i = 0; i < collisions.size(); ++i) {
-				glm::vec3 averageCollisionPosition;
-				glm::vec3 averageCollisionNormal;
-				auto count = collisions[i]._collisionPositions.size();
-				for (int j = 0; j < count; ++j) averageCollisionNormal += collisions[i]._collisionNormals[j];
-				for (int j = 0; j < count; ++j) averageCollisionPosition += collisions[i]._collisionPositions[j];
-				averageCollisionNormal /= count; averageCollisionPosition /= count;
-
-				auto collisionPointToCenterOfMass = centerOfMassWorldSpace - averageCollisionPosition;
-				auto velAtPosition = freeCube->_body.GetVelocityAtPosition(averageCollisionPosition);
-				auto collisionPointToComDirection = glm::normalize(collisionPointToCenterOfMass);
-				auto rotationAxis = glm::normalize(glm::cross(collisionPointToCenterOfMass, velAtPosition));
-				auto rotationMagnitude = velAtPosition - freeCube->_body._velocity;
-
-				CollisionContext collisionInfo = collisions[i];
-				// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
-				// and make the collision detection seem more accurate.
-				for (; !collisionInfo._collisionPositions.empty();) {
-					// TODO: make this more accurate by moving also rotating the object backwards by its angular velocity.
-					freeCube->_localTransform.Translate(averageCollisionNormal * ((float)time._physicsDeltaTime * 0.0005f));
-					collisionInfo = freeCube->_body.DetectCollision(*collisionInfo._collidee);
-				}
-
-				// Add an opposing force to the object to approximate the surface pushing back on the object.
-				freeCube->_body.AddForceAtPosition((averageCollisionNormal * bounciness) - (velAtPosition * friction), averageCollisionPosition, true, true, false, 1.0f);
-			}
-
-
-			/*auto timeDelta = std::chrono::high_resolution_clock::now() - timePhysicsUpdateStart;
-			auto fixedDeltaTimeNanoseconds = (long long)time._fixedPhysicsDeltaTime * 1000000;
-			if (timeDelta.count() < std::chrono::nanoseconds(fixedDeltaTimeNanoseconds).count()) {
-				auto timeToWait = std::chrono::nanoseconds(fixedDeltaTimeNanoseconds - timeDelta.count());
-				std::this_thread::sleep_for(timeToWait);
-			}*/
-			std::cout << "Speed: " << glm::length(freeCube->_body._velocity) << std::endl;
 		}
 
 	}
