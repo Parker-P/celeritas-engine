@@ -6638,7 +6638,7 @@ namespace Engine {
 
 			// Approximate air resistance/rotational friction.
 			auto airFrictionCoefficient = 0.09f;
-			auto bodyFrictionCoefficient = 1.0f;
+			auto friction = 0.6f;
 			auto frictionMultiplier = -airFrictionCoefficient / powf(freeCube->_body._mass, 2.0f);
 			freeCube->_body.AddForce(freeCube->_body._velocity * frictionMultiplier, true);
 			freeCube->_body.AddTorque(freeCube->_body._angularVelocity * frictionMultiplier, true);
@@ -6666,12 +6666,12 @@ namespace Engine {
 				// and make the collision detection seem more accurate.
 				for (; !collisionInfo._collisionPositions.empty();) {
 					// TODO: make this more accurate by moving also rotating the object backwards by its angular velocity.
-					freeCube->_localTransform.Translate(averageCollisionNormal * ((float)time._physicsDeltaTime * 0.001f));
+					freeCube->_localTransform.Translate(averageCollisionNormal * ((float)time._physicsDeltaTime * 0.0005f));
 					collisionInfo = freeCube->_body.DetectCollision(*collisionInfo._collidee);
 				}
 
 				// Add an opposing force to the object to approximate the surface pushing back on the object.
-				freeCube->_body.AddForceAtPosition((averageCollisionNormal * bounciness) - (velAtPosition * bodyFrictionCoefficient), averageCollisionPosition, true, true, false, 1.0f);
+				freeCube->_body.AddForceAtPosition((averageCollisionNormal * bounciness) - (velAtPosition * friction), averageCollisionPosition, true, true, false, 1.0f);
 			}
 
 
