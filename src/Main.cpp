@@ -4658,6 +4658,7 @@ namespace Engine {
 		auto collisions = DetectCollisions();
 
 		for (int i = 0; i < collisions.size(); ++i) {
+			auto physicsDeltaTime = (float)eCtx._time._physicsDeltaTime;
 			glm::vec3 averageCollisionPosition;
 			glm::vec3 averageCollisionNormal;
 			auto count = collisions[i]._collisionPositions.size();
@@ -4672,7 +4673,7 @@ namespace Engine {
 			CollisionContext collisionInfo = collisions[i];
 			// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
 			// and make the collision detection seem more accurate.
-			auto translationDelta = glm::length(relativeVelocityAtPosition) * (float)eCtx._time._physicsDeltaTime * 0.001f;
+			auto translationDelta = glm::length(relativeVelocityAtPosition) * physicsDeltaTime * 0.001f;
 			for (int i = 0; !collisionInfo._collisionPositions.empty() && i < 10 && !(_lockTranslationX && _lockTranslationY && _lockTranslationZ); ++i) {
 				// TODO: make this more accurate by also rotating the object backwards by its angular velocity.
 				_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
@@ -4680,13 +4681,11 @@ namespace Engine {
 			}
 
 			// Add an opposing force to the object to approximate the surface pushing back on the object.
-			auto deltaTime = (float)eCtx._time._physicsDeltaTime * 0.01f;
-			auto force = (averageCollisionNormal * massDifferenceMultiplier * (_bounciness + deltaTime)) - (relativeVelocityAtPosition * (_friction + deltaTime));
-			/*if (_pGameObject->_name == "FreeCube") {
-				std::cout << force << std::endl;
-				force *= 10.0f;
-			}*/
-			AddForceAtPosition(force, averageCollisionPosition, true, true, false, 1.0f);
+			auto deltaTimeFriction = physicsDeltaTime * 0.1f;
+			auto deltaTimeBounce = physicsDeltaTime * 0.1f;
+			auto bounceComponent = averageCollisionNormal * massDifferenceMultiplier * _bounciness * glm::length(relativeVelocityAtPosition) * deltaTimeBounce;
+			auto frictionComponent = relativeVelocityAtPosition * _friction * deltaTimeFriction * -1.0f;
+			AddForceAtPosition(bounceComponent + frictionComponent, averageCollisionPosition, true, true, false, 1.0f);
 		}
 
 		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
@@ -6703,7 +6702,8 @@ namespace Engine {
 		std::vector<glm::vec3> vertices;
 		for (int i = 0; i < freeCube->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(freeCube->_pMesh->_vertices._vertexData[i]._position);
 		freeCube->_body.Initialize(freeCube, vertices, freeCube->_pMesh->_faceIndices._indexData, 1, false, { 0,0,0 });
-
+		freeCube->_body._bounciness = 0.5f;
+		freeCube->_body._friction = 0.5f;
 
 		vertices.clear();
 		for (int i = 0; i < terrain->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(terrain->_pMesh->_vertices._vertexData[i]._position);
@@ -6718,8 +6718,9 @@ namespace Engine {
 		vertices.clear();
 		for (int i = 0; i < stationaryCube->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(stationaryCube->_pMesh->_vertices._vertexData[i]._position);
 		stationaryCube->_body.Initialize(stationaryCube, vertices, stationaryCube->_pMesh->_faceIndices._indexData, 1, false, { 0,0,0 });
+		stationaryCube->_body._bounciness = 0.5f;
+		stationaryCube->_body._friction = 0.5f;
 		float gravity = -10.0f;
-		auto bounciness = 0.1f;
 		bool wasCollidingLastFrame = false;
 
 		while (!glfwWindowShouldClose(pWindow)) {
@@ -6736,8 +6737,9 @@ namespace Engine {
 			auto wst = freeCube->GetWorldSpaceTransform()._matrix;
 			pos = glm::vec3(wst * glm::vec4(pos, 1.0f));
 			pos1 = glm::vec3(wst * glm::vec4(pos1, 1.0f));
-			glm::vec3 up = { 0.0f, 5.0f, 0.0f };
-			glm::vec3 right = { 5.0f, 0.0f, 0.0f };
+			glm::vec3 up = { 0.0f, 12.0f, 0.0f };
+			glm::vec3 right = { 12.0f, 0.0f, 0.0f };
+			glm::vec3 forward = { 0.0f, 0.0f, 12.0f };
 
 			/*if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) {
 				freeCube->_body.AddForceAtPosition(f, pos, true, true, false, deltaTimeSeconds);
@@ -6748,21 +6750,23 @@ namespace Engine {
 				freeCube->_body.AddForceAtPosition(-f, pos1, true, true, false, deltaTimeSeconds);
 			}*/
 
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) {
-				freeCube->_body.AddForce(up, false);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_SHIFT)) {
 				freeCube->_body.AddForce(up, false);
 			}
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_DOWN)) {
-				freeCube->_body.AddForce(-up, false);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_ALT)) {
 				freeCube->_body.AddForce(-up, false);
 			}
 			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_RIGHT)) {
 				freeCube->_body.AddForce(right, false);
-				freeCube->_body.AddForce(right, false);
 			}
 			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT)) {
 				freeCube->_body.AddForce(-right, false);
-				freeCube->_body.AddForce(-right, false);
+			}
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) {
+				freeCube->_body.AddForce(forward, false);
+			}
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_DOWN)) {
+				freeCube->_body.AddForce(-forward, false);
 			}
 		}
 
