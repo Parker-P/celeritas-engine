@@ -4672,9 +4672,10 @@ namespace Engine {
 			CollisionContext collisionInfo = collisions[i];
 			// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
 			// and make the collision detection seem more accurate.
+			auto translationDelta = glm::length(relativeVelocityAtPosition) * (float)eCtx._time._physicsDeltaTime * 0.001f;
 			for (int i = 0; !collisionInfo._collisionPositions.empty() && i < 10 && !(_lockTranslationX && _lockTranslationY && _lockTranslationZ); ++i) {
 				// TODO: make this more accurate by also rotating the object backwards by its angular velocity.
-				_pGameObject->_localTransform.Translate(averageCollisionNormal * ((float)eCtx._time._physicsDeltaTime * 0.0005f));
+				_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
 				collisionInfo = DetectCollision(*collisionInfo._collidee);
 			}
 
