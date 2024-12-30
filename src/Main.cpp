@@ -4665,15 +4665,14 @@ namespace Engine {
 			for (int j = 0; j < count; ++j) averageCollisionNormal += collisions[i]._collisionNormals[j];
 			for (int j = 0; j < count; ++j) averageCollisionPosition += collisions[i]._collisionPositions[j];
 			averageCollisionNormal /= count; averageCollisionPosition /= count;
-
-			auto relativeVelocityAtPosition = GetVelocityAtPosition(averageCollisionPosition) - collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition);
-			auto massDifferenceMultiplier = collisions[i]._collidee->_mass / (collisions[i]._collidee->_mass + _mass);
-			massDifferenceMultiplier = massDifferenceMultiplier > 1.0f ? 1.0f : massDifferenceMultiplier;
+			auto relativeVelocityAtPosition = GetVelocityAtPosition(averageCollisionPosition);
+			auto velocityLength = glm::length(relativeVelocityAtPosition);
+			auto massDifferenceMultiplier = collisions[i]._collidee->_mass / _mass;
 
 			CollisionContext collisionInfo = collisions[i];
 			// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
 			// and make the collision detection seem more accurate.
-			auto translationDelta = glm::length(relativeVelocityAtPosition) * physicsDeltaTime * 0.001f;
+			auto translationDelta = velocityLength * physicsDeltaTime * 0.001f;
 			for (int i = 0; !collisionInfo._collisionPositions.empty() && i < 10 && !(_lockTranslationX && _lockTranslationY && _lockTranslationZ); ++i) {
 				// TODO: make this more accurate by also rotating the object backwards by its angular velocity.
 				_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
@@ -4683,9 +4682,11 @@ namespace Engine {
 			// Add an opposing force to the object to approximate the surface pushing back on the object.
 			auto deltaTimeFriction = physicsDeltaTime * 0.1f;
 			auto deltaTimeBounce = physicsDeltaTime * 0.1f;
-			auto bounceComponent = averageCollisionNormal * massDifferenceMultiplier * _bounciness * glm::length(relativeVelocityAtPosition) * deltaTimeBounce;
+			auto deltaTimeMass = physicsDeltaTime * 0.01f;
+			auto bounceComponent = averageCollisionNormal * _bounciness * velocityLength * deltaTimeBounce;
+			auto massComponent = averageCollisionNormal * massDifferenceMultiplier * deltaTimeMass;
 			auto frictionComponent = relativeVelocityAtPosition * _friction * deltaTimeFriction * -1.0f;
-			AddForceAtPosition(bounceComponent + frictionComponent, averageCollisionPosition, true, true, false, 1.0f);
+			AddForceAtPosition(bounceComponent + massComponent + frictionComponent, averageCollisionPosition, true, true, false, 1.0f);
 		}
 
 		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
@@ -6701,13 +6702,13 @@ namespace Engine {
 
 		std::vector<glm::vec3> vertices;
 		for (int i = 0; i < freeCube->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(freeCube->_pMesh->_vertices._vertexData[i]._position);
-		freeCube->_body.Initialize(freeCube, vertices, freeCube->_pMesh->_faceIndices._indexData, 1, false, { 0,0,0 });
+		freeCube->_body.Initialize(freeCube, vertices, freeCube->_pMesh->_faceIndices._indexData, 4, false, { 0,0,0 });
 		freeCube->_body._bounciness = 0.5f;
 		freeCube->_body._friction = 0.5f;
 
 		vertices.clear();
 		for (int i = 0; i < terrain->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(terrain->_pMesh->_vertices._vertexData[i]._position);
-		terrain->_body.Initialize(terrain, vertices, terrain->_pMesh->_faceIndices._indexData, 100000, false, { 0,0,0 });
+		terrain->_body.Initialize(terrain, vertices, terrain->_pMesh->_faceIndices._indexData, 1, false, { 0,0,0 });
 		terrain->_body._lockRotationX = true;
 		terrain->_body._lockRotationY = true;
 		terrain->_body._lockRotationZ = true;
@@ -6729,8 +6730,8 @@ namespace Engine {
 			eCtx->_scene.PhysicsUpdate(*eCtx);
 
 			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
-			freeCube->_body.AddForce({ 0.0f, gravity, 0.0f }, false);
-			stationaryCube->_body.AddForce({ 0.0f, gravity, 0.0f }, false);
+			//freeCube->_body.AddForce({ 0.0f, gravity, 0.0f }, false);
+			//stationaryCube->_body.AddForce({ 0.0f, gravity, 0.0f }, false);
 			//auto pos = (freeCube->_body._mesh._vertices[3]._position + freeCube->_body._mesh._vertices[9]._position + freeCube->_body._mesh._vertices[15]._position + freeCube->_body._mesh._vertices[21]._position) / 4.0f;
 			auto pos = freeCube->_body._mesh._vertices[3]._position;
 			auto pos1 = freeCube->_body._mesh._vertices[15]._position;
@@ -6750,7 +6751,7 @@ namespace Engine {
 				freeCube->_body.AddForceAtPosition(-f, pos1, true, true, false, deltaTimeSeconds);
 			}*/
 
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_SHIFT)) {
+			/*if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_SHIFT)) {
 				freeCube->_body.AddForce(up, false);
 			}
 			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_ALT)) {
@@ -6762,12 +6763,14 @@ namespace Engine {
 			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT)) {
 				freeCube->_body.AddForce(-right, false);
 			}
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) {
-				freeCube->_body.AddForce(forward, false);
-			}
 			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_DOWN)) {
 				freeCube->_body.AddForce(-forward, false);
+			}*/
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) {
+				freeCube->_body.AddForce(-right, true);
+				stationaryCube->_body.AddForce(right, false);
 			}
+			
 		}
 
 	}
