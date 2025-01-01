@@ -4683,9 +4683,8 @@ namespace Engine {
 
 			// Add an opposing force to the object to approximate the surface pushing back on the object.
 			auto deltaTimeFriction = physicsDeltaTime * 0.001f;
-			auto deltaTimeBounce = physicsDeltaTime * 0.1f;
-			auto deltaTimeMass = physicsDeltaTime * 0.01f;
-			auto bounceComponent = averageCollisionNormal * _bounciness * _mass * velocityLength * deltaTimeBounce;
+			auto deltaTimeBounce = physicsDeltaTime * 0.05f;
+			auto bounceComponent = averageCollisionNormal * _mass * velocityLength * deltaTimeBounce;
 			auto frictionComponent = !Helper::IsVectorZero(frictionForceDirection)
 				? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeFriction
 				: glm::vec3(0.0f, 0.0f, 0.0f);
@@ -6707,7 +6706,7 @@ namespace Engine {
 		for (int i = 0; i < freeCube->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(freeCube->_pMesh->_vertices._vertexData[i]._position);
 		freeCube->_body.Initialize(freeCube, vertices, freeCube->_pMesh->_faceIndices._indexData, 1.0f, false, { 0,0,0 });
 		freeCube->_body._bounciness = 0.5f;
-		freeCube->_body._friction = 0.5f;
+		freeCube->_body._friction = 30.0f;
 
 		vertices.clear();
 		for (int i = 0; i < terrain->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(terrain->_pMesh->_vertices._vertexData[i]._position);
@@ -6723,7 +6722,7 @@ namespace Engine {
 		for (int i = 0; i < stationaryCube->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(stationaryCube->_pMesh->_vertices._vertexData[i]._position);
 		stationaryCube->_body.Initialize(stationaryCube, vertices, stationaryCube->_pMesh->_faceIndices._indexData, 1.0f, false, { 0,0,0 });
 		stationaryCube->_body._bounciness = 0.5f;
-		stationaryCube->_body._friction = 5.0f;
+		stationaryCube->_body._friction = 8.0f;
 		float gravity = -10.0f;
 		bool wasCollidingLastFrame = false;
 
