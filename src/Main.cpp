@@ -4667,6 +4667,9 @@ namespace Engine {
 			averageCollisionNormal /= count; averageCollisionPosition /= count;
 			auto velocityAtPosition = GetVelocityAtPosition(averageCollisionPosition);
 			auto velocityLength = glm::length(velocityAtPosition);
+			auto velocityDirection = velocityAtPosition; glm::normalize(velocityDirection);
+
+			if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) break;
 
 			CollisionContext collisionInfo = collisions[i];
 			// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
@@ -4683,12 +4686,16 @@ namespace Engine {
 
 			// Add an opposing force to the object to approximate the surface pushing back on the object.
 			auto deltaTimeFriction = physicsDeltaTime * 0.001f;
-			auto deltaTimeBounce = physicsDeltaTime * 0.05f;
-			auto bounceComponent = averageCollisionNormal * _mass * velocityLength * deltaTimeBounce;
+			auto deltaTimeBounce = physicsDeltaTime * 0.03f;
+			auto impactAngleMultiplier = glm::dot(velocityDirection, averageCollisionNormal);
+			impactAngleMultiplier = impactAngleMultiplier > 0.0f ? 0.0f : impactAngleMultiplier;
+			impactAngleMultiplier = abs(impactAngleMultiplier);
+			auto bounceComponent = averageCollisionNormal * _mass * impactAngleMultiplier * deltaTimeBounce;
 			auto frictionComponent = !Helper::IsVectorZero(frictionForceDirection)
 				? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeFriction
 				: glm::vec3(0.0f, 0.0f, 0.0f);
 			AddForceAtPosition(bounceComponent - frictionComponent, averageCollisionPosition, true, true, false, 1.0f);
+			collisions[i]._collidee->AddForceAtPosition(velocityDirection * glm::length(bounceComponent), averageCollisionPosition, true, true, false, 1.0f);
 		}
 
 		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
