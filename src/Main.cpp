@@ -3806,7 +3806,7 @@ namespace Engine {
 
 		glm::vec3 GetVelocityAtPosition(const glm::vec3& position);
 
-		void CalculateForceOpposingCollision(const glm::vec3& velocityAtCollision, const float& massOfCollidedBody);
+		float GetRotationalInertia();
 
 		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool isForceWorldSpace, bool ignoreTranslation, const float& deltaTimeSeconds);
 
@@ -4693,7 +4693,21 @@ namespace Engine {
 				? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeFriction
 				: glm::vec3(0.0f, 0.0f, 0.0f);
 
-			_velocity = Helper::MirrorVectorAcrossAxis(-velocityAtPosition, averageCollisionNormal) * _bounciness;
+			auto worldSpaceCom = glm::vec3(_pGameObject->GetWorldSpaceTransform()._matrix * glm::vec4(GetCenterOfMass(), 1.0f));
+			auto positionToCom = worldSpaceCom - averageCollisionPosition;
+			auto worldSpaceComOther = glm::vec3(collisions[i]._collidee->_pGameObject->GetWorldSpaceTransform()._matrix * glm::vec4(collisions[i]._collidee->GetCenterOfMass(), 1.0f));
+			auto positionToComOther = worldSpaceComOther - averageCollisionPosition;
+			auto inertiaCurrent = ((positionToCom * averageCollisionNormal) * (positionToCom * averageCollisionNormal)) / (glm::length(positionToCom) * _mass);
+			auto inertiaOther = ((positionToComOther * averageCollisionNormal) * (positionToComOther * averageCollisionNormal)) / (glm::length(positionToComOther) * collisions[i]._collidee->_mass);
+			auto impulseForce = (1 + _bounciness) * (averageCollisionNormal * (velocityAtPosition - collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) /
+				((1 / _mass) + (1 / collisions[i]._collidee->_mass) + inertiaCurrent + inertiaOther);
+
+			auto rotationAxis = -glm::normalize(glm::cross(positionToCom, velocityAtPosition));
+
+			_velocity -= impulseForce;
+			_angularVelocity -= (rotationAxis * glm::length(impulseForce) * physicsDeltaTime * 0.01f);
+
+			/*_velocity = Helper::MirrorVectorAcrossAxis(-velocityAtPosition, averageCollisionNormal) * _bounciness;
 			AddForceAtPosition(frictionComponent, averageCollisionPosition, true, true, false, physicsDeltaTime * 0.001f);
 
 			auto worldSpaceCom = glm::vec3(_pGameObject->GetWorldSpaceTransform()._matrix * glm::vec4(GetCenterOfMass(), 1.0f));
@@ -4704,7 +4718,7 @@ namespace Engine {
 			if (glm::isnan(rotationAxis.x) || glm::isnan(rotationAxis.y) || glm::isnan(rotationAxis.x)) return;
 
 			auto comPerpendicularDirection = glm::normalize(glm::cross(positionToCom, rotationAxis));
-			_angularVelocity = rotationAxis * (- glm::dot(velocityAtPosition, comPerpendicularDirection) * _bounciness) / glm::length(positionToCom);
+			_angularVelocity = rotationAxis * (- glm::dot(velocityAtPosition, comPerpendicularDirection) * _bounciness) / glm::length(positionToCom);*/
 
 			// Add an opposing force to the object to approximate the surface pushing back on the object.
 			//auto deltaTimeBounce = physicsDeltaTime * 0.03f;
