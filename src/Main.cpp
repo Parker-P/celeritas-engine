@@ -3816,11 +3816,11 @@ namespace Engine {
 
 		CollisionContext DetectCollision(RigidBody& other);
 
-		std::vector< GameObject*> GetAllGameObjects(GameObject* pRoot);
+		std::vector< GameObject*> GetGameObjects(GameObject* pRoot, const GameObject* excludedObjects[] = nullptr, int nObjectsToExclude = 0);
 
-		std::vector<GameObject*> GetOtherGameObjects(GameObject* pGameObject);
+		std::vector<GameObject*> GetOtherGameObjects(const GameObject* excludedObjects[] = nullptr, int nObjectsToExclude = 0);
 
-		std::vector<CollisionContext> DetectCollisions();
+		std::vector<CollisionContext> DetectCollisions(const RigidBody* bodiesToExclude[] = 0, int nBodiesToExclude = 0);
 
 		void Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = { 0.0f, 0.0f, 0.0f });
 
@@ -4361,28 +4361,25 @@ namespace Engine {
 		return outCtx;
 	}
 
-	std::vector< GameObject*> RigidBody::GetAllGameObjects(GameObject* pRoot) {
+	std::vector<GameObject*> RigidBody::GetGameObjects(GameObject* pRoot, const GameObject* excludedObjects[], int nObjectsToExclude) {
 		std::vector<GameObject*> outGameObjects;
+		for (int i = 0; i < nObjectsToExclude; ++i) if (excludedObjects[i] == pRoot) goto searchChildren;
 		outGameObjects.push_back(pRoot);
+
+	searchChildren:
 		for (int i = 0; i < pRoot->_children.size(); ++i) {
-			auto objects = GetAllGameObjects(pRoot->_children[i]);
+			auto objects = GetGameObjects(pRoot->_children[i]);
 			outGameObjects.insert(outGameObjects.end(), objects.begin(), objects.end());
 		}
 		return outGameObjects;
 	}
 
-	std::vector<GameObject*> RigidBody::GetOtherGameObjects(GameObject* pExcludedGameObject) {
-		auto allGameObjects = GetAllGameObjects(pExcludedGameObject->_pScene->_pRootGameObject);
-		for (int i = 0; i < allGameObjects.size(); ++i) {
-			if (pExcludedGameObject == allGameObjects[i]) {
-				allGameObjects.erase(allGameObjects.begin() + i);
-			}
-		}
-		return allGameObjects;
-	}
-
-	std::vector<CollisionContext> RigidBody::DetectCollisions() {
-		auto otherGameObjects = GetOtherGameObjects(_pGameObject);
+	std::vector<CollisionContext> RigidBody::DetectCollisions(const RigidBody* bodiesToExclude[] = 0, int nBodiesToExclude = 0) {
+		int nObjects = nBodiesToExclude + 1;
+		GameObject** objectsToExclude = (GameObject**)malloc(sizeof(GameObject*) * nObjects);
+		objectsToExclude[0] = _pGameObject;
+		for (int i = 1; i < nBodiesToExclude + 1; ++i) objectsToExclude[i] = bodiesToExclude[i]->_pGameObject;
+		auto otherGameObjects = GetGameObjects(_pGameObject->_pScene->_pRootGameObject, objectsToExclude, nObjects);
 		std::vector<CollisionContext> outCollisions;
 		for (int i = 0; i < otherGameObjects.size(); ++i) {
 			if (otherGameObjects[i]->_body._mesh._vertices.size() < 1) continue;
@@ -4647,6 +4644,13 @@ namespace Engine {
 		GlobalSettings& _globalSettings = Engine::GlobalSettings::Instance();
 	};
 
+	void TransmitCollisionForce(CollisionContext& collisionCtx, glm::vec3 collisionVelocity, std::vector<RigidBody*> consideredBodies) {
+		auto collisions = collisionCtx._collidee->DetectCollisions(consideredBodies.data(), consideredBodies.size());
+		for (int i = 0; i < collisions.size(); ++i)
+			if (collisions[i]._collidee == transmitterBody)
+				collisions.erase(collisions.begin() + i);
+	}
+
 	void RigidBody::PhysicsUpdate(EngineContext& eCtx) {
 		// Approximate air resistance/rotational friction.
 		auto airFrictionCoefficient = 0.09f;
@@ -4662,8 +4666,12 @@ namespace Engine {
 			glm::vec3 averageCollisionPosition;
 			glm::vec3 averageCollisionNormal;
 			auto count = collisions[i]._collisionPositions.size();
-			for (int j = 0; j < count; ++j) averageCollisionNormal += collisions[i]._collisionNormals[j];
-			for (int j = 0; j < count; ++j) averageCollisionPosition += collisions[i]._collisionPositions[j];
+
+			for (int j = 0; j < count; ++j) {
+				averageCollisionNormal += collisions[i]._collisionNormals[j];
+				averageCollisionPosition += collisions[i]._collisionPositions[j];
+			}
+
 			averageCollisionNormal /= count; averageCollisionPosition /= count;
 			auto velocityAtPosition = GetVelocityAtPosition(averageCollisionPosition);
 			auto velocityLength = glm::length(velocityAtPosition);
@@ -4671,14 +4679,14 @@ namespace Engine {
 
 			if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) break;
 
-			CollisionContext collisionInfo = collisions[i];
+			CollisionContext collisionCtx = collisions[i];
 			// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
 			// and make the collision detection seem more accurate.
 			auto translationDelta = velocityLength * physicsDeltaTime * 0.001f;
-			for (int i = 0; !collisionInfo._collisionPositions.empty() && i < 10 && !(_lockTranslationX && _lockTranslationY && _lockTranslationZ); ++i) {
+			for (int i = 0; !collisionCtx._collisionPositions.empty() && i < 10 && !(_lockTranslationX && _lockTranslationY && _lockTranslationZ); ++i) {
 				// TODO: make this more accurate by also rotating the object backwards by its angular velocity.
 				_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
-				collisionInfo = DetectCollision(*collisionInfo._collidee);
+				collisionCtx = DetectCollision(*collisionCtx._collidee);
 			}
 
 			auto frictionForceDirection = glm::cross(glm::cross(velocityAtPosition, averageCollisionNormal), averageCollisionNormal);
@@ -4695,7 +4703,9 @@ namespace Engine {
 				? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeFriction
 				: glm::vec3(0.0f, 0.0f, 0.0f);
 			AddForceAtPosition(bounceComponent - frictionComponent, averageCollisionPosition, true, true, false, 1.0f);
-			collisions[i]._collidee->AddForceAtPosition(velocityDirection * glm::length(bounceComponent), averageCollisionPosition, true, true, false, 1.0f);
+
+			TransmitCollisionForce(collisionCtx, velocityAtPosition, { this });
+			//collisions[i]._collidee->AddForceAtPosition(velocityDirection * glm::length(bounceComponent), averageCollisionPosition, true, true, false, 1.0f);
 		}
 
 		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
