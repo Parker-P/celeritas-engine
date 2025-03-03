@@ -3605,6 +3605,21 @@ namespace Engine {
 		RigidBody* _collidee; // Collision receiver.
 		std::vector<glm::vec3> _collisionPositions; // List of points where a collision was detected in world space.
 		std::vector<glm::vec3> _collisionNormals; // List of normals for each collision position.
+		glm::vec3 _averagePosition;
+		glm::vec3 _averageNormal;
+
+		void CalculateAverages() {
+			glm::vec3 averageCollisionPosition;
+			glm::vec3 averageCollisionNormal;
+			auto count = _collisionPositions.size();
+
+			for (int j = 0; j < count; ++j) {
+				averageCollisionNormal += _collisionNormals[j];
+				averageCollisionPosition += _collisionPositions[j];
+			}
+
+			_averagePosition /= count; _averageNormal /= count;
+		}
 	};
 
 	struct EngineContext;
@@ -3796,13 +3811,13 @@ namespace Engine {
 			return stream << "(" << vector.x << ", " << vector.y << ", " << vector.z << ")";
 		}*/
 
-		glm::vec3 CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition);
+		static glm::vec3 CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition);
 
 		/**
 		 * @brief Returns the center of mass in local space.
 		 * @return
 		 */
-		glm::vec3 GetCenterOfMass();
+		glm::vec3 GetCenterOfMass(bool worldSpace = false);
 
 		glm::vec3 GetVelocityAtPosition(const glm::vec3& position);
 
@@ -3818,13 +3833,15 @@ namespace Engine {
 
 		std::vector< GameObject*> GetGameObjects(GameObject* pRoot, const GameObject* excludedObjects[] = nullptr, int nObjectsToExclude = 0);
 
-		std::vector<GameObject*> GetOtherGameObjects(const GameObject* excludedObjects[] = nullptr, int nObjectsToExclude = 0);
-
 		std::vector<CollisionContext> DetectCollisions(const RigidBody* bodiesToExclude[] = 0, int nBodiesToExclude = 0);
 
 		void Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = { 0.0f, 0.0f, 0.0f });
 
 		void PhysicsUpdate(EngineContext& eCtx);
+
+		bool IsRotationLocked();
+
+		bool IsTranslationLocked();
 	};
 
 	class Mesh : public IVulkanUpdatable, public IDrawable, public IPipelineable {
@@ -4230,8 +4247,9 @@ namespace Engine {
 		return effectiveForce * scaleFactor;
 	}
 
-	glm::vec3 RigidBody::GetCenterOfMass() {
-		if (_isCenterOfMassOverridden) return _overriddenCenterOfMassLocalSpace;
+	glm::vec3 RigidBody::GetCenterOfMass(bool worldSpace) {
+		auto worldSpaceTransform = _pGameObject->GetWorldSpaceTransform()._matrix;
+		if (_isCenterOfMassOverridden) return worldSpace ? glm::vec3(worldSpaceTransform * glm::vec4(_overriddenCenterOfMassLocalSpace, 1.0f)) : _overriddenCenterOfMassLocalSpace;
 
 		auto& vertices = _mesh._vertices;
 		int vertexCount = (int)vertices.size();
@@ -4245,15 +4263,15 @@ namespace Engine {
 			totalZ += vertices[i]._position.z;
 		}
 
-		return glm::vec3(totalX / vertexCount, totalY / vertexCount, totalZ / vertexCount);
+		auto averagePos = glm::vec3(totalX / vertexCount, totalY / vertexCount, totalZ / vertexCount);
+		return worldSpace ? glm::vec3(worldSpaceTransform * glm::vec4(averagePos, 1.0f)) : averagePos;
 	}
 
 	glm::vec3 RigidBody::GetVelocityAtPosition(const glm::vec3& positionWorldSpace) {
-		auto worldSpaceTransform = _pGameObject->GetWorldSpaceTransform()._matrix;
 		glm::vec3 linearVelocityContributionFromAngularVelocityAtPosition;
 		if (!Helper::IsVectorZero(_angularVelocity)) {
 			auto rotationAxis = glm::normalize(_angularVelocity);
-			auto worldSpaceCom = glm::vec3(worldSpaceTransform * glm::vec4(GetCenterOfMass(), 1.0f));
+			auto worldSpaceCom = GetCenterOfMass(true);
 			auto posToCom = worldSpaceCom - positionWorldSpace;
 			glm::vec3 directionOfAngularVelocityContributionAtPosition = -glm::normalize(glm::cross(rotationAxis, posToCom));
 			linearVelocityContributionFromAngularVelocityAtPosition = directionOfAngularVelocityContributionAtPosition * (glm::length(posToCom) * glm::length(_angularVelocity));
@@ -4358,6 +4376,7 @@ namespace Engine {
 				if (IsSegmentIntersectingTriangle(v3Other, edge3, v1, v2, v3, intersectionPoint3)) { outCtx._collisionPositions.push_back(intersectionPoint3); outCtx._collisionNormals.push_back(normal); }
 			}
 		}
+
 		return outCtx;
 	}
 
@@ -4644,11 +4663,18 @@ namespace Engine {
 		GlobalSettings& _globalSettings = Engine::GlobalSettings::Instance();
 	};
 
-	void TransmitCollisionForce(CollisionContext& collisionCtx, glm::vec3 collisionVelocity, std::vector<RigidBody*> consideredBodies) {
-		auto collisions = collisionCtx._collidee->DetectCollisions(consideredBodies.data(), consideredBodies.size());
-		for (int i = 0; i < collisions.size(); ++i)
-			if (collisions[i]._collidee == transmitterBody)
-				collisions.erase(collisions.begin() + i);
+	void CalculateTransmittedForceRecursively(RigidBody* transmitter, RigidBody* receiver, glm::vec3 transmitterVelocity, glm::vec3& collisionPosition, glm::vec3& collisionNormal, glm::vec3& outForce, std::vector<RigidBody*> consideredBodies) {
+		if (receiver->IsRotationLocked() && receiver->IsTranslationLocked()) { outForce = glm::vec3(0.0f, 0.0f, 0.0f); return; }
+		auto normalizedForce = outForce; glm::normalize(normalizedForce);
+		//outForce = RigidBody::CalculateTransmittedForce(collisionPosition, normalizedForce * glm::dot(transmitter->_mass * transmitterVelocity, collisionNormal), receiver->GetCenterOfMass(true));
+		outForce /= receiver->_mass;
+		consideredBodies.push_back(receiver);
+		auto collisions = receiver->DetectCollisions(consideredBodies.data(), consideredBodies.size());
+		for (int i = 0; i < collisions.size(); ++i) {
+			collisions[i].CalculateAverages();
+			CalculateTransmittedForceRecursively(receiver, collisions[i]._collidee, receiver->GetVelocityAtPosition(collisions[i]._averagePosition), collisions[i]._averagePosition, collisions[i]._averageNormal, outForce, consideredBodies);
+			consideredBodies.push_back(collisions[i]._collidee);
+		}
 	}
 
 	void RigidBody::PhysicsUpdate(EngineContext& eCtx) {
@@ -4663,16 +4689,10 @@ namespace Engine {
 
 		for (int i = 0; i < collisions.size(); ++i) {
 			auto physicsDeltaTime = (float)eCtx._time._physicsDeltaTime;
-			glm::vec3 averageCollisionPosition;
-			glm::vec3 averageCollisionNormal;
-			auto count = collisions[i]._collisionPositions.size();
+			collisions[i].CalculateAverages();
+			glm::vec3& averageCollisionPosition = collisions[i]._averagePosition;
+			glm::vec3& averageCollisionNormal = collisions[i]._averageNormal;
 
-			for (int j = 0; j < count; ++j) {
-				averageCollisionNormal += collisions[i]._collisionNormals[j];
-				averageCollisionPosition += collisions[i]._collisionPositions[j];
-			}
-
-			averageCollisionNormal /= count; averageCollisionPosition /= count;
 			auto velocityAtPosition = GetVelocityAtPosition(averageCollisionPosition);
 			auto velocityLength = glm::length(velocityAtPosition);
 			auto velocityDirection = velocityAtPosition; glm::normalize(velocityDirection);
@@ -4704,8 +4724,10 @@ namespace Engine {
 				: glm::vec3(0.0f, 0.0f, 0.0f);
 			AddForceAtPosition(bounceComponent - frictionComponent, averageCollisionPosition, true, true, false, 1.0f);
 
-			TransmitCollisionForce(collisionCtx, velocityAtPosition, { this });
-			//collisions[i]._collidee->AddForceAtPosition(velocityDirection * glm::length(bounceComponent), averageCollisionPosition, true, true, false, 1.0f);
+			std::vector<RigidBody*> consideredBodies = { this };
+			auto transmittedForce = velocityAtPosition * _mass;
+			CalculateTransmittedForceRecursively(this, collisions[i]._collidee, GetVelocityAtPosition(collisions[i]._averagePosition), collisions[i]._averagePosition, collisions[i]._averageNormal, transmittedForce, consideredBodies);
+			collisions[i]._collidee->AddForceAtPosition(transmittedForce, averageCollisionPosition, true, true, false, 1.0f);
 		}
 
 		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
@@ -4713,6 +4735,10 @@ namespace Engine {
 		_pGameObject->_localTransform.RotateAroundPosition(worldSpaceCom, _angularVelocity, glm::length(_angularVelocity) * deltaTimeSeconds);
 		_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
 	}
+
+	bool RigidBody::IsRotationLocked() { return _lockRotationX && _lockRotationY && _lockRotationZ; }
+
+	bool RigidBody::IsTranslationLocked() { return _lockTranslationX && _lockTranslationY && _lockTranslationZ; }
 
 	/**
 	 * @brief Represents a three-dimensional bounding box.
