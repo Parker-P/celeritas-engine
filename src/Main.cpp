@@ -3609,13 +3609,11 @@ namespace Engine {
 		glm::vec3 _averageNormal;
 
 		void CalculateAverages() {
-			glm::vec3 averageCollisionPosition;
-			glm::vec3 averageCollisionNormal;
 			auto count = _collisionPositions.size();
 
 			for (int j = 0; j < count; ++j) {
-				averageCollisionNormal += _collisionNormals[j];
-				averageCollisionPosition += _collisionPositions[j];
+				_averageNormal += _collisionNormals[j];
+				_averagePosition += _collisionPositions[j];
 			}
 
 			_averagePosition /= count; _averageNormal /= count;
@@ -3640,7 +3638,7 @@ namespace Engine {
 	public:
 
 		/**
-		 * @brief The time this instance was created, assigned to in the constructor.
+		 * @brief The time this instance was created; assigned to in the constructor.
 		 */
 		std::chrono::high_resolution_clock::time_point _timeStart;
 
@@ -3700,7 +3698,13 @@ namespace Engine {
 		}
 	};
 
-
+	struct ForceCtx {
+		glm::vec3 _force;
+		glm::vec3 _pointOfApplication;
+		bool _isApplicationPointWorldSpace;
+		bool _isForceWorldSpace;
+		float _deltaTimeSeconds;
+	};
 
 	/**
 	 * @brief Base class for a body that performs physics simulation.
@@ -3780,6 +3784,9 @@ namespace Engine {
 		 */
 		bool _lockTranslationZ;
 
+		bool _isAffectedByGravity;
+
+		std::vector<ForceCtx> _forcesToApply;
 
 		/**
 		 * @brief Physics mesh used as a bridge between this physics body and its visual counterpart.
@@ -3821,9 +3828,7 @@ namespace Engine {
 
 		glm::vec3 GetVelocityAtPosition(const glm::vec3& position);
 
-		void CalculateForceOpposingCollision(const glm::vec3& velocityAtCollision, const float& massOfCollidedBody);
-
-		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool isForceWorldSpace, bool ignoreTranslation, const float& deltaTimeSeconds);
+		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool isForceWorldSpace, const float& deltaTimeSeconds);
 
 		void AddForce(const glm::vec3& force, bool ignoreMass);
 
@@ -3831,9 +3836,9 @@ namespace Engine {
 
 		CollisionContext DetectCollision(RigidBody& other);
 
-		std::vector< GameObject*> GetGameObjects(GameObject* pRoot, const GameObject* excludedObjects[] = nullptr, int nObjectsToExclude = 0);
+		std::vector< GameObject*> GetGameObjects(GameObject* pRoot, GameObject** excludedObjects = 0, int nObjectsToExclude = 0);
 
-		std::vector<CollisionContext> DetectCollisions(const RigidBody* bodiesToExclude[] = 0, int nBodiesToExclude = 0);
+		std::vector<CollisionContext> DetectCollisions(RigidBody** bodiesToExclude = 0, int nBodiesToExclude = 0);
 
 		void Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = { 0.0f, 0.0f, 0.0f });
 
@@ -3842,6 +3847,14 @@ namespace Engine {
 		bool IsRotationLocked();
 
 		bool IsTranslationLocked();
+
+		void LockRotation();
+
+		void LockTranslation();
+
+		void UnlockRotation();
+
+		void UnlockTranslation();
 	};
 
 	class Mesh : public IVulkanUpdatable, public IDrawable, public IPipelineable {
@@ -4279,7 +4292,7 @@ namespace Engine {
 		return linearVelocityContributionFromAngularVelocityAtPosition + _velocity;
 	}
 
-	void RigidBody::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool isForceWorldSpace, bool ignoreTranslation, const float& deltaTimeSeconds) {
+	void RigidBody::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool isForceWorldSpace, const float& deltaTimeSeconds) {
 		auto vertexCount = _mesh._vertices.size();
 		auto& vertices = _mesh._vertices;
 		auto worldSpaceTransform = _pGameObject->GetWorldSpaceTransform()._matrix;
@@ -4289,15 +4302,13 @@ namespace Engine {
 		auto worldSpaceCom = glm::vec3(worldSpaceTransform * glm::vec4(GetCenterOfMass(), 1.0f));
 		auto worldSpacePointOfApplication = isApplicationPointWorldSpace ? pointOfApplication : glm::vec3(worldSpaceTransform * glm::vec4(pointOfApplication, 1.0f));
 
-		if (!ignoreTranslation) {
-			glm::vec3 translationForce = CalculateTransmittedForce(worldSpacePointOfApplication, worldSpaceForce, worldSpaceCom);
-			glm::vec3 translationAcceleration = translationForce / _mass;
-			glm::vec3 translationDelta = translationForce * deltaTimeSeconds;
-			translationDelta.x = _lockTranslationX ? 0.0f : translationDelta.x;
-			translationDelta.y = _lockTranslationY ? 0.0f : translationDelta.y;
-			translationDelta.z = _lockTranslationZ ? 0.0f : translationDelta.z;
-			_velocity += translationDelta;
-		}
+		glm::vec3 translationForce = CalculateTransmittedForce(worldSpacePointOfApplication, worldSpaceForce, worldSpaceCom);
+		glm::vec3 translationAcceleration = translationForce / _mass;
+		glm::vec3 translationDelta = translationForce * deltaTimeSeconds;
+		translationDelta.x = _lockTranslationX ? 0.0f : translationDelta.x;
+		translationDelta.y = _lockTranslationY ? 0.0f : translationDelta.y;
+		translationDelta.z = _lockTranslationZ ? 0.0f : translationDelta.z;
+		_velocity += translationDelta;
 
 		// Now calculate the rotation component.
 		auto positionToCom = worldSpaceCom - worldSpacePointOfApplication;
@@ -4380,25 +4391,26 @@ namespace Engine {
 		return outCtx;
 	}
 
-	std::vector<GameObject*> RigidBody::GetGameObjects(GameObject* pRoot, const GameObject* excludedObjects[], int nObjectsToExclude) {
+	std::vector<GameObject*> RigidBody::GetGameObjects(GameObject* pRoot, GameObject** excludedObjects, int nObjectsToExclude) {
 		std::vector<GameObject*> outGameObjects;
 		for (int i = 0; i < nObjectsToExclude; ++i) if (excludedObjects[i] == pRoot) goto searchChildren;
 		outGameObjects.push_back(pRoot);
 
 	searchChildren:
 		for (int i = 0; i < pRoot->_children.size(); ++i) {
-			auto objects = GetGameObjects(pRoot->_children[i]);
+			auto objects = GetGameObjects(pRoot->_children[i], excludedObjects, nObjectsToExclude);
 			outGameObjects.insert(outGameObjects.end(), objects.begin(), objects.end());
 		}
 		return outGameObjects;
 	}
 
-	std::vector<CollisionContext> RigidBody::DetectCollisions(const RigidBody* bodiesToExclude[] = 0, int nBodiesToExclude = 0) {
+	std::vector<CollisionContext> RigidBody::DetectCollisions(RigidBody** bodiesToExclude, int nBodiesToExclude) {
 		int nObjects = nBodiesToExclude + 1;
 		GameObject** objectsToExclude = (GameObject**)malloc(sizeof(GameObject*) * nObjects);
 		objectsToExclude[0] = _pGameObject;
-		for (int i = 1; i < nBodiesToExclude + 1; ++i) objectsToExclude[i] = bodiesToExclude[i]->_pGameObject;
+		for (int i = 1; i < nObjects; ++i) objectsToExclude[i] = bodiesToExclude[i - 1]->_pGameObject;
 		auto otherGameObjects = GetGameObjects(_pGameObject->_pScene->_pRootGameObject, objectsToExclude, nObjects);
+
 		std::vector<CollisionContext> outCollisions;
 		for (int i = 0; i < otherGameObjects.size(); ++i) {
 			if (otherGameObjects[i]->_body._mesh._vertices.size() < 1) continue;
@@ -4664,10 +4676,12 @@ namespace Engine {
 	};
 
 	void CalculateTransmittedForceRecursively(RigidBody* transmitter, RigidBody* receiver, glm::vec3 transmitterVelocity, glm::vec3& collisionPosition, glm::vec3& collisionNormal, glm::vec3& outForce, std::vector<RigidBody*> consideredBodies) {
+		//if (transmitter->_pGameObject->_name == "StationaryCube" && receiver->_pGameObject->_name == "FreeCube") DebugBreak();
 		if (receiver->IsRotationLocked() && receiver->IsTranslationLocked()) { outForce = glm::vec3(0.0f, 0.0f, 0.0f); return; }
 		auto normalizedForce = outForce; glm::normalize(normalizedForce);
 		//outForce = RigidBody::CalculateTransmittedForce(collisionPosition, normalizedForce * glm::dot(transmitter->_mass * transmitterVelocity, collisionNormal), receiver->GetCenterOfMass(true));
-		outForce /= receiver->_mass;
+		auto scaleFactor = abs(glm::dot(transmitter->_mass * transmitterVelocity, collisionNormal));
+		if (scaleFactor > 0.0f) outForce *= scaleFactor;
 		consideredBodies.push_back(receiver);
 		auto collisions = receiver->DetectCollisions(consideredBodies.data(), consideredBodies.size());
 		for (int i = 0; i < collisions.size(); ++i) {
@@ -4678,10 +4692,17 @@ namespace Engine {
 	}
 
 	void RigidBody::PhysicsUpdate(EngineContext& eCtx) {
+		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
+		_forcesToApply.clear();
+
+		if (_isAffectedByGravity)
+			_forcesToApply.push_back(ForceCtx{ glm::vec3(0.0f, -10.0f, 0.0f), GetCenterOfMass(true), true, true, deltaTimeSeconds});
+
 		// Approximate air resistance/rotational friction.
 		auto airFrictionCoefficient = 0.09f;
 		auto frictionMultiplier = -airFrictionCoefficient / powf(_mass, 2.0f);
-		AddForce(_velocity * frictionMultiplier, true);
+		_forcesToApply.push_back
+			AddForce(_velocity * frictionMultiplier, true);
 		AddTorque(_angularVelocity * frictionMultiplier, true);
 
 		// Resolve collisions.
@@ -4722,15 +4743,21 @@ namespace Engine {
 			auto frictionComponent = !Helper::IsVectorZero(frictionForceDirection)
 				? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeFriction
 				: glm::vec3(0.0f, 0.0f, 0.0f);
-			AddForceAtPosition(bounceComponent - frictionComponent, averageCollisionPosition, true, true, false, 1.0f);
 
-			std::vector<RigidBody*> consideredBodies = { this };
-			auto transmittedForce = velocityAtPosition * _mass;
-			CalculateTransmittedForceRecursively(this, collisions[i]._collidee, GetVelocityAtPosition(collisions[i]._averagePosition), collisions[i]._averagePosition, collisions[i]._averageNormal, transmittedForce, consideredBodies);
-			collisions[i]._collidee->AddForceAtPosition(transmittedForce, averageCollisionPosition, true, true, false, 1.0f);
+			_forcesToApply.push_back(ForceCtx{ bounceComponent - frictionComponent, averageCollisionPosition, true, true, 1.0f });
+
+			//std::vector<RigidBody*> consideredBodies;
+			//auto transmittedForce = velocityAtPosition * _mass;
+			//CalculateTransmittedForceRecursively(this, collisions[i]._collidee, GetVelocityAtPosition(collisions[i]._averagePosition), collisions[i]._averagePosition, collisions[i]._averageNormal, transmittedForce, consideredBodies);
+			//collisions[i]._collidee->AddForceAtPosition(transmittedForce * deltaTimeBounce, averageCollisionPosition, true, true, false, 1.0f);
 		}
 
-		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
+		for (int i = 0; i < _forcesToApply.size(); ++i) {
+			auto& f = _forcesToApply[i];
+			AddForceAtPosition(f._force, f._pointOfApplication, f._isApplicationPointWorldSpace, f._isForceWorldSpace, f._deltaTimeSeconds);
+		}
+
+		
 		auto worldSpaceCom = glm::vec3(_pGameObject->GetWorldSpaceTransform()._matrix * glm::vec4(GetCenterOfMass(), 1.0f));
 		_pGameObject->_localTransform.RotateAroundPosition(worldSpaceCom, _angularVelocity, glm::length(_angularVelocity) * deltaTimeSeconds);
 		_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
@@ -4739,6 +4766,14 @@ namespace Engine {
 	bool RigidBody::IsRotationLocked() { return _lockRotationX && _lockRotationY && _lockRotationZ; }
 
 	bool RigidBody::IsTranslationLocked() { return _lockTranslationX && _lockTranslationY && _lockTranslationZ; }
+
+	void RigidBody::LockRotation() { _lockRotationX = true; _lockRotationY = true; _lockRotationZ = true; }
+
+	void RigidBody::LockTranslation() { _lockTranslationX = true; _lockTranslationY = true; _lockTranslationZ = true; }
+
+	void RigidBody::UnlockRotation() { _lockRotationX = false; _lockRotationY = false; _lockRotationZ = false; }
+
+	void RigidBody::UnlockTranslation() { _lockTranslationX = false; _lockTranslationY = false; _lockTranslationZ = false; }
 
 	/**
 	 * @brief Represents a three-dimensional bounding box.
@@ -6771,8 +6806,7 @@ namespace Engine {
 			eCtx->_scene.PhysicsUpdate(*eCtx);
 
 			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
-			freeCube->_body.AddForce({ 0.0f, gravity, 0.0f }, true);
-			stationaryCube->_body.AddForce({ 0.0f, gravity, 0.0f }, true);
+
 			//auto pos = (freeCube->_body._mesh._vertices[3]._position + freeCube->_body._mesh._vertices[9]._position + freeCube->_body._mesh._vertices[15]._position + freeCube->_body._mesh._vertices[21]._position) / 4.0f;
 			auto pos = freeCube->_body._mesh._vertices[3]._position;
 			auto pos1 = freeCube->_body._mesh._vertices[15]._position;
