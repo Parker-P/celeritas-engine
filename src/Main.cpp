@@ -3777,10 +3777,12 @@ namespace Engine {
 		 * @brief Lock rotation along the X axis.
 		 */
 		bool _lockRotationX;
+
 		/**
 		 * @brief Lock rotation along the Y axis.
 		 */
 		bool _lockRotationY;
+
 		/**
 		 * @brief Lock rotation along the Z axis.
 		 */
@@ -3790,10 +3792,12 @@ namespace Engine {
 		 * @brief Lock translation along the X axis.
 		 */
 		bool _lockTranslationX;
+
 		/**
 		 * @brief Lock translation along the Y axis.
 		 */
 		bool _lockTranslationY;
+
 		/**
 		 * @brief Lock translation along the Z axis.
 		 */
@@ -3851,9 +3855,9 @@ namespace Engine {
 
 		CollisionContext DetectCollision(RigidBody& other);
 
-		std::vector< GameObject*> GetGameObjects(GameObject* pRoot, GameObject** excludedObjects = 0, int nObjectsToExclude = 0);
+		std::vector< GameObject*> GetGameObjects(GameObject* pRoot, std::vector<GameObject*> excludedObjects = {});
 
-		std::vector<CollisionContext> DetectCollisions(RigidBody** bodiesToExclude = 0, int nBodiesToExclude = 0);
+		std::vector<CollisionContext> DetectCollisions(std::vector<RigidBody*> bodiesToExclude = {});
 
 		void Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = { 0.0f, 0.0f, 0.0f });
 
@@ -4406,25 +4410,24 @@ namespace Engine {
 		return outCtx;
 	}
 
-	std::vector<GameObject*> RigidBody::GetGameObjects(GameObject* pRoot, GameObject** excludedObjects, int nObjectsToExclude) {
+	std::vector<GameObject*> RigidBody::GetGameObjects(GameObject* pRoot, std::vector<GameObject*> excludedObjects) {
 		std::vector<GameObject*> outGameObjects;
-		for (int i = 0; i < nObjectsToExclude; ++i) if (excludedObjects[i] == pRoot) goto searchChildren;
+		for (int i = 0; i < excludedObjects.size(); ++i) if (excludedObjects[i] == pRoot) goto searchChildren;
 		outGameObjects.push_back(pRoot);
 
 	searchChildren:
 		for (int i = 0; i < pRoot->_children.size(); ++i) {
-			auto objects = GetGameObjects(pRoot->_children[i], excludedObjects, nObjectsToExclude);
+			auto objects = GetGameObjects(pRoot->_children[i], excludedObjects);
 			outGameObjects.insert(outGameObjects.end(), objects.begin(), objects.end());
 		}
 		return outGameObjects;
 	}
 
-	std::vector<CollisionContext> RigidBody::DetectCollisions(RigidBody** bodiesToExclude, int nBodiesToExclude) {
-		int nObjects = nBodiesToExclude + 1;
-		GameObject** objectsToExclude = (GameObject**)malloc(sizeof(GameObject*) * nObjects);
-		objectsToExclude[0] = _pGameObject;
-		for (int i = 1; i < nObjects; ++i) objectsToExclude[i] = bodiesToExclude[i - 1]->_pGameObject;
-		auto otherGameObjects = GetGameObjects(_pGameObject->_pScene->_pRootGameObject, objectsToExclude, nObjects);
+	std::vector<CollisionContext> RigidBody::DetectCollisions(std::vector<RigidBody*> bodiesToExclude) {
+		std::vector<GameObject*> gameObjectsToExclude;
+		gameObjectsToExclude.push_back(_pGameObject);
+		for (int i = 1; i < gameObjectsToExclude.size(); ++i) gameObjectsToExclude[i] = bodiesToExclude[i - 1]->_pGameObject;
+		auto otherGameObjects = GetGameObjects(_pGameObject->_pScene->_pRootGameObject, gameObjectsToExclude);
 
 		std::vector<CollisionContext> outCollisions;
 		for (int i = 0; i < otherGameObjects.size(); ++i) {
@@ -4698,7 +4701,7 @@ namespace Engine {
 		auto scaleFactor = abs(glm::dot(transmitter->_mass * transmitterVelocity, collisionNormal));
 		if (scaleFactor > 0.0f) outForce *= scaleFactor;
 		consideredBodies.push_back(receiver);
-		auto collisions = receiver->DetectCollisions(consideredBodies.data(), consideredBodies.size());
+		auto collisions = receiver->DetectCollisions(consideredBodies);
 		for (int i = 0; i < collisions.size(); ++i) {
 			collisions[i].CalculateAverages();
 			CalculateTransmittedForceRecursively(receiver, collisions[i]._collidee, receiver->GetVelocityAtPosition(collisions[i]._averagePosition), collisions[i]._averagePosition, collisions[i]._averageNormal, outForce, consideredBodies);
