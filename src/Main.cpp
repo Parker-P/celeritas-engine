@@ -3701,10 +3701,25 @@ namespace Engine {
 	struct ForceCtx {
 		glm::vec3 _force;
 		glm::vec3 _pointOfApplication;
-		bool _isApplicationPointWorldSpace;
-		bool _isForceWorldSpace;
 		float _deltaTimeSeconds;
+		bool _isTorque = false;
+		bool _ignoreMass = false;
+		bool _isApplicationPointWorldSpace = true;
+		bool _isForceWorldSpace = true;
+
+		ForceCtx(glm::vec3 force = glm::vec3(0.0f), glm::vec3 pointOfApplication = glm::vec3(0.0f), float deltaTimeSeconds = 0.0f, bool isTorque = false, bool ignoreMass = false, bool isApplicationPointWorldSpace = true, bool isForceWorldSpace = true) :
+			_force(force),
+			_pointOfApplication(pointOfApplication),
+			_deltaTimeSeconds(deltaTimeSeconds),
+			_isTorque(isTorque),
+			_ignoreMass(ignoreMass),
+			_isApplicationPointWorldSpace(isApplicationPointWorldSpace),
+			_isForceWorldSpace(isForceWorldSpace)
+		{
+		}
 	};
+
+	glm::vec3 gGravity = glm::vec3(0.0f, -10.0f, 0.0f);
 
 	/**
 	 * @brief Base class for a body that performs physics simulation.
@@ -3828,7 +3843,7 @@ namespace Engine {
 
 		glm::vec3 GetVelocityAtPosition(const glm::vec3& position);
 
-		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool isForceWorldSpace, const float& deltaTimeSeconds);
+		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, const float& deltaTimeSeconds, bool isApplicationPointWorldSpace = true, bool isForceWorldSpace = true, const bool& ignoreMass = false);
 
 		void AddForce(const glm::vec3& force, bool ignoreMass);
 
@@ -4292,18 +4307,18 @@ namespace Engine {
 		return linearVelocityContributionFromAngularVelocityAtPosition + _velocity;
 	}
 
-	void RigidBody::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, bool isApplicationPointWorldSpace, bool isForceWorldSpace, const float& deltaTimeSeconds) {
+	void RigidBody::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, const float& deltaTimeSeconds, bool isApplicationPointWorldSpace, bool isForceWorldSpace, const bool& ignoreMass) {
 		auto vertexCount = _mesh._vertices.size();
 		auto& vertices = _mesh._vertices;
 		auto worldSpaceTransform = _pGameObject->GetWorldSpaceTransform()._matrix;
 		auto worldSpaceForce = isForceWorldSpace ? force : glm::vec3(worldSpaceTransform * glm::vec4(force, 1.0f));
 
 		// First calculate the translation component of the force to apply.
-		auto worldSpaceCom = glm::vec3(worldSpaceTransform * glm::vec4(GetCenterOfMass(), 1.0f));
+		auto worldSpaceCom = GetCenterOfMass(true);
 		auto worldSpacePointOfApplication = isApplicationPointWorldSpace ? pointOfApplication : glm::vec3(worldSpaceTransform * glm::vec4(pointOfApplication, 1.0f));
 
 		glm::vec3 translationForce = CalculateTransmittedForce(worldSpacePointOfApplication, worldSpaceForce, worldSpaceCom);
-		glm::vec3 translationAcceleration = translationForce / _mass;
+		//if (ignoreMass) glm::vec3 translationAcceleration = translationForce / _mass;
 		glm::vec3 translationDelta = translationForce * deltaTimeSeconds;
 		translationDelta.x = _lockTranslationX ? 0.0f : translationDelta.x;
 		translationDelta.y = _lockTranslationY ? 0.0f : translationDelta.y;
@@ -4694,16 +4709,16 @@ namespace Engine {
 	void RigidBody::PhysicsUpdate(EngineContext& eCtx) {
 		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
 		_forcesToApply.clear();
+		auto wscom = GetCenterOfMass(true);
 
 		if (_isAffectedByGravity)
-			_forcesToApply.push_back(ForceCtx{ glm::vec3(0.0f, -10.0f, 0.0f), GetCenterOfMass(true), true, true, deltaTimeSeconds});
+			_forcesToApply.push_back(ForceCtx(gGravity, wscom, deltaTimeSeconds));
 
 		// Approximate air resistance/rotational friction.
 		auto airFrictionCoefficient = 0.09f;
 		auto frictionMultiplier = -airFrictionCoefficient / powf(_mass, 2.0f);
-		_forcesToApply.push_back
-			AddForce(_velocity * frictionMultiplier, true);
-		AddTorque(_angularVelocity * frictionMultiplier, true);
+		_forcesToApply.push_back(ForceCtx(_velocity * frictionMultiplier, wscom, deltaTimeSeconds));
+		_forcesToApply.push_back(ForceCtx(_angularVelocity * frictionMultiplier, wscom, deltaTimeSeconds, true, true));
 
 		// Resolve collisions.
 		auto collisions = DetectCollisions();
@@ -4744,7 +4759,7 @@ namespace Engine {
 				? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeFriction
 				: glm::vec3(0.0f, 0.0f, 0.0f);
 
-			_forcesToApply.push_back(ForceCtx{ bounceComponent - frictionComponent, averageCollisionPosition, true, true, 1.0f });
+			_forcesToApply.push_back(ForceCtx(bounceComponent - frictionComponent, averageCollisionPosition, 1.0f, false, false, true, true));
 
 			//std::vector<RigidBody*> consideredBodies;
 			//auto transmittedForce = velocityAtPosition * _mass;
@@ -4754,12 +4769,11 @@ namespace Engine {
 
 		for (int i = 0; i < _forcesToApply.size(); ++i) {
 			auto& f = _forcesToApply[i];
-			AddForceAtPosition(f._force, f._pointOfApplication, f._isApplicationPointWorldSpace, f._isForceWorldSpace, f._deltaTimeSeconds);
+			if (f._isTorque) AddTorque(f._force, f._ignoreMass);
+			else AddForceAtPosition(f._force, f._pointOfApplication, f._deltaTimeSeconds, f._isApplicationPointWorldSpace, f._isForceWorldSpace);
 		}
 
-		
-		auto worldSpaceCom = glm::vec3(_pGameObject->GetWorldSpaceTransform()._matrix * glm::vec4(GetCenterOfMass(), 1.0f));
-		_pGameObject->_localTransform.RotateAroundPosition(worldSpaceCom, _angularVelocity, glm::length(_angularVelocity) * deltaTimeSeconds);
+		_pGameObject->_localTransform.RotateAroundPosition(wscom, _angularVelocity, glm::length(_angularVelocity) * deltaTimeSeconds);
 		_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
 	}
 
@@ -6781,24 +6795,20 @@ namespace Engine {
 		freeCube->_body.Initialize(freeCube, vertices, freeCube->_pMesh->_faceIndices._indexData, 1.0f, false, { 0,0,0 });
 		freeCube->_body._bounciness = 0.5f;
 		freeCube->_body._friction = 30.0f;
+		freeCube->_body._isAffectedByGravity = true;
 
 		vertices.clear();
 		for (int i = 0; i < terrain->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(terrain->_pMesh->_vertices._vertexData[i]._position);
 		terrain->_body.Initialize(terrain, vertices, terrain->_pMesh->_faceIndices._indexData, 1.0f, false, { 0,0,0 });
-		terrain->_body._lockRotationX = true;
-		terrain->_body._lockRotationY = true;
-		terrain->_body._lockRotationZ = true;
-		terrain->_body._lockTranslationX = true;
-		terrain->_body._lockTranslationY = true;
-		terrain->_body._lockTranslationZ = true;
+		terrain->_body.LockRotation();
+		terrain->_body.LockTranslation();
 
 		vertices.clear();
 		for (int i = 0; i < stationaryCube->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(stationaryCube->_pMesh->_vertices._vertexData[i]._position);
 		stationaryCube->_body.Initialize(stationaryCube, vertices, stationaryCube->_pMesh->_faceIndices._indexData, 1.0f, false, { 0,0,0 });
 		stationaryCube->_body._bounciness = 0.5f;
 		stationaryCube->_body._friction = 8.0f;
-		float gravity = -10.0f;
-		bool wasCollidingLastFrame = false;
+		stationaryCube->_body._isAffectedByGravity = true;
 
 		while (!glfwWindowShouldClose(pWindow)) {
 			auto timePhysicsUpdateStart = std::chrono::high_resolution_clock::now();
