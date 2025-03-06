@@ -4718,9 +4718,9 @@ namespace Engine {
 	}
 
 	void RigidBody::PhysicsUpdate(EngineContext& eCtx) {
-		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
+		float deltaTimeSeconds = (float)eCtx._time._physicsDeltaTime * 0.001f;
 		if (IsRotationLocked() && IsTranslationLocked()) return;
-		if (_isColliding && glm::length(_velocity) < 2.0f) return;
+		if (_isColliding && glm::length(_velocity) < 0.8f) return;
 		if (_isAffectedByGravity) AddForce(gGravity, deltaTimeSeconds, true);
 
 		// Approximate air resistance/rotational friction.
@@ -4739,8 +4739,6 @@ namespace Engine {
 		}
 		else if (isOverCollisionThreshold) _isColliding = false;
 
-		if (_pGameObject->_name == "FreeCube") std::cout << _isColliding << std::endl;
-
 		for (int i = 0; i < collisions.size(); ++i) {
 			auto physicsDeltaTime = (float)eCtx._time._physicsDeltaTime;
 			collisions[i].CalculateAverages();
@@ -4751,7 +4749,7 @@ namespace Engine {
 			auto velocityLength = glm::length(velocityAtPosition);
 			auto velocityDirection = velocityAtPosition; glm::normalize(velocityDirection);
 
-			if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) break;
+			//if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) break;
 
 			CollisionContext collisionCtx = collisions[i];
 			// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
