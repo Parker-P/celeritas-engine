@@ -3698,7 +3698,7 @@ namespace Engine {
 		}
 	};
 
-	struct ForceCtx {
+	/*struct ForceCtx {
 		glm::vec3 _force;
 		glm::vec3 _pointOfApplication;
 		float _deltaTimeSeconds;
@@ -3717,7 +3717,7 @@ namespace Engine {
 			_isForceWorldSpace(isForceWorldSpace)
 		{
 		}
-	};
+	};*/
 
 	glm::vec3 gGravity = glm::vec3(0.0f, -10.0f, 0.0f);
 
@@ -3805,7 +3805,7 @@ namespace Engine {
 
 		bool _isAffectedByGravity;
 
-		std::vector<ForceCtx> _forcesToApply;
+		//std::vector<ForceCtx> _forcesToApply;
 
 		/**
 		 * @brief Physics mesh used as a bridge between this physics body and its visual counterpart.
@@ -3849,9 +3849,9 @@ namespace Engine {
 
 		void AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, const float& deltaTimeSeconds, bool isApplicationPointWorldSpace = true, bool isForceWorldSpace = true, const bool& ignoreMass = false);
 
-		void AddForce(const glm::vec3& force, bool ignoreMass);
+		void AddForce(const glm::vec3& force, const float& deltaTimeSeconds, const bool& ignoreMass = false);
 
-		void AddTorque(const glm::vec3& torqueWorldSpaceAxis, bool ignoreMass);
+		void AddTorque(const glm::vec3& torqueWorldSpaceAxis, const float& deltaTimeSeconds, const bool& ignoreMass = false);
 
 		CollisionContext DetectCollision(RigidBody& other);
 
@@ -4100,11 +4100,11 @@ namespace Engine {
 
 	Transform GameObject::GetWorldSpaceTransform() {
 		Transform outTransform;
-		GameObject current = *this;
-		outTransform._matrix *= current._localTransform._matrix;
-		while (current._pParent != nullptr) {
-			current = *current._pParent;
-			outTransform._matrix *= current._localTransform._matrix;
+		GameObject* current = this;
+		outTransform._matrix *= current->_localTransform._matrix;
+		while (current->_pParent != nullptr) {
+			current = current->_pParent;
+			outTransform._matrix *= current->_localTransform._matrix;
 		}
 		return outTransform;
 	}
@@ -4351,9 +4351,7 @@ namespace Engine {
 		_angularVelocity += rotationDelta;
 	}
 
-	void RigidBody::AddForce(const glm::vec3& force, bool ignoreMass) {
-		auto& time = Time::Instance();
-		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
+	void RigidBody::AddForce(const glm::vec3& force, const float& deltaTimeSeconds, const bool& ignoreMass) {
 		auto translationDelta = ignoreMass ? (force * deltaTimeSeconds) : ((force / _mass) * deltaTimeSeconds);
 		translationDelta.x = _lockTranslationX ? 0.0f : translationDelta.x;
 		translationDelta.y = _lockTranslationY ? 0.0f : translationDelta.y;
@@ -4361,9 +4359,7 @@ namespace Engine {
 		_velocity += translationDelta;
 	}
 
-	void RigidBody::AddTorque(const glm::vec3& torqueWorldSpaceAxis, bool ignoreMass) {
-		auto& time = Time::Instance();
-		float deltaTimeSeconds = (float)time._physicsDeltaTime * 0.001f;
+	void RigidBody::AddTorque(const glm::vec3& torqueWorldSpaceAxis, const float& deltaTimeSeconds, const bool& ignoreMass) {
 		auto rotationDelta = ignoreMass ? (torqueWorldSpaceAxis * deltaTimeSeconds) : ((torqueWorldSpaceAxis / _mass) * deltaTimeSeconds);
 		rotationDelta.x = _lockRotationX ? 0.0f : rotationDelta.x;
 		rotationDelta.y = _lockRotationY ? 0.0f : rotationDelta.y;
@@ -4711,17 +4707,16 @@ namespace Engine {
 
 	void RigidBody::PhysicsUpdate(EngineContext& eCtx) {
 		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
-		_forcesToApply.clear();
 		auto wscom = GetCenterOfMass(true);
 
 		if (_isAffectedByGravity)
-			_forcesToApply.push_back(ForceCtx(gGravity, wscom, deltaTimeSeconds));
+			AddForce(gGravity, true, deltaTimeSeconds);
 
 		// Approximate air resistance/rotational friction.
 		auto airFrictionCoefficient = 0.09f;
 		auto frictionMultiplier = -airFrictionCoefficient / powf(_mass, 2.0f);
-		_forcesToApply.push_back(ForceCtx(_velocity * frictionMultiplier, wscom, deltaTimeSeconds));
-		_forcesToApply.push_back(ForceCtx(_angularVelocity * frictionMultiplier, wscom, deltaTimeSeconds, true, true));
+		AddForce(_velocity * frictionMultiplier, deltaTimeSeconds);
+		AddTorque(_angularVelocity * frictionMultiplier, deltaTimeSeconds);
 
 		// Resolve collisions.
 		auto collisions = DetectCollisions();
@@ -4736,13 +4731,13 @@ namespace Engine {
 			auto velocityLength = glm::length(velocityAtPosition);
 			auto velocityDirection = velocityAtPosition; glm::normalize(velocityDirection);
 
-			if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) break;
+			//if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) break;
 
 			CollisionContext collisionCtx = collisions[i];
 			// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
 			// and make the collision detection seem more accurate.
 			auto translationDelta = velocityLength * physicsDeltaTime * 0.001f;
-			for (int i = 0; !collisionCtx._collisionPositions.empty() && i < 10 && !(_lockTranslationX && _lockTranslationY && _lockTranslationZ); ++i) {
+			for (int i = 0; !collisionCtx._collisionPositions.empty() && i < 10 && !IsRotationLocked(); ++i) {
 				// TODO: make this more accurate by also rotating the object backwards by its angular velocity.
 				_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
 				collisionCtx = DetectCollision(*collisionCtx._collidee);
@@ -4762,18 +4757,12 @@ namespace Engine {
 				? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeFriction
 				: glm::vec3(0.0f, 0.0f, 0.0f);
 
-			_forcesToApply.push_back(ForceCtx(bounceComponent - frictionComponent, averageCollisionPosition, 1.0f, false, false, true, true));
+			AddForceAtPosition(bounceComponent - frictionComponent, averageCollisionPosition, 1.0f);
 
 			//std::vector<RigidBody*> consideredBodies;
 			//auto transmittedForce = velocityAtPosition * _mass;
 			//CalculateTransmittedForceRecursively(this, collisions[i]._collidee, GetVelocityAtPosition(collisions[i]._averagePosition), collisions[i]._averagePosition, collisions[i]._averageNormal, transmittedForce, consideredBodies);
-			//collisions[i]._collidee->AddForceAtPosition(transmittedForce * deltaTimeBounce, averageCollisionPosition, true, true, false, 1.0f);
-		}
-
-		for (int i = 0; i < _forcesToApply.size(); ++i) {
-			auto& f = _forcesToApply[i];
-			if (f._isTorque) AddTorque(f._force, f._ignoreMass);
-			else AddForceAtPosition(f._force, f._pointOfApplication, f._deltaTimeSeconds, f._isApplicationPointWorldSpace, f._isForceWorldSpace);
+			//collisions[i]._collidee->AddForceAtPosition(velocityAtPosition * _mass * deltaTimeSeconds, averageCollisionPosition, true, true, false, 1.0f);
 		}
 
 		_pGameObject->_localTransform.RotateAroundPosition(wscom, _angularVelocity, glm::length(_angularVelocity) * deltaTimeSeconds);
