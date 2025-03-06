@@ -3805,6 +3805,18 @@ namespace Engine {
 
 		bool _isAffectedByGravity;
 
+		/**
+		 * @brief The cutoff time after which a collision becomes continuous or stops being continuous.
+		 */
+		int _continuousCollisionThresholdMilliseconds = 100;
+
+		std::chrono::high_resolution_clock::time_point _lastTimeCollided;
+
+		/**
+		 * @brief True if the body has been colliding for longer than the continuous collision threshold, and false if it has not been colliding for longer than said threshold.
+		 */
+		bool _isColliding = false;
+
 		//std::vector<ForceCtx> _forcesToApply;
 
 		/**
@@ -4707,10 +4719,9 @@ namespace Engine {
 
 	void RigidBody::PhysicsUpdate(EngineContext& eCtx) {
 		float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
-		auto wscom = GetCenterOfMass(true);
-
-		if (_isAffectedByGravity)
-			AddForce(gGravity, true, deltaTimeSeconds);
+		if (IsRotationLocked() && IsTranslationLocked()) return;
+		if (_isColliding && glm::length(_velocity) < 2.0f) return;
+		if (_isAffectedByGravity) AddForce(gGravity, deltaTimeSeconds, true);
 
 		// Approximate air resistance/rotational friction.
 		auto airFrictionCoefficient = 0.09f;
@@ -4720,6 +4731,15 @@ namespace Engine {
 
 		// Resolve collisions.
 		auto collisions = DetectCollisions();
+
+		bool isOverCollisionThreshold = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - _lastTimeCollided).count() > _continuousCollisionThresholdMilliseconds;
+		if (collisions.size() > 0) {
+			if (isOverCollisionThreshold) _isColliding = true;
+			_lastTimeCollided = std::chrono::high_resolution_clock::now();
+		}
+		else if (isOverCollisionThreshold) _isColliding = false;
+
+		if (_pGameObject->_name == "FreeCube") std::cout << _isColliding << std::endl;
 
 		for (int i = 0; i < collisions.size(); ++i) {
 			auto physicsDeltaTime = (float)eCtx._time._physicsDeltaTime;
@@ -4731,7 +4751,7 @@ namespace Engine {
 			auto velocityLength = glm::length(velocityAtPosition);
 			auto velocityDirection = velocityAtPosition; glm::normalize(velocityDirection);
 
-			//if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) break;
+			if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) break;
 
 			CollisionContext collisionCtx = collisions[i];
 			// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
@@ -4757,7 +4777,9 @@ namespace Engine {
 				? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeFriction
 				: glm::vec3(0.0f, 0.0f, 0.0f);
 
-			AddForceAtPosition(bounceComponent - frictionComponent, averageCollisionPosition, 1.0f);
+			auto force = bounceComponent - frictionComponent;
+			for (int j = 0; j < collisions[i]._collisionPositions.size(); ++j)
+				AddForceAtPosition(force / (float)collisions[i]._collisionPositions.size(), collisions[i]._collisionPositions[j], 1.0f);
 
 			//std::vector<RigidBody*> consideredBodies;
 			//auto transmittedForce = velocityAtPosition * _mass;
@@ -4765,6 +4787,7 @@ namespace Engine {
 			//collisions[i]._collidee->AddForceAtPosition(velocityAtPosition * _mass * deltaTimeSeconds, averageCollisionPosition, true, true, false, 1.0f);
 		}
 
+		auto wscom = GetCenterOfMass(true);
 		_pGameObject->_localTransform.RotateAroundPosition(wscom, _angularVelocity, glm::length(_angularVelocity) * deltaTimeSeconds);
 		_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
 	}
@@ -6828,12 +6851,12 @@ namespace Engine {
 				freeCube->_body.AddForceAtPosition(-f, pos1, true, true, false, deltaTimeSeconds);
 			}*/
 
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_SHIFT)) freeCube->_body.AddForce(up, false);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_ALT)) freeCube->_body.AddForce(-up, false);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_RIGHT)) freeCube->_body.AddForce(right, false);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT)) freeCube->_body.AddForce(-right, false);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_DOWN)) freeCube->_body.AddForce(-forward, false);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) freeCube->_body.AddForce(forward, false);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_SHIFT)) freeCube->_body.AddForce(up, deltaTimeSeconds);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_ALT)) freeCube->_body.AddForce(-up, deltaTimeSeconds);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_RIGHT)) freeCube->_body.AddForce(right, deltaTimeSeconds);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT)) freeCube->_body.AddForce(-right, deltaTimeSeconds);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_DOWN)) freeCube->_body.AddForce(-forward, deltaTimeSeconds);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) freeCube->_body.AddForce(forward, deltaTimeSeconds);
 		}
 	}
 
