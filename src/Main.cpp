@@ -4352,7 +4352,7 @@ namespace Engine {
 
 		auto comPerpendicularDirection = glm::normalize(glm::cross(positionToCom, rotationAxis));
 		auto rotationalForce = comPerpendicularDirection * glm::dot(comPerpendicularDirection, worldSpaceForce);
-		auto rotationalInertia = glm::length(positionToCom) * _mass;
+		auto rotationalInertia = powf(glm::length(positionToCom), 2.0f) * _mass;
 		// TODO: better approximation for rotational inertia.
 
 		auto angularAcceleration = glm::cross(rotationalForce, positionToCom) / rotationalInertia;
@@ -4716,7 +4716,7 @@ namespace Engine {
 	void RigidBody::PhysicsUpdate(EngineContext& eCtx) {
 		float deltaTimeSeconds = (float)eCtx._time._physicsDeltaTime * 0.001f;
 		if (IsRotationLocked() && IsTranslationLocked()) return;
-		//if (_isColliding && glm::length(_velocity) < 0.8f) return;
+		if (_isColliding && glm::length(_velocity) < 0.1f) return;
 		if (_isAffectedByGravity) AddForce(gGravity, deltaTimeSeconds, true);
 
 		// Approximate air resistance/rotational friction.
@@ -4739,7 +4739,6 @@ namespace Engine {
 		auto wscom = GetCenterOfMass(true);
 
 		for (int i = 0; i < collisions.size(); ++i) {
-			if (_pGameObject->_name == "FreeCube") std::cout << "--------------------------------------------------------------" << std::endl;
 			auto physicsDeltaTime = (float)eCtx._time._physicsDeltaTime;
 			collisions[i].CalculateAverages();
 			glm::vec3& averageCollisionPosition = collisions[i]._averagePosition;
@@ -4749,15 +4748,21 @@ namespace Engine {
 			auto velocityLength = glm::length(velocityAtPosition);
 			auto velocityDirection = velocityAtPosition; glm::normalize(velocityDirection);
 
-			if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) { continue; }
-			if (glm::dot(GetVelocityAtPosition(averageCollisionPosition), averageCollisionNormal) > 0) continue;
+			// Clamp angular velocity
+			if (glm::length(_angularVelocity) > 5.0f) {
+				glm::vec3 nrm; nrm.x = _angularVelocity.x; nrm.y = _angularVelocity.y; nrm.z = _angularVelocity.z;
+				nrm = glm::normalize(nrm);
+				_angularVelocity = nrm * 5.0f;
+			}
+
+			if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) continue;
+			if (glm::dot(velocityAtPosition, averageCollisionNormal) > 0) continue;
 
 			CollisionContext collisionCtx = collisions[i];
 			// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
 			// and make the collision detection seem more accurate.
 			auto translationDelta = velocityLength * physicsDeltaTime * 0.001f;
-			auto totalTranslation = translationDelta;
-			for (int i = 0; !collisionCtx._collisionPositions.empty() && i < 10 && !IsRotationLocked(); ++i, totalTranslation += translationDelta) {
+			for (int i = 0; !collisionCtx._collisionPositions.empty() && i < 10 && !IsRotationLocked(); ++i) {
 				// TODO: make this more accurate by also rotating the object backwards by its angular velocity.
 				_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
 				collisionCtx = DetectCollision(*collisionCtx._collidee);
@@ -4765,88 +4770,14 @@ namespace Engine {
 
 			auto frictionForceDirection = glm::cross(glm::cross(velocityAtPosition, averageCollisionNormal), averageCollisionNormal);
 			if (!Helper::IsVectorZero(frictionForceDirection)) frictionForceDirection = glm::normalize(frictionForceDirection);
-
-			// Add an opposing force to the object to approximate the surface pushing back on the object.
-			//auto deltaTimeFriction = physicsDeltaTime * 0.001f;
-			//auto deltaTimeBounce = physicsDeltaTime * 0.003f;
-			auto impactAngleMultiplier = glm::dot(-velocityDirection, averageCollisionNormal);
-			//impactAngleMultiplier = impactAngleMultiplier > 0.0f ? 0.0f : impactAngleMultiplier;
-			//impactAngleMultiplier = abs(impactAngleMultiplier);
-			//auto bounceComponent = averageCollisionNormal * _mass * impactAngleMultiplier * deltaTimeBounce;
 			auto frictionComponent = !Helper::IsVectorZero(frictionForceDirection)
 				? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeSeconds
 				: glm::vec3(0.0f, 0.0f, 0.0f);
 
-			//auto force = bounceComponent - frictionComponent;
-
-			auto positionToCom = wscom - averageCollisionPosition;
-			glm::normalize(positionToCom);
-
-			// Calculate the translational component and add it to the velocity.
-			auto acceleration = (averageCollisionNormal * glm::dot(averageCollisionNormal, -velocityAtPosition)) * glm::dot(averageCollisionNormal, positionToCom);
-			//if (glm::length(_velocity) < glm::length(acceleration))
-			//	_velocity += acceleration;
-
-				// Calculate the rotational component and add it to the angular velocity.
-			if (Helper::IsVectorZero(positionToCom, 0.001f)) return;
-
-			auto rotationAxis = -glm::normalize(glm::cross(positionToCom, averageCollisionNormal));
-			if (glm::isnan(rotationAxis.x) || glm::isnan(rotationAxis.y) || glm::isnan(rotationAxis.x)) return;
-			auto comPerpendicularDirection = glm::normalize(glm::cross(positionToCom, rotationAxis));
-			auto linearRotationalVelocity = comPerpendicularDirection * glm::dot(comPerpendicularDirection, -velocityAtPosition);
-			auto angularAcceleration = glm::length(linearRotationalVelocity / glm::length(positionToCom)) / velocityLength;
-			//if (glm::length(_angularVelocity) < angularAcceleration)
-			//	_angularVelocity += rotationAxis * angularAcceleration;
-
-			if (_pGameObject->_name == "FreeCube") std::cout << "Velocity before mess " << _velocity << " at position " << glm::length(velocityAtPosition) << std::endl;
-
-			int c = 0;
-			//while (glm::dot(newVelocity, averageCollisionNormal) < 0 && c < 5) {
-			if (_pGameObject->_name == "FreeCube") std::cout << "Adding force " << acceleration + linearRotationalVelocity << " at position " << glm::length(velocityAtPosition) << std::endl;
-				AddForceAtPosition(acceleration + linearRotationalVelocity, averageCollisionPosition, 1.0f);
-				//newVelocity = GetVelocityAtPosition(averageCollisionPosition);
-				//++c;
-			//}
-
-			auto newVelocity = GetVelocityAtPosition(averageCollisionPosition);
-			if (glm::length(newVelocity) > velocityLength) {
-				if (_pGameObject->_name == "FreeCube") std::cout << "Mess detected " << glm::length(newVelocity) << std::endl;
-				break;
-			}
-
-			// Clamp angular velocity
-			auto angVelLength = glm::length(_angularVelocity);
-			if (angVelLength > 5.0f) {
-				auto nrm = _angularVelocity; glm::normalize(nrm);
-				_angularVelocity = nrm * 5.0f;
-			}
-
-			if (_pGameObject->_name == "FreeCube") std::cout << "Velocity after mess " << newVelocity << " at position " << glm::length(newVelocity) << std::endl;
-			//++c; 
-			//}
-
-			/*if (glm::length(GetVelocityAtPosition(averageCollisionPosition)) > 50.0f) {
-				std::cout << "Velocity before mess " << velocityAtPosition << std::endl;
-				std::cout << "Velocity after mess " << GetVelocityAtPosition(averageCollisionPosition) << std::endl;
-			}*/
-
-			AddForceAtPosition(-frictionComponent * 10.0f, averageCollisionPosition, 1.0f);
-
-			/*if (glm::isnan(_velocity.x) || glm::isnan(_velocity.y) || glm::isnan(_velocity.z) || glm::isnan(_angularVelocity.x) || glm::isnan(_angularVelocity.y) || glm::isnan(_angularVelocity.z)) {
-				_velocity = velBefore;
-				_angularVelocity = angVelBefore;
-				break;
-			}*/
-
-			//_pGameObject->_localTransform.RotateAroundPosition(wscom, rotationAxis, angularAcceleration * deltaTimeSeconds);
-
-			//_angularVelocity += angularAcceleration * 0.3f;
-			//AddForce(-frictionComponent, 1.0f);
-
-			//std::vector<RigidBody*> consideredBodies;
-			//auto transmittedForce = velocityAtPosition * _mass;
-			//CalculateTransmittedForceRecursively(this, collisions[i]._collidee, GetVelocityAtPosition(collisions[i]._averagePosition), collisions[i]._averagePosition, collisions[i]._averageNormal, transmittedForce, consideredBodies);
-			//collisions[i]._collidee->AddForceAtPosition(velocityAtPosition * _mass * deltaTimeSeconds, averageCollisionPosition, true, true, false, 0.001f);
+			auto f = averageCollisionNormal * glm::dot(-velocityAtPosition, averageCollisionNormal) * 0.5f;
+			AddForceAtPosition(f, averageCollisionPosition, 1.0f);
+			collisions[i]._collidee->AddForceAtPosition(-f, averageCollisionPosition, 1.0f);
+			AddForceAtPosition(-frictionComponent * 4.0f, averageCollisionPosition, 1.0f);
 		}
 
 		_pGameObject->_localTransform.RotateAroundPosition(wscom, _angularVelocity, glm::length(_angularVelocity) * deltaTimeSeconds);
