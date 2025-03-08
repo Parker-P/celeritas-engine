@@ -924,8 +924,8 @@ NK_API void nk_glfw3_device_create(
     VkDeviceSize max_vertex_buffer, VkDeviceSize max_element_buffer,
     uint32_t framebuffer_width, uint32_t framebuffer_height) {
     struct nk_glfw_device *dev = &glfw.vulkan;
-    dev->max_vertex_buffer = max_vertex_buffer;
-    dev->max_element_buffer = max_element_buffer;
+    dev->max_vertex_buffer = (int)max_vertex_buffer;
+    dev->max_element_buffer = (int)max_element_buffer;
     nk_buffer_init_default(&dev->cmds);
     dev->logical_device = logical_device;
     dev->physical_device = physical_device;

@@ -3812,6 +3812,8 @@ namespace Engine {
 
 		std::chrono::high_resolution_clock::time_point _lastTimeCollided;
 
+		float _clampAngularVelocity = 2.0f;
+
 		/**
 		 * @brief True if the body has been colliding for longer than the continuous collision threshold, and false if it has not been colliding for longer than said threshold.
 		 */
@@ -4737,6 +4739,7 @@ namespace Engine {
 		auto wscom = GetCenterOfMass(true);
 
 		for (int i = 0; i < collisions.size(); ++i) {
+			if (_pGameObject->_name == "FreeCube") std::cout << "--------------------------------------------------------------" << std::endl;
 			auto physicsDeltaTime = (float)eCtx._time._physicsDeltaTime;
 			collisions[i].CalculateAverages();
 			glm::vec3& averageCollisionPosition = collisions[i]._averagePosition;
@@ -4746,19 +4749,19 @@ namespace Engine {
 			auto velocityLength = glm::length(velocityAtPosition);
 			auto velocityDirection = velocityAtPosition; glm::normalize(velocityDirection);
 
-			if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) break;
+			if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) { continue; }
+			if (glm::dot(GetVelocityAtPosition(averageCollisionPosition), averageCollisionNormal) > 0) continue;
 
 			CollisionContext collisionCtx = collisions[i];
 			// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
 			// and make the collision detection seem more accurate.
 			auto translationDelta = velocityLength * physicsDeltaTime * 0.001f;
-			for (int i = 0; !collisionCtx._collisionPositions.empty() && i < 10 && !IsRotationLocked(); ++i) {
+			auto totalTranslation = translationDelta;
+			for (int i = 0; !collisionCtx._collisionPositions.empty() && i < 10 && !IsRotationLocked(); ++i, totalTranslation += translationDelta) {
 				// TODO: make this more accurate by also rotating the object backwards by its angular velocity.
 				_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
 				collisionCtx = DetectCollision(*collisionCtx._collidee);
 			}
-
-			if (glm::dot(GetVelocityAtPosition(averageCollisionPosition), averageCollisionNormal) > 0) continue;
 
 			auto frictionForceDirection = glm::cross(glm::cross(velocityAtPosition, averageCollisionNormal), averageCollisionNormal);
 			if (!Helper::IsVectorZero(frictionForceDirection)) frictionForceDirection = glm::normalize(frictionForceDirection);
@@ -4780,30 +4783,35 @@ namespace Engine {
 			glm::normalize(positionToCom);
 
 			// Calculate the translational component and add it to the velocity.
-			/*auto acceleration = (averageCollisionNormal * glm::dot(averageCollisionNormal, -velocityAtPosition)) * glm::dot(averageCollisionNormal, positionToCom);
-			if (glm::length(_velocity) < glm::length(acceleration))
-				_velocity += acceleration;*/
+			auto acceleration = (averageCollisionNormal * glm::dot(averageCollisionNormal, -velocityAtPosition)) * glm::dot(averageCollisionNormal, positionToCom);
+			//if (glm::length(_velocity) < glm::length(acceleration))
+			//	_velocity += acceleration;
 
 				// Calculate the rotational component and add it to the angular velocity.
 			if (Helper::IsVectorZero(positionToCom, 0.001f)) return;
 
-			/*auto rotationAxis = -glm::normalize(glm::cross(positionToCom, averageCollisionNormal));
+			auto rotationAxis = -glm::normalize(glm::cross(positionToCom, averageCollisionNormal));
 			if (glm::isnan(rotationAxis.x) || glm::isnan(rotationAxis.y) || glm::isnan(rotationAxis.x)) return;
 			auto comPerpendicularDirection = glm::normalize(glm::cross(positionToCom, rotationAxis));
-			auto rotationalVelocity = comPerpendicularDirection * glm::dot(comPerpendicularDirection, -velocityAtPosition);
-			auto angularAcceleration = glm::length(rotationalVelocity / glm::length(positionToCom)) / velocityLength;
-			if (glm::length(_angularVelocity) < angularAcceleration)
-				_angularVelocity += rotationAxis * angularAcceleration;*/
+			auto linearRotationalVelocity = comPerpendicularDirection * glm::dot(comPerpendicularDirection, -velocityAtPosition);
+			auto angularAcceleration = glm::length(linearRotationalVelocity / glm::length(positionToCom)) / velocityLength;
+			//if (glm::length(_angularVelocity) < angularAcceleration)
+			//	_angularVelocity += rotationAxis * angularAcceleration;
 
-			if (_pGameObject->_name == "StationaryCube") std::cout << "Length before mess " << glm::length(velocityAtPosition) << std::endl;
-
-			auto velBefore = _velocity;
-			auto angVelBefore = _angularVelocity;
+			if (_pGameObject->_name == "FreeCube") std::cout << "Velocity before mess " << _velocity << " at position " << glm::length(velocityAtPosition) << std::endl;
 
 			int c = 0;
-			while (glm::dot(GetVelocityAtPosition(averageCollisionPosition), averageCollisionNormal) < 0 && c < 5) {
-				AddForceAtPosition(averageCollisionNormal * velocityLength * deltaTimeSeconds, averageCollisionPosition, 1.0f);
-				++c;
+			//while (glm::dot(newVelocity, averageCollisionNormal) < 0 && c < 5) {
+			if (_pGameObject->_name == "FreeCube") std::cout << "Adding force " << acceleration + linearRotationalVelocity << " at position " << glm::length(velocityAtPosition) << std::endl;
+				AddForceAtPosition(acceleration + linearRotationalVelocity, averageCollisionPosition, 1.0f);
+				//newVelocity = GetVelocityAtPosition(averageCollisionPosition);
+				//++c;
+			//}
+
+			auto newVelocity = GetVelocityAtPosition(averageCollisionPosition);
+			if (glm::length(newVelocity) > velocityLength) {
+				if (_pGameObject->_name == "FreeCube") std::cout << "Mess detected " << glm::length(newVelocity) << std::endl;
+				break;
 			}
 
 			// Clamp angular velocity
@@ -4813,7 +4821,7 @@ namespace Engine {
 				_angularVelocity = nrm * 5.0f;
 			}
 
-			if (_pGameObject->_name == "StationaryCube") std::cout << "Length after mess " << glm::length(GetVelocityAtPosition(averageCollisionPosition)) << std::endl;
+			if (_pGameObject->_name == "FreeCube") std::cout << "Velocity after mess " << newVelocity << " at position " << glm::length(newVelocity) << std::endl;
 			//++c; 
 			//}
 
@@ -6401,7 +6409,7 @@ namespace Engine {
 			pool_info.maxSets = 1;
 
 			std::vector<VkDescriptorSet> sets; sets.resize(actualImageCount);
-			for (int i = 0; i < actualImageCount; ++i) {
+			for (uint32_t i = 0; i < actualImageCount; ++i) {
 				VkDescriptorPool dp;
 				CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &pool_info, NULL, &dp));
 				sets[i] = VkHelper::AllocateDescriptorSet(ctx._logicalDevice, dp, uiDescriptorSetLayout._layout);
@@ -6667,7 +6675,7 @@ namespace Engine {
 	void InitializeNuklearUI(VkContext& ctx, VkRenderContext& rCtx) {
 		std::vector<VkImageView> views; views.resize(rCtx._overlayImages.size());
 		for (int i = 0; i < views.size(); ++i) views[i] = rCtx._overlayImages[i]._view;
-		rCtx._uiCtx = nk_glfw3_init(rCtx._pWindow, ctx._logicalDevice, ctx._physicalDevice, ctx._queueFamilyIndex, views.data(), views.size(), rCtx._swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
+		rCtx._uiCtx = nk_glfw3_init(rCtx._pWindow, ctx._logicalDevice, ctx._physicalDevice, ctx._queueFamilyIndex, views.data(), (uint32_t)views.size(), rCtx._swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
 	}
 
 	void InitializeEngine(VkContext* outCtx, VkRenderContext* outRenderCtx, EngineContext* outEngineCtx) {
@@ -6765,8 +6773,8 @@ namespace Engine {
 			nk_end(rCtx._uiCtx);*/
 
 			// Define the panel bounds to cover the entire screen
-			float windowWidth = rCtx._swapchain._framebufferSize.width;
-			float windowHeight = rCtx._swapchain._framebufferSize.height;
+			float windowWidth = (float)rCtx._swapchain._framebufferSize.width;
+			float windowHeight = (float)rCtx._swapchain._framebufferSize.height;
 
 			// Begin a panel with no title, no borders, and non-movable
 			if (nk_begin(rCtx._uiCtx, "Fullscreen Panel", nk_rect(0, 0, windowWidth, windowHeight), NK_WINDOW_NO_SCROLLBAR | NK_WINDOW_BACKGROUND)) {
