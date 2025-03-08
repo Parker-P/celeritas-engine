@@ -6607,6 +6607,28 @@ namespace Engine {
 		std::vector<VkImageView> views; views.resize(rCtx._overlayImages.size());
 		for (int i = 0; i < views.size(); ++i) views[i] = rCtx._overlayImages[i]._view;
 		rCtx._uiCtx = nk_glfw3_init(rCtx._pWindow, ctx._logicalDevice, ctx._physicalDevice, ctx._queueFamilyIndex, views.data(), (uint32_t)views.size(), rCtx._swapchain._surfaceFormat.format, NK_GLFW3_INSTALL_CALLBACKS, 512 * 1024, 128 * 1024);
+
+		/* Load Fonts: if none of these are loaded a default font will be used  */
+			/* Load Cursor: if you uncomment cursor loading please hide the cursor */
+		{
+			struct nk_font_atlas* atlas;
+			nk_glfw3_font_stash_begin(&atlas);
+			/*struct nk_font *droid = nk_font_atlas_add_from_file(atlas,
+			 * "../../../extra_font/DroidSans.ttf", 14, 0);*/
+			 /*struct nk_font *roboto = nk_font_atlas_add_from_file(atlas,
+			  * "../../../extra_font/Roboto-Regular.ttf", 14, 0);*/
+			  /*struct nk_font *future = nk_font_atlas_add_from_file(atlas,
+			   * "../../../extra_font/kenvector_future_thin.ttf", 13, 0);*/
+			   /*struct nk_font *clean = nk_font_atlas_add_from_file(atlas,
+				* "../../../extra_font/ProggyClean.ttf", 12, 0);*/
+				/*struct nk_font *tiny = nk_font_atlas_add_from_file(atlas,
+				 * "../../../extra_font/ProggyTiny.ttf", 10, 0);*/
+				 /*struct nk_font *cousine = nk_font_atlas_add_from_file(atlas,
+				  * "../../../extra_font/Cousine-Regular.ttf", 13, 0);*/
+			nk_glfw3_font_stash_end(ctx._queue);
+			/*nk_style_load_all_cursors(ctx, atlas->cursors);*/
+			/*nk_style_set_font(ctx, &droid->handle);*/
+		}
 	}
 
 	void InitializeEngine(VkContext* outCtx, VkRenderContext* outRenderCtx, EngineContext* outEngineCtx) {
@@ -6654,28 +6676,6 @@ namespace Engine {
 		{
 			if (!eCtx._input._cursorEnabled) goto skipUi;
 			nk_glfw3_new_frame();
-
-			/* Load Fonts: if none of these are loaded a default font will be used  */
-			/* Load Cursor: if you uncomment cursor loading please hide the cursor */
-			{
-				struct nk_font_atlas* atlas;
-				nk_glfw3_font_stash_begin(&atlas);
-				/*struct nk_font *droid = nk_font_atlas_add_from_file(atlas,
-				 * "../../../extra_font/DroidSans.ttf", 14, 0);*/
-				 /*struct nk_font *roboto = nk_font_atlas_add_from_file(atlas,
-				  * "../../../extra_font/Roboto-Regular.ttf", 14, 0);*/
-				  /*struct nk_font *future = nk_font_atlas_add_from_file(atlas,
-				   * "../../../extra_font/kenvector_future_thin.ttf", 13, 0);*/
-				   /*struct nk_font *clean = nk_font_atlas_add_from_file(atlas,
-					* "../../../extra_font/ProggyClean.ttf", 12, 0);*/
-					/*struct nk_font *tiny = nk_font_atlas_add_from_file(atlas,
-					 * "../../../extra_font/ProggyTiny.ttf", 10, 0);*/
-					 /*struct nk_font *cousine = nk_font_atlas_add_from_file(atlas,
-					  * "../../../extra_font/Cousine-Regular.ttf", 13, 0);*/
-				nk_glfw3_font_stash_end(ctx._queue);
-				/*nk_style_load_all_cursors(ctx, atlas->cursors);*/
-				/*nk_style_set_font(ctx, &droid->handle);*/
-			}
 
 			/* GUI */
 			/*if (nk_begin(rCtx._uiCtx, "Demo", nk_rect(50, 50, 230, 250),
