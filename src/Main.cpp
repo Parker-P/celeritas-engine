@@ -5070,10 +5070,36 @@ namespace Engine {
 			std::string name;
 			Node* parent;
 			std::vector<Node*> children;
+			GameObject* gameObject;
 		};
 
-		static GameObject* ProcessNode(Node node, tinygltf::Model& gltfScene, Scene& scene, VkContext& ctx) {
-			auto& gltfNode = gltfScene.nodes[node.gltfSceneIndex];
+		static void FindMesh() {};
+
+		static void ProcessGameConfig(Node* rootNode, tinygltf::Model& gltfScene) {
+			do {
+				if (rootNode->gltfSceneIndex < 0) break;
+				auto& gltfNode = gltfScene.nodes[rootNode->gltfSceneIndex];
+				if (gltfNode.extras.Keys().size() < 1) break;
+
+				auto gravityProp = gltfNode.extras.Get("EnableGravityP");
+				if (gravityProp.IsBool()) rootNode->gameObject->_body._isAffectedByGravity = gravityProp.Get<bool>();
+
+				auto frictionProp = gltfNode.extras.Get("FrictionP");
+				if (frictionProp.IsReal() || frictionProp.IsNumber() || frictionProp.IsInt()) rootNode->gameObject->_body._friction = (float)frictionProp.GetNumberAsDouble();
+
+				auto collisionMeshProp = gltfNode.extras.Get("CollisionMeshNameP");
+				std::string collisionMeshName = "";
+				if (collisionMeshProp.IsString()) collisionMeshName = collisionMeshProp.Get<std::string>();
+				if (collisionMeshName != "") FindMesh();
+			} while (false);
+
+			for (int i = 0; i < rootNode->children.size(); ++i) {
+				ProcessGameConfig(rootNode->children[i], gltfScene);
+			}
+		}
+
+		static GameObject* ProcessNode(Node* node, tinygltf::Model& gltfScene, Scene& scene, VkContext& ctx) {
+			auto& gltfNode = gltfScene.nodes[node->gltfSceneIndex];
 			auto gameObject = new GameObject(gltfNode.name, &scene);
 			auto gltfNodeTransform = GetGltfNodeTransform(gltfNode);
 			gameObject->_localTransform = gltfNodeTransform._matrix;
@@ -5081,20 +5107,18 @@ namespace Engine {
 			auto gltfMesh = gltfScene.meshes[gltfNode.mesh];
 			gameObject->_pMesh = ProcessMesh(gltfMesh, gltfScene, scene, ctx);
 			gameObject->_pMesh->_pGameObject = gameObject;
+
 			return gameObject;
 		}
 
-		static GameObject* ProcessNodeHierarchy(Node root, tinygltf::Model& gltfScene, Scene& scene, VkContext& ctx) {
+		static GameObject* ProcessNodeHierarchy(Node* root, tinygltf::Model& gltfScene, Scene& scene, VkContext& ctx) {
 			GameObject* outGameObject;
-			if (root.gltfSceneIndex >= 0) {
-				outGameObject = ProcessNode(root, gltfScene, scene, ctx);
-			}
-			else {
-				outGameObject = new GameObject("Root", &scene);
-			}
+			if (root->gltfSceneIndex >= 0) outGameObject = ProcessNode(root, gltfScene, scene, ctx);
+			else outGameObject = new GameObject("Root", &scene);
+			root->gameObject = outGameObject;
 
-			for (int i = 0; i < root.children.size(); ++i) {
-				auto child = ProcessNodeHierarchy(*root.children[i], gltfScene, scene, ctx);
+			for (int i = 0; i < root->children.size(); ++i) {
+				auto child = ProcessNodeHierarchy(root->children[i], gltfScene, scene, ctx);
 				child->_pParent = outGameObject;
 				outGameObject->_children.push_back(child);
 			}
@@ -5102,14 +5126,10 @@ namespace Engine {
 		}
 
 		static Node* FindExisting(Node* parent, int indexToFind) {
-			if (parent->gltfSceneIndex == indexToFind) {
-				return parent;
-			}
+			if (parent->gltfSceneIndex == indexToFind) return parent;
 			for (int i = 0; i < parent->children.size(); ++i) {
 				Node* found = FindExisting(parent->children[i], indexToFind);
-				if (found != nullptr) {
-					return found;
-				}
+				if (found != nullptr) return found;
 			}
 			return nullptr;
 		}
@@ -5117,14 +5137,12 @@ namespace Engine {
 		static void RemoveExisting(Node* parent, Node* toRemove) {
 			if (parent->parent != nullptr) {
 				auto nodeToRemove = std::find_if(parent->parent->children.begin(), parent->parent->children.end(), [toRemove](Node* n) {return n->gltfSceneIndex == toRemove->gltfSceneIndex; });
-				if (nodeToRemove != parent->parent->children.end()) {
+				if (nodeToRemove != parent->parent->children.end())
 					parent->parent->children.erase(nodeToRemove);
-				}
 			}
 
-			for (int i = 0; i < parent->children.size(); ++i) {
+			for (int i = 0; i < parent->children.size(); ++i)
 				RemoveExisting(parent->children[i], toRemove);
-			}
 		}
 
 		static Node* CreateNodeHierarchy(tinygltf::Model& gltfScene) {
@@ -5132,19 +5150,14 @@ namespace Engine {
 
 			for (int i = 0; i < gltfScene.nodes.size(); ++i) {
 				auto existing = FindExisting(root, i);
-				if (existing == nullptr) {
-					existing = new Node{ i, gltfScene.nodes[i].name, root, {} };
-				}
+				if (existing == nullptr) existing = new Node{ i, gltfScene.nodes[i].name, root, {} };
 
 				for (int j = 0; j < gltfScene.nodes[i].children.size(); ++j) {
 					auto childIndex = gltfScene.nodes[i].children[j];
 					auto existingChild = FindExisting(root, childIndex);
-					if (existingChild == nullptr) {
+					if (existingChild == nullptr)
 						existingChild = new Node{ childIndex, gltfScene.nodes[childIndex].name, existing, {} };
-					}
-					else {
-						RemoveExisting(root, existingChild);
-					}
+					else RemoveExisting(root, existingChild);
 
 					existing->children.push_back(existingChild);
 				}
@@ -5155,10 +5168,9 @@ namespace Engine {
 		}
 
 		static void DestroyNodeHierarchy(Node* root) {
-			for (int i = 0; i < root->children.size(); ++i) {
+			for (int i = 0; i < root->children.size(); ++i)
 				DestroyNodeHierarchy(root->children[i]);
-			}
-			free(root);
+			delete(root);
 			root = nullptr;
 		}
 
@@ -5182,7 +5194,8 @@ namespace Engine {
 			// Creates a hierarchy of nodes from the flat list of nodes that tinygltf's loader filled.
 			// This is done because the transforms of each node are relative to the parent, and having a tree-like structure makes it much easier to apply transforms hierarchically.
 			Node* rootNode = CreateNodeHierarchy(gltfScene);
-			scene._pRootGameObject = ProcessNodeHierarchy(*rootNode, gltfScene, scene, ctx);
+			scene._pRootGameObject = ProcessNodeHierarchy(rootNode, gltfScene, scene, ctx);
+			ProcessGameConfig(rootNode, gltfScene);
 			DestroyNodeHierarchy(rootNode);
 			rootNode = nullptr;
 
