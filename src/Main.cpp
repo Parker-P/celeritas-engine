@@ -4724,61 +4724,63 @@ namespace Engine {
 		auto frictionMultiplier = -airFrictionCoefficient / powf(_mass, 2.0f);
 		AddForce(_velocity * frictionMultiplier, deltaTimeSeconds);
 		AddTorque(_angularVelocity * frictionMultiplier, deltaTimeSeconds);
-
-		// Resolve collisions.
-		auto collisions = DetectCollisions();
-
-		// Detect continuous collision
-		bool isOverCollisionThreshold = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - _lastTimeCollided).count() > _continuousCollisionThresholdMilliseconds;
-		if (collisions.size() > 0) {
-			if (isOverCollisionThreshold) _isColliding = true;
-			_lastTimeCollided = std::chrono::high_resolution_clock::now();
-		}
-		else if (isOverCollisionThreshold) _isColliding = false;
-
 		auto wscom = GetCenterOfMass(true);
 
-		for (int i = 0; i < collisions.size(); ++i) {
-			auto physicsDeltaTime = (float)eCtx._time._physicsDeltaTime;
-			collisions[i].CalculateAverages();
-			glm::vec3& averageCollisionPosition = collisions[i]._averagePosition;
-			glm::vec3& averageCollisionNormal = collisions[i]._averageNormal;
+		// Resolve collisions.
+		do {
+			if (_isCollidable) break;
+			auto collisions = DetectCollisions();
 
-			auto velocityAtPosition = GetVelocityAtPosition(averageCollisionPosition);
-			auto velocityLength = glm::length(velocityAtPosition);
-			auto velocityDirection = velocityAtPosition; glm::normalize(velocityDirection);
-
-			// Clamp angular velocity
-			if (glm::length(_angularVelocity) > 5.0f) {
-				glm::vec3 nrm; nrm.x = _angularVelocity.x; nrm.y = _angularVelocity.y; nrm.z = _angularVelocity.z;
-				nrm = glm::normalize(nrm);
-				_angularVelocity = nrm * 5.0f;
+			// Detect continuous collision
+			bool isOverCollisionThreshold = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - _lastTimeCollided).count() > _continuousCollisionThresholdMilliseconds;
+			if (collisions.size() > 0) {
+				if (isOverCollisionThreshold) _isColliding = true;
+				_lastTimeCollided = std::chrono::high_resolution_clock::now();
 			}
+			else if (isOverCollisionThreshold) _isColliding = false;
 
-			if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) continue;
-			if (glm::dot(velocityAtPosition, averageCollisionNormal) > 0) continue;
+			for (int i = 0; i < collisions.size(); ++i) {
+				auto physicsDeltaTime = (float)eCtx._time._physicsDeltaTime;
+				collisions[i].CalculateAverages();
+				glm::vec3& averageCollisionPosition = collisions[i]._averagePosition;
+				glm::vec3& averageCollisionNormal = collisions[i]._averageNormal;
 
-			CollisionContext collisionCtx = collisions[i];
-			// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
-			// and make the collision detection seem more accurate.
-			auto translationDelta = velocityLength * physicsDeltaTime * 0.001f;
-			for (int i = 0; !collisionCtx._collisionPositions.empty() && i < 10 && !IsRotationLocked(); ++i) {
-				// TODO: make this more accurate by also rotating the object backwards by its angular velocity.
-				_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
-				collisionCtx = DetectCollision(*collisionCtx._collidee);
+				auto velocityAtPosition = GetVelocityAtPosition(averageCollisionPosition);
+				auto velocityLength = glm::length(velocityAtPosition);
+				auto velocityDirection = velocityAtPosition; glm::normalize(velocityDirection);
+
+				// Clamp angular velocity
+				if (glm::length(_angularVelocity) > 5.0f) {
+					glm::vec3 nrm; nrm.x = _angularVelocity.x; nrm.y = _angularVelocity.y; nrm.z = _angularVelocity.z;
+					nrm = glm::normalize(nrm);
+					_angularVelocity = nrm * 5.0f;
+				}
+
+				if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) continue;
+				if (glm::dot(velocityAtPosition, averageCollisionNormal) > 0) continue;
+
+				CollisionContext collisionCtx = collisions[i];
+				// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
+				// and make the collision detection seem more accurate.
+				auto translationDelta = velocityLength * physicsDeltaTime * 0.001f;
+				for (int i = 0; !collisionCtx._collisionPositions.empty() && i < 10 && !IsRotationLocked(); ++i) {
+					// TODO: make this more accurate by also rotating the object backwards by its angular velocity.
+					_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
+					collisionCtx = DetectCollision(*collisionCtx._collidee);
+				}
+
+				auto frictionForceDirection = glm::cross(glm::cross(velocityAtPosition, averageCollisionNormal), averageCollisionNormal);
+				if (!Helper::IsVectorZero(frictionForceDirection)) frictionForceDirection = glm::normalize(frictionForceDirection);
+				auto frictionComponent = !Helper::IsVectorZero(frictionForceDirection)
+					? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeSeconds
+					: glm::vec3(0.0f, 0.0f, 0.0f);
+
+				auto f = averageCollisionNormal * glm::dot(-velocityAtPosition, averageCollisionNormal) * 0.5f;
+				AddForceAtPosition(f, averageCollisionPosition, 1.0f);
+				collisions[i]._collidee->AddForceAtPosition(-f, averageCollisionPosition, 1.0f);
+				AddForceAtPosition(-frictionComponent * 4.0f, averageCollisionPosition, 1.0f);
 			}
-
-			auto frictionForceDirection = glm::cross(glm::cross(velocityAtPosition, averageCollisionNormal), averageCollisionNormal);
-			if (!Helper::IsVectorZero(frictionForceDirection)) frictionForceDirection = glm::normalize(frictionForceDirection);
-			auto frictionComponent = !Helper::IsVectorZero(frictionForceDirection)
-				? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeSeconds
-				: glm::vec3(0.0f, 0.0f, 0.0f);
-
-			auto f = averageCollisionNormal * glm::dot(-velocityAtPosition, averageCollisionNormal) * 0.5f;
-			AddForceAtPosition(f, averageCollisionPosition, 1.0f);
-			collisions[i]._collidee->AddForceAtPosition(-f, averageCollisionPosition, 1.0f);
-			AddForceAtPosition(-frictionComponent * 4.0f, averageCollisionPosition, 1.0f);
-		}
+		} while (false);
 
 		_pGameObject->_localTransform.RotateAroundPosition(wscom, _angularVelocity, glm::length(_angularVelocity) * deltaTimeSeconds);
 		_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
@@ -5070,31 +5072,43 @@ namespace Engine {
 			std::string name;
 			Node* parent;
 			std::vector<Node*> children;
-			GameObject* gameObject;
+			GameObject* pGameObject;
 		};
 
-		static void FindMesh() {};
+		static GameObject* FindGameObject(Node* rootNode, std::string name) {
+			if (rootNode->pGameObject->_name == name) return rootNode->pGameObject;
+			for (int i = 0; i < rootNode->children.size(); ++i) {
+				auto childSearchResult = FindGameObject(rootNode->children[i], name);
+				if (childSearchResult) return childSearchResult;
+			}
+			return nullptr;
+		}
 
-		static void ProcessGameConfig(Node* rootNode, tinygltf::Model& gltfScene) {
+		static void ProcessGameConfig(Node* rootNode, Node* currentNode, tinygltf::Model& gltfScene) {
 			do {
-				if (rootNode->gltfSceneIndex < 0) break;
-				auto& gltfNode = gltfScene.nodes[rootNode->gltfSceneIndex];
+				if (currentNode->gltfSceneIndex < 0) break;
+				auto& gltfNode = gltfScene.nodes[currentNode->gltfSceneIndex];
 				if (gltfNode.extras.Keys().size() < 1) break;
 
 				auto gravityProp = gltfNode.extras.Get("EnableGravityP");
-				if (gravityProp.IsBool()) rootNode->gameObject->_body._isAffectedByGravity = gravityProp.Get<bool>();
+				if (gravityProp.IsBool()) currentNode->pGameObject->_body._isAffectedByGravity = gravityProp.Get<bool>();
 
 				auto frictionProp = gltfNode.extras.Get("FrictionP");
-				if (frictionProp.IsReal() || frictionProp.IsNumber() || frictionProp.IsInt()) rootNode->gameObject->_body._friction = (float)frictionProp.GetNumberAsDouble();
+				if (frictionProp.IsReal() || frictionProp.IsNumber() || frictionProp.IsInt()) currentNode->pGameObject->_body._friction = (float)frictionProp.GetNumberAsDouble();
 
 				auto collisionMeshProp = gltfNode.extras.Get("CollisionMeshNameP");
 				std::string collisionMeshName = "";
 				if (collisionMeshProp.IsString()) collisionMeshName = collisionMeshProp.Get<std::string>();
-				if (collisionMeshName != "") FindMesh();
+				if (collisionMeshName != "") {
+					auto gameObject = FindGameObject(rootNode, collisionMeshName);
+					std::vector<glm::vec3> v;
+					for (int i = 0; i < gameObject->_pMesh->_vertices._vertexData.size(); ++i) v.push_back(gameObject->_pMesh->_vertices._vertexData[i]._position);
+					currentNode->pGameObject->_body.Initialize(currentNode->pGameObject, v, gameObject->_pMesh->_faceIndices._indexData, )
+				}
 			} while (false);
 
-			for (int i = 0; i < rootNode->children.size(); ++i) {
-				ProcessGameConfig(rootNode->children[i], gltfScene);
+			for (int i = 0; i < currentNode->children.size(); ++i) {
+				ProcessGameConfig(rootNode, currentNode->children[i], gltfScene);
 			}
 		}
 
@@ -5115,7 +5129,7 @@ namespace Engine {
 			GameObject* outGameObject;
 			if (root->gltfSceneIndex >= 0) outGameObject = ProcessNode(root, gltfScene, scene, ctx);
 			else outGameObject = new GameObject("Root", &scene);
-			root->gameObject = outGameObject;
+			root->pGameObject = outGameObject;
 
 			for (int i = 0; i < root->children.size(); ++i) {
 				auto child = ProcessNodeHierarchy(root->children[i], gltfScene, scene, ctx);
