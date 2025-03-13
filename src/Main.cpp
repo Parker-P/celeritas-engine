@@ -3898,6 +3898,7 @@ namespace Engine {
 	public:
 
 		Mesh() = default;
+		~Mesh();
 		int _materialIndex = 0;
 		GameObject* _pGameObject = nullptr;
 
@@ -4148,15 +4149,19 @@ namespace Engine {
 	}
 
 	void GameObject::Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer) {
-		vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &_shaderResources[1][0], 0, nullptr);
-
 		if (_pMesh != nullptr) {
+			vkCmdBindDescriptorSets(drawCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &_shaderResources[1][0], 0, nullptr);
 			_pMesh->Draw(pipelineLayout, drawCommandBuffer);
 		}
 
 		for (int i = 0; i < _children.size(); ++i) {
 			_children[i]->Draw(pipelineLayout, drawCommandBuffer);
 		}
+	}
+
+	Mesh::~Mesh()
+	{
+		// TODO
 	}
 
 	// Mesh
@@ -5109,10 +5114,16 @@ namespace Engine {
 
 				auto gameObject = FindGameObject(rootNode, collisionMeshName);
 				if (!gameObject) break;
-				
+
 				std::vector<glm::vec3> v;
+				std::vector<unsigned int> fi;
 				for (int i = 0; i < gameObject->_pMesh->_vertices._vertexData.size(); ++i) v.push_back(gameObject->_pMesh->_vertices._vertexData[i]._position);
-				currentNode->pGameObject->_body.Initialize(currentNode->pGameObject, v, gameObject->_pMesh->_faceIndices._indexData);
+				for (int i = 0; i < gameObject->_pMesh->_faceIndices._indexData.size(); ++i) fi.push_back(gameObject->_pMesh->_faceIndices._indexData[i]);
+				if (gameObject->_name != currentNode->name) {
+					delete(gameObject->_pMesh);
+					gameObject->_pMesh == nullptr;
+				}
+				currentNode->pGameObject->_body.Initialize(currentNode->pGameObject, v, fi);
 
 				// Additional init
 				currentNode->pGameObject->_body._friction = (float)GetNumberProperty(gltfNode, "Friction");
@@ -5137,6 +5148,8 @@ namespace Engine {
 			auto gameObject = new GameObject(gltfNode.name, &scene);
 			auto gltfNodeTransform = GetGltfNodeTransform(gltfNode);
 			gameObject->_localTransform = gltfNodeTransform._matrix;
+
+			if (gltfNode.mesh < 0) return gameObject;
 
 			auto gltfMesh = gltfScene.meshes[gltfNode.mesh];
 			gameObject->_pMesh = ProcessMesh(gltfMesh, gltfScene, scene, ctx);
