@@ -3873,7 +3873,10 @@ namespace Engine {
 
 		std::vector<CollisionContext> DetectCollisions(std::vector<RigidBody*> bodiesToExclude = {});
 
-		void Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = { 0.0f, 0.0f, 0.0f });
+		/**
+		 * @brief Basic init that guarantees the body's simulation.
+		 */
+		void Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass = 1.0f, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = { 0.0f, 0.0f, 0.0f });
 
 		void PhysicsUpdate(EngineContext& eCtx);
 
@@ -4453,12 +4456,9 @@ namespace Engine {
 		_mesh._faceIndices = faceIndices;
 
 		// TODO: Decide how you want to initialize your physics mesh.
-		for (int i = 0; i < vertices.size(); ++i) {
-			_mesh._vertices[i]._position = vertices[i];
-		}
+		for (int i = 0; i < vertices.size(); ++i) _mesh._vertices[i]._position = vertices[i];
 
 		memcpy(_mesh._faceIndices.data(), faceIndices.data(), GetVectorSizeInBytes(faceIndices));
-
 		_isInitialized = true;
 	}
 
@@ -4728,7 +4728,7 @@ namespace Engine {
 
 		// Resolve collisions.
 		do {
-			if (_isCollidable) break;
+			if (!_isCollidable) break;
 			auto collisions = DetectCollisions();
 
 			// Detect continuous collision
@@ -4737,7 +4737,7 @@ namespace Engine {
 				if (isOverCollisionThreshold) _isColliding = true;
 				_lastTimeCollided = std::chrono::high_resolution_clock::now();
 			}
-			else if (isOverCollisionThreshold) _isColliding = false;
+			else if (isOverCollisionThreshold) { _isColliding = false; break; }
 
 			for (int i = 0; i < collisions.size(); ++i) {
 				auto physicsDeltaTime = (float)eCtx._time._physicsDeltaTime;
@@ -4776,7 +4776,7 @@ namespace Engine {
 					: glm::vec3(0.0f, 0.0f, 0.0f);
 
 				auto f = averageCollisionNormal * glm::dot(-velocityAtPosition, averageCollisionNormal) * 0.5f;
-				AddForceAtPosition(f, averageCollisionPosition, 1.0f);
+				AddForceAtPosition(f, averageCollisionPosition, 1.0f, true, true, true);
 				collisions[i]._collidee->AddForceAtPosition(-f, averageCollisionPosition, 1.0f);
 				AddForceAtPosition(-frictionComponent * 4.0f, averageCollisionPosition, 1.0f);
 			}
@@ -5084,27 +5084,47 @@ namespace Engine {
 			return nullptr;
 		}
 
+		static bool GetBoolProperty(tinygltf::Node& node, const std::string& propertyName) {
+			auto p = node.extras.Get(propertyName);
+			if (p.IsBool()) return p.Get<bool>();
+			return false;
+		}
+
+		static double GetNumberProperty(tinygltf::Node& node, const std::string& propertyName) {
+			auto p = node.extras.Get(propertyName);
+			if (p.IsReal() || p.IsNumber() || p.IsInt()) return (double)p.GetNumberAsDouble();
+			return 0.0;
+		}
+
 		static void ProcessGameConfig(Node* rootNode, Node* currentNode, tinygltf::Model& gltfScene) {
 			do {
 				if (currentNode->gltfSceneIndex < 0) break;
 				auto& gltfNode = gltfScene.nodes[currentNode->gltfSceneIndex];
 				if (gltfNode.extras.Keys().size() < 1) break;
 
-				auto gravityProp = gltfNode.extras.Get("EnableGravityP");
-				if (gravityProp.IsBool()) currentNode->pGameObject->_body._isAffectedByGravity = gravityProp.Get<bool>();
-
-				auto frictionProp = gltfNode.extras.Get("FrictionP");
-				if (frictionProp.IsReal() || frictionProp.IsNumber() || frictionProp.IsInt()) currentNode->pGameObject->_body._friction = (float)frictionProp.GetNumberAsDouble();
-
-				auto collisionMeshProp = gltfNode.extras.Get("CollisionMeshNameP");
+				auto collisionMeshProp = gltfNode.extras.Get("CollisionMeshName");
 				std::string collisionMeshName = "";
 				if (collisionMeshProp.IsString()) collisionMeshName = collisionMeshProp.Get<std::string>();
-				if (collisionMeshName != "") {
-					auto gameObject = FindGameObject(rootNode, collisionMeshName);
-					std::vector<glm::vec3> v;
-					for (int i = 0; i < gameObject->_pMesh->_vertices._vertexData.size(); ++i) v.push_back(gameObject->_pMesh->_vertices._vertexData[i]._position);
-					currentNode->pGameObject->_body.Initialize(currentNode->pGameObject, v, gameObject->_pMesh->_faceIndices._indexData, )
-				}
+				if (collisionMeshName == "") break;
+
+				auto gameObject = FindGameObject(rootNode, collisionMeshName);
+				if (!gameObject) break;
+				
+				std::vector<glm::vec3> v;
+				for (int i = 0; i < gameObject->_pMesh->_vertices._vertexData.size(); ++i) v.push_back(gameObject->_pMesh->_vertices._vertexData[i]._position);
+				currentNode->pGameObject->_body.Initialize(currentNode->pGameObject, v, gameObject->_pMesh->_faceIndices._indexData);
+
+				// Additional init
+				currentNode->pGameObject->_body._friction = (float)GetNumberProperty(gltfNode, "Friction");
+				currentNode->pGameObject->_body._mass = (float)GetNumberProperty(gltfNode, "Mass");
+				currentNode->pGameObject->_body._isAffectedByGravity = GetBoolProperty(gltfNode, "EnableGravity");
+				currentNode->pGameObject->_body._isCollidable = GetBoolProperty(gltfNode, "IsCollidable");
+				currentNode->pGameObject->_body._lockRotationX = GetBoolProperty(gltfNode, "LockRotationX");
+				currentNode->pGameObject->_body._lockRotationY = GetBoolProperty(gltfNode, "LockRotationY");
+				currentNode->pGameObject->_body._lockRotationZ = GetBoolProperty(gltfNode, "LockRotationZ");
+				currentNode->pGameObject->_body._lockTranslationX = GetBoolProperty(gltfNode, "LockTranslationX");
+				currentNode->pGameObject->_body._lockTranslationY = GetBoolProperty(gltfNode, "LockTranslationY");
+				currentNode->pGameObject->_body._lockTranslationZ = GetBoolProperty(gltfNode, "LockTranslationZ");
 			} while (false);
 
 			for (int i = 0; i < currentNode->children.size(); ++i) {
@@ -5209,7 +5229,7 @@ namespace Engine {
 			// This is done because the transforms of each node are relative to the parent, and having a tree-like structure makes it much easier to apply transforms hierarchically.
 			Node* rootNode = CreateNodeHierarchy(gltfScene);
 			scene._pRootGameObject = ProcessNodeHierarchy(rootNode, gltfScene, scene, ctx);
-			ProcessGameConfig(rootNode, gltfScene);
+			ProcessGameConfig(rootNode, rootNode, gltfScene);
 			DestroyNodeHierarchy(rootNode);
 			rootNode = nullptr;
 
@@ -6815,34 +6835,10 @@ namespace Engine {
 		time.PhysicsUpdate(*eCtx);
 
 		GameObject* freeCube = nullptr;
-		GameObject* stationaryCube = nullptr;
-		GameObject* terrain = nullptr;
 
 		for (int i = 0; i < eCtx->_scene._pRootGameObject->_children.size(); ++i) {
 			if (eCtx->_scene._pRootGameObject->_children[i]->_name == "FreeCube") freeCube = eCtx->_scene._pRootGameObject->_children[i];
-			if (eCtx->_scene._pRootGameObject->_children[i]->_name == "StationaryCube") stationaryCube = eCtx->_scene._pRootGameObject->_children[i];
-			if (eCtx->_scene._pRootGameObject->_children[i]->_name == "Terrain") terrain = eCtx->_scene._pRootGameObject->_children[i];
 		}
-
-		std::vector<glm::vec3> vertices;
-		for (int i = 0; i < freeCube->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(freeCube->_pMesh->_vertices._vertexData[i]._position);
-		freeCube->_body.Initialize(freeCube, vertices, freeCube->_pMesh->_faceIndices._indexData, 1.0f, false, { 0,0,0 });
-		freeCube->_body._bounciness = 0.5f;
-		freeCube->_body._friction = 30.0f;
-		freeCube->_body._isAffectedByGravity = true;
-
-		vertices.clear();
-		for (int i = 0; i < terrain->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(terrain->_pMesh->_vertices._vertexData[i]._position);
-		terrain->_body.Initialize(terrain, vertices, terrain->_pMesh->_faceIndices._indexData, 1.0f, false, { 0,0,0 });
-		terrain->_body.LockRotation();
-		terrain->_body.LockTranslation();
-
-		vertices.clear();
-		for (int i = 0; i < stationaryCube->_pMesh->_vertices._vertexData.size(); ++i) vertices.push_back(stationaryCube->_pMesh->_vertices._vertexData[i]._position);
-		stationaryCube->_body.Initialize(stationaryCube, vertices, stationaryCube->_pMesh->_faceIndices._indexData, 1.0f, false, { 0,0,0 });
-		stationaryCube->_body._bounciness = 0.5f;
-		stationaryCube->_body._friction = 8.0f;
-		stationaryCube->_body._isAffectedByGravity = true;
 
 		while (!glfwWindowShouldClose(pWindow)) {
 			auto timePhysicsUpdateStart = std::chrono::high_resolution_clock::now();
@@ -6870,12 +6866,12 @@ namespace Engine {
 				freeCube->_body.AddForceAtPosition(-f, pos1, true, true, false, deltaTimeSeconds);
 			}*/
 
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_SHIFT)) freeCube->_body.AddForce(up, deltaTimeSeconds);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_ALT)) freeCube->_body.AddForce(-up, deltaTimeSeconds);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_RIGHT)) freeCube->_body.AddForce(right, deltaTimeSeconds);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT)) freeCube->_body.AddForce(-right, deltaTimeSeconds);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_DOWN)) freeCube->_body.AddForce(-forward, deltaTimeSeconds);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) freeCube->_body.AddForce(forward, deltaTimeSeconds);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_SHIFT)) freeCube->_body.AddForce(up, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_ALT)) freeCube->_body.AddForce(-up, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_RIGHT)) freeCube->_body.AddForce(right, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT)) freeCube->_body.AddForce(-right, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_DOWN)) freeCube->_body.AddForce(-forward, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) freeCube->_body.AddForce(forward, deltaTimeSeconds, true);
 		}
 	}
 
