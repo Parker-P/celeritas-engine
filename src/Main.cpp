@@ -4022,10 +4022,8 @@ namespace Engine {
 
 		ShaderResources CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts) {
 			for (auto& gameObject : _pRootGameObject->_children) {
-				if (gameObject->_pMesh != nullptr) {
-					auto gameObjectResources = gameObject->CreateDescriptorSets(ctx, layouts);
-					_shaderResources.MergeResources(gameObjectResources);
-				}
+				auto gameObjectResources = gameObject->CreateDescriptorSets(ctx, layouts);
+				_shaderResources.MergeResources(gameObjectResources);
 			}
 
 			for (auto& light : _pointLights) {
@@ -4106,8 +4104,10 @@ namespace Engine {
 		auto descriptorSets = std::vector<VkDescriptorSet>{ descriptorSet };
 		_shaderResources._data.try_emplace(layouts[descriptorSetID], descriptorSets);
 
-		auto meshResources = _pMesh->CreateDescriptorSets(ctx, layouts);
-		_shaderResources.MergeResources(meshResources);
+		if (_pMesh) {
+			auto meshResources = _pMesh->CreateDescriptorSets(ctx, layouts);
+			_shaderResources.MergeResources(meshResources);
+		}
 
 		for (auto& child : _children) {
 			auto childResources = child->CreateDescriptorSets(ctx, layouts);
@@ -5121,7 +5121,7 @@ namespace Engine {
 				for (int i = 0; i < gameObject->_pMesh->_faceIndices._indexData.size(); ++i) fi.push_back(gameObject->_pMesh->_faceIndices._indexData[i]);
 				if (gameObject->_name != currentNode->name) {
 					delete(gameObject->_pMesh);
-					gameObject->_pMesh == nullptr;
+					gameObject->_pMesh = nullptr;
 				}
 				currentNode->pGameObject->_body.Initialize(currentNode->pGameObject, v, fi);
 
@@ -6847,10 +6847,10 @@ namespace Engine {
 		auto& time = Time::Instance();
 		time.PhysicsUpdate(*eCtx);
 
-		GameObject* freeCube = nullptr;
+		GameObject* mp5k = nullptr;
 
 		for (int i = 0; i < eCtx->_scene._pRootGameObject->_children.size(); ++i) {
-			if (eCtx->_scene._pRootGameObject->_children[i]->_name == "FreeCube") freeCube = eCtx->_scene._pRootGameObject->_children[i];
+			if (eCtx->_scene._pRootGameObject->_children[i]->_name == "MP5K") mp5k = eCtx->_scene._pRootGameObject->_children[i];
 		}
 
 		while (!glfwWindowShouldClose(pWindow)) {
@@ -6861,9 +6861,9 @@ namespace Engine {
 			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
 
 			//auto pos = (freeCube->_body._mesh._vertices[3]._position + freeCube->_body._mesh._vertices[9]._position + freeCube->_body._mesh._vertices[15]._position + freeCube->_body._mesh._vertices[21]._position) / 4.0f;
-			auto pos = freeCube->_body._mesh._vertices[3]._position;
-			auto pos1 = freeCube->_body._mesh._vertices[15]._position;
-			auto wst = freeCube->GetWorldSpaceTransform()._matrix;
+			auto pos = mp5k->_body._mesh._vertices[3]._position;
+			auto pos1 = mp5k->_body._mesh._vertices[15]._position;
+			auto wst = mp5k->GetWorldSpaceTransform()._matrix;
 			pos = glm::vec3(wst * glm::vec4(pos, 1.0f));
 			pos1 = glm::vec3(wst * glm::vec4(pos1, 1.0f));
 			glm::vec3 up = { 0.0f, 12.0f, 0.0f };
@@ -6879,12 +6879,12 @@ namespace Engine {
 				freeCube->_body.AddForceAtPosition(-f, pos1, true, true, false, deltaTimeSeconds);
 			}*/
 
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_SHIFT)) freeCube->_body.AddForce(up, deltaTimeSeconds, true);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_ALT)) freeCube->_body.AddForce(-up, deltaTimeSeconds, true);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_RIGHT)) freeCube->_body.AddForce(right, deltaTimeSeconds, true);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT)) freeCube->_body.AddForce(-right, deltaTimeSeconds, true);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_DOWN)) freeCube->_body.AddForce(-forward, deltaTimeSeconds, true);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) freeCube->_body.AddForce(forward, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_SHIFT)) mp5k->_body.AddForce(up, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_ALT)) mp5k->_body.AddForce(-up, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_RIGHT)) mp5k->_body.AddForce(right, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT)) mp5k->_body.AddForce(-right, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_DOWN)) mp5k->_body.AddForce(-forward, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) mp5k->_body.AddForce(forward, deltaTimeSeconds, true);
 		}
 	}
 
