@@ -1135,8 +1135,7 @@ namespace Engine {
 		}
 
 		void RotateAroundPosition(const glm::vec3& positionWorldSpace, const glm::vec3& axisWorldSpace, const float& angleRadians) {
-			if (angleRadians == 0) { return; }
-
+			if (angleRadians == 0) return;
 			auto rotation = MakeQuaternionRotation(axisWorldSpace, angleRadians);
 			auto currentPosition = Position();
 			SetPosition(positionWorldSpace + (rotation * (currentPosition - positionWorldSpace)));
@@ -4119,16 +4118,17 @@ namespace Engine {
 	Transform GameObject::GetWorldSpaceTransform() {
 		Transform outTransform;
 		GameObject* current = this;
-		outTransform._matrix *= current->_localTransform._matrix;
-		while (current->_pParent != nullptr) {
-			current = current->_pParent;
+		do {
 			outTransform._matrix *= current->_localTransform._matrix;
-		}
+			current = current->_pParent;
+		} while (current->_pParent != nullptr);
+		outTransform.SetPosition(glm::vec3(_pParent->_localTransform._matrix * glm::vec4(_localTransform.Position(), 1.0f)));
 		return outTransform;
 	}
 
 	void GameObject::UpdateShaderResources() {
-		_gameObjectData.transform = GetWorldSpaceTransform()._matrix;
+		auto worldTransform = GetWorldSpaceTransform()._matrix;
+		_gameObjectData.transform = worldTransform;
 		memcpy(_buffers[0]._cpuMemory, &_gameObjectData, sizeof(_gameObjectData));
 	}
 
@@ -4787,7 +4787,7 @@ namespace Engine {
 			}
 		} while (false);
 
-		_pGameObject->_localTransform.RotateAroundPosition(wscom, _angularVelocity, glm::length(_angularVelocity) * deltaTimeSeconds);
+		_pGameObject->_localTransform.RotateAroundPosition(wscom, glm::normalize(_angularVelocity), glm::length(_angularVelocity) * deltaTimeSeconds);
 		_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
 	}
 
@@ -4931,114 +4931,112 @@ namespace Engine {
 		}
 
 		static Mesh* ProcessMesh(tinygltf::Mesh& gltfMesh, tinygltf::Model& gltfScene, Scene& scene, VkContext& ctx) {
-			for (auto& gltfPrimitive : gltfMesh.primitives) {
+			if (gltfMesh.primitives.size() < 1) return nullptr;
 
-				auto faceIndicesAccessorIndex = gltfPrimitive.indices;
-				auto vertexPositionsAccessorIndex = gltfPrimitive.attributes["POSITION"];
-				auto vertexNormalsAccessorIndex = gltfPrimitive.attributes["NORMAL"];
-				auto uvCoords0AccessorIndex = gltfPrimitive.attributes["TEXCOORD_0"];
-				//auto uvCoords1AccessorIndex = gltfPrimitive.attributes["TEXCOORD_1"];
-				//auto uvCoords2AccessorIndex = gltfPrimitive.attributes["TEXCOORD_2"];
+			auto& gltfPrimitive = gltfMesh.primitives[0];
+			auto faceIndicesAccessorIndex = gltfPrimitive.indices;
+			auto vertexPositionsAccessorIndex = gltfPrimitive.attributes["POSITION"];
+			auto vertexNormalsAccessorIndex = gltfPrimitive.attributes["NORMAL"];
+			auto uvCoords0AccessorIndex = gltfPrimitive.attributes["TEXCOORD_0"];
+			//auto uvCoords1AccessorIndex = gltfPrimitive.attributes["TEXCOORD_1"];
+			//auto uvCoords2AccessorIndex = gltfPrimitive.attributes["TEXCOORD_2"];
 
-				auto faceIndicesAccessor = gltfScene.accessors[faceIndicesAccessorIndex];
-				auto positionsAccessor = gltfScene.accessors[vertexPositionsAccessorIndex];
-				auto normalsAccessor = gltfScene.accessors[vertexNormalsAccessorIndex];
-				auto uvCoords0Accessor = gltfScene.accessors[uvCoords0AccessorIndex];
-				//auto uvCoords1Accessor = gltfScene.accessors[uvCoords1AccessorIndex];
-				//auto uvCoords2Accessor = gltfScene.accessors[uvCoords2AccessorIndex];
+			auto faceIndicesAccessor = gltfScene.accessors[faceIndicesAccessorIndex];
+			auto positionsAccessor = gltfScene.accessors[vertexPositionsAccessorIndex];
+			auto normalsAccessor = gltfScene.accessors[vertexNormalsAccessorIndex];
+			auto uvCoords0Accessor = gltfScene.accessors[uvCoords0AccessorIndex];
+			//auto uvCoords1Accessor = gltfScene.accessors[uvCoords1AccessorIndex];
+			//auto uvCoords2Accessor = gltfScene.accessors[uvCoords2AccessorIndex];
 
-				// Load face indices.
-				auto faceIndicesCount = faceIndicesAccessor.count;
-				auto faceIndicesBufferIndex = gltfScene.bufferViews[faceIndicesAccessor.bufferView].buffer;
-				auto faceIndicesBufferOffset = gltfScene.bufferViews[faceIndicesAccessor.bufferView].byteOffset;
-				auto faceIndicesBufferStride = faceIndicesAccessor.ByteStride(gltfScene.bufferViews[faceIndicesAccessor.bufferView]);
-				auto faceIndicesBufferSizeBytes = faceIndicesCount * faceIndicesBufferStride;
-				std::vector<unsigned int> faceIndices(faceIndicesCount);
-				if (faceIndicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
-					for (int i = 0; i < faceIndicesCount; ++i) {
-						unsigned short index = 0;
-						memcpy(&index, gltfScene.buffers[faceIndicesBufferIndex].data.data() + faceIndicesBufferOffset + i * faceIndicesBufferStride, faceIndicesBufferStride);
-						faceIndices[i] = index;
-					}
+			// Load face indices.
+			auto faceIndicesCount = faceIndicesAccessor.count;
+			auto faceIndicesBufferIndex = gltfScene.bufferViews[faceIndicesAccessor.bufferView].buffer;
+			auto faceIndicesBufferOffset = gltfScene.bufferViews[faceIndicesAccessor.bufferView].byteOffset;
+			auto faceIndicesBufferStride = faceIndicesAccessor.ByteStride(gltfScene.bufferViews[faceIndicesAccessor.bufferView]);
+			auto faceIndicesBufferSizeBytes = faceIndicesCount * faceIndicesBufferStride;
+			std::vector<unsigned int> faceIndices(faceIndicesCount);
+			if (faceIndicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+				for (int i = 0; i < faceIndicesCount; ++i) {
+					unsigned short index = 0;
+					memcpy(&index, gltfScene.buffers[faceIndicesBufferIndex].data.data() + faceIndicesBufferOffset + i * faceIndicesBufferStride, faceIndicesBufferStride);
+					faceIndices[i] = index;
 				}
-				else if (faceIndicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
-					memcpy(faceIndices.data(), gltfScene.buffers[faceIndicesBufferIndex].data.data() + faceIndicesBufferOffset, faceIndicesBufferSizeBytes);
-				}
-
-				// Load vertex Positions.
-				auto vertexPositionsCount = positionsAccessor.count;
-				auto vertexPositionsBufferIndex = gltfScene.bufferViews[positionsAccessor.bufferView].buffer;
-				auto vertexPositionsBufferOffset = gltfScene.bufferViews[positionsAccessor.bufferView].byteOffset;
-				auto vertexPositionsBufferStride = positionsAccessor.ByteStride(gltfScene.bufferViews[positionsAccessor.bufferView]);
-				auto vertexPositionsBufferSizeBytes = vertexPositionsCount * vertexPositionsBufferStride;
-				std::vector<glm::vec3> vertexPositions(vertexPositionsCount);
-				memcpy(vertexPositions.data(), gltfScene.buffers[vertexPositionsBufferIndex].data.data() + vertexPositionsBufferOffset, vertexPositionsBufferSizeBytes);
-
-				// Load vertex normals.
-				auto vertexNormalsCount = normalsAccessor.count;
-				auto vertexNormalsBufferIndex = gltfScene.bufferViews[normalsAccessor.bufferView].buffer;
-				auto vertexNormalsBufferOffset = gltfScene.bufferViews[normalsAccessor.bufferView].byteOffset;
-				auto vertexNormalsBufferStride = normalsAccessor.ByteStride(gltfScene.bufferViews[normalsAccessor.bufferView]);
-				auto vertexNormalsBufferSizeBytes = vertexNormalsCount * vertexNormalsBufferStride;
-				std::vector<glm::vec3> vertexNormals(vertexNormalsCount);
-				memcpy(vertexNormals.data(), gltfScene.buffers[vertexNormalsBufferIndex].data.data() + vertexNormalsBufferOffset, vertexNormalsBufferSizeBytes);
-
-				// Load UV coordinates for UV slot 0.
-				auto uvCoords0Count = uvCoords0Accessor.count;
-				auto uvCoords0BufferIndex = gltfScene.bufferViews[uvCoords0Accessor.bufferView].buffer;
-				auto uvCoords0BufferOffset = gltfScene.bufferViews[uvCoords0Accessor.bufferView].byteOffset;
-				auto uvCoords0BufferStride = uvCoords0Accessor.ByteStride(gltfScene.bufferViews[uvCoords0Accessor.bufferView]);
-				auto uvCoords0BufferSize = uvCoords0Count * uvCoords0BufferStride;
-				std::vector<glm::vec2> uvCoords0(uvCoords0Count);
-				memcpy(uvCoords0.data(), gltfScene.buffers[uvCoords0BufferIndex].data.data() + uvCoords0BufferOffset, uvCoords0BufferSize);
-
-				auto mesh = new Mesh();
-
-				bool found = false;
-				if (gltfPrimitive.material >= 0) {
-					for (int i = 0; i < scene._materials.size() && !found; ++i) {
-						if (scene._materials[i]._name == gltfScene.materials[gltfPrimitive.material].name) {
-							mesh->_materialIndex = i;
-							found = true;
-						}
-					}
-					if (!found) {
-						mesh->_materialIndex = 0;
-					}
-				}
-
-				// Gather vertices and face indices.
-				std::vector<Vertex> vertices;
-				vertices.resize(vertexPositions.size());
-				for (int i = 0; i < vertexPositions.size(); ++i) {
-					Vertex v;
-
-					// Transform all 3D space vectors into the engine's coordinate system (X Right, Y Up, Z forward).
-					/*auto position = GltfToEngine()._matrix * glm::vec4(vertexPositions[i], 1.0f);
-					auto normal = GltfToEngine()._matrix * glm::vec4(vertexNormals[i], 1.0f);;*/
-
-					vertexPositions[i].x = -vertexPositions[i].x;
-					vertexNormals[i].x = -vertexNormals[i].x;
-
-					// Set the vertex attributes.
-					/*v._position = glm::vec3(position);
-					v._normal = glm::vec3(normal);*/
-					v._position = vertexPositions[i];
-					v._normal = vertexNormals[i];
-					v._uvCoord = uvCoords0[i];
-					vertices[i] = v;
-				}
-
-				// Copy vertices to the GPU.
-				mesh->CreateVertexBuffer(ctx, vertices);
-
-				// Copy face indices to the GPU.
-				mesh->CreateIndexBuffer(ctx, faceIndices);
-
-				return mesh;
+			}
+			else if (faceIndicesAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
+				memcpy(faceIndices.data(), gltfScene.buffers[faceIndicesBufferIndex].data.data() + faceIndicesBufferOffset, faceIndicesBufferSizeBytes);
 			}
 
-			return nullptr;
+			// Load vertex Positions.
+			auto vertexPositionsCount = positionsAccessor.count;
+			auto vertexPositionsBufferIndex = gltfScene.bufferViews[positionsAccessor.bufferView].buffer;
+			auto vertexPositionsBufferOffset = gltfScene.bufferViews[positionsAccessor.bufferView].byteOffset;
+			auto vertexPositionsBufferStride = positionsAccessor.ByteStride(gltfScene.bufferViews[positionsAccessor.bufferView]);
+			auto vertexPositionsBufferSizeBytes = vertexPositionsCount * vertexPositionsBufferStride;
+			std::vector<glm::vec3> vertexPositions(vertexPositionsCount);
+			memcpy(vertexPositions.data(), gltfScene.buffers[vertexPositionsBufferIndex].data.data() + vertexPositionsBufferOffset, vertexPositionsBufferSizeBytes);
+
+			// Load vertex normals.
+			auto vertexNormalsCount = normalsAccessor.count;
+			auto vertexNormalsBufferIndex = gltfScene.bufferViews[normalsAccessor.bufferView].buffer;
+			auto vertexNormalsBufferOffset = gltfScene.bufferViews[normalsAccessor.bufferView].byteOffset;
+			auto vertexNormalsBufferStride = normalsAccessor.ByteStride(gltfScene.bufferViews[normalsAccessor.bufferView]);
+			auto vertexNormalsBufferSizeBytes = vertexNormalsCount * vertexNormalsBufferStride;
+			std::vector<glm::vec3> vertexNormals(vertexNormalsCount);
+			memcpy(vertexNormals.data(), gltfScene.buffers[vertexNormalsBufferIndex].data.data() + vertexNormalsBufferOffset, vertexNormalsBufferSizeBytes);
+
+			// Load UV coordinates for UV slot 0.
+			auto uvCoords0Count = uvCoords0Accessor.count;
+			auto uvCoords0BufferIndex = gltfScene.bufferViews[uvCoords0Accessor.bufferView].buffer;
+			auto uvCoords0BufferOffset = gltfScene.bufferViews[uvCoords0Accessor.bufferView].byteOffset;
+			auto uvCoords0BufferStride = uvCoords0Accessor.ByteStride(gltfScene.bufferViews[uvCoords0Accessor.bufferView]);
+			auto uvCoords0BufferSize = uvCoords0Count * uvCoords0BufferStride;
+			std::vector<glm::vec2> uvCoords0(uvCoords0Count);
+			memcpy(uvCoords0.data(), gltfScene.buffers[uvCoords0BufferIndex].data.data() + uvCoords0BufferOffset, uvCoords0BufferSize);
+
+			auto mesh = new Mesh();
+
+			bool found = false;
+			if (gltfPrimitive.material >= 0) {
+				for (int i = 0; i < scene._materials.size() && !found; ++i) {
+					if (scene._materials[i]._name == gltfScene.materials[gltfPrimitive.material].name) {
+						mesh->_materialIndex = i;
+						found = true;
+					}
+				}
+				if (!found) {
+					mesh->_materialIndex = 0;
+				}
+			}
+
+			// Gather vertices and face indices.
+			std::vector<Vertex> vertices;
+			vertices.resize(vertexPositions.size());
+			for (int i = 0; i < vertexPositions.size(); ++i) {
+				Vertex v;
+
+				// Transform all 3D space vectors into the engine's coordinate system (X Right, Y Up, Z forward).
+				/*auto position = GltfToEngine()._matrix * glm::vec4(vertexPositions[i], 1.0f);
+				auto normal = GltfToEngine()._matrix * glm::vec4(vertexNormals[i], 1.0f);;*/
+
+				vertexPositions[i].x = -vertexPositions[i].x;
+				vertexNormals[i].x = -vertexNormals[i].x;
+
+				// Set the vertex attributes.
+				/*v._position = glm::vec3(position);
+				v._normal = glm::vec3(normal);*/
+				v._position = vertexPositions[i];
+				v._normal = vertexNormals[i];
+				v._uvCoord = uvCoords0[i];
+				vertices[i] = v;
+			}
+
+			// Copy vertices to the GPU.
+			mesh->CreateVertexBuffer(ctx, vertices);
+
+			// Copy face indices to the GPU.
+			mesh->CreateIndexBuffer(ctx, faceIndices);
+
+			return mesh;
 		}
 
 		static Transform GetGltfNodeTransform(tinygltf::Node& gltfNode) {
@@ -5065,9 +5063,9 @@ namespace Engine {
 				outTransform._matrix *= r._matrix;
 			}
 
-			/*if (sc.size() == 3) {
-				gameObject._transform.SetScale(glm::vec3{ sc[0], sc[1], sc[2] });
-			}*/
+			if (sc.size() == 3) {
+				outTransform.SetScale(glm::vec3{ sc[0], sc[1], sc[2] });
+			}
 
 			return outTransform;
 		}
@@ -5119,10 +5117,10 @@ namespace Engine {
 				std::vector<unsigned int> fi;
 				for (int i = 0; i < gameObject->_pMesh->_vertices._vertexData.size(); ++i) v.push_back(gameObject->_pMesh->_vertices._vertexData[i]._position);
 				for (int i = 0; i < gameObject->_pMesh->_faceIndices._indexData.size(); ++i) fi.push_back(gameObject->_pMesh->_faceIndices._indexData[i]);
-				if (gameObject->_name != currentNode->name) {
+				/*if (gameObject->_name != currentNode->name) {
 					delete(gameObject->_pMesh);
 					gameObject->_pMesh = nullptr;
-				}
+				}*/
 				currentNode->pGameObject->_body.Initialize(currentNode->pGameObject, v, fi);
 
 				// Additional init
@@ -6850,7 +6848,7 @@ namespace Engine {
 		GameObject* mp5k = nullptr;
 
 		for (int i = 0; i < eCtx->_scene._pRootGameObject->_children.size(); ++i) {
-			if (eCtx->_scene._pRootGameObject->_children[i]->_name == "MP5K") mp5k = eCtx->_scene._pRootGameObject->_children[i];
+			if (eCtx->_scene._pRootGameObject->_children[i]->_name == "MP5KCollision") mp5k = eCtx->_scene._pRootGameObject->_children[i];
 		}
 
 		while (!glfwWindowShouldClose(pWindow)) {
@@ -6860,12 +6858,14 @@ namespace Engine {
 
 			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
 
+			if (!mp5k) continue;
+
 			//auto pos = (freeCube->_body._mesh._vertices[3]._position + freeCube->_body._mesh._vertices[9]._position + freeCube->_body._mesh._vertices[15]._position + freeCube->_body._mesh._vertices[21]._position) / 4.0f;
-			auto pos = mp5k->_body._mesh._vertices[3]._position;
+			/*auto pos = mp5k->_body._mesh._vertices[3]._position;
 			auto pos1 = mp5k->_body._mesh._vertices[15]._position;
 			auto wst = mp5k->GetWorldSpaceTransform()._matrix;
 			pos = glm::vec3(wst * glm::vec4(pos, 1.0f));
-			pos1 = glm::vec3(wst * glm::vec4(pos1, 1.0f));
+			pos1 = glm::vec3(wst * glm::vec4(pos1, 1.0f));*/
 			glm::vec3 up = { 0.0f, 12.0f, 0.0f };
 			glm::vec3 right = { 12.0f, 0.0f, 0.0f };
 			glm::vec3 forward = { 0.0f, 0.0f, 12.0f };
@@ -6879,6 +6879,8 @@ namespace Engine {
 				freeCube->_body.AddForceAtPosition(-f, pos1, true, true, false, deltaTimeSeconds);
 			}*/
 
+			//if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_SHIFT)) mp5k->_body.AddTorque(right, deltaTimeSeconds, true);
+			//if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_ALT)) mp5k->_body.AddTorque(-right, deltaTimeSeconds, true);
 			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_SHIFT)) mp5k->_body.AddForce(up, deltaTimeSeconds, true);
 			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_ALT)) mp5k->_body.AddForce(-up, deltaTimeSeconds, true);
 			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_RIGHT)) mp5k->_body.AddForce(right, deltaTimeSeconds, true);
