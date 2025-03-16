@@ -1918,6 +1918,7 @@ namespace Engine {
 		}
 	};
 
+
 	// All the data that this boxblur application needs to do its thing.
 	class BoxBlur {
 
@@ -4334,8 +4335,6 @@ namespace Engine {
 	}
 
 	void RigidBody::AddForceAtPosition(const glm::vec3& force, const glm::vec3& pointOfApplication, const float& deltaTimeSeconds, bool isApplicationPointWorldSpace, bool isForceWorldSpace, const bool& ignoreMass) {
-		auto vertexCount = _mesh._vertices.size();
-		auto& vertices = _mesh._vertices;
 		auto worldSpaceTransform = _pGameObject->GetWorldSpaceTransform()._matrix;
 		auto worldSpaceForce = isForceWorldSpace ? force : glm::vec3(worldSpaceTransform * glm::vec4(force, 1.0f));
 
@@ -4450,8 +4449,71 @@ namespace Engine {
 		return outCollisions;
 	}
 
+	void RemoveDuplicateVertices(std::vector<glm::vec3>& vertices, std::vector<uint32_t>& faceIndices, float tolerance = 0.001f) {
+		// Custom hash function for approximate position
+		struct Vec3Hash {
+			float tolerance;
+			Vec3Hash(float tol) : tolerance(tol) {}
+
+			size_t operator()(const glm::vec3& v) const {
+				// Quantize coordinates based on tolerance
+				int x = static_cast<int>(v.x / tolerance);
+				int y = static_cast<int>(v.y / tolerance);
+				int z = static_cast<int>(v.z / tolerance);
+
+				size_t h1 = std::hash<int>{}(x);
+				size_t h2 = std::hash<int>{}(y);
+				size_t h3 = std::hash<int>{}(z);
+				return h1 ^ (h2 << 1) ^ (h3 << 2);
+			}
+		};
+
+		// Custom equality comparison with tolerance
+		struct Vec3Equal {
+			float tolerance;
+			Vec3Equal(float tol) : tolerance(tol) {}
+
+			bool operator()(const glm::vec3& a, const glm::vec3& b) const {
+				return glm::length(a - b) <= tolerance;
+			}
+		};
+
+		// Create map with custom hash and equality functions
+		std::unordered_map<glm::vec3, uint32_t, Vec3Hash, Vec3Equal> vertexMap(
+			0, Vec3Hash(tolerance), Vec3Equal(tolerance)
+		);
+
+		std::vector<glm::vec3> newVertices;
+		std::vector<uint32_t> indexMap(vertices.size());
+
+		// First pass: identify unique vertices and build mapping
+		uint32_t newIndex = 0;
+		for (uint32_t i = 0; i < vertices.size(); ++i) {
+			const glm::vec3& v = vertices[i];
+			auto it = vertexMap.find(v);
+
+			if (it == vertexMap.end()) {
+				// New unique vertex (within tolerance)
+				vertexMap[v] = newIndex;
+				indexMap[i] = newIndex;
+				newVertices.push_back(v);
+				newIndex++;
+			}
+			else {
+				// Vertex within tolerance of existing vertex
+				indexMap[i] = it->second;
+			}
+		}
+
+		// Second pass: update face indices
+		for (uint32_t& index : faceIndices) index = indexMap[index];
+		vertices = std::move(newVertices);
+	}
+
 	void RigidBody::Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass) {
 		if (mass <= 0.001f || vertices.size() < 1 || faceIndices.size() < 1) return;
+
+		RemoveDuplicateVertices(vertices, faceIndices);
 
 		_pGameObject = pGameObject;
 		_mass = mass;
@@ -4466,6 +4528,143 @@ namespace Engine {
 		memcpy(_mesh._faceIndices.data(), faceIndices.data(), GetVectorSizeInBytes(faceIndices));
 		_isInitialized = true;
 	}
+
+	struct CollisionDetector {
+		int GetComputeQueueFamilyIndex(const VkPhysicalDevice& physicalDevice) {
+			//find a queue family for a selected GPU, select the first available for use
+			uint32_t queueFamilyCount;
+			vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, NULL);
+
+			VkQueueFamilyProperties* queueFamilies = (VkQueueFamilyProperties*)malloc(sizeof(VkQueueFamilyProperties) * queueFamilyCount);
+
+			vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies);
+			uint32_t i = 0;
+			for (; i < queueFamilyCount; i++) {
+				VkQueueFamilyProperties props = queueFamilies[i];
+				if (props.queueCount > 0 && (props.queueFlags & VK_QUEUE_COMPUTE_BIT)) break;
+			}
+			free(queueFamilies);
+			if (i == queueFamilyCount) return -1;
+			return i;
+		}
+
+		VkDevice CreateNewComputeDevice(VkDevice& device, VkPhysicalDevice& physicalDevice, VkQueue& outComputeQueue, uint32_t& outComputeQueueFamiltIndex) {
+			VkDevice outComputeDevice;
+			int computeFamilyIndex = GetComputeQueueFamilyIndex(physicalDevice);
+			if (computeFamilyIndex < 0) return 0;
+			vkGetDeviceQueue(device, computeFamilyIndex, 0, &outComputeQueue);
+			if (!outComputeQueue) { std::cout << "Failed to get compute queue" << std::endl; return 0; }
+
+			float queuePriorities = 1.0;
+			VkDeviceQueueCreateInfo deviceQueueCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+					(const void*)NULL,
+					(VkDeviceQueueCreateFlags)0,
+					(uint32_t)computeFamilyIndex,
+					(uint32_t)1,
+					(const float*)&queuePriorities };
+
+			VkPhysicalDeviceFeatures physicalDeviceFeatures = { 0 };
+			physicalDeviceFeatures.shaderFloat64 = VK_TRUE;//this enables double precision support in shaders 
+
+			VkDeviceCreateInfo deviceCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+					(const void*)NULL,
+					(VkDeviceCreateFlags)0,
+					(uint32_t)1,
+					(const VkDeviceQueueCreateInfo*)&deviceQueueCreateInfo,
+					(uint32_t)0,
+					(const char* const*)NULL,
+					(uint32_t)0,
+					(const char* const*)NULL,
+					(const VkPhysicalDeviceFeatures*)&physicalDeviceFeatures };
+
+			vkCreateDevice(physicalDevice, &deviceCreateInfo, NULL, &outComputeDevice);
+			return outComputeDevice;
+		}
+
+		void InitializeVulkan(VkDevice& device, VkPhysicalDevice physicalDevice) {
+			// Create logical device representation.
+			VkContext ctx;
+			ctx._logicalDevice = CreateNewComputeDevice(device, physicalDevice, ctx._queue, ctx._queueFamilyIndex);
+			if (!ctx._logicalDevice) { std::cout << "Failed to create compute device" << std::endl; return; }
+
+			// Create a fence for synchronization.
+			VkFenceCreateInfo fenceCreateInfo = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, 0 };
+			if (vkCreateFence(ctx._logicalDevice, &fenceCreateInfo, NULL, &ctx._queueFence)) { std::cout << "Fence creation failed." << std::endl; }
+
+			// Create a structure from which command buffer memory is allocated from.
+			VkCommandPoolCreateInfo commandPoolCreateInfo = { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, NULL, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, ctx._queueFamilyIndex };
+			if (vkCreateCommandPool(ctx._logicalDevice, &commandPoolCreateInfo, NULL, &ctx._commandPool)) { std::cout << "Command Pool Creation failed." << std::endl; }
+		}
+
+		void CalculateWorkGroupCountAndSize(VkPhysicalDeviceProperties& gpuProperties, int minimumThreadCount, uint32_t* outWorkGroupSize, uint32_t* outWorkGroupCount) {
+			// Prepare variables.
+			uint32_t maxWorkGroupInvocations = gpuProperties.limits.maxComputeWorkGroupInvocations;
+			uint32_t* maxWorkGroupSize = gpuProperties.limits.maxComputeWorkGroupSize;
+			uint32_t* maxWorkGroupCount = gpuProperties.limits.maxComputeWorkGroupCount;
+
+			// Use the work group size first, as that directly controls the amount of threads 1 to 1.
+			uint32_t totalWorkGroupSize = outWorkGroupSize[0] * outWorkGroupSize[1] * outWorkGroupSize[2];
+			for (int i = 0; i < 3; ++i) {
+				for (; outWorkGroupSize[i] < maxWorkGroupSize[i]; ++outWorkGroupSize[i]) {
+					totalWorkGroupSize = outWorkGroupSize[0] * outWorkGroupSize[1] * outWorkGroupSize[2];
+					if (totalWorkGroupSize >= minimumThreadCount || totalWorkGroupSize == maxWorkGroupInvocations) { break; }
+				}
+			}
+
+			// If one workgroup still doesn't do it, use multiple workgroups with the size of each one calculated earlier.
+			if (totalWorkGroupSize < minimumThreadCount) {
+				for (int i = 0; i < 3; ++i) {
+					for (; outWorkGroupCount[i] < maxWorkGroupCount[i]; ++outWorkGroupCount[i]) {
+						if (((outWorkGroupCount[0] * outWorkGroupCount[1] * outWorkGroupCount[2]) * totalWorkGroupSize) >= minimumThreadCount) { break; }
+					}
+				}
+			}
+		}
+
+		void Run(VkDevice& device, VkPhysicalDevice& physicalDevice, RigidBody& bodyA, RigidBody& bodyB) {
+			InitializeVulkan(device, physicalDevice);
+
+			// Get device properties and memory properties, if needed.
+			VkPhysicalDeviceProperties gpuProperties;
+			VkPhysicalDeviceMemoryProperties gpuMemoryProperties;
+			vkGetPhysicalDeviceProperties(physicalDevice, &gpuProperties);
+			vkGetPhysicalDeviceMemoryProperties(physicalDevice, &gpuMemoryProperties);
+
+			//uint32_t inputAndOutputBufferSizeInBytes = (uint32_t)(imageWidthPixels * imageHeightPixels) * 4;
+
+			// Prepare the input and output buffers.
+			/*_inputBufferCount = (uint32_t)(imageWidthPixels * imageHeightPixels);
+			_inputBuffer;
+			_inputBufferDeviceMemory;
+			_outputBufferCount = _inputBufferCount;
+			_outputBuffer;
+			_outputBufferDeviceMemory;*/
+
+			// Calculate how many workgroups and the size of each workgroup we are going to use.
+			// We want one GPU thread to operate on a single value from the input buffer, so the required thread size is the input buffer size.
+			uint32_t workGroupSize[3] = { 1,1,1 };
+			uint32_t workGroupCount[3] = { 1,1,1 };
+			CalculateWorkGroupCountAndSize(gpuProperties, 15, workGroupSize, workGroupCount);
+
+			//use default values if coalescedMemory = 0
+			//if (_coalescedMemory == 0) {
+			//	switch (_physicalDeviceProperties.vendorID) {
+			//	case 0x10DE://NVIDIA - change to 128 before Pascal
+			//		_coalescedMemory = 32;
+			//		break;
+			//	case 0x8086://INTEL
+			//		_coalescedMemory = 64;
+			//		break;
+			//	case 0x13B5://AMD
+			//		_coalescedMemory = 64;
+			//		break;
+			//	default:
+			//		_coalescedMemory = 64;
+			//		break;
+			//	}
+			//}
+		}
+	};
 
 	/**
 	 * @brief Represents a general-purpose camera.
