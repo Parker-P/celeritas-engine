@@ -796,7 +796,7 @@ namespace Engine {
 			bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 			bufferInfo.size = size;
 			bufferInfo.usage = usage;
-			bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // Single queue family access
+			bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 			CheckResult(vkCreateBuffer(device, &bufferInfo, nullptr, buffer));
 			*bufferMemory = AllocateGpuMemoryForBuffer(device, physicalDevice, *buffer, properties);
 			vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
@@ -938,10 +938,60 @@ namespace Engine {
 			if (imageView != nullptr) vkDestroyImageView(logicalDevice, imageView, nullptr);
 			if (imageView != nullptr) vkDestroySampler(logicalDevice, sampler, nullptr);
 		}
+
+		static void CopyBufferDataToDeviceMemory(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool commandPool, VkQueue queue, VkBuffer buffer, void* pData, size_t sizeBytes) {
+			// Create a temporary buffer.
+			Buffer stagingBuffer{};
+			stagingBuffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			stagingBuffer._createInfo.size = sizeBytes;
+			stagingBuffer._createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+			vkCreateBuffer(logicalDevice, &stagingBuffer._createInfo, nullptr, &stagingBuffer._buffer);
+
+			// Allocate memory for the buffer.
+			VkMemoryRequirements requirements{};
+			vkGetBufferMemoryRequirements(logicalDevice, stagingBuffer._buffer, &requirements);
+			stagingBuffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+			// Map memory to the correct GPU and CPU ranges for the buffer.
+			vkBindBufferMemory(logicalDevice, stagingBuffer._buffer, stagingBuffer._gpuMemory, 0);
+			vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, sizeBytes, 0, &stagingBuffer._cpuMemory);
+			memcpy(stagingBuffer._cpuMemory, pData, sizeBytes);
+
+			auto copyCommandBuffer = VkHelper::CreateCommandBuffer(logicalDevice, commandPool);
+			VkHelper::StartRecording(copyCommandBuffer);
+
+			VkBufferCopy copyRegion = {};
+			copyRegion.size = sizeBytes;
+			vkCmdCopyBuffer(copyCommandBuffer, stagingBuffer._buffer, buffer, 1, &copyRegion);
+
+			VkHelper::StopRecording(copyCommandBuffer);
+			VkHelper::ExecuteCommands(copyCommandBuffer, queue);
+
+			vkFreeCommandBuffers(logicalDevice, commandPool, 1, &copyCommandBuffer);
+			vkDestroyBuffer(logicalDevice, stagingBuffer._buffer, nullptr);
+		}
+
+		static VkShaderModule CreateShaderModule(VkDevice logicalDevice, const char* absolutePath) {
+			std::ifstream file(absolutePath, std::ios::ate | std::ios::binary);
+			if (!file.is_open()) { std::cout << "Failed opening file " << absolutePath << std::endl; exit(0); }
+
+			std::vector<char> fileBytes(file.tellg());
+			file.seekg(0, std::ios::beg);
+			file.read(fileBytes.data(), fileBytes.size());
+			file.close();
+
+			VkShaderModuleCreateInfo createInfo = {};
+			createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+			createInfo.codeSize = fileBytes.size();
+			createInfo.pCode = (uint32_t*)fileBytes.data();
+			VkShaderModule shaderModule = nullptr;
+			CheckResult(vkCreateShaderModule(logicalDevice, &createInfo, nullptr, &shaderModule));
+
+			return shaderModule;
+		}
 	};
 
-	class Buffer {
-	public:
+	struct Buffer {
 		VkBufferCreateInfo _createInfo{};
 		VkBufferViewCreateInfo _viewCreateInfo{};
 
@@ -1970,7 +2020,7 @@ namespace Engine {
 		VkResult SetupDebugUtilsMessenger() {
 			VkDebugUtilsMessengerCreateInfoEXT
 				debugUtilsMessengerCreateInfo = { VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-					(const void*)NULL,
+					0,
 					(VkDebugUtilsMessengerCreateFlagsEXT)0,
 					(VkDebugUtilsMessageSeverityFlagsEXT)VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
 					(VkDebugUtilsMessageTypeFlagsEXT)VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
@@ -2012,7 +2062,7 @@ namespace Engine {
 															  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER };
 
 			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-											   (const void*)NULL,
+											   0,
 											   (VkDescriptorPoolCreateFlags)0,
 											   (uint32_t)1,
 											   (uint32_t)1,
@@ -2033,7 +2083,7 @@ namespace Engine {
 			}
 
 			VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-													(const void*)NULL,
+													0,
 													(VkDescriptorSetLayoutCreateFlags)0,
 													(uint32_t)descriptorCount,
 													(const VkDescriptorSetLayoutBinding*)descriptorSetLayoutBindings };
@@ -2044,7 +2094,7 @@ namespace Engine {
 
 			//provide the layout with actual buffers and their sizes
 			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-												(const void*)NULL,
+												0,
 												(VkDescriptorPool)_descriptorPool,
 												(uint32_t)1,
 												(const VkDescriptorSetLayout*)&_descriptorSetLayout };
@@ -2058,7 +2108,7 @@ namespace Engine {
 												 arrayOfSizesOfEachBuffer[i] };
 
 				VkWriteDescriptorSet writeDescriptorSet = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-												 (const void*)NULL,
+												 0,
 												 (VkDescriptorSet)_descriptorSet,
 												 (uint32_t)i,
 												 (uint32_t)0,
@@ -2080,7 +2130,7 @@ namespace Engine {
 			range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
 			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-											   (const void*)NULL,
+											   0,
 											   (VkPipelineLayoutCreateFlags)0,
 											   (uint32_t)1,
 											   (const VkDescriptorSetLayout*)&_descriptorSetLayout,
@@ -2123,7 +2173,7 @@ namespace Engine {
 			}
 
 			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-													(const void*)NULL,
+													0,
 													(VkPipelineShaderStageCreateFlags)0,
 													(VkShaderStageFlagBits)VK_SHADER_STAGE_COMPUTE_BIT,
 													(VkShaderModule)shaderModule,
@@ -2131,7 +2181,7 @@ namespace Engine {
 													(VkSpecializationInfo*)&specializationInfo };
 
 			VkComputePipelineCreateInfo computePipelineCreateInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-												(const void*)NULL,
+												0,
 												(VkPipelineCreateFlags)0,
 												pipelineShaderStageCreateInfo,
 												(VkPipelineLayout)_pipelineLayout,
@@ -2153,7 +2203,7 @@ namespace Engine {
 			// Create a command buffer to be executed on the GPU.
 			VkCommandBufferAllocateInfo commandBufferAllocateInfo;
 			commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-			commandBufferAllocateInfo.pNext = (const void*)NULL;
+			commandBufferAllocateInfo.pNext = 0;
 			commandBufferAllocateInfo.commandPool = _commandPool;
 			commandBufferAllocateInfo.level = (VkCommandBufferLevel)VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 			commandBufferAllocateInfo.commandBufferCount = (uint32_t)1;
@@ -2162,7 +2212,7 @@ namespace Engine {
 			// Begin command buffer recording.
 			VkCommandBufferBeginInfo commandBufferBeginInfo;
 			commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-			commandBufferBeginInfo.pNext = (const void*)NULL;
+			commandBufferBeginInfo.pNext = 0;
 			commandBufferBeginInfo.flags = (VkCommandBufferUsageFlags)VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 			commandBufferBeginInfo.pInheritanceInfo = (const VkCommandBufferInheritanceInfo*)NULL;
 			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
@@ -2182,7 +2232,7 @@ namespace Engine {
 			// Submit the command buffer.
 			VkSubmitInfo submitInfo;
 			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-			submitInfo.pNext = (const void*)NULL;
+			submitInfo.pNext = 0;
 			submitInfo.waitSemaphoreCount = (uint32_t)0;
 			submitInfo.pWaitSemaphores = (const VkSemaphore*)NULL;
 			submitInfo.pWaitDstStageMask = (const VkPipelineStageFlags*)NULL;
@@ -2233,7 +2283,7 @@ namespace Engine {
 			uint32_t queueFamilyIndices;
 			VkBufferCreateInfo bufferCreateInfo;
 			bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-			bufferCreateInfo.pNext = (const void*)NULL;
+			bufferCreateInfo.pNext = 0;
 			bufferCreateInfo.flags = (VkBufferCreateFlags)0;
 			bufferCreateInfo.size = (VkDeviceSize)bufferSizeBytes;
 			bufferCreateInfo.usage = (VkBufferUsageFlags)bufferUsageFlags;
@@ -2260,7 +2310,7 @@ namespace Engine {
 			if (0xFFFFFFFF == memoryTypeIndex) return VK_ERROR_INITIALIZATION_FAILED;
 
 			VkMemoryAllocateInfo memoryAllocateInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-										 (const void*)NULL,
+										 0,
 										 (VkDeviceSize)memoryRequirements.size,
 										 (uint32_t)memoryTypeIndex };
 
@@ -2293,7 +2343,7 @@ namespace Engine {
 			vkUnmapMemory(_device, stagingBufferMemory);
 
 			VkCommandBufferAllocateInfo commandBufferAllocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-												(const void*)NULL,
+												0,
 												(VkCommandPool)_commandPool,
 												(VkCommandBufferLevel)VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 												(uint32_t)1 };
@@ -2304,7 +2354,7 @@ namespace Engine {
 
 
 			VkCommandBufferBeginInfo commandBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-											 (const void*)NULL,
+											 0,
 											 (VkCommandBufferUsageFlags)VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
 											 (const VkCommandBufferInheritanceInfo*)NULL };
 			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
@@ -2315,7 +2365,7 @@ namespace Engine {
 			if (res != VK_SUCCESS) return res;
 
 			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO,
-								 (const void*)NULL,
+								 0,
 								 (uint32_t)0,
 								 (const VkSemaphore*)NULL,
 								 (const VkPipelineStageFlags*)NULL,
@@ -2357,7 +2407,7 @@ namespace Engine {
 			if (res != VK_SUCCESS) return res;
 
 			VkCommandBufferAllocateInfo commandBufferAllocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-												(const void*)NULL,
+												0,
 												(VkCommandPool)_commandPool,
 												(VkCommandBufferLevel)VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 												(uint32_t)1 };
@@ -2365,7 +2415,7 @@ namespace Engine {
 			if (res != VK_SUCCESS) return res;
 
 			VkCommandBufferBeginInfo commandBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-											 (const void*)NULL,
+											 0,
 											 (VkCommandBufferUsageFlags)VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
 											 (const VkCommandBufferInheritanceInfo*)NULL };
 			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
@@ -2379,7 +2429,7 @@ namespace Engine {
 			vkEndCommandBuffer(commandBuffer);
 
 			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO,
-								 (const void*)NULL,
+								 0,
 								 (uint32_t)0,
 								 (const VkSemaphore*)NULL,
 								 (const VkPipelineStageFlags*)NULL,
@@ -2445,7 +2495,7 @@ namespace Engine {
 
 			float queuePriorities = 1.0;
 			VkDeviceQueueCreateInfo deviceQueueCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-					(const void*)NULL,
+					0,
 					(VkDeviceQueueCreateFlags)0,
 					(uint32_t)_queueFamilyIndex,
 					(uint32_t)1,
@@ -2455,7 +2505,7 @@ namespace Engine {
 			physicalDeviceFeatures.shaderFloat64 = VK_TRUE;//this enables double precision support in shaders 
 
 			VkDeviceCreateInfo deviceCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-					(const void*)NULL,
+					0,
 					(VkDeviceCreateFlags)0,
 					(uint32_t)1,
 					(const VkDeviceQueueCreateInfo*)&deviceQueueCreateInfo,
@@ -4557,7 +4607,7 @@ namespace Engine {
 
 			float queuePriorities = 1.0;
 			VkDeviceQueueCreateInfo deviceQueueCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-					(const void*)NULL,
+					0,
 					(VkDeviceQueueCreateFlags)0,
 					(uint32_t)computeFamilyIndex,
 					(uint32_t)1,
@@ -4567,7 +4617,7 @@ namespace Engine {
 			physicalDeviceFeatures.shaderFloat64 = VK_TRUE;//this enables double precision support in shaders 
 
 			VkDeviceCreateInfo deviceCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-					(const void*)NULL,
+					0,
 					(VkDeviceCreateFlags)0,
 					(uint32_t)1,
 					(const VkDeviceQueueCreateInfo*)&deviceQueueCreateInfo,
@@ -4581,7 +4631,7 @@ namespace Engine {
 			return outComputeDevice;
 		}
 
-		void InitializeVulkan(VkDevice& device, VkPhysicalDevice physicalDevice) {
+		VkContext InitializeVulkan(VkDevice& device, VkPhysicalDevice physicalDevice) {
 			// Create logical device representation.
 			VkContext ctx;
 			ctx._logicalDevice = CreateNewComputeDevice(device, physicalDevice, ctx._queue, ctx._queueFamilyIndex);
@@ -4594,6 +4644,7 @@ namespace Engine {
 			// Create a structure from which command buffer memory is allocated from.
 			VkCommandPoolCreateInfo commandPoolCreateInfo = { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, NULL, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, ctx._queueFamilyIndex };
 			if (vkCreateCommandPool(ctx._logicalDevice, &commandPoolCreateInfo, NULL, &ctx._commandPool)) { std::cout << "Command Pool Creation failed." << std::endl; }
+			return ctx;
 		}
 
 		void CalculateWorkGroupCountAndSize(VkPhysicalDeviceProperties& gpuProperties, int minimumThreadCount, uint32_t* outWorkGroupSize, uint32_t* outWorkGroupCount) {
@@ -4621,8 +4672,288 @@ namespace Engine {
 			}
 		}
 
+		VkResult AllocateGPUOnlyBuffer(VkBufferUsageFlags bufferUsageFlags, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize bufferSizeBytes, VkContext& ctx, VkBuffer* outBuffer, VkDeviceMemory* outDeviceMemory) {
+			//allocate the buffer used by the GPU with specified properties
+			VkResult res = VK_SUCCESS;
+			uint32_t queueFamilyIndices;
+			VkBufferCreateInfo bufferCreateInfo;
+			bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			bufferCreateInfo.pNext = 0;
+			bufferCreateInfo.flags = (VkBufferCreateFlags)0;
+			bufferCreateInfo.size = (VkDeviceSize)bufferSizeBytes;
+			bufferCreateInfo.usage = (VkBufferUsageFlags)bufferUsageFlags;
+			bufferCreateInfo.sharingMode = (VkSharingMode)VK_SHARING_MODE_EXCLUSIVE;
+			bufferCreateInfo.queueFamilyIndexCount = (uint32_t)1;
+			bufferCreateInfo.pQueueFamilyIndices = (const uint32_t*)&queueFamilyIndices;
+
+			res = vkCreateBuffer(ctx._logicalDevice, &bufferCreateInfo, NULL, outBuffer);
+			if (res != VK_SUCCESS) return res;
+
+			VkMemoryRequirements memoryRequirements = { 0 };
+			vkGetBufferMemoryRequirements(ctx._logicalDevice, *outBuffer, &memoryRequirements);
+
+			//find memory with specified properties
+			uint32_t memoryTypeIndex = 0xFFFFFFFF;
+			VkPhysicalDeviceMemoryProperties gpuMemoryProps;
+			vkGetPhysicalDeviceMemoryProperties(ctx._physicalDevice, &gpuMemoryProps);
+
+			for (uint32_t i = 0; i < gpuMemoryProps.memoryTypeCount; ++i) {
+				if ((memoryRequirements.memoryTypeBits & (1 << i)) && ((gpuMemoryProps.memoryTypes[i].propertyFlags & memoryPropertyFlags) == memoryPropertyFlags)) {
+					memoryTypeIndex = i;
+					break;
+				}
+			}
+			if (0xFFFFFFFF == memoryTypeIndex) return VK_ERROR_INITIALIZATION_FAILED;
+
+			VkMemoryAllocateInfo memoryAllocateInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+										 0,
+										 (VkDeviceSize)memoryRequirements.size,
+										 (uint32_t)memoryTypeIndex };
+
+			res = vkAllocateMemory(ctx._logicalDevice, &memoryAllocateInfo, NULL, outDeviceMemory);
+			if (res != VK_SUCCESS) return res;
+
+			res = vkBindBufferMemory(ctx._logicalDevice, *outBuffer, *outDeviceMemory, 0);
+			return res;
+		}
+
+		VkResult UploadDataToGPU(void* data, VkBuffer* outBuffer, VkDeviceSize bufferSizeBytes, VkContext& ctx) {
+			VkResult res = VK_SUCCESS;
+
+			// a function that transfers data from the CPU to the GPU using staging buffer,
+			// because the GPU memory is not host-coherent
+			VkDeviceSize stagingBufferSize = bufferSizeBytes;
+			VkBuffer stagingBuffer = { 0 };
+			VkDeviceMemory stagingBufferMemory = { 0 };
+			res = AllocateGPUOnlyBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				stagingBufferSize,
+				ctx,
+				&stagingBuffer,
+				&stagingBufferMemory);
+			if (res != VK_SUCCESS) return res;
+
+			void* stagingData;
+			res = vkMapMemory(ctx._logicalDevice, stagingBufferMemory, 0, stagingBufferSize, 0, &stagingData);
+			if (res != VK_SUCCESS) return res;
+			memcpy(stagingData, data, stagingBufferSize);
+			vkUnmapMemory(ctx._logicalDevice, stagingBufferMemory);
+
+			VkCommandBufferAllocateInfo commandBufferAllocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+												0,
+												(VkCommandPool)ctx._commandPool,
+												(VkCommandBufferLevel)VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+												(uint32_t)1 };
+			VkCommandBuffer commandBuffer = { 0 };
+			res = vkAllocateCommandBuffers(ctx._logicalDevice, &commandBufferAllocateInfo, &commandBuffer);
+			if (res != VK_SUCCESS) return res;
+
+
+
+			VkCommandBufferBeginInfo commandBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+											 0,
+											 (VkCommandBufferUsageFlags)VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+											 (const VkCommandBufferInheritanceInfo*)NULL };
+			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+			if (res != VK_SUCCESS) return res;
+			VkBufferCopy copyRegion = { 0, 0, stagingBufferSize };
+			vkCmdCopyBuffer(commandBuffer, stagingBuffer, *outBuffer, 1, &copyRegion);
+			res = vkEndCommandBuffer(commandBuffer);
+			if (res != VK_SUCCESS) return res;
+
+			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO,
+								 0,
+								 (uint32_t)0,
+								 (const VkSemaphore*)NULL,
+								 (const VkPipelineStageFlags*)NULL,
+								 (uint32_t)1,
+								 (const VkCommandBuffer*)&commandBuffer,
+								 (uint32_t)0,
+								 (const VkSemaphore*)NULL };
+
+			res = vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
+			if (res != VK_SUCCESS) return res;
+
+
+			res = vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, 100000000000);
+			if (res != VK_SUCCESS) return res;
+
+			res = vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
+			if (res != VK_SUCCESS) return res;
+
+			vkFreeCommandBuffers(ctx._logicalDevice, ctx._commandPool, 1, &commandBuffer);
+			vkDestroyBuffer(ctx._logicalDevice, stagingBuffer, NULL);
+			vkFreeMemory(ctx._logicalDevice, stagingBufferMemory, NULL);
+			return res;
+		}
+
+		VkResult DownloadDataFromGPU(void* data, VkDeviceSize bufferSize, VkContext& ctx, VkBuffer* outBuffer) {
+			VkResult res = VK_SUCCESS;
+			VkCommandBuffer commandBuffer = { 0 };
+
+			// A function that transfers data from the GPU to the CPU using staging buffer, because GPU memory is not host-coherent (meaning it is
+			// not synced with the contents of CPU memory).
+			VkDeviceSize stagingBufferSize = bufferSize;
+			VkBuffer stagingBuffer = { 0 };
+			VkDeviceMemory stagingBufferMemory = { 0 };
+			res = AllocateGPUOnlyBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				stagingBufferSize,
+				ctx,
+				&stagingBuffer,
+				&stagingBufferMemory);
+			if (res != VK_SUCCESS) return res;
+
+			VkCommandBufferAllocateInfo commandBufferAllocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+												0,
+												(VkCommandPool)ctx._commandPool,
+												(VkCommandBufferLevel)VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+												(uint32_t)1 };
+			res = vkAllocateCommandBuffers(ctx._logicalDevice, &commandBufferAllocateInfo, &commandBuffer);
+			if (res != VK_SUCCESS) return res;
+
+			VkCommandBufferBeginInfo commandBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+											 0,
+											 (VkCommandBufferUsageFlags)VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+											 (const VkCommandBufferInheritanceInfo*)NULL };
+			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+			if (res != VK_SUCCESS) return res;
+
+			VkBufferCopy copyRegion = { (VkDeviceSize)0,
+								 (VkDeviceSize)0,
+								 (VkDeviceSize)stagingBufferSize };
+
+			vkCmdCopyBuffer(commandBuffer, outBuffer[0], stagingBuffer, 1, &copyRegion);
+			vkEndCommandBuffer(commandBuffer);
+
+			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO,
+								 0,
+								 (uint32_t)0,
+								 (const VkSemaphore*)NULL,
+								 (const VkPipelineStageFlags*)NULL,
+								 (uint32_t)1,
+								 (const VkCommandBuffer*)&commandBuffer,
+								 (uint32_t)0,
+								 (const VkSemaphore*)NULL };
+
+			res = vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
+			if (res != VK_SUCCESS) return res;
+
+			res = vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, 100000000000);
+			if (res != VK_SUCCESS) return res;
+
+			res = vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
+			if (res != VK_SUCCESS) return res;
+
+			vkFreeCommandBuffers(ctx._logicalDevice, ctx._commandPool, 1, &commandBuffer);
+
+			void* stagingData;
+			res = vkMapMemory(ctx._logicalDevice, stagingBufferMemory, 0, stagingBufferSize, 0, &stagingData);
+			if (res != VK_SUCCESS) return res;
+
+			memcpy(data, stagingData, stagingBufferSize);
+			vkUnmapMemory(ctx._logicalDevice, stagingBufferMemory);
+
+			vkDestroyBuffer(ctx._logicalDevice, stagingBuffer, NULL);
+			vkFreeMemory(ctx._logicalDevice, stagingBufferMemory, NULL);
+			return res;
+		}
+
+		VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilename, VkContext& ctx, uint32_t* workGroupCount, uint32_t* workGroupSize) {
+
+			// Create an application interface to Vulkan. This function binds the shader to the compute pipeline, so it can be used as a part of the command buffer later.
+			VkDescriptorPool descriptorPool;
+			VkResult res = VK_SUCCESS;
+			uint32_t descriptorCount = 2;
+
+			// We have two storage buffer objects in one set in one pool.
+			VkDescriptorPoolSize descriptorPoolSize = { (VkDescriptorType)VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorCount };
+
+			const VkDescriptorType descriptorTypes[2] = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER };
+
+			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, 0, 0, 1, 1, (const VkDescriptorPoolSize*)&descriptorPoolSize };
+
+			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, 0, &descriptorPool));
+
+			// Specify each object from the set as a storage buffer.
+			VkDescriptorSetLayoutBinding* descriptorSetLayoutBindings = (VkDescriptorSetLayoutBinding*)malloc(descriptorCount * sizeof(VkDescriptorSetLayoutBinding));
+			for (uint32_t i = 0; i < descriptorCount; ++i) {
+				descriptorSetLayoutBindings[i].binding = (uint32_t)i;
+				descriptorSetLayoutBindings[i].descriptorType = (VkDescriptorType)descriptorTypes[i];
+				descriptorSetLayoutBindings[i].descriptorCount = (uint32_t)1;
+				descriptorSetLayoutBindings[i].stageFlags = (VkShaderStageFlags)VK_SHADER_STAGE_COMPUTE_BIT;
+				descriptorSetLayoutBindings[i].pImmutableSamplers = 0;
+			}
+
+			VkDescriptorSetLayout descriptorSetLayout;
+			VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, 0, 0, descriptorCount, descriptorSetLayoutBindings };
+			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &descriptorSetLayoutCreateInfo, 0, &descriptorSetLayout));
+			free(descriptorSetLayoutBindings);
+
+			//provide the layout with actual buffers and their sizes
+			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, 0, descriptorPool, (uint32_t)1, &descriptorSetLayout };
+			VkDescriptorSet descriptorSet;
+			CheckResult(vkAllocateDescriptorSets(ctx._logicalDevice, &descriptorSetAllocateInfo, &descriptorSet));
+
+			for (uint32_t i = 0; i < descriptorCount; ++i) {
+				VkDescriptorBufferInfo descriptorBufferInfo = { shaderBuffersArray[i], 0, arrayOfSizesOfEachBuffer[i] };
+				VkWriteDescriptorSet writeDescriptorSet = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, 0, descriptorSet, i, 0, 1, (VkDescriptorType)descriptorTypes[i], 0, &descriptorBufferInfo, 0 };
+				vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeDescriptorSet, 0, 0);
+			}
+
+			VkPushConstantRange range;
+			range.offset = 0;
+			range.size = sizeof(unsigned int) * 3;
+			range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+			VkPipelineLayout pipelineLayout;
+			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, 0, 0, 1, &descriptorSetLayout, 1, &range };
+			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, 0, &pipelineLayout));
+
+			// Define the specialization constant values
+			VkSpecializationMapEntry* specMapEntry = (VkSpecializationMapEntry*)malloc(sizeof(VkSpecializationMapEntry) * 3);
+			VkSpecializationMapEntry specConstant0 = { 0, 0, sizeof(uint32_t) };
+			VkSpecializationMapEntry specConstant1 = { 1, sizeof(uint32_t), sizeof(uint32_t) };
+			VkSpecializationMapEntry specConstant2 = { 2, sizeof(uint32_t) * 2, sizeof(uint32_t) };
+			specMapEntry[0] = specConstant0;
+			specMapEntry[1] = specConstant1;
+			specMapEntry[2] = specConstant2;
+			VkSpecializationInfo specializationInfo = { 3, specMapEntry, sizeof(uint32_t) * 3, workGroupSize };
+
+			std::ifstream file(shaderFilename, std::ios::ate | std::ios::binary);
+			VkShaderModule shaderModule = nullptr;
+			if (file.is_open()) {
+				std::vector<char> fileBytes(file.tellg());
+				file.seekg(0, std::ios::beg);
+				file.read(fileBytes.data(), fileBytes.size());
+				file.close();
+
+				VkShaderModuleCreateInfo createInfo = {};
+				createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+				createInfo.codeSize = fileBytes.size();
+				createInfo.pCode = (uint32_t*)fileBytes.data();
+
+				if (vkCreateShaderModule(ctx._logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+					std::cout << "failed to create shader module for " << shaderFilename << std::endl;
+				}
+			}
+			else {
+				std::cout << "failed to open file " << shaderFilename << std::endl;
+			}
+
+			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, 0, 0, VK_SHADER_STAGE_COMPUTE_BIT, shaderModule, "main", &specializationInfo }; 
+			VkComputePipelineCreateInfo computePipelineCreateInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, 0, 0, pipelineShaderStageCreateInfo, _pipelineLayout, 0, 0 };
+
+			//create pipeline
+			res = vkCreateComputePipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, NULL, &_pipeline);
+			if (res != VK_SUCCESS) return res;
+
+			vkDestroyShaderModule(ctx._logicalDevice, pipelineShaderStageCreateInfo.module, NULL);
+			return res;
+		}
+
 		void Run(VkDevice& device, VkPhysicalDevice& physicalDevice, RigidBody& bodyA, RigidBody& bodyB) {
-			InitializeVulkan(device, physicalDevice);
+			VkContext ctx = InitializeVulkan(device, physicalDevice);
 
 			// Get device properties and memory properties, if needed.
 			VkPhysicalDeviceProperties gpuProperties;
@@ -4642,9 +4973,23 @@ namespace Engine {
 
 			// Calculate how many workgroups and the size of each workgroup we are going to use.
 			// We want one GPU thread to operate on a single value from the input buffer, so the required thread size is the input buffer size.
-			uint32_t workGroupSize[3] = { 1,1,1 };
-			uint32_t workGroupCount[3] = { 1,1,1 };
-			CalculateWorkGroupCountAndSize(gpuProperties, 15, workGroupSize, workGroupCount);
+			auto threadSize = bodyA._mesh._vertices.size() * bodyB._mesh._vertices.size();
+			size_t inputBufferSizeBytes = threadSize * sizeof(glm::vec3);
+			glm::vec3* inputBufferData = (glm::vec3*)malloc(inputBufferSizeBytes);
+			if (!inputBufferData) { std::cout << "Failed allocating memory for collision detection vertices" << std::endl; return; }
+			for (int i = 0, c = 0; i < bodyA._mesh._vertices.size(); i += 3) {
+				for (int j = 0; j < bodyB._mesh._vertices.size(); j += 3, ++c) {
+					inputBufferData[c] = bodyA._mesh._vertices[i]._position;
+					inputBufferData[++c] = bodyA._mesh._vertices[i + 1]._position;
+					inputBufferData[++c] = bodyA._mesh._vertices[i + 2]._position;
+					inputBufferData[++c] = bodyB._mesh._vertices[j]._position;
+					inputBufferData[++c] = bodyB._mesh._vertices[j + 1]._position;
+					inputBufferData[++c] = bodyB._mesh._vertices[j + 2]._position;
+				}
+			}
+			uint32_t workGroupSize[3] = { 1, 1, 1 };
+			uint32_t workGroupCount[3] = { 1, 1, 1 };
+			CalculateWorkGroupCountAndSize(gpuProperties, threadSize, workGroupSize, workGroupCount);
 
 			//use default values if coalescedMemory = 0
 			//if (_coalescedMemory == 0) {
@@ -4663,6 +5008,77 @@ namespace Engine {
 			//		break;
 			//	}
 			//}
+
+			// Create the input buffer.
+			VkResult res = VK_SUCCESS;
+			Buffer inputBuffer;
+			Buffer outputBuffer;
+			VkHelper::CreateBuffer(ctx._logicalDevice,
+				ctx._physicalDevice,
+				inputBufferSizeBytes,
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				&inputBuffer._buffer,
+				&inputBuffer._gpuMemory);
+
+			VkHelper::CreateBuffer(ctx._logicalDevice,
+				ctx._physicalDevice,
+				inputBufferSizeBytes,
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				&outputBuffer._buffer,
+				&outputBuffer._gpuMemory);
+
+			// Transfer data to GPU staging buffer and thereafter sync the staging buffer with GPU local memory.
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, inputBuffer._buffer, inputBufferData, inputBufferSizeBytes);
+
+			VkBuffer buffers[2] = { inputBuffer._buffer, outputBuffer._buffer };
+			VkDeviceSize bufferSizes[2] = { inputBufferSizeBytes, inputBufferSizeBytes };
+
+			// Create 
+			//const char* shaderPath = "C:\\code\\vulkan-compute\\shaders\\Shader.spv";
+			auto shaderPath = Paths::ShadersPath() /= L"compute\\CollisionDetection.spv";
+			if (CreateComputePipeline(buffers, bufferSizes, shaderPath.string().c_str()) != VK_SUCCESS) {
+				std::cout << "Application creation failed." << std::endl;
+			}
+
+			if (Dispatch() != VK_SUCCESS) {
+				std::cout << "Application run failed." << std::endl;
+			}
+
+			unsigned char* shaderOutputBufferData = (unsigned char*)malloc(inputAndOutputBufferSizeInBytes);
+
+			res = vkGetFenceStatus(_device, _fence);
+
+			//Transfer data from GPU using staging buffer, if needed
+			if (DownloadDataFromGPU(shaderOutputBufferData,
+				&_outputBuffer,
+				inputAndOutputBufferSizeInBytes) != VK_SUCCESS) {
+				std::cout << "Failed downloading image from GPU." << std::endl;
+			}
+
+			// Print data for debugging.
+			/*printf("Output buffer result: [");
+			uint32_t startAndEndSize = 50;
+			uint32_t i = 0;
+			for (; i < outputBufferCount - 1 && i < startAndEndSize; ++i) {
+				printf("%d, ", shaderOutputBufferData[i]);
+			}
+			if (i >= startAndEndSize) {
+				printf("..., ");
+				i = outputBufferCount - startAndEndSize + 1;
+				for (; i < outputBufferCount - 1; ++i)
+					printf("%d, ", shaderOutputBufferData[i]);
+			}
+			printf("%d]\n", shaderOutputBufferData[outputBufferCount - 1]);*/
+
+			// Free resources.
+			vkDestroyBuffer(_device, _inputBuffer, nullptr);
+			vkFreeMemory(_device, _inputBufferDeviceMemory, nullptr);
+			vkDestroyBuffer(_device, _outputBuffer, nullptr);
+			vkFreeMemory(_device, _outputBufferDeviceMemory, nullptr);
+
+			return shaderOutputBufferData;
 		}
 	};
 
@@ -5447,31 +5863,6 @@ namespace Engine {
 		}
 	};
 
-	VkShaderModule CreateShaderModule(VkDevice logicalDevice, const std::filesystem::path& absolutePath) {
-		std::ifstream file(absolutePath.c_str(), std::ios::ate | std::ios::binary);
-		VkShaderModule shaderModule = nullptr;
-		if (file.is_open()) {
-			std::vector<char> fileBytes(file.tellg());
-			file.seekg(0, std::ios::beg);
-			file.read(fileBytes.data(), fileBytes.size());
-			file.close();
-
-			VkShaderModuleCreateInfo createInfo = {};
-			createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-			createInfo.codeSize = fileBytes.size();
-			createInfo.pCode = (uint32_t*)fileBytes.data();
-
-			CheckResult(vkCreateShaderModule(logicalDevice, &createInfo, nullptr, &shaderModule));
-		}
-		else {
-			auto msg = "failed to open file " + absolutePath.string();
-			Exit(1, msg.c_str());
-			exit(0);
-		}
-
-		return shaderModule;
-	}
-
 	static VkBool32 DebugCallback(VkDebugReportFlagsEXT flags,
 		VkDebugReportObjectTypeEXT objType,
 		uint64_t srcObject,
@@ -5668,8 +6059,8 @@ namespace Engine {
 		{
 			auto vertPath = Paths::ShadersPath() / std::filesystem::path("graphics\\EnvMapVertShader.spv");
 			auto fragPath = Paths::ShadersPath() / std::filesystem::path("graphics\\EnvMapFragShader.spv");
-			VkShaderModule vertexShaderModule = CreateShaderModule(ctx._logicalDevice, vertPath);
-			VkShaderModule fragmentShaderModule = CreateShaderModule(ctx._logicalDevice, fragPath);
+			VkShaderModule vertexShaderModule = VkHelper::CreateShaderModule(ctx._logicalDevice, vertPath.string().c_str());
+			VkShaderModule fragmentShaderModule = VkHelper::CreateShaderModule(ctx._logicalDevice, fragPath.string().c_str());
 
 			// Set up shader stage info.
 			VkPipelineShaderStageCreateInfo vertexShaderCreateInfo = {};
@@ -5826,8 +6217,8 @@ namespace Engine {
 
 		// 3D scene pipeline.
 		{
-			VkShaderModule vertexShaderModule = CreateShaderModule(ctx._logicalDevice, Paths::VertexShaderPath());
-			VkShaderModule fragmentShaderModule = CreateShaderModule(ctx._logicalDevice, Paths::FragmentShaderPath());
+			VkShaderModule vertexShaderModule = VkHelper::CreateShaderModule(ctx._logicalDevice, Paths::VertexShaderPath().string().c_str());
+			VkShaderModule fragmentShaderModule = VkHelper::CreateShaderModule(ctx._logicalDevice, Paths::FragmentShaderPath().string().c_str());
 
 			// Set up shader stage info.
 			VkPipelineShaderStageCreateInfo vertexShaderCreateInfo = {};
@@ -5998,8 +6389,8 @@ namespace Engine {
 		{
 			auto vertPath = Paths::ShadersPath() / std::filesystem::path("graphics\\NuklearUIVertexShader.spv");
 			auto fragPath = Paths::ShadersPath() / std::filesystem::path("graphics\\NuklearUIFragmentShader.spv");
-			VkShaderModule vertShaderModule = CreateShaderModule(ctx._logicalDevice, vertPath);
-			VkShaderModule fragShaderModule = CreateShaderModule(ctx._logicalDevice, fragPath);
+			VkShaderModule vertShaderModule = VkHelper::CreateShaderModule(ctx._logicalDevice, vertPath.string().c_str());
+			VkShaderModule fragShaderModule = VkHelper::CreateShaderModule(ctx._logicalDevice, fragPath.string().c_str());
 
 			VkPipelineShaderStageCreateInfo vert_shader_stage_info{};
 			vert_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

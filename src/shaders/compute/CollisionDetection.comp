@@ -1,0 +1,79 @@
+#version 450
+layout(local_size_x = 1) in;
+layout(binding = 0) buffer TrianglePairs { vec3 data[]; } pairs; // 6 vec3 per pair (triA: v0, v1, v2; triB: v0, v1, v2)
+layout(binding = 1) buffer Results { 
+    int collisionCount;           // Number of intersections found
+    vec3 intersectionPoints[6];   // Array to store up to 6 intersection points
+} results[];
+
+bool RayTriangleIntersect(vec3 ro, vec3 rd, vec3 v0, vec3 v1, vec3 v2, out vec3 intersection) {
+    vec3 e1 = v1 - v0;
+    vec3 e2 = v2 - v0;
+    vec3 h = cross(rd, e2);
+    float a = dot(e1, h);
+    if (abs(a) < 0.0001) return false;
+
+    float f = 1.0 / a;
+    vec3 s = ro - v0;
+    float u = f * dot(s, h);
+    if (u < 0.0 || u > 1.0) return false;
+
+    vec3 q = cross(s, e1);
+    float v = f * dot(rd, q);
+    if (v < 0.0 || u + v > 1.0) return false;
+
+    float t = f * dot(e2, q);
+    if (t > 0.0 && t < 1.0) { // t < 1.0 ensures intersection within edge length
+        intersection = ro + rd * t; // Calculate intersection point
+        return true;
+    }
+    return false;
+}
+
+void main() {
+    uint pairIdx = gl_GlobalInvocationID.x;
+    vec3 a0 = pairs.data[pairIdx * 6 + 0];
+    vec3 a1 = pairs.data[pairIdx * 6 + 1];
+    vec3 a2 = pairs.data[pairIdx * 6 + 2];
+    vec3 b0 = pairs.data[pairIdx * 6 + 3];
+    vec3 b1 = pairs.data[pairIdx * 6 + 4];
+    vec3 b2 = pairs.data[pairIdx * 6 + 5];
+
+    int collisionCount = 0;
+    vec3 tempIntersection;
+
+    // Initialize intersection points to zero
+    for (int i = 0; i < 6; i++) {
+        results[pairIdx].intersectionPoints[i] = vec3(0.0);
+    }
+
+    // Triangle A edges as rays vs Triangle B
+    if (RayTriangleIntersect(a0, a1 - a0, b0, b1, b2, tempIntersection)) {
+        results[pairIdx].intersectionPoints[collisionCount] = tempIntersection;
+        collisionCount++;
+    }
+    if (RayTriangleIntersect(a1, a2 - a1, b0, b1, b2, tempIntersection)) {
+        results[pairIdx].intersectionPoints[collisionCount] = tempIntersection;
+        collisionCount++;
+    }
+    if (RayTriangleIntersect(a2, a0 - a2, b0, b1, b2, tempIntersection)) {
+        results[pairIdx].intersectionPoints[collisionCount] = tempIntersection;
+        collisionCount++;
+    }
+
+    // Triangle B edges as rays vs Triangle A
+    if (RayTriangleIntersect(b0, b1 - b0, a0, a1, a2, tempIntersection)) {
+        results[pairIdx].intersectionPoints[collisionCount] = tempIntersection;
+        collisionCount++;
+    }
+    if (RayTriangleIntersect(b1, b2 - b1, a0, a1, a2, tempIntersection)) {
+        results[pairIdx].intersectionPoints[collisionCount] = tempIntersection;
+        collisionCount++;
+    }
+    if (RayTriangleIntersect(b2, b0 - b2, a0, a1, a2, tempIntersection)) {
+        results[pairIdx].intersectionPoints[collisionCount] = tempIntersection;
+        collisionCount++;
+    }
+
+    results[pairIdx].collisionCount = collisionCount;
+}
