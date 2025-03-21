@@ -941,34 +941,37 @@ namespace Engine {
 
 		static void CopyBufferDataToDeviceMemory(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool commandPool, VkQueue queue, VkBuffer buffer, void* pData, size_t sizeBytes) {
 			// Create a temporary buffer.
-			Buffer stagingBuffer{};
-			stagingBuffer._createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-			stagingBuffer._createInfo.size = sizeBytes;
-			stagingBuffer._createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-			vkCreateBuffer(logicalDevice, &stagingBuffer._createInfo, nullptr, &stagingBuffer._buffer);
+			VkBufferCreateInfo createInfo{};
+			VkBuffer stagingBuffer;
+			createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			createInfo.size = sizeBytes;
+			createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+			vkCreateBuffer(logicalDevice, &createInfo, nullptr, &stagingBuffer);
 
 			// Allocate memory for the buffer.
+			VkDeviceMemory bufferGpuMemory;
 			VkMemoryRequirements requirements{};
-			vkGetBufferMemoryRequirements(logicalDevice, stagingBuffer._buffer, &requirements);
-			stagingBuffer._gpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+			vkGetBufferMemoryRequirements(logicalDevice, stagingBuffer, &requirements);
+			bufferGpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
 			// Map memory to the correct GPU and CPU ranges for the buffer.
-			vkBindBufferMemory(logicalDevice, stagingBuffer._buffer, stagingBuffer._gpuMemory, 0);
-			vkMapMemory(logicalDevice, stagingBuffer._gpuMemory, 0, sizeBytes, 0, &stagingBuffer._cpuMemory);
-			memcpy(stagingBuffer._cpuMemory, pData, sizeBytes);
+			void* cpuMemory;
+			vkBindBufferMemory(logicalDevice, stagingBuffer, bufferGpuMemory, 0);
+			vkMapMemory(logicalDevice, bufferGpuMemory, 0, sizeBytes, 0, &cpuMemory);
+			memcpy(cpuMemory, pData, sizeBytes);
 
 			auto copyCommandBuffer = VkHelper::CreateCommandBuffer(logicalDevice, commandPool);
 			VkHelper::StartRecording(copyCommandBuffer);
 
 			VkBufferCopy copyRegion = {};
 			copyRegion.size = sizeBytes;
-			vkCmdCopyBuffer(copyCommandBuffer, stagingBuffer._buffer, buffer, 1, &copyRegion);
+			vkCmdCopyBuffer(copyCommandBuffer, stagingBuffer, buffer, 1, &copyRegion);
 
 			VkHelper::StopRecording(copyCommandBuffer);
 			VkHelper::ExecuteCommands(copyCommandBuffer, queue);
 
 			vkFreeCommandBuffers(logicalDevice, commandPool, 1, &copyCommandBuffer);
-			vkDestroyBuffer(logicalDevice, stagingBuffer._buffer, nullptr);
+			vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
 		}
 
 		static VkShaderModule CreateShaderModule(VkDevice logicalDevice, const char* absolutePath) {
@@ -4635,7 +4638,7 @@ namespace Engine {
 			// Create logical device representation.
 			VkContext ctx;
 			ctx._logicalDevice = CreateNewComputeDevice(device, physicalDevice, ctx._queue, ctx._queueFamilyIndex);
-			if (!ctx._logicalDevice) { std::cout << "Failed to create compute device" << std::endl; return; }
+			if (!ctx._logicalDevice) { std::cout << "Failed to create compute device" << std::endl; return {}; }
 
 			// Create a fence for synchronization.
 			VkFenceCreateInfo fenceCreateInfo = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, 0 };
@@ -4647,20 +4650,16 @@ namespace Engine {
 			return ctx;
 		}
 
-		void CalculateWorkGroupCountAndSize(VkPhysicalDeviceProperties& gpuProperties, int minimumThreadCount, uint32_t* outWorkGroupSize, uint32_t* outWorkGroupCount) {
+		std::vector<uint32_t> CalculateWorkGroupCount(VkPhysicalDeviceProperties& gpuProperties, int minimumThreadCount, const std::vector<uint32_t>& workGroupSize) {
 			// Prepare variables.
 			uint32_t maxWorkGroupInvocations = gpuProperties.limits.maxComputeWorkGroupInvocations;
 			uint32_t* maxWorkGroupSize = gpuProperties.limits.maxComputeWorkGroupSize;
 			uint32_t* maxWorkGroupCount = gpuProperties.limits.maxComputeWorkGroupCount;
+			std::vector<uint32_t> outWorkGroupCount = { 1, 1, 1 };
 
 			// Use the work group size first, as that directly controls the amount of threads 1 to 1.
-			uint32_t totalWorkGroupSize = outWorkGroupSize[0] * outWorkGroupSize[1] * outWorkGroupSize[2];
-			for (int i = 0; i < 3; ++i) {
-				for (; outWorkGroupSize[i] < maxWorkGroupSize[i]; ++outWorkGroupSize[i]) {
-					totalWorkGroupSize = outWorkGroupSize[0] * outWorkGroupSize[1] * outWorkGroupSize[2];
-					if (totalWorkGroupSize >= minimumThreadCount || totalWorkGroupSize == maxWorkGroupInvocations) { break; }
-				}
-			}
+			uint32_t totalWorkGroupSize = workGroupSize[0] * workGroupSize[1] * workGroupSize[2];
+			if (totalWorkGroupSize >= minimumThreadCount) return outWorkGroupCount;
 
 			// If one workgroup still doesn't do it, use multiple workgroups with the size of each one calculated earlier.
 			if (totalWorkGroupSize < minimumThreadCount) {
@@ -4859,7 +4858,7 @@ namespace Engine {
 			return res;
 		}
 
-		VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilename, VkContext& ctx, uint32_t* workGroupCount, uint32_t* workGroupSize) {
+		VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilename, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet) {
 
 			// Create an application interface to Vulkan. This function binds the shader to the compute pipeline, so it can be used as a part of the command buffer later.
 			VkDescriptorPool descriptorPool;
@@ -4911,14 +4910,6 @@ namespace Engine {
 			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, 0, &pipelineLayout));
 
 			// Define the specialization constant values
-			VkSpecializationMapEntry* specMapEntry = (VkSpecializationMapEntry*)malloc(sizeof(VkSpecializationMapEntry) * 3);
-			VkSpecializationMapEntry specConstant0 = { 0, 0, sizeof(uint32_t) };
-			VkSpecializationMapEntry specConstant1 = { 1, sizeof(uint32_t), sizeof(uint32_t) };
-			VkSpecializationMapEntry specConstant2 = { 2, sizeof(uint32_t) * 2, sizeof(uint32_t) };
-			specMapEntry[0] = specConstant0;
-			specMapEntry[1] = specConstant1;
-			specMapEntry[2] = specConstant2;
-			VkSpecializationInfo specializationInfo = { 3, specMapEntry, sizeof(uint32_t) * 3, workGroupSize };
 
 			std::ifstream file(shaderFilename, std::ios::ate | std::ios::binary);
 			VkShaderModule shaderModule = nullptr;
@@ -4941,18 +4932,86 @@ namespace Engine {
 				std::cout << "failed to open file " << shaderFilename << std::endl;
 			}
 
-			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, 0, 0, VK_SHADER_STAGE_COMPUTE_BIT, shaderModule, "main", &specializationInfo }; 
-			VkComputePipelineCreateInfo computePipelineCreateInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, 0, 0, pipelineShaderStageCreateInfo, _pipelineLayout, 0, 0 };
+			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, 0, 0, VK_SHADER_STAGE_COMPUTE_BIT, shaderModule, "main" };
+			VkComputePipelineCreateInfo computePipelineCreateInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, 0, 0, pipelineShaderStageCreateInfo, pipelineLayout, 0, 0 };
 
 			//create pipeline
-			res = vkCreateComputePipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, NULL, &_pipeline);
+			VkPipeline pipeline;
+			res = vkCreateComputePipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, NULL, &pipeline);
 			if (res != VK_SUCCESS) return res;
 
 			vkDestroyShaderModule(ctx._logicalDevice, pipelineShaderStageCreateInfo.module, NULL);
 			return res;
 		}
 
-		void Run(VkDevice& device, VkPhysicalDevice& physicalDevice, RigidBody& bodyA, RigidBody& bodyB) {
+		VkResult Dispatch(VkContext& ctx, VkPipeline pipeline, VkPipelineLayout pipelineLayout,
+			VkDescriptorSet descriptorSet, std::vector<uint32_t>& workGroupCount,
+			const glm::mat4x4& objectToWorldA, const glm::mat4x4& objectToWorldB) {
+			VkResult res = VK_SUCCESS;
+			VkCommandBuffer commandBuffer = { 0 };
+
+			// Create a command buffer to be executed on the GPU
+			VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+			commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+			commandBufferAllocateInfo.commandPool = ctx._commandPool;
+			commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+			commandBufferAllocateInfo.commandBufferCount = 1;
+			res = vkAllocateCommandBuffers(ctx._logicalDevice, &commandBufferAllocateInfo, &commandBuffer);
+			if (res != VK_SUCCESS) return res;
+
+			// Begin command buffer recording
+			VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+			commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+			commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+			if (res != VK_SUCCESS) return res;
+
+			// Define push constants structure matching the shader
+			struct PushConstants {
+				glm::mat4x4 localToWorldA;
+				glm::mat4x4 localToWorldB;
+			} pushConstants;
+			pushConstants.localToWorldA = objectToWorldA;
+			pushConstants.localToWorldB = objectToWorldB;
+
+			// Bind pipeline and push constants
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+			vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT,
+				0, sizeof(PushConstants), &pushConstants);
+			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout,
+				0, 1, &descriptorSet, 0, NULL);
+			vkCmdDispatch(commandBuffer, workGroupCount[0], workGroupCount[1], workGroupCount[2]);
+
+			// End command buffer recording
+			res = vkEndCommandBuffer(commandBuffer);
+			if (res != VK_SUCCESS) return res;
+
+			// Submit the command buffer
+			VkSubmitInfo submitInfo = {};
+			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &commandBuffer;
+			clock_t t = clock();
+			res = vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
+			if (res != VK_SUCCESS) return res;
+
+			// Wait for the fence
+			res = vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, 30000000000);
+			if (res != VK_SUCCESS) return res;
+
+			// Calculate execution time
+			t = clock() - t;
+			double time = ((double)t) / CLOCKS_PER_SEC * 1000;
+
+			// Reset fence and free command buffer
+			res = vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
+			if (res != VK_SUCCESS) return res;
+
+			vkFreeCommandBuffers(ctx._logicalDevice, ctx._commandPool, 1, &commandBuffer);
+			return res;
+		}
+
+		std::vector<glm::vec3> Run(VkDevice& device, VkPhysicalDevice& physicalDevice, RigidBody& bodyA, RigidBody& bodyB) {
 			VkContext ctx = InitializeVulkan(device, physicalDevice);
 
 			// Get device properties and memory properties, if needed.
@@ -4976,7 +5035,7 @@ namespace Engine {
 			auto threadSize = bodyA._mesh._vertices.size() * bodyB._mesh._vertices.size();
 			size_t inputBufferSizeBytes = threadSize * sizeof(glm::vec3);
 			glm::vec3* inputBufferData = (glm::vec3*)malloc(inputBufferSizeBytes);
-			if (!inputBufferData) { std::cout << "Failed allocating memory for collision detection vertices" << std::endl; return; }
+			if (!inputBufferData) { std::cout << "Failed allocating memory for collision detection vertices" << std::endl; return {}; }
 			for (int i = 0, c = 0; i < bodyA._mesh._vertices.size(); i += 3) {
 				for (int j = 0; j < bodyB._mesh._vertices.size(); j += 3, ++c) {
 					inputBufferData[c] = bodyA._mesh._vertices[i]._position;
@@ -4987,9 +5046,8 @@ namespace Engine {
 					inputBufferData[++c] = bodyB._mesh._vertices[j + 2]._position;
 				}
 			}
-			uint32_t workGroupSize[3] = { 1, 1, 1 };
-			uint32_t workGroupCount[3] = { 1, 1, 1 };
-			CalculateWorkGroupCountAndSize(gpuProperties, threadSize, workGroupSize, workGroupCount);
+
+			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, threadSize, { 256, 1, 1 });
 
 			//use default values if coalescedMemory = 0
 			//if (_coalescedMemory == 0) {
@@ -5038,22 +5096,24 @@ namespace Engine {
 			// Create 
 			//const char* shaderPath = "C:\\code\\vulkan-compute\\shaders\\Shader.spv";
 			auto shaderPath = Paths::ShadersPath() /= L"compute\\CollisionDetection.spv";
-			if (CreateComputePipeline(buffers, bufferSizes, shaderPath.string().c_str()) != VK_SUCCESS) {
+			VkPipeline pipeline; VkPipelineLayout layout; VkDescriptorSet descriptorSet;
+			if (CreateComputePipeline(buffers, bufferSizes, shaderPath.string().c_str(), ctx, pipeline, layout, descriptorSet) != VK_SUCCESS) {
 				std::cout << "Application creation failed." << std::endl;
 			}
 
-			if (Dispatch() != VK_SUCCESS) {
+			if (Dispatch(ctx, pipeline, layout, descriptorSet, workGroupCount, bodyA._pGameObject->GetWorldSpaceTransform()._matrix, bodyB._pGameObject->GetWorldSpaceTransform()._matrix) != VK_SUCCESS) {
 				std::cout << "Application run failed." << std::endl;
 			}
 
-			unsigned char* shaderOutputBufferData = (unsigned char*)malloc(inputAndOutputBufferSizeInBytes);
+			auto shaderOutputBufferData = (glm::vec3*)malloc(inputBufferSizeBytes);
 
-			res = vkGetFenceStatus(_device, _fence);
+			res = vkGetFenceStatus(ctx._logicalDevice, ctx._queueFence);
 
 			//Transfer data from GPU using staging buffer, if needed
 			if (DownloadDataFromGPU(shaderOutputBufferData,
-				&_outputBuffer,
-				inputAndOutputBufferSizeInBytes) != VK_SUCCESS) {
+				inputBufferSizeBytes,
+				ctx,
+				&outputBuffer._buffer) != VK_SUCCESS) {
 				std::cout << "Failed downloading image from GPU." << std::endl;
 			}
 
@@ -5073,12 +5133,12 @@ namespace Engine {
 			printf("%d]\n", shaderOutputBufferData[outputBufferCount - 1]);*/
 
 			// Free resources.
-			vkDestroyBuffer(_device, _inputBuffer, nullptr);
-			vkFreeMemory(_device, _inputBufferDeviceMemory, nullptr);
-			vkDestroyBuffer(_device, _outputBuffer, nullptr);
-			vkFreeMemory(_device, _outputBufferDeviceMemory, nullptr);
+			vkDestroyBuffer(ctx._logicalDevice, inputBuffer._buffer, nullptr);
+			vkFreeMemory(ctx._logicalDevice, inputBuffer._gpuMemory, nullptr);
+			vkDestroyBuffer(ctx._logicalDevice, outputBuffer._buffer, nullptr);
+			vkFreeMemory(ctx._logicalDevice, outputBuffer._gpuMemory, nullptr);
 
-			return shaderOutputBufferData;
+			return {};
 		}
 	};
 

@@ -1,9 +1,18 @@
 #version 450
-layout(local_size_x = 1) in;
-layout(binding = 0) buffer TrianglePairs { vec3 data[]; } pairs; // 6 vec3 per pair (triA: v0, v1, v2; triB: v0, v1, v2)
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(push_constant) uniform PushConstants {
+    mat4 localToWorldA;  // Transform matrix for object A
+    mat4 localToWorldB;  // Transform matrix for object B
+} pc;
+
+layout(binding = 0) buffer TrianglePairs { 
+    vec3 data[];  // 6 vec3 per pair in local space (triA: v0, v1, v2; triB: v0, v1, v2)
+} pairs;
+
 layout(binding = 1) buffer Results { 
     int collisionCount;           // Number of intersections found
-    vec3 intersectionPoints[6];   // Array to store up to 6 intersection points
+    vec3 intersectionPoints[6];   // World-space intersection points
 } results[];
 
 bool RayTriangleIntersect(vec3 ro, vec3 rd, vec3 v0, vec3 v1, vec3 v2, out vec3 intersection) {
@@ -24,30 +33,40 @@ bool RayTriangleIntersect(vec3 ro, vec3 rd, vec3 v0, vec3 v1, vec3 v2, out vec3 
 
     float t = f * dot(e2, q);
     if (t > 0.0 && t < 1.0) { // t < 1.0 ensures intersection within edge length
-        intersection = ro + rd * t; // Calculate intersection point
+        intersection = ro + rd * t;
         return true;
     }
     return false;
 }
 
 void main() {
-    uint pairIdx = gl_GlobalInvocationID.x;
-    vec3 a0 = pairs.data[pairIdx * 6 + 0];
-    vec3 a1 = pairs.data[pairIdx * 6 + 1];
-    vec3 a2 = pairs.data[pairIdx * 6 + 2];
-    vec3 b0 = pairs.data[pairIdx * 6 + 3];
-    vec3 b1 = pairs.data[pairIdx * 6 + 4];
-    vec3 b2 = pairs.data[pairIdx * 6 + 5];
+    // Calculate 1D index from 3D workgroup coordinates
+    uint workGroupSizeX = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
+    uint workGroupSizeY = gl_NumWorkGroups.y * gl_WorkGroupSize.y;
+    uint pairIdx = gl_GlobalInvocationID.z * workGroupSizeX * workGroupSizeY +
+                   gl_GlobalInvocationID.y * workGroupSizeX +
+                   gl_GlobalInvocationID.x;
+
+    // Check if index is valid
+    if (pairIdx >= pairs.data.length() / 6) return;
+
+    // Transform vertices from local to world space
+    vec3 a0 = (pc.localToWorldA * vec4(pairs.data[pairIdx * 6 + 0], 1.0)).xyz;
+    vec3 a1 = (pc.localToWorldA * vec4(pairs.data[pairIdx * 6 + 1], 1.0)).xyz;
+    vec3 a2 = (pc.localToWorldA * vec4(pairs.data[pairIdx * 6 + 2], 1.0)).xyz;
+    vec3 b0 = (pc.localToWorldB * vec4(pairs.data[pairIdx * 6 + 3], 1.0)).xyz;
+    vec3 b1 = (pc.localToWorldB * vec4(pairs.data[pairIdx * 6 + 4], 1.0)).xyz;
+    vec3 b2 = (pc.localToWorldB * vec4(pairs.data[pairIdx * 6 + 5], 1.0)).xyz;
 
     int collisionCount = 0;
     vec3 tempIntersection;
 
-    // Initialize intersection points to zero
+    // Initialize results
     for (int i = 0; i < 6; i++) {
-        results[pairIdx].intersectionPoints[i] = vec3(0.0);
+        results[pairIdx].intersectionPoints[i] = vec3(-1.0, -1.0, -1.0);
     }
 
-    // Triangle A edges as rays vs Triangle B
+    // Triangle A edges vs Triangle B
     if (RayTriangleIntersect(a0, a1 - a0, b0, b1, b2, tempIntersection)) {
         results[pairIdx].intersectionPoints[collisionCount] = tempIntersection;
         collisionCount++;
@@ -61,7 +80,7 @@ void main() {
         collisionCount++;
     }
 
-    // Triangle B edges as rays vs Triangle A
+    // Triangle B edges vs Triangle A
     if (RayTriangleIntersect(b0, b1 - b0, a0, a1, a2, tempIntersection)) {
         results[pairIdx].intersectionPoints[collisionCount] = tempIntersection;
         collisionCount++;
