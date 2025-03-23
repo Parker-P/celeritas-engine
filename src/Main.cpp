@@ -3684,7 +3684,7 @@ namespace Engine {
 		/**
 		 * @brief Function called on implementing classes in each iteration of the main loop.
 		 */
-		virtual void PhysicsUpdate(EngineContext& eCtx) = 0;
+		virtual void PhysicsUpdate(VkContext& ctx, EngineContext& eCtx) = 0;
 	};
 
 	class Time : public Singleton<Time>, public IUpdatable, public IPhysicsUpdatable {
@@ -3744,7 +3744,7 @@ namespace Engine {
 		/**
 		 * @brief See IPhysicsUpdatable.
 		 */
-		void PhysicsUpdate(EngineContext& eCtx) {
+		void PhysicsUpdate(VkContext& ctx, EngineContext& eCtx) {
 			auto now = std::chrono::high_resolution_clock::now();
 			_physicsDeltaTime = (now - _lastPhysicsUpdateTime).count() * 0.000001;
 			_lastPhysicsUpdateTime = now;
@@ -3924,14 +3924,14 @@ namespace Engine {
 
 		std::vector< GameObject*> GetGameObjects(GameObject* pRoot, std::vector<GameObject*> excludedObjects = {});
 
-		std::vector<CollisionContext> DetectCollisions(std::vector<RigidBody*> bodiesToExclude = {});
+		std::vector<CollisionContext> DetectCollisions(VkContext& ctx, std::vector<RigidBody*> bodiesToExclude = {});
 
 		/**
 		 * @brief Basic init that guarantees the body's simulation.
 		 */
 		void Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass = 1.0f, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = { 0.0f, 0.0f, 0.0f });
 
-		void PhysicsUpdate(EngineContext& eCtx);
+		void PhysicsUpdate(VkContext& ctx, EngineContext& eCtx);
 
 		bool IsRotationLocked();
 
@@ -4011,9 +4011,571 @@ namespace Engine {
 		ShaderResources CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts);
 		Transform GetWorldSpaceTransform();
 		void UpdateShaderResources();
-		void PhysicsUpdate(EngineContext& eCtx);
+		void PhysicsUpdate(VkContext& ctx, EngineContext& eCtx);
 		void Update(VkContext& vkContext);
 		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer);
+	};
+
+	struct CollisionDetector {
+		static int GetComputeQueueFamilyIndex(const VkPhysicalDevice& physicalDevice) {
+			//find a queue family for a selected GPU, select the first available for use
+			uint32_t queueFamilyCount;
+			vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, NULL);
+
+			VkQueueFamilyProperties* queueFamilies = (VkQueueFamilyProperties*)malloc(sizeof(VkQueueFamilyProperties) * queueFamilyCount);
+
+			vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies);
+			uint32_t i = 0;
+			for (; i < queueFamilyCount; i++) {
+				VkQueueFamilyProperties props = queueFamilies[i];
+				if (props.queueCount > 0 && (props.queueFlags & VK_QUEUE_COMPUTE_BIT)) break;
+			}
+			free(queueFamilies);
+			if (i == queueFamilyCount) return -1;
+			return i;
+		}
+
+		static VkDevice CreateNewComputeDevice(VkDevice& device, VkPhysicalDevice& physicalDevice, VkQueue& outComputeQueue, uint32_t& outComputeQueueFamilyIndex) {
+			VkDevice outComputeDevice;
+			int computeFamilyIndex = GetComputeQueueFamilyIndex(physicalDevice);
+			if (computeFamilyIndex < 0) return 0;
+			vkGetDeviceQueue(device, computeFamilyIndex, 0, &outComputeQueue);
+			if (!outComputeQueue) { std::cout << "Failed to get compute queue" << std::endl; return 0; }
+
+			float queuePriorities = 1.0;
+			VkDeviceQueueCreateInfo deviceQueueCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+					0,
+					(VkDeviceQueueCreateFlags)0,
+					(uint32_t)computeFamilyIndex,
+					(uint32_t)1,
+					(const float*)&queuePriorities };
+
+			VkPhysicalDeviceFeatures physicalDeviceFeatures = { 0 };
+			//physicalDeviceFeatures.shaderFloat64 = VK_TRUE;//this enables double precision support in shaders 
+
+			VkDeviceCreateInfo deviceCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+					0,
+					(VkDeviceCreateFlags)0,
+					(uint32_t)1,
+					(const VkDeviceQueueCreateInfo*)&deviceQueueCreateInfo,
+					(uint32_t)0,
+					(const char* const*)NULL,
+					(uint32_t)0,
+					(const char* const*)NULL,
+					(const VkPhysicalDeviceFeatures*)&physicalDeviceFeatures };
+
+			auto res = vkCreateDevice(physicalDevice, &deviceCreateInfo, NULL, &outComputeDevice);
+			outComputeQueueFamilyIndex = computeFamilyIndex;
+			return outComputeDevice;
+		}
+
+		static VkContext InitializeVulkan(VkDevice& device, VkPhysicalDevice physicalDevice) {
+			// Create logical device representation.
+			VkContext ctx;
+			ctx._physicalDevice = physicalDevice;
+			ctx._logicalDevice = CreateNewComputeDevice(device, physicalDevice, ctx._queue, ctx._queueFamilyIndex);
+			if (!ctx._logicalDevice) { std::cout << "Failed to create compute device" << std::endl; return {}; }
+
+			// Create a fence for synchronization.
+			VkFenceCreateInfo fenceCreateInfo = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, 0 };
+			if (vkCreateFence(ctx._logicalDevice, &fenceCreateInfo, NULL, &ctx._queueFence)) { std::cout << "Fence creation failed." << std::endl; }
+
+			// Create a structure from which command buffer memory is allocated from.
+			VkCommandPoolCreateInfo commandPoolCreateInfo = { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, NULL, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, ctx._queueFamilyIndex };
+			if (vkCreateCommandPool(ctx._logicalDevice, &commandPoolCreateInfo, NULL, &ctx._commandPool)) { std::cout << "Command Pool Creation failed." << std::endl; }
+			return ctx;
+		}
+
+		static std::vector<uint32_t> CalculateWorkGroupCount(VkPhysicalDeviceProperties& gpuProperties, int minimumThreadCount, const std::vector<uint32_t>& workGroupSize) {
+			// Prepare variables.
+			uint32_t maxWorkGroupInvocations = gpuProperties.limits.maxComputeWorkGroupInvocations;
+			uint32_t* maxWorkGroupSize = gpuProperties.limits.maxComputeWorkGroupSize;
+			uint32_t* maxWorkGroupCount = gpuProperties.limits.maxComputeWorkGroupCount;
+			std::vector<uint32_t> outWorkGroupCount = { 1, 1, 1 };
+
+			// Use the work group size first, as that directly controls the amount of threads 1 to 1.
+			uint32_t totalWorkGroupSize = workGroupSize[0] * workGroupSize[1] * workGroupSize[2];
+			if (totalWorkGroupSize >= minimumThreadCount) return outWorkGroupCount;
+
+			// If one workgroup still doesn't do it, use multiple workgroups with the size of each one calculated earlier.
+			if (totalWorkGroupSize < minimumThreadCount) {
+				for (int i = 0; i < 3; ++i) {
+					for (; outWorkGroupCount[i] < maxWorkGroupCount[i]; ++outWorkGroupCount[i]) {
+						if (((outWorkGroupCount[0] * outWorkGroupCount[1] * outWorkGroupCount[2]) * totalWorkGroupSize) >= minimumThreadCount) { break; }
+					}
+				}
+			}
+		}
+
+		static VkResult AllocateGPUOnlyBuffer(VkBufferUsageFlags bufferUsageFlags, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize bufferSizeBytes, VkContext& ctx, VkBuffer* outBuffer, VkDeviceMemory* outDeviceMemory) {
+			//allocate the buffer used by the GPU with specified properties
+			VkResult res = VK_SUCCESS;
+			uint32_t queueFamilyIndices;
+			VkBufferCreateInfo bufferCreateInfo;
+			bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			bufferCreateInfo.pNext = 0;
+			bufferCreateInfo.flags = (VkBufferCreateFlags)0;
+			bufferCreateInfo.size = (VkDeviceSize)bufferSizeBytes;
+			bufferCreateInfo.usage = (VkBufferUsageFlags)bufferUsageFlags;
+			bufferCreateInfo.sharingMode = (VkSharingMode)VK_SHARING_MODE_EXCLUSIVE;
+			bufferCreateInfo.queueFamilyIndexCount = (uint32_t)1;
+			bufferCreateInfo.pQueueFamilyIndices = (const uint32_t*)&queueFamilyIndices;
+
+			res = vkCreateBuffer(ctx._logicalDevice, &bufferCreateInfo, NULL, outBuffer);
+			if (res != VK_SUCCESS) return res;
+
+			VkMemoryRequirements memoryRequirements = { 0 };
+			vkGetBufferMemoryRequirements(ctx._logicalDevice, *outBuffer, &memoryRequirements);
+
+			//find memory with specified properties
+			uint32_t memoryTypeIndex = 0xFFFFFFFF;
+			VkPhysicalDeviceMemoryProperties gpuMemoryProps;
+			vkGetPhysicalDeviceMemoryProperties(ctx._physicalDevice, &gpuMemoryProps);
+
+			for (uint32_t i = 0; i < gpuMemoryProps.memoryTypeCount; ++i) {
+				if ((memoryRequirements.memoryTypeBits & (1 << i)) && ((gpuMemoryProps.memoryTypes[i].propertyFlags & memoryPropertyFlags) == memoryPropertyFlags)) {
+					memoryTypeIndex = i;
+					break;
+				}
+			}
+			if (0xFFFFFFFF == memoryTypeIndex) return VK_ERROR_INITIALIZATION_FAILED;
+
+			VkMemoryAllocateInfo memoryAllocateInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+										 0,
+										 (VkDeviceSize)memoryRequirements.size,
+										 (uint32_t)memoryTypeIndex };
+
+			res = vkAllocateMemory(ctx._logicalDevice, &memoryAllocateInfo, NULL, outDeviceMemory);
+			if (res != VK_SUCCESS) return res;
+
+			res = vkBindBufferMemory(ctx._logicalDevice, *outBuffer, *outDeviceMemory, 0);
+			return res;
+		}
+
+		static VkResult UploadDataToGPU(void* data, VkBuffer* outBuffer, VkDeviceSize bufferSizeBytes, VkContext& ctx) {
+			VkResult res = VK_SUCCESS;
+
+			// a function that transfers data from the CPU to the GPU using staging buffer,
+			// because the GPU memory is not host-coherent
+			VkDeviceSize stagingBufferSize = bufferSizeBytes;
+			VkBuffer stagingBuffer = { 0 };
+			VkDeviceMemory stagingBufferMemory = { 0 };
+			res = AllocateGPUOnlyBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				stagingBufferSize,
+				ctx,
+				&stagingBuffer,
+				&stagingBufferMemory);
+			if (res != VK_SUCCESS) return res;
+
+			void* stagingData;
+			res = vkMapMemory(ctx._logicalDevice, stagingBufferMemory, 0, stagingBufferSize, 0, &stagingData);
+			if (res != VK_SUCCESS) return res;
+			memcpy(stagingData, data, stagingBufferSize);
+			vkUnmapMemory(ctx._logicalDevice, stagingBufferMemory);
+
+			VkCommandBufferAllocateInfo commandBufferAllocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+												0,
+												(VkCommandPool)ctx._commandPool,
+												(VkCommandBufferLevel)VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+												(uint32_t)1 };
+			VkCommandBuffer commandBuffer = { 0 };
+			res = vkAllocateCommandBuffers(ctx._logicalDevice, &commandBufferAllocateInfo, &commandBuffer);
+			if (res != VK_SUCCESS) return res;
+
+
+
+			VkCommandBufferBeginInfo commandBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+											 0,
+											 (VkCommandBufferUsageFlags)VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+											 (const VkCommandBufferInheritanceInfo*)NULL };
+			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+			if (res != VK_SUCCESS) return res;
+			VkBufferCopy copyRegion = { 0, 0, stagingBufferSize };
+			vkCmdCopyBuffer(commandBuffer, stagingBuffer, *outBuffer, 1, &copyRegion);
+			res = vkEndCommandBuffer(commandBuffer);
+			if (res != VK_SUCCESS) return res;
+
+			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO,
+								 0,
+								 (uint32_t)0,
+								 (const VkSemaphore*)NULL,
+								 (const VkPipelineStageFlags*)NULL,
+								 (uint32_t)1,
+								 (const VkCommandBuffer*)&commandBuffer,
+								 (uint32_t)0,
+								 (const VkSemaphore*)NULL };
+
+			res = vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
+			if (res != VK_SUCCESS) return res;
+
+
+			res = vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, 100000000000);
+			if (res != VK_SUCCESS) return res;
+
+			res = vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
+			if (res != VK_SUCCESS) return res;
+
+			vkFreeCommandBuffers(ctx._logicalDevice, ctx._commandPool, 1, &commandBuffer);
+			vkDestroyBuffer(ctx._logicalDevice, stagingBuffer, NULL);
+			vkFreeMemory(ctx._logicalDevice, stagingBufferMemory, NULL);
+			return res;
+		}
+
+		static VkResult DownloadDataFromGPU(void* data, VkDeviceSize bufferSize, VkContext& ctx, VkBuffer* outBuffer) {
+			VkResult res = VK_SUCCESS;
+			VkCommandBuffer commandBuffer = { 0 };
+
+			// A function that transfers data from the GPU to the CPU using staging buffer, because GPU memory is not host-coherent (meaning it is
+			// not synced with the contents of CPU memory).
+			VkDeviceSize stagingBufferSize = bufferSize;
+			VkBuffer stagingBuffer = { 0 };
+			VkDeviceMemory stagingBufferMemory = { 0 };
+			res = AllocateGPUOnlyBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				stagingBufferSize,
+				ctx,
+				&stagingBuffer,
+				&stagingBufferMemory);
+			if (res != VK_SUCCESS) return res;
+
+			VkCommandBufferAllocateInfo commandBufferAllocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+												0,
+												(VkCommandPool)ctx._commandPool,
+												(VkCommandBufferLevel)VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+												(uint32_t)1 };
+			res = vkAllocateCommandBuffers(ctx._logicalDevice, &commandBufferAllocateInfo, &commandBuffer);
+			if (res != VK_SUCCESS) return res;
+
+			VkCommandBufferBeginInfo commandBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+											 0,
+											 (VkCommandBufferUsageFlags)VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+											 (const VkCommandBufferInheritanceInfo*)NULL };
+			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+			if (res != VK_SUCCESS) return res;
+
+			VkBufferCopy copyRegion = { (VkDeviceSize)0,
+								 (VkDeviceSize)0,
+								 (VkDeviceSize)stagingBufferSize };
+
+			vkCmdCopyBuffer(commandBuffer, outBuffer[0], stagingBuffer, 1, &copyRegion);
+			vkEndCommandBuffer(commandBuffer);
+
+			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO,
+								 0,
+								 (uint32_t)0,
+								 (const VkSemaphore*)NULL,
+								 (const VkPipelineStageFlags*)NULL,
+								 (uint32_t)1,
+								 (const VkCommandBuffer*)&commandBuffer,
+								 (uint32_t)0,
+								 (const VkSemaphore*)NULL };
+
+			res = vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
+			if (res != VK_SUCCESS) return res;
+
+			res = vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, 100000000000);
+			if (res != VK_SUCCESS) return res;
+
+			res = vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
+			if (res != VK_SUCCESS) return res;
+
+			vkFreeCommandBuffers(ctx._logicalDevice, ctx._commandPool, 1, &commandBuffer);
+
+			void* stagingData;
+			res = vkMapMemory(ctx._logicalDevice, stagingBufferMemory, 0, stagingBufferSize, 0, &stagingData);
+			if (res != VK_SUCCESS) return res;
+
+			memcpy(data, stagingData, stagingBufferSize);
+			vkUnmapMemory(ctx._logicalDevice, stagingBufferMemory);
+
+			vkDestroyBuffer(ctx._logicalDevice, stagingBuffer, NULL);
+			vkFreeMemory(ctx._logicalDevice, stagingBufferMemory, NULL);
+			return res;
+		}
+
+		static VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilename, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet) {
+
+			// Create an application interface to Vulkan. This function binds the shader to the compute pipeline, so it can be used as a part of the command buffer later.
+			VkDescriptorPool descriptorPool;
+			VkResult res = VK_SUCCESS;
+			uint32_t descriptorCount = 2;
+
+			// We have two storage buffer objects in one set in one pool.
+			VkDescriptorPoolSize descriptorPoolSize = { (VkDescriptorType)VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorCount };
+
+			const VkDescriptorType descriptorTypes[2] = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER };
+
+			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, 0, 0, 1, 1, (const VkDescriptorPoolSize*)&descriptorPoolSize };
+
+			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, 0, &descriptorPool));
+
+			// Specify each object from the set as a storage buffer.
+			VkDescriptorSetLayoutBinding* descriptorSetLayoutBindings = (VkDescriptorSetLayoutBinding*)malloc(descriptorCount * sizeof(VkDescriptorSetLayoutBinding));
+			for (uint32_t i = 0; i < descriptorCount; ++i) {
+				descriptorSetLayoutBindings[i].binding = (uint32_t)i;
+				descriptorSetLayoutBindings[i].descriptorType = (VkDescriptorType)descriptorTypes[i];
+				descriptorSetLayoutBindings[i].descriptorCount = (uint32_t)1;
+				descriptorSetLayoutBindings[i].stageFlags = (VkShaderStageFlags)VK_SHADER_STAGE_COMPUTE_BIT;
+				descriptorSetLayoutBindings[i].pImmutableSamplers = 0;
+			}
+
+			VkDescriptorSetLayout descriptorSetLayout;
+			VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, 0, 0, descriptorCount, descriptorSetLayoutBindings };
+			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &descriptorSetLayoutCreateInfo, 0, &descriptorSetLayout));
+			free(descriptorSetLayoutBindings);
+
+			//provide the layout with actual buffers and their sizes
+			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, 0, descriptorPool, (uint32_t)1, &descriptorSetLayout };
+			VkDescriptorSet descriptorSet;
+			CheckResult(vkAllocateDescriptorSets(ctx._logicalDevice, &descriptorSetAllocateInfo, &descriptorSet));
+
+			for (uint32_t i = 0; i < descriptorCount; ++i) {
+				VkDescriptorBufferInfo descriptorBufferInfo = { shaderBuffersArray[i], 0, arrayOfSizesOfEachBuffer[i] };
+				VkWriteDescriptorSet writeDescriptorSet = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, 0, descriptorSet, i, 0, 1, (VkDescriptorType)descriptorTypes[i], 0, &descriptorBufferInfo, 0 };
+				vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeDescriptorSet, 0, 0);
+			}
+
+			VkPushConstantRange range;
+			range.offset = 0;
+			range.size = sizeof(unsigned int) * 3;
+			range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+			VkPipelineLayout pipelineLayout;
+			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, 0, 0, 1, &descriptorSetLayout, 1, &range };
+			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, 0, &pipelineLayout));
+
+			// Define the specialization constant values
+
+			std::ifstream file(shaderFilename, std::ios::ate | std::ios::binary);
+			VkShaderModule shaderModule = nullptr;
+			if (file.is_open()) {
+				std::vector<char> fileBytes(file.tellg());
+				file.seekg(0, std::ios::beg);
+				file.read(fileBytes.data(), fileBytes.size());
+				file.close();
+
+				VkShaderModuleCreateInfo createInfo = {};
+				createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+				createInfo.codeSize = fileBytes.size();
+				createInfo.pCode = (uint32_t*)fileBytes.data();
+
+				if (vkCreateShaderModule(ctx._logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+					std::cout << "failed to create shader module for " << shaderFilename << std::endl;
+				}
+			}
+			else {
+				std::cout << "failed to open file " << shaderFilename << std::endl;
+			}
+
+			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, 0, 0, VK_SHADER_STAGE_COMPUTE_BIT, shaderModule, "main" };
+			VkComputePipelineCreateInfo computePipelineCreateInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, 0, 0, pipelineShaderStageCreateInfo, pipelineLayout, 0, 0 };
+
+			//create pipeline
+			VkPipeline pipeline;
+			res = vkCreateComputePipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, NULL, &pipeline);
+			if (res != VK_SUCCESS) return res;
+
+			vkDestroyShaderModule(ctx._logicalDevice, pipelineShaderStageCreateInfo.module, NULL);
+			return res;
+		}
+
+		static VkResult Dispatch(VkContext& ctx, VkPipeline pipeline, VkPipelineLayout pipelineLayout,
+			VkDescriptorSet descriptorSet, std::vector<uint32_t>& workGroupCount,
+			const glm::mat4x4& objectToWorldA, const glm::mat4x4& objectToWorldB) {
+			VkResult res = VK_SUCCESS;
+			VkCommandBuffer commandBuffer = { 0 };
+
+			// Create a command buffer to be executed on the GPU
+			VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+			commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+			commandBufferAllocateInfo.commandPool = ctx._commandPool;
+			commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+			commandBufferAllocateInfo.commandBufferCount = 1;
+			res = vkAllocateCommandBuffers(ctx._logicalDevice, &commandBufferAllocateInfo, &commandBuffer);
+			if (res != VK_SUCCESS) return res;
+
+			// Begin command buffer recording
+			VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+			commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+			commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+			if (res != VK_SUCCESS) return res;
+
+			// Define push constants structure matching the shader
+			struct PushConstants {
+				glm::mat4x4 localToWorldA;
+				glm::mat4x4 localToWorldB;
+			} pushConstants;
+			pushConstants.localToWorldA = objectToWorldA;
+			pushConstants.localToWorldB = objectToWorldB;
+
+			// Bind pipeline and push constants
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+			vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT,
+				0, sizeof(PushConstants), &pushConstants);
+			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout,
+				0, 1, &descriptorSet, 0, NULL);
+			vkCmdDispatch(commandBuffer, workGroupCount[0], workGroupCount[1], workGroupCount[2]);
+
+			// End command buffer recording
+			res = vkEndCommandBuffer(commandBuffer);
+			if (res != VK_SUCCESS) return res;
+
+			// Submit the command buffer
+			VkSubmitInfo submitInfo = {};
+			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &commandBuffer;
+			clock_t t = clock();
+			res = vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
+			if (res != VK_SUCCESS) return res;
+
+			// Wait for the fence
+			res = vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, 30000000000);
+			if (res != VK_SUCCESS) return res;
+
+			// Calculate execution time
+			t = clock() - t;
+			double time = ((double)t) / CLOCKS_PER_SEC * 1000;
+
+			// Reset fence and free command buffer
+			res = vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
+			if (res != VK_SUCCESS) return res;
+
+			vkFreeCommandBuffers(ctx._logicalDevice, ctx._commandPool, 1, &commandBuffer);
+			return res;
+		}
+
+		static std::vector<glm::vec3> Run(VkDevice& device, VkPhysicalDevice& physicalDevice, RigidBody& bodyA, RigidBody& bodyB) {
+			VkContext ctx = InitializeVulkan(device, physicalDevice);
+
+			// Get device properties and memory properties, if needed.
+			VkPhysicalDeviceProperties gpuProperties;
+			VkPhysicalDeviceMemoryProperties gpuMemoryProperties;
+			vkGetPhysicalDeviceProperties(physicalDevice, &gpuProperties);
+			vkGetPhysicalDeviceMemoryProperties(physicalDevice, &gpuMemoryProperties);
+
+			//uint32_t inputAndOutputBufferSizeInBytes = (uint32_t)(imageWidthPixels * imageHeightPixels) * 4;
+
+			// Prepare the input and output buffers.
+			/*_inputBufferCount = (uint32_t)(imageWidthPixels * imageHeightPixels);
+			_inputBuffer;
+			_inputBufferDeviceMemory;
+			_outputBufferCount = _inputBufferCount;
+			_outputBuffer;
+			_outputBufferDeviceMemory;*/
+
+			// Calculate how many workgroups and the size of each workgroup we are going to use.
+			// We want one GPU thread to operate on a single value from the input buffer, so the required thread size is the input buffer size.
+			auto threadSize = bodyA._mesh._vertices.size() * bodyB._mesh._vertices.size();
+			size_t inputBufferSizeBytes = threadSize * sizeof(glm::vec3);
+			glm::vec3* inputBufferData = (glm::vec3*)malloc(inputBufferSizeBytes);
+			if (!inputBufferData) { std::cout << "Failed allocating memory for collision detection vertices" << std::endl; return {}; }
+			for (int i = 0, c = 0; i < bodyA._mesh._vertices.size(); i += 3) {
+				for (int j = 0; j < bodyB._mesh._vertices.size(); j += 3, ++c) {
+					inputBufferData[c] = bodyA._mesh._vertices[i]._position;
+					inputBufferData[++c] = bodyA._mesh._vertices[i + 1]._position;
+					inputBufferData[++c] = bodyA._mesh._vertices[i + 2]._position;
+					inputBufferData[++c] = bodyB._mesh._vertices[j]._position;
+					inputBufferData[++c] = bodyB._mesh._vertices[j + 1]._position;
+					inputBufferData[++c] = bodyB._mesh._vertices[j + 2]._position;
+				}
+			}
+
+			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, threadSize, { 256, 1, 1 });
+
+			//use default values if coalescedMemory = 0
+			//if (_coalescedMemory == 0) {
+			//	switch (_physicalDeviceProperties.vendorID) {
+			//	case 0x10DE://NVIDIA - change to 128 before Pascal
+			//		_coalescedMemory = 32;
+			//		break;
+			//	case 0x8086://INTEL
+			//		_coalescedMemory = 64;
+			//		break;
+			//	case 0x13B5://AMD
+			//		_coalescedMemory = 64;
+			//		break;
+			//	default:
+			//		_coalescedMemory = 64;
+			//		break;
+			//	}
+			//}
+
+			// Create the input buffer.
+			VkResult res = VK_SUCCESS;
+			Buffer inputBuffer;
+			Buffer outputBuffer;
+			VkHelper::CreateBuffer(ctx._logicalDevice,
+				ctx._physicalDevice,
+				inputBufferSizeBytes,
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				&inputBuffer._buffer,
+				&inputBuffer._gpuMemory);
+
+			VkHelper::CreateBuffer(ctx._logicalDevice,
+				ctx._physicalDevice,
+				inputBufferSizeBytes,
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				&outputBuffer._buffer,
+				&outputBuffer._gpuMemory);
+
+			// Transfer data to GPU staging buffer and thereafter sync the staging buffer with GPU local memory.
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, inputBuffer._buffer, inputBufferData, inputBufferSizeBytes);
+
+			VkBuffer buffers[2] = { inputBuffer._buffer, outputBuffer._buffer };
+			VkDeviceSize bufferSizes[2] = { inputBufferSizeBytes, inputBufferSizeBytes };
+
+			// Create 
+			//const char* shaderPath = "C:\\code\\vulkan-compute\\shaders\\Shader.spv";
+			auto shaderPath = Paths::ShadersPath() /= L"compute\\CollisionDetection.spv";
+			VkPipeline pipeline; VkPipelineLayout layout; VkDescriptorSet descriptorSet;
+			if (CreateComputePipeline(buffers, bufferSizes, shaderPath.string().c_str(), ctx, pipeline, layout, descriptorSet) != VK_SUCCESS) {
+				std::cout << "Application creation failed." << std::endl;
+			}
+
+			if (Dispatch(ctx, pipeline, layout, descriptorSet, workGroupCount, bodyA._pGameObject->GetWorldSpaceTransform()._matrix, bodyB._pGameObject->GetWorldSpaceTransform()._matrix) != VK_SUCCESS) {
+				std::cout << "Application run failed." << std::endl;
+			}
+
+			auto shaderOutputBufferData = (glm::vec3*)malloc(inputBufferSizeBytes);
+
+			res = vkGetFenceStatus(ctx._logicalDevice, ctx._queueFence);
+
+			//Transfer data from GPU using staging buffer, if needed
+			if (DownloadDataFromGPU(shaderOutputBufferData,
+				inputBufferSizeBytes,
+				ctx,
+				&outputBuffer._buffer) != VK_SUCCESS) {
+				std::cout << "Failed downloading image from GPU." << std::endl;
+			}
+
+			// Print data for debugging.
+			/*printf("Output buffer result: [");
+			uint32_t startAndEndSize = 50;
+			uint32_t i = 0;
+			for (; i < outputBufferCount - 1 && i < startAndEndSize; ++i) {
+				printf("%d, ", shaderOutputBufferData[i]);
+			}
+			if (i >= startAndEndSize) {
+				printf("..., ");
+				i = outputBufferCount - startAndEndSize + 1;
+				for (; i < outputBufferCount - 1; ++i)
+					printf("%d, ", shaderOutputBufferData[i]);
+			}
+			printf("%d]\n", shaderOutputBufferData[outputBufferCount - 1]);*/
+
+			// Free resources.
+			vkDestroyBuffer(ctx._logicalDevice, inputBuffer._buffer, nullptr);
+			vkFreeMemory(ctx._logicalDevice, inputBuffer._gpuMemory, nullptr);
+			vkDestroyBuffer(ctx._logicalDevice, outputBuffer._buffer, nullptr);
+			vkFreeMemory(ctx._logicalDevice, outputBuffer._gpuMemory, nullptr);
+
+			return {};
+		}
 	};
 
 	/**
@@ -4060,9 +4622,9 @@ namespace Engine {
 			return _materials[0];
 		}
 
-		void PhysicsUpdate(EngineContext& eCtx) {
+		void PhysicsUpdate(VkContext& ctx, EngineContext& eCtx) {
 			for (auto& gameObject : _pRootGameObject->_children)
-				gameObject->PhysicsUpdate(eCtx);
+				gameObject->PhysicsUpdate(ctx, eCtx);
 		}
 
 		void Update(VkContext& vkContext) {
@@ -4186,8 +4748,8 @@ namespace Engine {
 		memcpy(_buffers[0]._cpuMemory, &_gameObjectData, sizeof(_gameObjectData));
 	}
 
-	void GameObject::PhysicsUpdate(EngineContext& eCtx) {
-		_body.PhysicsUpdate(eCtx);
+	void GameObject::PhysicsUpdate(VkContext& ctx, EngineContext& eCtx) {
+		_body.PhysicsUpdate(ctx, eCtx);
 	}
 
 	void GameObject::Update(VkContext& vkContext) {
@@ -4487,7 +5049,7 @@ namespace Engine {
 		return outGameObjects;
 	}
 
-	std::vector<CollisionContext> RigidBody::DetectCollisions(std::vector<RigidBody*> bodiesToExclude) {
+	std::vector<CollisionContext> RigidBody::DetectCollisions(VkContext& ctx, std::vector<RigidBody*> bodiesToExclude) {
 		std::vector<GameObject*> gameObjectsToExclude;
 		gameObjectsToExclude.push_back(_pGameObject);
 		for (int i = 1; i < gameObjectsToExclude.size(); ++i) gameObjectsToExclude[i] = bodiesToExclude[i - 1]->_pGameObject;
@@ -4496,8 +5058,9 @@ namespace Engine {
 		std::vector<CollisionContext> outCollisions;
 		for (int i = 0; i < otherGameObjects.size(); ++i) {
 			if (otherGameObjects[i]->_body._mesh._vertices.size() < 1) continue;
-			auto collision = DetectCollision(otherGameObjects[i]->_body);
-			if (collision._collisionPositions.size() > 0) outCollisions.push_back(collision);
+			//auto collision = DetectCollision(otherGameObjects[i]->_body);
+			CollisionDetector::Run(ctx._logicalDevice, ctx._physicalDevice, *this, otherGameObjects[i]->_body);
+			//if (collision._collisionPositions.size() > 0) outCollisions.push_back(collision);
 		}
 		return outCollisions;
 	}
@@ -4581,566 +5144,6 @@ namespace Engine {
 		memcpy(_mesh._faceIndices.data(), faceIndices.data(), GetVectorSizeInBytes(faceIndices));
 		_isInitialized = true;
 	}
-
-	struct CollisionDetector {
-		int GetComputeQueueFamilyIndex(const VkPhysicalDevice& physicalDevice) {
-			//find a queue family for a selected GPU, select the first available for use
-			uint32_t queueFamilyCount;
-			vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, NULL);
-
-			VkQueueFamilyProperties* queueFamilies = (VkQueueFamilyProperties*)malloc(sizeof(VkQueueFamilyProperties) * queueFamilyCount);
-
-			vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies);
-			uint32_t i = 0;
-			for (; i < queueFamilyCount; i++) {
-				VkQueueFamilyProperties props = queueFamilies[i];
-				if (props.queueCount > 0 && (props.queueFlags & VK_QUEUE_COMPUTE_BIT)) break;
-			}
-			free(queueFamilies);
-			if (i == queueFamilyCount) return -1;
-			return i;
-		}
-
-		VkDevice CreateNewComputeDevice(VkDevice& device, VkPhysicalDevice& physicalDevice, VkQueue& outComputeQueue, uint32_t& outComputeQueueFamiltIndex) {
-			VkDevice outComputeDevice;
-			int computeFamilyIndex = GetComputeQueueFamilyIndex(physicalDevice);
-			if (computeFamilyIndex < 0) return 0;
-			vkGetDeviceQueue(device, computeFamilyIndex, 0, &outComputeQueue);
-			if (!outComputeQueue) { std::cout << "Failed to get compute queue" << std::endl; return 0; }
-
-			float queuePriorities = 1.0;
-			VkDeviceQueueCreateInfo deviceQueueCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-					0,
-					(VkDeviceQueueCreateFlags)0,
-					(uint32_t)computeFamilyIndex,
-					(uint32_t)1,
-					(const float*)&queuePriorities };
-
-			VkPhysicalDeviceFeatures physicalDeviceFeatures = { 0 };
-			physicalDeviceFeatures.shaderFloat64 = VK_TRUE;//this enables double precision support in shaders 
-
-			VkDeviceCreateInfo deviceCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-					0,
-					(VkDeviceCreateFlags)0,
-					(uint32_t)1,
-					(const VkDeviceQueueCreateInfo*)&deviceQueueCreateInfo,
-					(uint32_t)0,
-					(const char* const*)NULL,
-					(uint32_t)0,
-					(const char* const*)NULL,
-					(const VkPhysicalDeviceFeatures*)&physicalDeviceFeatures };
-
-			vkCreateDevice(physicalDevice, &deviceCreateInfo, NULL, &outComputeDevice);
-			return outComputeDevice;
-		}
-
-		VkContext InitializeVulkan(VkDevice& device, VkPhysicalDevice physicalDevice) {
-			// Create logical device representation.
-			VkContext ctx;
-			ctx._logicalDevice = CreateNewComputeDevice(device, physicalDevice, ctx._queue, ctx._queueFamilyIndex);
-			if (!ctx._logicalDevice) { std::cout << "Failed to create compute device" << std::endl; return {}; }
-
-			// Create a fence for synchronization.
-			VkFenceCreateInfo fenceCreateInfo = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, 0 };
-			if (vkCreateFence(ctx._logicalDevice, &fenceCreateInfo, NULL, &ctx._queueFence)) { std::cout << "Fence creation failed." << std::endl; }
-
-			// Create a structure from which command buffer memory is allocated from.
-			VkCommandPoolCreateInfo commandPoolCreateInfo = { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, NULL, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, ctx._queueFamilyIndex };
-			if (vkCreateCommandPool(ctx._logicalDevice, &commandPoolCreateInfo, NULL, &ctx._commandPool)) { std::cout << "Command Pool Creation failed." << std::endl; }
-			return ctx;
-		}
-
-		std::vector<uint32_t> CalculateWorkGroupCount(VkPhysicalDeviceProperties& gpuProperties, int minimumThreadCount, const std::vector<uint32_t>& workGroupSize) {
-			// Prepare variables.
-			uint32_t maxWorkGroupInvocations = gpuProperties.limits.maxComputeWorkGroupInvocations;
-			uint32_t* maxWorkGroupSize = gpuProperties.limits.maxComputeWorkGroupSize;
-			uint32_t* maxWorkGroupCount = gpuProperties.limits.maxComputeWorkGroupCount;
-			std::vector<uint32_t> outWorkGroupCount = { 1, 1, 1 };
-
-			// Use the work group size first, as that directly controls the amount of threads 1 to 1.
-			uint32_t totalWorkGroupSize = workGroupSize[0] * workGroupSize[1] * workGroupSize[2];
-			if (totalWorkGroupSize >= minimumThreadCount) return outWorkGroupCount;
-
-			// If one workgroup still doesn't do it, use multiple workgroups with the size of each one calculated earlier.
-			if (totalWorkGroupSize < minimumThreadCount) {
-				for (int i = 0; i < 3; ++i) {
-					for (; outWorkGroupCount[i] < maxWorkGroupCount[i]; ++outWorkGroupCount[i]) {
-						if (((outWorkGroupCount[0] * outWorkGroupCount[1] * outWorkGroupCount[2]) * totalWorkGroupSize) >= minimumThreadCount) { break; }
-					}
-				}
-			}
-		}
-
-		VkResult AllocateGPUOnlyBuffer(VkBufferUsageFlags bufferUsageFlags, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize bufferSizeBytes, VkContext& ctx, VkBuffer* outBuffer, VkDeviceMemory* outDeviceMemory) {
-			//allocate the buffer used by the GPU with specified properties
-			VkResult res = VK_SUCCESS;
-			uint32_t queueFamilyIndices;
-			VkBufferCreateInfo bufferCreateInfo;
-			bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-			bufferCreateInfo.pNext = 0;
-			bufferCreateInfo.flags = (VkBufferCreateFlags)0;
-			bufferCreateInfo.size = (VkDeviceSize)bufferSizeBytes;
-			bufferCreateInfo.usage = (VkBufferUsageFlags)bufferUsageFlags;
-			bufferCreateInfo.sharingMode = (VkSharingMode)VK_SHARING_MODE_EXCLUSIVE;
-			bufferCreateInfo.queueFamilyIndexCount = (uint32_t)1;
-			bufferCreateInfo.pQueueFamilyIndices = (const uint32_t*)&queueFamilyIndices;
-
-			res = vkCreateBuffer(ctx._logicalDevice, &bufferCreateInfo, NULL, outBuffer);
-			if (res != VK_SUCCESS) return res;
-
-			VkMemoryRequirements memoryRequirements = { 0 };
-			vkGetBufferMemoryRequirements(ctx._logicalDevice, *outBuffer, &memoryRequirements);
-
-			//find memory with specified properties
-			uint32_t memoryTypeIndex = 0xFFFFFFFF;
-			VkPhysicalDeviceMemoryProperties gpuMemoryProps;
-			vkGetPhysicalDeviceMemoryProperties(ctx._physicalDevice, &gpuMemoryProps);
-
-			for (uint32_t i = 0; i < gpuMemoryProps.memoryTypeCount; ++i) {
-				if ((memoryRequirements.memoryTypeBits & (1 << i)) && ((gpuMemoryProps.memoryTypes[i].propertyFlags & memoryPropertyFlags) == memoryPropertyFlags)) {
-					memoryTypeIndex = i;
-					break;
-				}
-			}
-			if (0xFFFFFFFF == memoryTypeIndex) return VK_ERROR_INITIALIZATION_FAILED;
-
-			VkMemoryAllocateInfo memoryAllocateInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-										 0,
-										 (VkDeviceSize)memoryRequirements.size,
-										 (uint32_t)memoryTypeIndex };
-
-			res = vkAllocateMemory(ctx._logicalDevice, &memoryAllocateInfo, NULL, outDeviceMemory);
-			if (res != VK_SUCCESS) return res;
-
-			res = vkBindBufferMemory(ctx._logicalDevice, *outBuffer, *outDeviceMemory, 0);
-			return res;
-		}
-
-		VkResult UploadDataToGPU(void* data, VkBuffer* outBuffer, VkDeviceSize bufferSizeBytes, VkContext& ctx) {
-			VkResult res = VK_SUCCESS;
-
-			// a function that transfers data from the CPU to the GPU using staging buffer,
-			// because the GPU memory is not host-coherent
-			VkDeviceSize stagingBufferSize = bufferSizeBytes;
-			VkBuffer stagingBuffer = { 0 };
-			VkDeviceMemory stagingBufferMemory = { 0 };
-			res = AllocateGPUOnlyBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				stagingBufferSize,
-				ctx,
-				&stagingBuffer,
-				&stagingBufferMemory);
-			if (res != VK_SUCCESS) return res;
-
-			void* stagingData;
-			res = vkMapMemory(ctx._logicalDevice, stagingBufferMemory, 0, stagingBufferSize, 0, &stagingData);
-			if (res != VK_SUCCESS) return res;
-			memcpy(stagingData, data, stagingBufferSize);
-			vkUnmapMemory(ctx._logicalDevice, stagingBufferMemory);
-
-			VkCommandBufferAllocateInfo commandBufferAllocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-												0,
-												(VkCommandPool)ctx._commandPool,
-												(VkCommandBufferLevel)VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-												(uint32_t)1 };
-			VkCommandBuffer commandBuffer = { 0 };
-			res = vkAllocateCommandBuffers(ctx._logicalDevice, &commandBufferAllocateInfo, &commandBuffer);
-			if (res != VK_SUCCESS) return res;
-
-
-
-			VkCommandBufferBeginInfo commandBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-											 0,
-											 (VkCommandBufferUsageFlags)VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-											 (const VkCommandBufferInheritanceInfo*)NULL };
-			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
-			if (res != VK_SUCCESS) return res;
-			VkBufferCopy copyRegion = { 0, 0, stagingBufferSize };
-			vkCmdCopyBuffer(commandBuffer, stagingBuffer, *outBuffer, 1, &copyRegion);
-			res = vkEndCommandBuffer(commandBuffer);
-			if (res != VK_SUCCESS) return res;
-
-			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO,
-								 0,
-								 (uint32_t)0,
-								 (const VkSemaphore*)NULL,
-								 (const VkPipelineStageFlags*)NULL,
-								 (uint32_t)1,
-								 (const VkCommandBuffer*)&commandBuffer,
-								 (uint32_t)0,
-								 (const VkSemaphore*)NULL };
-
-			res = vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
-			if (res != VK_SUCCESS) return res;
-
-
-			res = vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, 100000000000);
-			if (res != VK_SUCCESS) return res;
-
-			res = vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
-			if (res != VK_SUCCESS) return res;
-
-			vkFreeCommandBuffers(ctx._logicalDevice, ctx._commandPool, 1, &commandBuffer);
-			vkDestroyBuffer(ctx._logicalDevice, stagingBuffer, NULL);
-			vkFreeMemory(ctx._logicalDevice, stagingBufferMemory, NULL);
-			return res;
-		}
-
-		VkResult DownloadDataFromGPU(void* data, VkDeviceSize bufferSize, VkContext& ctx, VkBuffer* outBuffer) {
-			VkResult res = VK_SUCCESS;
-			VkCommandBuffer commandBuffer = { 0 };
-
-			// A function that transfers data from the GPU to the CPU using staging buffer, because GPU memory is not host-coherent (meaning it is
-			// not synced with the contents of CPU memory).
-			VkDeviceSize stagingBufferSize = bufferSize;
-			VkBuffer stagingBuffer = { 0 };
-			VkDeviceMemory stagingBufferMemory = { 0 };
-			res = AllocateGPUOnlyBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				stagingBufferSize,
-				ctx,
-				&stagingBuffer,
-				&stagingBufferMemory);
-			if (res != VK_SUCCESS) return res;
-
-			VkCommandBufferAllocateInfo commandBufferAllocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-												0,
-												(VkCommandPool)ctx._commandPool,
-												(VkCommandBufferLevel)VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-												(uint32_t)1 };
-			res = vkAllocateCommandBuffers(ctx._logicalDevice, &commandBufferAllocateInfo, &commandBuffer);
-			if (res != VK_SUCCESS) return res;
-
-			VkCommandBufferBeginInfo commandBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-											 0,
-											 (VkCommandBufferUsageFlags)VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-											 (const VkCommandBufferInheritanceInfo*)NULL };
-			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
-			if (res != VK_SUCCESS) return res;
-
-			VkBufferCopy copyRegion = { (VkDeviceSize)0,
-								 (VkDeviceSize)0,
-								 (VkDeviceSize)stagingBufferSize };
-
-			vkCmdCopyBuffer(commandBuffer, outBuffer[0], stagingBuffer, 1, &copyRegion);
-			vkEndCommandBuffer(commandBuffer);
-
-			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO,
-								 0,
-								 (uint32_t)0,
-								 (const VkSemaphore*)NULL,
-								 (const VkPipelineStageFlags*)NULL,
-								 (uint32_t)1,
-								 (const VkCommandBuffer*)&commandBuffer,
-								 (uint32_t)0,
-								 (const VkSemaphore*)NULL };
-
-			res = vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
-			if (res != VK_SUCCESS) return res;
-
-			res = vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, 100000000000);
-			if (res != VK_SUCCESS) return res;
-
-			res = vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
-			if (res != VK_SUCCESS) return res;
-
-			vkFreeCommandBuffers(ctx._logicalDevice, ctx._commandPool, 1, &commandBuffer);
-
-			void* stagingData;
-			res = vkMapMemory(ctx._logicalDevice, stagingBufferMemory, 0, stagingBufferSize, 0, &stagingData);
-			if (res != VK_SUCCESS) return res;
-
-			memcpy(data, stagingData, stagingBufferSize);
-			vkUnmapMemory(ctx._logicalDevice, stagingBufferMemory);
-
-			vkDestroyBuffer(ctx._logicalDevice, stagingBuffer, NULL);
-			vkFreeMemory(ctx._logicalDevice, stagingBufferMemory, NULL);
-			return res;
-		}
-
-		VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilename, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet) {
-
-			// Create an application interface to Vulkan. This function binds the shader to the compute pipeline, so it can be used as a part of the command buffer later.
-			VkDescriptorPool descriptorPool;
-			VkResult res = VK_SUCCESS;
-			uint32_t descriptorCount = 2;
-
-			// We have two storage buffer objects in one set in one pool.
-			VkDescriptorPoolSize descriptorPoolSize = { (VkDescriptorType)VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorCount };
-
-			const VkDescriptorType descriptorTypes[2] = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER };
-
-			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, 0, 0, 1, 1, (const VkDescriptorPoolSize*)&descriptorPoolSize };
-
-			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, 0, &descriptorPool));
-
-			// Specify each object from the set as a storage buffer.
-			VkDescriptorSetLayoutBinding* descriptorSetLayoutBindings = (VkDescriptorSetLayoutBinding*)malloc(descriptorCount * sizeof(VkDescriptorSetLayoutBinding));
-			for (uint32_t i = 0; i < descriptorCount; ++i) {
-				descriptorSetLayoutBindings[i].binding = (uint32_t)i;
-				descriptorSetLayoutBindings[i].descriptorType = (VkDescriptorType)descriptorTypes[i];
-				descriptorSetLayoutBindings[i].descriptorCount = (uint32_t)1;
-				descriptorSetLayoutBindings[i].stageFlags = (VkShaderStageFlags)VK_SHADER_STAGE_COMPUTE_BIT;
-				descriptorSetLayoutBindings[i].pImmutableSamplers = 0;
-			}
-
-			VkDescriptorSetLayout descriptorSetLayout;
-			VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, 0, 0, descriptorCount, descriptorSetLayoutBindings };
-			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &descriptorSetLayoutCreateInfo, 0, &descriptorSetLayout));
-			free(descriptorSetLayoutBindings);
-
-			//provide the layout with actual buffers and their sizes
-			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, 0, descriptorPool, (uint32_t)1, &descriptorSetLayout };
-			VkDescriptorSet descriptorSet;
-			CheckResult(vkAllocateDescriptorSets(ctx._logicalDevice, &descriptorSetAllocateInfo, &descriptorSet));
-
-			for (uint32_t i = 0; i < descriptorCount; ++i) {
-				VkDescriptorBufferInfo descriptorBufferInfo = { shaderBuffersArray[i], 0, arrayOfSizesOfEachBuffer[i] };
-				VkWriteDescriptorSet writeDescriptorSet = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, 0, descriptorSet, i, 0, 1, (VkDescriptorType)descriptorTypes[i], 0, &descriptorBufferInfo, 0 };
-				vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeDescriptorSet, 0, 0);
-			}
-
-			VkPushConstantRange range;
-			range.offset = 0;
-			range.size = sizeof(unsigned int) * 3;
-			range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-			VkPipelineLayout pipelineLayout;
-			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, 0, 0, 1, &descriptorSetLayout, 1, &range };
-			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, 0, &pipelineLayout));
-
-			// Define the specialization constant values
-
-			std::ifstream file(shaderFilename, std::ios::ate | std::ios::binary);
-			VkShaderModule shaderModule = nullptr;
-			if (file.is_open()) {
-				std::vector<char> fileBytes(file.tellg());
-				file.seekg(0, std::ios::beg);
-				file.read(fileBytes.data(), fileBytes.size());
-				file.close();
-
-				VkShaderModuleCreateInfo createInfo = {};
-				createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-				createInfo.codeSize = fileBytes.size();
-				createInfo.pCode = (uint32_t*)fileBytes.data();
-
-				if (vkCreateShaderModule(ctx._logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-					std::cout << "failed to create shader module for " << shaderFilename << std::endl;
-				}
-			}
-			else {
-				std::cout << "failed to open file " << shaderFilename << std::endl;
-			}
-
-			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, 0, 0, VK_SHADER_STAGE_COMPUTE_BIT, shaderModule, "main" };
-			VkComputePipelineCreateInfo computePipelineCreateInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, 0, 0, pipelineShaderStageCreateInfo, pipelineLayout, 0, 0 };
-
-			//create pipeline
-			VkPipeline pipeline;
-			res = vkCreateComputePipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, NULL, &pipeline);
-			if (res != VK_SUCCESS) return res;
-
-			vkDestroyShaderModule(ctx._logicalDevice, pipelineShaderStageCreateInfo.module, NULL);
-			return res;
-		}
-
-		VkResult Dispatch(VkContext& ctx, VkPipeline pipeline, VkPipelineLayout pipelineLayout,
-			VkDescriptorSet descriptorSet, std::vector<uint32_t>& workGroupCount,
-			const glm::mat4x4& objectToWorldA, const glm::mat4x4& objectToWorldB) {
-			VkResult res = VK_SUCCESS;
-			VkCommandBuffer commandBuffer = { 0 };
-
-			// Create a command buffer to be executed on the GPU
-			VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-			commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-			commandBufferAllocateInfo.commandPool = ctx._commandPool;
-			commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-			commandBufferAllocateInfo.commandBufferCount = 1;
-			res = vkAllocateCommandBuffers(ctx._logicalDevice, &commandBufferAllocateInfo, &commandBuffer);
-			if (res != VK_SUCCESS) return res;
-
-			// Begin command buffer recording
-			VkCommandBufferBeginInfo commandBufferBeginInfo = {};
-			commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-			commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
-			if (res != VK_SUCCESS) return res;
-
-			// Define push constants structure matching the shader
-			struct PushConstants {
-				glm::mat4x4 localToWorldA;
-				glm::mat4x4 localToWorldB;
-			} pushConstants;
-			pushConstants.localToWorldA = objectToWorldA;
-			pushConstants.localToWorldB = objectToWorldB;
-
-			// Bind pipeline and push constants
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
-			vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT,
-				0, sizeof(PushConstants), &pushConstants);
-			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout,
-				0, 1, &descriptorSet, 0, NULL);
-			vkCmdDispatch(commandBuffer, workGroupCount[0], workGroupCount[1], workGroupCount[2]);
-
-			// End command buffer recording
-			res = vkEndCommandBuffer(commandBuffer);
-			if (res != VK_SUCCESS) return res;
-
-			// Submit the command buffer
-			VkSubmitInfo submitInfo = {};
-			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-			submitInfo.commandBufferCount = 1;
-			submitInfo.pCommandBuffers = &commandBuffer;
-			clock_t t = clock();
-			res = vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
-			if (res != VK_SUCCESS) return res;
-
-			// Wait for the fence
-			res = vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, 30000000000);
-			if (res != VK_SUCCESS) return res;
-
-			// Calculate execution time
-			t = clock() - t;
-			double time = ((double)t) / CLOCKS_PER_SEC * 1000;
-
-			// Reset fence and free command buffer
-			res = vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
-			if (res != VK_SUCCESS) return res;
-
-			vkFreeCommandBuffers(ctx._logicalDevice, ctx._commandPool, 1, &commandBuffer);
-			return res;
-		}
-
-		std::vector<glm::vec3> Run(VkDevice& device, VkPhysicalDevice& physicalDevice, RigidBody& bodyA, RigidBody& bodyB) {
-			VkContext ctx = InitializeVulkan(device, physicalDevice);
-
-			// Get device properties and memory properties, if needed.
-			VkPhysicalDeviceProperties gpuProperties;
-			VkPhysicalDeviceMemoryProperties gpuMemoryProperties;
-			vkGetPhysicalDeviceProperties(physicalDevice, &gpuProperties);
-			vkGetPhysicalDeviceMemoryProperties(physicalDevice, &gpuMemoryProperties);
-
-			//uint32_t inputAndOutputBufferSizeInBytes = (uint32_t)(imageWidthPixels * imageHeightPixels) * 4;
-
-			// Prepare the input and output buffers.
-			/*_inputBufferCount = (uint32_t)(imageWidthPixels * imageHeightPixels);
-			_inputBuffer;
-			_inputBufferDeviceMemory;
-			_outputBufferCount = _inputBufferCount;
-			_outputBuffer;
-			_outputBufferDeviceMemory;*/
-
-			// Calculate how many workgroups and the size of each workgroup we are going to use.
-			// We want one GPU thread to operate on a single value from the input buffer, so the required thread size is the input buffer size.
-			auto threadSize = bodyA._mesh._vertices.size() * bodyB._mesh._vertices.size();
-			size_t inputBufferSizeBytes = threadSize * sizeof(glm::vec3);
-			glm::vec3* inputBufferData = (glm::vec3*)malloc(inputBufferSizeBytes);
-			if (!inputBufferData) { std::cout << "Failed allocating memory for collision detection vertices" << std::endl; return {}; }
-			for (int i = 0, c = 0; i < bodyA._mesh._vertices.size(); i += 3) {
-				for (int j = 0; j < bodyB._mesh._vertices.size(); j += 3, ++c) {
-					inputBufferData[c] = bodyA._mesh._vertices[i]._position;
-					inputBufferData[++c] = bodyA._mesh._vertices[i + 1]._position;
-					inputBufferData[++c] = bodyA._mesh._vertices[i + 2]._position;
-					inputBufferData[++c] = bodyB._mesh._vertices[j]._position;
-					inputBufferData[++c] = bodyB._mesh._vertices[j + 1]._position;
-					inputBufferData[++c] = bodyB._mesh._vertices[j + 2]._position;
-				}
-			}
-
-			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, threadSize, { 256, 1, 1 });
-
-			//use default values if coalescedMemory = 0
-			//if (_coalescedMemory == 0) {
-			//	switch (_physicalDeviceProperties.vendorID) {
-			//	case 0x10DE://NVIDIA - change to 128 before Pascal
-			//		_coalescedMemory = 32;
-			//		break;
-			//	case 0x8086://INTEL
-			//		_coalescedMemory = 64;
-			//		break;
-			//	case 0x13B5://AMD
-			//		_coalescedMemory = 64;
-			//		break;
-			//	default:
-			//		_coalescedMemory = 64;
-			//		break;
-			//	}
-			//}
-
-			// Create the input buffer.
-			VkResult res = VK_SUCCESS;
-			Buffer inputBuffer;
-			Buffer outputBuffer;
-			VkHelper::CreateBuffer(ctx._logicalDevice,
-				ctx._physicalDevice,
-				inputBufferSizeBytes,
-				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				&inputBuffer._buffer,
-				&inputBuffer._gpuMemory);
-
-			VkHelper::CreateBuffer(ctx._logicalDevice,
-				ctx._physicalDevice,
-				inputBufferSizeBytes,
-				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				&outputBuffer._buffer,
-				&outputBuffer._gpuMemory);
-
-			// Transfer data to GPU staging buffer and thereafter sync the staging buffer with GPU local memory.
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, inputBuffer._buffer, inputBufferData, inputBufferSizeBytes);
-
-			VkBuffer buffers[2] = { inputBuffer._buffer, outputBuffer._buffer };
-			VkDeviceSize bufferSizes[2] = { inputBufferSizeBytes, inputBufferSizeBytes };
-
-			// Create 
-			//const char* shaderPath = "C:\\code\\vulkan-compute\\shaders\\Shader.spv";
-			auto shaderPath = Paths::ShadersPath() /= L"compute\\CollisionDetection.spv";
-			VkPipeline pipeline; VkPipelineLayout layout; VkDescriptorSet descriptorSet;
-			if (CreateComputePipeline(buffers, bufferSizes, shaderPath.string().c_str(), ctx, pipeline, layout, descriptorSet) != VK_SUCCESS) {
-				std::cout << "Application creation failed." << std::endl;
-			}
-
-			if (Dispatch(ctx, pipeline, layout, descriptorSet, workGroupCount, bodyA._pGameObject->GetWorldSpaceTransform()._matrix, bodyB._pGameObject->GetWorldSpaceTransform()._matrix) != VK_SUCCESS) {
-				std::cout << "Application run failed." << std::endl;
-			}
-
-			auto shaderOutputBufferData = (glm::vec3*)malloc(inputBufferSizeBytes);
-
-			res = vkGetFenceStatus(ctx._logicalDevice, ctx._queueFence);
-
-			//Transfer data from GPU using staging buffer, if needed
-			if (DownloadDataFromGPU(shaderOutputBufferData,
-				inputBufferSizeBytes,
-				ctx,
-				&outputBuffer._buffer) != VK_SUCCESS) {
-				std::cout << "Failed downloading image from GPU." << std::endl;
-			}
-
-			// Print data for debugging.
-			/*printf("Output buffer result: [");
-			uint32_t startAndEndSize = 50;
-			uint32_t i = 0;
-			for (; i < outputBufferCount - 1 && i < startAndEndSize; ++i) {
-				printf("%d, ", shaderOutputBufferData[i]);
-			}
-			if (i >= startAndEndSize) {
-				printf("..., ");
-				i = outputBufferCount - startAndEndSize + 1;
-				for (; i < outputBufferCount - 1; ++i)
-					printf("%d, ", shaderOutputBufferData[i]);
-			}
-			printf("%d]\n", shaderOutputBufferData[outputBufferCount - 1]);*/
-
-			// Free resources.
-			vkDestroyBuffer(ctx._logicalDevice, inputBuffer._buffer, nullptr);
-			vkFreeMemory(ctx._logicalDevice, inputBuffer._gpuMemory, nullptr);
-			vkDestroyBuffer(ctx._logicalDevice, outputBuffer._buffer, nullptr);
-			vkFreeMemory(ctx._logicalDevice, outputBuffer._gpuMemory, nullptr);
-
-			return {};
-		}
-	};
 
 	/**
 	 * @brief Represents a general-purpose camera.
@@ -5377,23 +5380,23 @@ namespace Engine {
 		GlobalSettings& _globalSettings = Engine::GlobalSettings::Instance();
 	};
 
-	void CalculateTransmittedForceRecursively(RigidBody* transmitter, RigidBody* receiver, glm::vec3 transmitterVelocity, glm::vec3& collisionPosition, glm::vec3& collisionNormal, glm::vec3& outForce, std::vector<RigidBody*> consideredBodies) {
-		//if (transmitter->_pGameObject->_name == "StationaryCube" && receiver->_pGameObject->_name == "FreeCube") DebugBreak();
-		if (receiver->IsRotationLocked() && receiver->IsTranslationLocked()) { outForce = glm::vec3(0.0f, 0.0f, 0.0f); return; }
-		auto normalizedForce = outForce; glm::normalize(normalizedForce);
-		//outForce = RigidBody::CalculateTransmittedForce(collisionPosition, normalizedForce * glm::dot(transmitter->_mass * transmitterVelocity, collisionNormal), receiver->GetCenterOfMass(true));
-		auto scaleFactor = abs(glm::dot(transmitter->_mass * transmitterVelocity, collisionNormal));
-		if (scaleFactor > 0.0f) outForce *= scaleFactor;
-		consideredBodies.push_back(receiver);
-		auto collisions = receiver->DetectCollisions(consideredBodies);
-		for (int i = 0; i < collisions.size(); ++i) {
-			collisions[i].CalculateAverages();
-			CalculateTransmittedForceRecursively(receiver, collisions[i]._collidee, receiver->GetVelocityAtPosition(collisions[i]._averagePosition), collisions[i]._averagePosition, collisions[i]._averageNormal, outForce, consideredBodies);
-			consideredBodies.push_back(collisions[i]._collidee);
-		}
-	}
+	//void CalculateTransmittedForceRecursively(RigidBody* transmitter, RigidBody* receiver, glm::vec3 transmitterVelocity, glm::vec3& collisionPosition, glm::vec3& collisionNormal, glm::vec3& outForce, std::vector<RigidBody*> consideredBodies) {
+	//	//if (transmitter->_pGameObject->_name == "StationaryCube" && receiver->_pGameObject->_name == "FreeCube") DebugBreak();
+	//	if (receiver->IsRotationLocked() && receiver->IsTranslationLocked()) { outForce = glm::vec3(0.0f, 0.0f, 0.0f); return; }
+	//	auto normalizedForce = outForce; glm::normalize(normalizedForce);
+	//	//outForce = RigidBody::CalculateTransmittedForce(collisionPosition, normalizedForce * glm::dot(transmitter->_mass * transmitterVelocity, collisionNormal), receiver->GetCenterOfMass(true));
+	//	auto scaleFactor = abs(glm::dot(transmitter->_mass * transmitterVelocity, collisionNormal));
+	//	if (scaleFactor > 0.0f) outForce *= scaleFactor;
+	//	consideredBodies.push_back(receiver);
+	//	auto collisions = receiver->DetectCollisions(consideredBodies);
+	//	for (int i = 0; i < collisions.size(); ++i) {
+	//		collisions[i].CalculateAverages();
+	//		CalculateTransmittedForceRecursively(receiver, collisions[i]._collidee, receiver->GetVelocityAtPosition(collisions[i]._averagePosition), collisions[i]._averagePosition, collisions[i]._averageNormal, outForce, consideredBodies);
+	//		consideredBodies.push_back(collisions[i]._collidee);
+	//	}
+	//}
 
-	void RigidBody::PhysicsUpdate(EngineContext& eCtx) {
+	void RigidBody::PhysicsUpdate(VkContext& ctx, EngineContext& eCtx) {
 		float deltaTimeSeconds = (float)eCtx._time._physicsDeltaTime * 0.001f;
 		if (IsRotationLocked() && IsTranslationLocked()) return;
 		if (_isColliding && glm::length(_velocity) < 0.1f) return;
@@ -5409,7 +5412,7 @@ namespace Engine {
 		// Resolve collisions.
 		do {
 			if (!_isCollidable) break;
-			auto collisions = DetectCollisions();
+			auto collisions = DetectCollisions(ctx);
 
 			// Detect continuous collision
 			bool isOverCollisionThreshold = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - _lastTimeCollided).count() > _continuousCollisionThresholdMilliseconds;
@@ -7491,9 +7494,9 @@ namespace Engine {
 		eCtx._scene.Update(ctx);
 	}
 
-	void PhysicsUpdate(GLFWwindow* pWindow, EngineContext* eCtx) {
+	void PhysicsUpdate(GLFWwindow* pWindow, VkContext* ctx, EngineContext* eCtx) {
 		auto& time = Time::Instance();
-		time.PhysicsUpdate(*eCtx);
+		time.PhysicsUpdate(*ctx, *eCtx);
 
 		GameObject* mp5k = nullptr;
 
@@ -7503,8 +7506,8 @@ namespace Engine {
 
 		while (!glfwWindowShouldClose(pWindow)) {
 			auto timePhysicsUpdateStart = std::chrono::high_resolution_clock::now();
-			time.PhysicsUpdate(*eCtx);
-			eCtx->_scene.PhysicsUpdate(*eCtx);
+			time.PhysicsUpdate(*ctx, *eCtx);
+			eCtx->_scene.PhysicsUpdate(*ctx, *eCtx);
 
 			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
 
@@ -7541,7 +7544,7 @@ namespace Engine {
 	}
 
 	void MainLoop(VkContext& ctx, VkRenderContext& rCtx, EngineContext& eCtx) {
-		std::thread physicsThread(&PhysicsUpdate, rCtx._pWindow, &eCtx);
+		std::thread physicsThread(&PhysicsUpdate, rCtx._pWindow, &ctx, &eCtx);
 
 		while (!glfwWindowShouldClose(rCtx._pWindow)) {
 			Update(ctx, eCtx);
