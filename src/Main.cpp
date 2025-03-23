@@ -4295,28 +4295,28 @@ namespace Engine {
 		}
 
 		static VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilename, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet) {
-
-			// Create an application interface to Vulkan. This function binds the shader to the compute pipeline, so it can be used as a part of the command buffer later.
 			VkDescriptorPool descriptorPool;
 			VkResult res = VK_SUCCESS;
-			uint32_t descriptorCount = 2;
+			uint32_t descriptorCount = 3;
 
-			// We have two storage buffer objects in one set in one pool.
-			VkDescriptorPoolSize descriptorPoolSize = { (VkDescriptorType)VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorCount };
+			VkDescriptorPoolSize descriptorPoolSize = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorCount };
 
-			const VkDescriptorType descriptorTypes[2] = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER };
+			const VkDescriptorType descriptorTypes[3] = {
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+			};
 
-			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, 0, 0, 1, 1, (const VkDescriptorPoolSize*)&descriptorPoolSize };
-
+			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, 0, 0, 1, descriptorCount, &descriptorPoolSize };
 			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, 0, &descriptorPool));
 
-			// Specify each object from the set as a storage buffer.
+			// Allocate and set up bindings for all descriptors
 			VkDescriptorSetLayoutBinding* descriptorSetLayoutBindings = (VkDescriptorSetLayoutBinding*)malloc(descriptorCount * sizeof(VkDescriptorSetLayoutBinding));
 			for (uint32_t i = 0; i < descriptorCount; ++i) {
-				descriptorSetLayoutBindings[i].binding = (uint32_t)i;
-				descriptorSetLayoutBindings[i].descriptorType = (VkDescriptorType)descriptorTypes[i];
-				descriptorSetLayoutBindings[i].descriptorCount = (uint32_t)1;
-				descriptorSetLayoutBindings[i].stageFlags = (VkShaderStageFlags)VK_SHADER_STAGE_COMPUTE_BIT;
+				descriptorSetLayoutBindings[i].binding = i;
+				descriptorSetLayoutBindings[i].descriptorType = descriptorTypes[i];
+				descriptorSetLayoutBindings[i].descriptorCount = 1;
+				descriptorSetLayoutBindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 				descriptorSetLayoutBindings[i].pImmutableSamplers = 0;
 			}
 
@@ -4325,14 +4325,15 @@ namespace Engine {
 			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &descriptorSetLayoutCreateInfo, 0, &descriptorSetLayout));
 			free(descriptorSetLayoutBindings);
 
-			//provide the layout with actual buffers and their sizes
-			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, 0, descriptorPool, (uint32_t)1, &descriptorSetLayout };
+			// Allocate descriptor set
+			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, 0, descriptorPool, 1, &descriptorSetLayout };
 			VkDescriptorSet descriptorSet;
 			CheckResult(vkAllocateDescriptorSets(ctx._logicalDevice, &descriptorSetAllocateInfo, &descriptorSet));
 
+			// Update all descriptors with buffer info
 			for (uint32_t i = 0; i < descriptorCount; ++i) {
 				VkDescriptorBufferInfo descriptorBufferInfo = { shaderBuffersArray[i], 0, arrayOfSizesOfEachBuffer[i] };
-				VkWriteDescriptorSet writeDescriptorSet = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, 0, descriptorSet, i, 0, 1, (VkDescriptorType)descriptorTypes[i], 0, &descriptorBufferInfo, 0 };
+				VkWriteDescriptorSet writeDescriptorSet = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, 0, descriptorSet, i, 0, 1, descriptorTypes[i], 0, &descriptorBufferInfo, 0 };
 				vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeDescriptorSet, 0, 0);
 			}
 
@@ -4345,8 +4346,7 @@ namespace Engine {
 			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, 0, 0, 1, &descriptorSetLayout, 1, &range };
 			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, 0, &pipelineLayout));
 
-			// Define the specialization constant values
-
+			// Shader module creation remains unchanged
 			std::ifstream file(shaderFilename, std::ios::ate | std::ios::binary);
 			VkShaderModule shaderModule = nullptr;
 			if (file.is_open()) {
@@ -4371,12 +4371,17 @@ namespace Engine {
 			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, 0, 0, VK_SHADER_STAGE_COMPUTE_BIT, shaderModule, "main" };
 			VkComputePipelineCreateInfo computePipelineCreateInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, 0, 0, pipelineShaderStageCreateInfo, pipelineLayout, 0, 0 };
 
-			//create pipeline
 			VkPipeline pipeline;
 			res = vkCreateComputePipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, NULL, &pipeline);
 			if (res != VK_SUCCESS) return res;
 
+			// Clean up and set output parameters
 			vkDestroyShaderModule(ctx._logicalDevice, pipelineShaderStageCreateInfo.module, NULL);
+
+			outPipeline = pipeline;
+			outLayout = pipelineLayout;
+			outDescriptorSet = descriptorSet;
+
 			return res;
 		}
 
@@ -4412,10 +4417,8 @@ namespace Engine {
 
 			// Bind pipeline and push constants
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
-			vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT,
-				0, sizeof(PushConstants), &pushConstants);
-			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout,
-				0, 1, &descriptorSet, 0, NULL);
+			vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstants), &pushConstants);
+			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
 			vkCmdDispatch(commandBuffer, workGroupCount[0], workGroupCount[1], workGroupCount[2]);
 
 			// End command buffer recording
@@ -4456,34 +4459,32 @@ namespace Engine {
 			vkGetPhysicalDeviceProperties(physicalDevice, &gpuProperties);
 			vkGetPhysicalDeviceMemoryProperties(physicalDevice, &gpuMemoryProperties);
 
-			//uint32_t inputAndOutputBufferSizeInBytes = (uint32_t)(imageWidthPixels * imageHeightPixels) * 4;
-
-			// Prepare the input and output buffers.
-			/*_inputBufferCount = (uint32_t)(imageWidthPixels * imageHeightPixels);
-			_inputBuffer;
-			_inputBufferDeviceMemory;
-			_outputBufferCount = _inputBufferCount;
-			_outputBuffer;
-			_outputBufferDeviceMemory;*/
-
 			// Calculate how many workgroups and the size of each workgroup we are going to use.
 			// We want one GPU thread to operate on a single value from the input buffer, so the required thread size is the input buffer size.
-			auto threadSize = bodyA._mesh._vertices.size() * bodyB._mesh._vertices.size();
-			size_t inputBufferSizeBytes = threadSize * sizeof(glm::vec3);
-			glm::vec3* inputBufferData = (glm::vec3*)malloc(inputBufferSizeBytes);
-			if (!inputBufferData) { std::cout << "Failed allocating memory for collision detection vertices" << std::endl; return {}; }
-			for (int i = 0, c = 0; i < bodyA._mesh._vertices.size(); i += 3) {
-				for (int j = 0; j < bodyB._mesh._vertices.size(); j += 3, ++c) {
-					inputBufferData[c] = bodyA._mesh._vertices[i]._position;
-					inputBufferData[++c] = bodyA._mesh._vertices[i + 1]._position;
-					inputBufferData[++c] = bodyA._mesh._vertices[i + 2]._position;
-					inputBufferData[++c] = bodyB._mesh._vertices[j]._position;
-					inputBufferData[++c] = bodyB._mesh._vertices[j + 1]._position;
-					inputBufferData[++c] = bodyB._mesh._vertices[j + 2]._position;
-				}
+			RigidBody* a = &bodyA;
+			RigidBody* b = &bodyB;
+
+			if (a->_mesh._vertices.size() < b->_mesh._vertices.size()) { auto tmp = b; b = a; a = tmp; }
+
+			size_t sizeA_bytes = a->_mesh._vertices.size() * sizeof(glm::vec3);
+			size_t sizeB_bytes = b->_mesh._vertices.size() * sizeof(glm::vec3);
+			glm::vec3* dataInputBufferA = (glm::vec3*)malloc(sizeA_bytes);
+			glm::vec3* dataInputBufferB = (glm::vec3*)malloc(sizeB_bytes);
+			if (!dataInputBufferA || !dataInputBufferB) { std::cout << "Failed allocating buffers for input meshes" << std::endl; return {}; }
+
+			for (int i = 0; i < a->_mesh._vertices.size(); ++i) {
+				dataInputBufferA[i].x = a->_mesh._vertices[i]._position.x;
+				dataInputBufferA[i].y = a->_mesh._vertices[i]._position.y;
+				dataInputBufferA[i].z = a->_mesh._vertices[i]._position.z;
+			}
+			for (int i = 0; i < b->_mesh._vertices.size(); ++i) {
+				dataInputBufferB[i].x = b->_mesh._vertices[i]._position.x;
+				dataInputBufferB[i].y = b->_mesh._vertices[i]._position.y;
+				dataInputBufferB[i].z = b->_mesh._vertices[i]._position.z;
 			}
 
-			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, threadSize, { 256, 1, 1 });
+			size_t threadCount = a->_mesh._vertices.size();
+			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, threadCount, { 256, 1, 1 });
 
 			//use default values if coalescedMemory = 0
 			//if (_coalescedMemory == 0) {
@@ -4505,29 +4506,40 @@ namespace Engine {
 
 			// Create the input buffer.
 			VkResult res = VK_SUCCESS;
-			Buffer inputBuffer;
+			Buffer inputBufferA;
+			Buffer inputBufferB;
 			Buffer outputBuffer;
-			VkHelper::CreateBuffer(ctx._logicalDevice,
-				ctx._physicalDevice,
-				inputBufferSizeBytes,
-				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				&inputBuffer._buffer,
-				&inputBuffer._gpuMemory);
 
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
-				inputBufferSizeBytes,
+				sizeA_bytes,
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				&inputBufferA._buffer,
+				&inputBufferA._gpuMemory);
+
+			VkHelper::CreateBuffer(ctx._logicalDevice,
+				ctx._physicalDevice,
+				sizeB_bytes,
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				&inputBufferB._buffer,
+				&inputBufferB._gpuMemory);
+
+			VkHelper::CreateBuffer(ctx._logicalDevice,
+				ctx._physicalDevice,
+				sizeA_bytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				&outputBuffer._buffer,
 				&outputBuffer._gpuMemory);
 
 			// Transfer data to GPU staging buffer and thereafter sync the staging buffer with GPU local memory.
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, inputBuffer._buffer, inputBufferData, inputBufferSizeBytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, inputBufferA._buffer, dataInputBufferA, sizeA_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, inputBufferB._buffer, dataInputBufferB, sizeB_bytes);
 
-			VkBuffer buffers[2] = { inputBuffer._buffer, outputBuffer._buffer };
-			VkDeviceSize bufferSizes[2] = { inputBufferSizeBytes, inputBufferSizeBytes };
+			VkBuffer buffers[3] = { inputBufferA._buffer, inputBufferB._buffer, outputBuffer._buffer };
+			VkDeviceSize bufferSizes[3] = { sizeA_bytes, sizeB_bytes, sizeA_bytes };
 
 			// Create 
 			//const char* shaderPath = "C:\\code\\vulkan-compute\\shaders\\Shader.spv";
@@ -4541,18 +4553,14 @@ namespace Engine {
 				std::cout << "Application run failed." << std::endl;
 			}
 
-			auto shaderOutputBufferData = (glm::vec3*)malloc(inputBufferSizeBytes);
+			auto shaderOutputBufferData = (glm::vec3*)malloc(sizeA_bytes);
 
 			res = vkGetFenceStatus(ctx._logicalDevice, ctx._queueFence);
 
 			//Transfer data from GPU using staging buffer, if needed
-			if (DownloadDataFromGPU(shaderOutputBufferData,
-				inputBufferSizeBytes,
-				ctx,
-				&outputBuffer._buffer) != VK_SUCCESS) {
+			if (DownloadDataFromGPU(shaderOutputBufferData, sizeA_bytes, ctx, &outputBuffer._buffer) != VK_SUCCESS)
 				std::cout << "Failed downloading image from GPU." << std::endl;
-			}
-
+			
 			// Print data for debugging.
 			/*printf("Output buffer result: [");
 			uint32_t startAndEndSize = 50;
@@ -4569,10 +4577,10 @@ namespace Engine {
 			printf("%d]\n", shaderOutputBufferData[outputBufferCount - 1]);*/
 
 			// Free resources.
-			vkDestroyBuffer(ctx._logicalDevice, inputBuffer._buffer, nullptr);
-			vkFreeMemory(ctx._logicalDevice, inputBuffer._gpuMemory, nullptr);
-			vkDestroyBuffer(ctx._logicalDevice, outputBuffer._buffer, nullptr);
-			vkFreeMemory(ctx._logicalDevice, outputBuffer._gpuMemory, nullptr);
+			//vkDestroyBuffer(ctx._logicalDevice, inputBuffer._buffer, nullptr);
+			//vkFreeMemory(ctx._logicalDevice, inputBuffer._gpuMemory, nullptr);
+			//vkDestroyBuffer(ctx._logicalDevice, outputBuffer._buffer, nullptr);
+			//vkFreeMemory(ctx._logicalDevice, outputBuffer._gpuMemory, nullptr);
 
 			return {};
 		}
