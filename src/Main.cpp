@@ -4540,6 +4540,10 @@ namespace Engine {
 			//vkDestroyBuffer(ctx._logicalDevice, outputBuffer._buffer, nullptr);
 			//vkFreeMemory(ctx._logicalDevice, outputBuffer._gpuMemory, nullptr);
 
+			for (int i = 0; i < threadCount; ++i) {
+				if (shaderOutputBufferData[i].x > 0.1f || shaderOutputBufferData[i].y > 0.1f || shaderOutputBufferData[i].z > 0.1f) DebugBreak();
+			}
+
 			return {};
 		}
 	};
