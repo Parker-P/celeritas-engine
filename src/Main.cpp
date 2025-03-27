@@ -3632,9 +3632,9 @@ namespace Engine {
 	public:
 
 		/**
-		 * @brief Position in local space.
+		 * @brief Position in local space. Must be a vec4 because compute shader collision detection pads the coordinates you feed it to 16 bytes (size of a vec4) instead of just using it as is.
 		 */
-		glm::vec3 _position;
+		glm::vec4 _position;
 	};
 
 	/**
@@ -3920,7 +3920,7 @@ namespace Engine {
 
 		void AddTorque(const glm::vec3& torqueWorldSpaceAxis, const float& deltaTimeSeconds, const bool& ignoreMass = false);
 
-		CollisionContext DetectCollision(RigidBody& other);
+		//CollisionContext DetectCollision(RigidBody& other);
 
 		std::vector< GameObject*> GetGameObjects(GameObject* pRoot, std::vector<GameObject*> excludedObjects = {});
 
@@ -3929,7 +3929,7 @@ namespace Engine {
 		/**
 		 * @brief Basic init that guarantees the body's simulation.
 		 */
-		void Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass = 1.0f, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = { 0.0f, 0.0f, 0.0f });
+		void Initialize(GameObject* pGameObject, std::vector<glm::vec4> vertices, std::vector<uint32_t> faceIndices, const float& mass = 1.0f, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = { 0.0f, 0.0f, 0.0f });
 
 		void PhysicsUpdate(VkContext& ctx, EngineContext& eCtx);
 
@@ -4233,37 +4233,20 @@ namespace Engine {
 				&stagingBufferMemory);
 			if (res != VK_SUCCESS) return res;
 
-			VkCommandBufferAllocateInfo commandBufferAllocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-												0,
-												(VkCommandPool)ctx._commandPool,
-												(VkCommandBufferLevel)VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-												(uint32_t)1 };
+			VkCommandBufferAllocateInfo commandBufferAllocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, 0, ctx._commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1 };
 			res = vkAllocateCommandBuffers(ctx._logicalDevice, &commandBufferAllocateInfo, &commandBuffer);
 			if (res != VK_SUCCESS) return res;
 
-			VkCommandBufferBeginInfo commandBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-											 0,
-											 (VkCommandBufferUsageFlags)VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-											 (const VkCommandBufferInheritanceInfo*)NULL };
+			VkCommandBufferBeginInfo commandBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, 0, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, NULL };
 			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
 			if (res != VK_SUCCESS) return res;
 
-			VkBufferCopy copyRegion = { (VkDeviceSize)0,
-								 (VkDeviceSize)0,
-								 (VkDeviceSize)stagingBufferSize };
+			VkBufferCopy copyRegion = { (VkDeviceSize)0, (VkDeviceSize)0, (VkDeviceSize)stagingBufferSize };
 
 			vkCmdCopyBuffer(commandBuffer, outBuffer[0], stagingBuffer, 1, &copyRegion);
 			vkEndCommandBuffer(commandBuffer);
 
-			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO,
-								 0,
-								 (uint32_t)0,
-								 (const VkSemaphore*)NULL,
-								 (const VkPipelineStageFlags*)NULL,
-								 (uint32_t)1,
-								 (const VkCommandBuffer*)&commandBuffer,
-								 (uint32_t)0,
-								 (const VkSemaphore*)NULL };
+			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO, 0, 0, NULL, NULL, 1, &commandBuffer, 0, NULL };
 
 			res = vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
 			if (res != VK_SUCCESS) return res;
@@ -4425,7 +4408,7 @@ namespace Engine {
 			return res;
 		}
 
-		static std::vector<glm::vec3> Run(VkDevice& device, VkPhysicalDevice& physicalDevice, RigidBody& bodyA, RigidBody& bodyB) {
+		static std::vector<glm::vec4> Run(VkDevice& device, VkPhysicalDevice& physicalDevice, RigidBody& bodyA, RigidBody& bodyB) {
 			VkContext ctx = InitializeVulkan(device, physicalDevice);
 
 			// Get device properties and memory properties, if needed.
@@ -4441,10 +4424,10 @@ namespace Engine {
 
 			if (a->_mesh._vertices.size() < b->_mesh._vertices.size()) { auto tmp = b; b = a; a = tmp; }
 
-			size_t sizeA_bytes = a->_mesh._vertices.size() * sizeof(glm::vec3);
-			size_t sizeB_bytes = b->_mesh._vertices.size() * sizeof(glm::vec3);
-			glm::vec3* dataInputBufferA = (glm::vec3*)malloc(sizeA_bytes);
-			glm::vec3* dataInputBufferB = (glm::vec3*)malloc(sizeB_bytes);
+			size_t sizeA_bytes = a->_mesh._vertices.size() * sizeof(glm::vec4);
+			size_t sizeB_bytes = b->_mesh._vertices.size() * sizeof(glm::vec4);
+			glm::vec4* dataInputBufferA = (glm::vec4*)malloc(sizeA_bytes);
+			glm::vec4* dataInputBufferB = (glm::vec4*)malloc(sizeB_bytes);
 			if (!dataInputBufferA || !dataInputBufferB) { std::cout << "Failed allocating buffers for input meshes" << std::endl; return {}; }
 
 			for (int i = 0; i < a->_mesh._vertices.size(); ++i) {
@@ -4528,7 +4511,7 @@ namespace Engine {
 				std::cout << "Application run failed." << std::endl;
 			}
 
-			auto shaderOutputBufferData = (glm::vec3*)malloc(sizeA_bytes);
+			auto shaderOutputBufferData = (glm::vec4*)malloc(sizeA_bytes);
 
 			res = vkGetFenceStatus(ctx._logicalDevice, ctx._queueFence);
 
@@ -4980,44 +4963,44 @@ namespace Engine {
 		_angularVelocity += rotationDelta;
 	}
 
-	CollisionContext RigidBody::DetectCollision(RigidBody& other) {
-		CollisionContext outCtx;
-		outCtx._collidee = &other;
-		auto worldSpaceOther = other._pGameObject->GetWorldSpaceTransform();
-		auto worldSpaceCurrent = _pGameObject->GetWorldSpaceTransform();
+	//CollisionContext RigidBody::DetectCollision(RigidBody& other) {
+	//	CollisionContext outCtx;
+	//	outCtx._collidee = &other;
+	//	auto worldSpaceOther = other._pGameObject->GetWorldSpaceTransform();
+	//	auto worldSpaceCurrent = _pGameObject->GetWorldSpaceTransform();
 
-		for (int i = 0; i < other._mesh._faceIndices.size(); i += 3) {
-			for (int j = 0; j < _mesh._faceIndices.size(); j += 3) {
+	//	for (int i = 0; i < other._mesh._faceIndices.size(); i += 3) {
+	//		for (int j = 0; j < _mesh._faceIndices.size(); j += 3) {
 
-				auto v1Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i]]._position, 1.0f));
-				auto v2Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i + 1]]._position, 1.0f));
-				auto v3Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i + 2]]._position, 1.0f));
+	//			auto v1Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i]]._position, 1.0f));
+	//			auto v2Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i + 1]]._position, 1.0f));
+	//			auto v3Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i + 2]]._position, 1.0f));
 
-				auto v1 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j]]._position, 1.0f));
-				auto v2 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j + 1]]._position, 1.0f));
-				auto v3 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j + 2]]._position, 1.0f));
+	//			auto v1 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j]]._position, 1.0f));
+	//			auto v2 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j + 1]]._position, 1.0f));
+	//			auto v3 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j + 2]]._position, 1.0f));
 
-				glm::vec3 intersectionPoint1, intersectionPoint2, intersectionPoint3;
-				auto edge1 = v2Other - v1Other;
-				auto edge2 = v3Other - v1Other;
-				auto edge3 = v2Other - v3Other;
-				glm::vec3 normal = -glm::normalize(glm::cross(edge1, edge2));
+	//			glm::vec3 intersectionPoint1, intersectionPoint2, intersectionPoint3;
+	//			auto edge1 = v2Other - v1Other;
+	//			auto edge2 = v3Other - v1Other;
+	//			auto edge3 = v2Other - v3Other;
+	//			glm::vec3 normal = -glm::normalize(glm::cross(edge1, edge2));
 
-				// Check collision by testing this body's edges as segments against the other body's face.
-				if (IsSegmentIntersectingTriangle(v1, v2 - v1, v1Other, v2Other, v3Other, intersectionPoint1)) { outCtx._collisionPositions.push_back(intersectionPoint1); outCtx._collisionNormals.push_back(normal); }
-				if (IsSegmentIntersectingTriangle(v1, v3 - v1, v1Other, v2Other, v3Other, intersectionPoint2)) { outCtx._collisionPositions.push_back(intersectionPoint2); outCtx._collisionNormals.push_back(normal); }
-				if (IsSegmentIntersectingTriangle(v3, v2 - v3, v1Other, v2Other, v3Other, intersectionPoint3)) { outCtx._collisionPositions.push_back(intersectionPoint3); outCtx._collisionNormals.push_back(normal); }
-				//if (!IsVectorZero(intersectionPoint1) || !IsVectorZero(intersectionPoint2) || !IsVectorZero(intersectionPoint3)) return outCtx;
+	//			// Check collision by testing this body's edges as segments against the other body's face.
+	//			if (IsSegmentIntersectingTriangle(v1, v2 - v1, v1Other, v2Other, v3Other, intersectionPoint1)) { outCtx._collisionPositions.push_back(intersectionPoint1); outCtx._collisionNormals.push_back(normal); }
+	//			if (IsSegmentIntersectingTriangle(v1, v3 - v1, v1Other, v2Other, v3Other, intersectionPoint2)) { outCtx._collisionPositions.push_back(intersectionPoint2); outCtx._collisionNormals.push_back(normal); }
+	//			if (IsSegmentIntersectingTriangle(v3, v2 - v3, v1Other, v2Other, v3Other, intersectionPoint3)) { outCtx._collisionPositions.push_back(intersectionPoint3); outCtx._collisionNormals.push_back(normal); }
+	//			//if (!IsVectorZero(intersectionPoint1) || !IsVectorZero(intersectionPoint2) || !IsVectorZero(intersectionPoint3)) return outCtx;
 
-				// Check collision by testing the other body's edges as segments against the current body's face.
-				if (IsSegmentIntersectingTriangle(v1Other, edge1, v1, v2, v3, intersectionPoint1)) { outCtx._collisionPositions.push_back(intersectionPoint1); outCtx._collisionNormals.push_back(normal); }
-				if (IsSegmentIntersectingTriangle(v1Other, edge2, v1, v2, v3, intersectionPoint2)) { outCtx._collisionPositions.push_back(intersectionPoint2); outCtx._collisionNormals.push_back(normal); }
-				if (IsSegmentIntersectingTriangle(v3Other, edge3, v1, v2, v3, intersectionPoint3)) { outCtx._collisionPositions.push_back(intersectionPoint3); outCtx._collisionNormals.push_back(normal); }
-			}
-		}
+	//			// Check collision by testing the other body's edges as segments against the current body's face.
+	//			if (IsSegmentIntersectingTriangle(v1Other, edge1, v1, v2, v3, intersectionPoint1)) { outCtx._collisionPositions.push_back(intersectionPoint1); outCtx._collisionNormals.push_back(normal); }
+	//			if (IsSegmentIntersectingTriangle(v1Other, edge2, v1, v2, v3, intersectionPoint2)) { outCtx._collisionPositions.push_back(intersectionPoint2); outCtx._collisionNormals.push_back(normal); }
+	//			if (IsSegmentIntersectingTriangle(v3Other, edge3, v1, v2, v3, intersectionPoint3)) { outCtx._collisionPositions.push_back(intersectionPoint3); outCtx._collisionNormals.push_back(normal); }
+	//		}
+	//	}
 
-		return outCtx;
-	}
+	//	return outCtx;
+	//}
 
 	std::vector<GameObject*> RigidBody::GetGameObjects(GameObject* pRoot, std::vector<GameObject*> excludedObjects) {
 		std::vector<GameObject*> outGameObjects;
@@ -5048,14 +5031,14 @@ namespace Engine {
 		return outCollisions;
 	}
 
-	void RemoveDuplicateVertices(std::vector<glm::vec3>& vertices, std::vector<uint32_t>& faceIndices, float tolerance = 0.001f) {
-		// Custom hash function for approximate position
-		struct Vec3Hash {
+	void RemoveDuplicateVertices(std::vector<glm::vec4>& vertices, std::vector<uint32_t>& faceIndices, float tolerance = 0.001f) {
+		// Custom hash function for approximate position (ignoring w)
+		struct Vec4Hash {
 			float tolerance;
-			Vec3Hash(float tol) : tolerance(tol) {}
+			Vec4Hash(float tol) : tolerance(tol) {}
 
-			size_t operator()(const glm::vec3& v) const {
-				// Quantize coordinates based on tolerance
+			size_t operator()(const glm::vec4& v) const {
+				// Quantize only x, y, z coordinates based on tolerance
 				int x = static_cast<int>(v.x / tolerance);
 				int y = static_cast<int>(v.y / tolerance);
 				int z = static_cast<int>(v.z / tolerance);
@@ -5067,39 +5050,40 @@ namespace Engine {
 			}
 		};
 
-		// Custom equality comparison with tolerance
-		struct Vec3Equal {
+		// Custom equality comparison with tolerance (ignoring w)
+		struct Vec4Equal {
 			float tolerance;
-			Vec3Equal(float tol) : tolerance(tol) {}
+			Vec4Equal(float tol) : tolerance(tol) {}
 
-			bool operator()(const glm::vec3& a, const glm::vec3& b) const {
-				return glm::length(a - b) <= tolerance;
+			bool operator()(const glm::vec4& a, const glm::vec4& b) const {
+				// Compare only x, y, z components
+				return glm::length(glm::vec3(a.x, a.y, a.z) - glm::vec3(b.x, b.y, b.z)) <= tolerance;
 			}
 		};
 
 		// Create map with custom hash and equality functions
-		std::unordered_map<glm::vec3, uint32_t, Vec3Hash, Vec3Equal> vertexMap(
-			0, Vec3Hash(tolerance), Vec3Equal(tolerance)
+		std::unordered_map<glm::vec4, uint32_t, Vec4Hash, Vec4Equal> vertexMap(
+			0, Vec4Hash(tolerance), Vec4Equal(tolerance)
 		);
 
-		std::vector<glm::vec3> newVertices;
+		std::vector<glm::vec4> newVertices;
 		std::vector<uint32_t> indexMap(vertices.size());
 
 		// First pass: identify unique vertices and build mapping
 		uint32_t newIndex = 0;
 		for (uint32_t i = 0; i < vertices.size(); ++i) {
-			const glm::vec3& v = vertices[i];
+			const glm::vec4& v = vertices[i];
 			auto it = vertexMap.find(v);
 
 			if (it == vertexMap.end()) {
-				// New unique vertex (within tolerance)
+				// New unique vertex (within tolerance, based on x, y, z)
 				vertexMap[v] = newIndex;
 				indexMap[i] = newIndex;
-				newVertices.push_back(v);
+				newVertices.push_back(v); // Keep the original vec4, including w
 				newIndex++;
 			}
 			else {
-				// Vertex within tolerance of existing vertex
+				// Vertex within tolerance of existing vertex (based on x, y, z)
 				indexMap[i] = it->second;
 			}
 		}
@@ -5109,7 +5093,22 @@ namespace Engine {
 		vertices = std::move(newVertices);
 	}
 
-	void RigidBody::Initialize(GameObject* pGameObject, std::vector<glm::vec3> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass) {
+	std::vector<uint32_t> PadFaceIndices(const std::vector<uint32_t>& faceIndices) {
+		constexpr uint32_t PADDING_VALUE = std::numeric_limits<uint32_t>::max(); // 0xFFFFFFFF
+		std::vector<uint32_t> paddedIndices;
+		paddedIndices.reserve(faceIndices.size() + faceIndices.size() / 3); // Pre-allocate for efficiency
+
+		for (size_t i = 0; i < faceIndices.size(); ++i) {
+			paddedIndices.push_back(faceIndices[i]); // Copy the index as-is
+			if ((i + 1) % 3 == 0 && i + 1 < faceIndices.size()) {
+				paddedIndices.push_back(PADDING_VALUE); // Add padding after every third element, except at the end
+			}
+		}
+
+		return paddedIndices;
+	}
+
+	void RigidBody::Initialize(GameObject* pGameObject, std::vector<glm::vec4> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass) {
 		if (mass <= 0.001f || vertices.size() < 1 || faceIndices.size() < 1) return;
 
 		RemoveDuplicateVertices(vertices, faceIndices);
@@ -5432,7 +5431,7 @@ namespace Engine {
 				for (int i = 0; !collisionCtx._collisionPositions.empty() && i < 10 && !IsRotationLocked(); ++i) {
 					// TODO: make this more accurate by also rotating the object backwards by its angular velocity.
 					_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
-					collisionCtx = DetectCollision(*collisionCtx._collidee);
+					//collisionCtx = DetectCollision(*collisionCtx._collidee);
 				}
 
 				auto frictionForceDirection = glm::cross(glm::cross(velocityAtPosition, averageCollisionNormal), averageCollisionNormal);
@@ -5774,9 +5773,9 @@ namespace Engine {
 				auto gameObject = FindGameObject(rootNode, collisionMeshName);
 				if (!gameObject) break;
 
-				std::vector<glm::vec3> v;
+				std::vector<glm::vec4> v;
 				std::vector<unsigned int> fi;
-				for (int i = 0; i < gameObject->_pMesh->_vertices._vertexData.size(); ++i) v.push_back(gameObject->_pMesh->_vertices._vertexData[i]._position);
+				for (int i = 0; i < gameObject->_pMesh->_vertices._vertexData.size(); ++i) v.push_back(glm::vec4(gameObject->_pMesh->_vertices._vertexData[i]._position, 0.0f));
 				for (int i = 0; i < gameObject->_pMesh->_faceIndices._indexData.size(); ++i) fi.push_back(gameObject->_pMesh->_faceIndices._indexData[i]);
 				/*if (gameObject->_name != currentNode->name) {
 					delete(gameObject->_pMesh);
