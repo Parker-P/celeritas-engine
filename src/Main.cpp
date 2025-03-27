@@ -4035,20 +4035,12 @@ namespace Engine {
 			return i;
 		}
 
-		static VkDevice CreateNewComputeDevice(VkDevice& device, VkPhysicalDevice& physicalDevice, VkQueue& outComputeQueue, uint32_t& outComputeQueueFamilyIndex) {
-			VkDevice outComputeDevice;
+		static void CreateNewComputeDevice(VkDevice& device, VkPhysicalDevice& physicalDevice, VkDevice& outComputeDevice, VkQueue& outComputeQueue, uint32_t& outComputeQueueFamilyIndex) {
 			int computeFamilyIndex = GetComputeQueueFamilyIndex(physicalDevice);
-			if (computeFamilyIndex < 0) return 0;
-			vkGetDeviceQueue(device, computeFamilyIndex, 0, &outComputeQueue);
-			if (!outComputeQueue) { std::cout << "Failed to get compute queue" << std::endl; return 0; }
-
+			if (computeFamilyIndex < 0) return;
+			
 			float queuePriorities = 1.0;
-			VkDeviceQueueCreateInfo deviceQueueCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-					0,
-					(VkDeviceQueueCreateFlags)0,
-					(uint32_t)computeFamilyIndex,
-					(uint32_t)1,
-					(const float*)&queuePriorities };
+			VkDeviceQueueCreateInfo deviceQueueCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, 0, (VkDeviceQueueCreateFlags)0, (uint32_t)computeFamilyIndex,(uint32_t)1, (const float*)&queuePriorities };
 
 			VkPhysicalDeviceFeatures physicalDeviceFeatures = { 0 };
 			//physicalDeviceFeatures.shaderFloat64 = VK_TRUE;//this enables double precision support in shaders 
@@ -4064,16 +4056,18 @@ namespace Engine {
 					(const char* const*)NULL,
 					(const VkPhysicalDeviceFeatures*)&physicalDeviceFeatures };
 
-			auto res = vkCreateDevice(physicalDevice, &deviceCreateInfo, NULL, &outComputeDevice);
+			CheckResult(vkCreateDevice(physicalDevice, &deviceCreateInfo, NULL, &outComputeDevice));
 			outComputeQueueFamilyIndex = computeFamilyIndex;
-			return outComputeDevice;
+
+			vkGetDeviceQueue(outComputeDevice, computeFamilyIndex, 0, &outComputeQueue);
+			if (!outComputeQueue) { std::cout << "Failed to get compute queue" << std::endl; return; }
 		}
 
 		static VkContext InitializeVulkan(VkDevice& device, VkPhysicalDevice physicalDevice) {
 			// Create logical device representation.
 			VkContext ctx;
 			ctx._physicalDevice = physicalDevice;
-			ctx._logicalDevice = CreateNewComputeDevice(device, physicalDevice, ctx._queue, ctx._queueFamilyIndex);
+			CreateNewComputeDevice(device, physicalDevice, ctx._logicalDevice, ctx._queue, ctx._queueFamilyIndex);
 			if (!ctx._logicalDevice) { std::cout << "Failed to create compute device" << std::endl; return {}; }
 
 			// Create a fence for synchronization.
@@ -4294,7 +4288,7 @@ namespace Engine {
 			return res;
 		}
 
-		static VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilename, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet) {
+		static VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilePath, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet) {
 			VkDescriptorPool descriptorPool;
 			VkResult res = VK_SUCCESS;
 			uint32_t descriptorCount = 3;
@@ -4307,7 +4301,7 @@ namespace Engine {
 				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
 			};
 
-			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, 0, 0, 1, descriptorCount, &descriptorPoolSize };
+			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, 0, 0, 1, 1, &descriptorPoolSize };
 			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, 0, &descriptorPool));
 
 			// Allocate and set up bindings for all descriptors
@@ -4339,34 +4333,15 @@ namespace Engine {
 
 			VkPushConstantRange range;
 			range.offset = 0;
-			range.size = sizeof(unsigned int) * 3;
+			range.size = sizeof(glm::mat4) * 2;
 			range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
 			VkPipelineLayout pipelineLayout;
 			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, 0, 0, 1, &descriptorSetLayout, 1, &range };
 			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, 0, &pipelineLayout));
 
-			// Shader module creation remains unchanged
-			std::ifstream file(shaderFilename, std::ios::ate | std::ios::binary);
-			VkShaderModule shaderModule = nullptr;
-			if (file.is_open()) {
-				std::vector<char> fileBytes(file.tellg());
-				file.seekg(0, std::ios::beg);
-				file.read(fileBytes.data(), fileBytes.size());
-				file.close();
-
-				VkShaderModuleCreateInfo createInfo = {};
-				createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-				createInfo.codeSize = fileBytes.size();
-				createInfo.pCode = (uint32_t*)fileBytes.data();
-
-				if (vkCreateShaderModule(ctx._logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-					std::cout << "failed to create shader module for " << shaderFilename << std::endl;
-				}
-			}
-			else {
-				std::cout << "failed to open file " << shaderFilename << std::endl;
-			}
+			std::ifstream file(shaderFilePath, std::ios::ate | std::ios::binary);
+			VkShaderModule shaderModule = VkHelper::CreateShaderModule(ctx._logicalDevice, shaderFilePath);
 
 			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, 0, 0, VK_SHADER_STAGE_COMPUTE_BIT, shaderModule, "main" };
 			VkComputePipelineCreateInfo computePipelineCreateInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, 0, 0, pipelineShaderStageCreateInfo, pipelineLayout, 0, 0 };
@@ -4559,7 +4534,7 @@ namespace Engine {
 
 			//Transfer data from GPU using staging buffer, if needed
 			if (DownloadDataFromGPU(shaderOutputBufferData, sizeA_bytes, ctx, &outputBuffer._buffer) != VK_SUCCESS)
-				std::cout << "Failed downloading image from GPU." << std::endl;
+				std::cout << "Failed downloading data from GPU." << std::endl;
 			
 			// Print data for debugging.
 			/*printf("Output buffer result: [");
