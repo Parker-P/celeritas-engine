@@ -4408,6 +4408,94 @@ namespace Engine {
 			return res;
 		}
 
+		static bool RayTriangleIntersect(
+			glm::vec3 ro, glm::vec3 rd, glm::vec3 v0, glm::vec3 v1, glm::vec3 v2,
+			glm::vec3& intersection)
+		{
+			glm::vec3 e1 = v1 - v0;
+			glm::vec3 e2 = v2 - v0;
+			glm::vec3 h = glm::cross(rd, e2);
+			float a = glm::dot(e1, h);
+			if (std::abs(a) < 0.0001f) return false;
+
+			float f = 1.0f / a;
+			glm::vec3 s = ro - v0;
+			float u = f * glm::dot(s, h);
+			if (u < 0.0f || u > 1.0f) return false;
+
+			glm::vec3 q = glm::cross(s, e1);
+			float v = f * glm::dot(rd, q);
+			if (v < 0.0f || u + v > 1.0f) return false;
+
+			float t = f * glm::dot(e2, q);
+			if (t > 0.0f && t < 1.0f) {
+				intersection = ro + rd * t;
+				return true;
+			}
+			return false;
+		}
+
+		static void ComputeIntersection(
+			uint32_t globalInvocationID,                      // Equivalent to gl_GlobalInvocationID.x
+			const glm::mat4& localToWorldA,                   // Transform matrix for object A
+			const glm::mat4& localToWorldB,                   // Transform matrix for object B
+			const std::vector<glm::vec4>& verticesA,          // Buffer containing vertices for rays (edges)
+			const std::vector<glm::vec4>& verticesB,          // Buffer containing vertices for triangles
+			std::vector<glm::vec4>& intersectionPoints)       // Output buffer for intersection points
+		{
+			uint32_t idx = globalInvocationID;
+
+			// Check if index is valid (verticesA contains triplets of vertices)
+			if (idx >= verticesA.size()) return;
+
+			// Initialize output to -1 (including w component)
+			intersectionPoints[idx] = glm::vec4(-1.0f, -1.0f, -1.0f, -1.0f);
+
+			// Get triangle vertices from verticesA and transform to world space
+			glm::vec4 a0_full = localToWorldA * verticesA[idx + 0];
+			glm::vec4 a1_full = localToWorldA * verticesA[idx + 1];
+			glm::vec4 a2_full = localToWorldA * verticesA[idx + 2];
+			glm::vec3 a0 = glm::vec3(a0_full);
+			glm::vec3 a1 = glm::vec3(a1_full);
+			glm::vec3 a2 = glm::vec3(a2_full);
+
+			glm::vec3 intersection;
+			bool intersectionFound = false;
+
+			// Number of faces in verticesB (assuming triplets of vertices)
+			uint32_t faceCountB = verticesB.size() / 3;
+
+			// Check each edge from verticesA against all faces in verticesB
+			for (uint32_t faceIdx = 0; faceIdx < faceCountB && !intersectionFound; ++faceIdx) {
+				// Get triangle vertices from verticesB and transform to world space
+				uint32_t bIdx = faceIdx * 3;
+				glm::vec4 b0_full = localToWorldB * verticesB[bIdx + 0];
+				glm::vec4 b1_full = localToWorldB * verticesB[bIdx + 1];
+				glm::vec4 b2_full = localToWorldB * verticesB[bIdx + 2];
+				glm::vec3 b0 = glm::vec3(b0_full);
+				glm::vec3 b1 = glm::vec3(b1_full);
+				glm::vec3 b2 = glm::vec3(b2_full);
+
+				// Check edges from verticesA triangle against verticesB triangle
+				if (RayTriangleIntersect(a0, a1 - a0, b0, b1, b2, intersection) ||
+					RayTriangleIntersect(a1, a2 - a1, b0, b1, b2, intersection) ||
+					RayTriangleIntersect(a2, a0 - a2, b0, b1, b2, intersection)) {
+					intersectionPoints[idx] = glm::vec4(intersection, 1.0f); // Convert vec3 to vec4
+					intersectionFound = true;
+				}
+
+				// If no intersection found, check edges from verticesB triangle against verticesA triangle
+				if (!intersectionFound) {
+					if (RayTriangleIntersect(b0, b1 - b0, a0, a1, a2, intersection) ||
+						RayTriangleIntersect(b1, b2 - b1, a0, a1, a2, intersection) ||
+						RayTriangleIntersect(b2, b0 - b2, a0, a1, a2, intersection)) {
+						intersectionPoints[idx] = glm::vec4(intersection, 1.0f); // Convert vec3 to vec4
+						intersectionFound = true;
+					}
+				}
+			}
+		}
+
 		static std::vector<glm::vec4> Run(VkDevice& device, VkPhysicalDevice& physicalDevice, RigidBody& bodyA, RigidBody& bodyB) {
 			VkContext ctx = InitializeVulkan(device, physicalDevice);
 
@@ -4426,6 +4514,8 @@ namespace Engine {
 
 			size_t sizeA_bytes = a->_mesh._vertices.size() * sizeof(glm::vec4);
 			size_t sizeB_bytes = b->_mesh._vertices.size() * sizeof(glm::vec4);
+			std::vector<glm::vec4> vectorInputBufferA(a->_mesh._vertices.size());
+			std::vector<glm::vec4> vectorInputBufferB(b->_mesh._vertices.size());
 			glm::vec4* dataInputBufferA = (glm::vec4*)malloc(sizeA_bytes);
 			glm::vec4* dataInputBufferB = (glm::vec4*)malloc(sizeB_bytes);
 			if (!dataInputBufferA || !dataInputBufferB) { std::cout << "Failed allocating buffers for input meshes" << std::endl; return {}; }
@@ -4434,11 +4524,13 @@ namespace Engine {
 				dataInputBufferA[i].x = a->_mesh._vertices[i]._position.x;
 				dataInputBufferA[i].y = a->_mesh._vertices[i]._position.y;
 				dataInputBufferA[i].z = a->_mesh._vertices[i]._position.z;
+				vectorInputBufferA[i] = glm::vec4(a->_mesh._vertices[i]._position.x, a->_mesh._vertices[i]._position.y, a->_mesh._vertices[i]._position.z, 0.0f);
 			}
 			for (int i = 0; i < b->_mesh._vertices.size(); ++i) {
 				dataInputBufferB[i].x = b->_mesh._vertices[i]._position.x;
 				dataInputBufferB[i].y = b->_mesh._vertices[i]._position.y;
 				dataInputBufferB[i].z = b->_mesh._vertices[i]._position.z;
+				vectorInputBufferB[i] = glm::vec4(b->_mesh._vertices[i]._position.x, b->_mesh._vertices[i]._position.y, b->_mesh._vertices[i]._position.z, 0.0f);
 			}
 
 			size_t threadCount = a->_mesh._vertices.size();
@@ -4505,6 +4597,12 @@ namespace Engine {
 			VkPipeline pipeline; VkPipelineLayout layout; VkDescriptorSet descriptorSet;
 			if (CreateComputePipeline(buffers, bufferSizes, shaderPath.string().c_str(), ctx, pipeline, layout, descriptorSet) != VK_SUCCESS) {
 				std::cout << "Application creation failed." << std::endl;
+			}
+
+			std::vector<glm::vec4> vectorOutputBufferData(a->_mesh._vertices.size());
+
+			for (int i = 0; i < threadCount; ++i) {
+				ComputeIntersection(i, bodyA._pGameObject->GetWorldSpaceTransform()._matrix, bodyB._pGameObject->GetWorldSpaceTransform()._matrix, vectorInputBufferA, vectorInputBufferB, vectorOutputBufferData);
 			}
 
 			if (Dispatch(ctx, pipeline, layout, descriptorSet, workGroupCount, bodyA._pGameObject->GetWorldSpaceTransform()._matrix, bodyB._pGameObject->GetWorldSpaceTransform()._matrix) != VK_SUCCESS) {
