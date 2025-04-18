@@ -3625,35 +3625,6 @@ namespace Engine {
 	class RigidBody;
 	class Mesh;
 
-	/**
-	 * @brief Represents a vertex in the mesh of a physics body.
-	 */
-	class PhysicsVertex {
-	public:
-
-		/**
-		 * @brief Position in local space. Must be a vec4 because compute shader collision detection pads the coordinates you feed it to 16 bytes (size of a vec4) instead of just using it as is.
-		 */
-		glm::vec4 _position;
-	};
-
-	/**
-	 * @brief Physics mesh.
-	 */
-	class PhysicsMesh {
-	public:
-
-		/**
-		 * @brief Vertices that form this mesh.
-		 */
-		std::vector<PhysicsVertex> _vertices;
-
-		/**
-		 * @brief Face indices.
-		 */
-		std::vector<uint32_t> _faceIndices;
-	};
-
 	struct CollisionContext {
 		RigidBody* _collidee; // Collision receiver.
 		std::vector<glm::vec3> _collisionPositions; // List of points where a collision was detected in world space.
@@ -3872,13 +3843,6 @@ namespace Engine {
 		 */
 		bool _isColliding = false;
 
-		//std::vector<ForceCtx> _forcesToApply;
-
-		/**
-		 * @brief Physics mesh used as a bridge between this physics body and its visual counterpart.
-		 */
-		PhysicsMesh _mesh;
-
 		/**
 		 * @brief Physics update implementation for this specific rigidbody.
 		 */
@@ -3888,11 +3852,6 @@ namespace Engine {
 		 * @brief GameObject tied to this RigidBody.
 		 */
 		GameObject* _pGameObject;
-
-		/**
-		 * @brief Map where the key is the index of a vertex in _pMesh, and the value is a list of vertex indices directly connected to the vertex represented by the key.
-		 */
-		 //std::map<unsigned int, std::vector<unsigned int>> _neighbors;
 
 		 /**
 		  * @brief Constructor.
@@ -3929,7 +3888,7 @@ namespace Engine {
 		/**
 		 * @brief Basic init that guarantees the body's simulation.
 		 */
-		void Initialize(GameObject* pGameObject, std::vector<glm::vec4> vertices, std::vector<uint32_t> faceIndices, const float& mass = 1.0f, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = { 0.0f, 0.0f, 0.0f });
+		void Initialize(GameObject* pGameObject, const float& mass = 1.0f, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = { 0.0f, 0.0f, 0.0f });
 
 		void PhysicsUpdate(VkContext& ctx, EngineContext& eCtx);
 
@@ -4017,6 +3976,22 @@ namespace Engine {
 	};
 
 	struct CollisionDetector {
+		struct Buffers {
+			VkBuffer buffer;           // Single Vulkan buffer containing all data
+			VkDeviceMemory memory;     // Device memory for the buffer
+			VkDeviceSize totalSize;    // Total size of the buffer
+			struct Mesh {
+				VkDeviceSize vertexSize;  // Size of vertices
+				VkDeviceSize vertexOffset;// Offset of vertices in buffer
+				VkDeviceSize indexSize;   // Size of indices
+				VkDeviceSize indexOffset; // Offset of indices in buffer
+			};
+			Mesh meshA;               // Offsets and sizes for mesh A
+			Mesh meshB;               // Offsets and sizes for mesh B
+			VkDeviceSize resultsSize;  // Size of results
+			VkDeviceSize resultsOffset;// Offset of results in buffer
+		};
+
 		static int GetComputeQueueFamilyIndex(const VkPhysicalDevice& physicalDevice) {
 			//find a queue family for a selected GPU, select the first available for use
 			uint32_t queueFamilyCount;
@@ -4274,44 +4249,37 @@ namespace Engine {
 		static VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilePath, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet) {
 			VkDescriptorPool descriptorPool;
 			VkResult res = VK_SUCCESS;
-			uint32_t descriptorCount = 3;
+			uint32_t descriptorCount = 5;
 
 			VkDescriptorPoolSize descriptorPoolSize = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorCount };
 
-			const VkDescriptorType descriptorTypes[3] = {
-				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
-			};
+			const VkDescriptorType descriptorTypes[5] = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER };
 
-			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, 0, 0, 1, 1, &descriptorPoolSize };
-			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, 0, &descriptorPool));
+			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0, 1, 1, &descriptorPoolSize };
+			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, nullptr, &descriptorPool));
 
-			// Allocate and set up bindings for all descriptors
 			VkDescriptorSetLayoutBinding* descriptorSetLayoutBindings = (VkDescriptorSetLayoutBinding*)malloc(descriptorCount * sizeof(VkDescriptorSetLayoutBinding));
 			for (uint32_t i = 0; i < descriptorCount; ++i) {
 				descriptorSetLayoutBindings[i].binding = i;
 				descriptorSetLayoutBindings[i].descriptorType = descriptorTypes[i];
 				descriptorSetLayoutBindings[i].descriptorCount = 1;
 				descriptorSetLayoutBindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-				descriptorSetLayoutBindings[i].pImmutableSamplers = 0;
+				descriptorSetLayoutBindings[i].pImmutableSamplers = nullptr;
 			}
 
 			VkDescriptorSetLayout descriptorSetLayout;
-			VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, 0, 0, descriptorCount, descriptorSetLayoutBindings };
-			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &descriptorSetLayoutCreateInfo, 0, &descriptorSetLayout));
+			VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0, descriptorCount, descriptorSetLayoutBindings };
+			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout));
 			free(descriptorSetLayoutBindings);
 
-			// Allocate descriptor set
-			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, 0, descriptorPool, 1, &descriptorSetLayout };
+			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr, descriptorPool, 1, &descriptorSetLayout };
 			VkDescriptorSet descriptorSet;
 			CheckResult(vkAllocateDescriptorSets(ctx._logicalDevice, &descriptorSetAllocateInfo, &descriptorSet));
 
-			// Update all descriptors with buffer info
 			for (uint32_t i = 0; i < descriptorCount; ++i) {
 				VkDescriptorBufferInfo descriptorBufferInfo = { shaderBuffersArray[i], 0, arrayOfSizesOfEachBuffer[i] };
-				VkWriteDescriptorSet writeDescriptorSet = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, 0, descriptorSet, i, 0, 1, descriptorTypes[i], 0, &descriptorBufferInfo, 0 };
-				vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeDescriptorSet, 0, 0);
+				VkWriteDescriptorSet writeDescriptorSet = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptorSet, i, 0, 1, descriptorTypes[i], nullptr, &descriptorBufferInfo, nullptr };
+				vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeDescriptorSet, 0, nullptr);
 			}
 
 			VkPushConstantRange range;
@@ -4320,21 +4288,25 @@ namespace Engine {
 			range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
 			VkPipelineLayout pipelineLayout;
-			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, 0, 0, 1, &descriptorSetLayout, 1, &range };
-			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, 0, &pipelineLayout));
+			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr, 0, 1, &descriptorSetLayout, 1, &range };
+			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 
-			std::ifstream file(shaderFilePath, std::ios::ate | std::ios::binary);
 			VkShaderModule shaderModule = VkHelper::CreateShaderModule(ctx._logicalDevice, shaderFilePath);
 
-			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, 0, 0, VK_SHADER_STAGE_COMPUTE_BIT, shaderModule, "main" };
-			VkComputePipelineCreateInfo computePipelineCreateInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, 0, 0, pipelineShaderStageCreateInfo, pipelineLayout, 0, 0 };
+			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_COMPUTE_BIT, shaderModule, "main", nullptr };
+			VkComputePipelineCreateInfo computePipelineCreateInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0, pipelineShaderStageCreateInfo, pipelineLayout, VK_NULL_HANDLE, 0 };
 
 			VkPipeline pipeline;
-			res = vkCreateComputePipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, NULL, &pipeline);
-			if (res != VK_SUCCESS) return res;
+			res = vkCreateComputePipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &pipeline);
+			if (res != VK_SUCCESS) {
+				vkDestroyShaderModule(ctx._logicalDevice, shaderModule, nullptr);
+				vkDestroyDescriptorPool(ctx._logicalDevice, descriptorPool, nullptr);
+				vkDestroyDescriptorSetLayout(ctx._logicalDevice, descriptorSetLayout, nullptr);
+				vkDestroyPipelineLayout(ctx._logicalDevice, pipelineLayout, nullptr);
+				return res;
+			}
 
-			// Clean up and set output parameters
-			vkDestroyShaderModule(ctx._logicalDevice, pipelineShaderStageCreateInfo.module, NULL);
+			vkDestroyShaderModule(ctx._logicalDevice, shaderModule, nullptr);
 
 			outPipeline = pipeline;
 			outLayout = pipelineLayout;
@@ -4439,22 +4411,27 @@ namespace Engine {
 			uint32_t globalInvocationID,                      // Equivalent to gl_GlobalInvocationID.x
 			const glm::mat4& localToWorldA,                   // Transform matrix for object A
 			const glm::mat4& localToWorldB,                   // Transform matrix for object B
-			const std::vector<glm::vec4>& verticesA,          // Buffer containing vertices for rays (edges)
-			const std::vector<glm::vec4>& verticesB,          // Buffer containing vertices for triangles
+			const std::vector<glm::vec4>& verticesA,          // Buffer containing vertices for mesh A
+			const std::vector<uint32_t>& faceIndicesA,        // Face indices for mesh A (triplets)
+			const std::vector<glm::vec4>& verticesB,          // Buffer containing vertices for mesh B
+			const std::vector<uint32_t>& faceIndicesB,        // Face indices for mesh B (triplets)
 			std::vector<glm::vec4>& intersectionPoints)       // Output buffer for intersection points
 		{
 			uint32_t idx = globalInvocationID;
 
-			// Check if index is valid (verticesA contains triplets of vertices)
-			if (idx >= verticesA.size()) return;
+			// Check if index is valid (faceIndicesA contains triplets of indices)
+			if (idx * 3 >= faceIndicesA.size()) return;
 
 			// Initialize output to -1 (including w component)
 			intersectionPoints[idx] = glm::vec4(-1.0f, -1.0f, -1.0f, -1.0f);
 
-			// Get triangle vertices from verticesA and transform to world space
-			glm::vec4 a0_full = localToWorldA * verticesA[idx + 0];
-			glm::vec4 a1_full = localToWorldA * verticesA[idx + 1];
-			glm::vec4 a2_full = localToWorldA * verticesA[idx + 2];
+			// Get triangle vertices from faceIndicesA and transform to world space
+			uint32_t aIdx0 = faceIndicesA[idx * 3 + 0];
+			uint32_t aIdx1 = faceIndicesA[idx * 3 + 1];
+			uint32_t aIdx2 = faceIndicesA[idx * 3 + 2];
+			glm::vec4 a0_full = localToWorldA * verticesA[aIdx0];
+			glm::vec4 a1_full = localToWorldA * verticesA[aIdx1];
+			glm::vec4 a2_full = localToWorldA * verticesA[aIdx2];
 			glm::vec3 a0 = glm::vec3(a0_full);
 			glm::vec3 a1 = glm::vec3(a1_full);
 			glm::vec3 a2 = glm::vec3(a2_full);
@@ -4462,21 +4439,23 @@ namespace Engine {
 			glm::vec3 intersection;
 			bool intersectionFound = false;
 
-			// Number of faces in verticesB (assuming triplets of vertices)
-			uint32_t faceCountB = verticesB.size() / 3;
+			// Number of faces in faceIndicesB
+			uint32_t faceCountB = faceIndicesB.size() / 3;
 
-			// Check each edge from verticesA against all faces in verticesB
-			for (uint32_t faceIdx = 0; faceIdx < faceCountB && !intersectionFound; ++faceIdx) {
-				// Get triangle vertices from verticesB and transform to world space
-				uint32_t bIdx = faceIdx * 3;
-				glm::vec4 b0_full = localToWorldB * verticesB[bIdx + 0];
-				glm::vec4 b1_full = localToWorldB * verticesB[bIdx + 1];
-				glm::vec4 b2_full = localToWorldB * verticesB[bIdx + 2];
+			// Check each edge from faceIndicesA against all faces in faceIndicesB
+			for (uint32_t faceIdx = 0; faceIdx < faceCountB && !intersectionFound; faceIdx+=3) {
+				// Get triangle vertices from faceIndicesB and transform to world space
+				uint32_t bIdx0 = faceIndicesB[faceIdx + 0];
+				uint32_t bIdx1 = faceIndicesB[faceIdx + 1];
+				uint32_t bIdx2 = faceIndicesB[faceIdx + 2];
+				glm::vec4 b0_full = localToWorldB * verticesB[bIdx0];
+				glm::vec4 b1_full = localToWorldB * verticesB[bIdx1];
+				glm::vec4 b2_full = localToWorldB * verticesB[bIdx2];
 				glm::vec3 b0 = glm::vec3(b0_full);
 				glm::vec3 b1 = glm::vec3(b1_full);
 				glm::vec3 b2 = glm::vec3(b2_full);
 
-				// Check edges from verticesA triangle against verticesB triangle
+				// Check edges from faceIndicesA triangle against faceIndicesB triangle
 				if (RayTriangleIntersect(a0, a1 - a0, b0, b1, b2, intersection) ||
 					RayTriangleIntersect(a1, a2 - a1, b0, b1, b2, intersection) ||
 					RayTriangleIntersect(a2, a0 - a2, b0, b1, b2, intersection)) {
@@ -4484,7 +4463,7 @@ namespace Engine {
 					intersectionFound = true;
 				}
 
-				// If no intersection found, check edges from verticesB triangle against verticesA triangle
+				// If no intersection found, check edges from faceIndicesB triangle against faceIndicesA triangle
 				if (!intersectionFound) {
 					if (RayTriangleIntersect(b0, b1 - b0, a0, a1, a2, intersection) ||
 						RayTriangleIntersect(b1, b2 - b1, a0, a1, a2, intersection) ||
@@ -4494,6 +4473,62 @@ namespace Engine {
 					}
 				}
 			}
+		}
+
+		static Buffers CreateBuffers(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue queue, const std::vector<Vertex>& verticesA, const std::vector<uint32_t>& indicesA, const std::vector<Vertex>& verticesB, const std::vector<uint32_t>& indicesB) {
+			Buffers buffers;
+
+			// Calculate sizes
+			buffers.meshA.vertexSize = verticesA.size() * sizeof(Vertex);
+			buffers.meshA.indexSize = indicesA.size() * sizeof(uint32_t);
+			buffers.meshB.vertexSize = verticesB.size() * sizeof(Vertex);
+			buffers.meshB.indexSize = indicesB.size() * sizeof(uint32_t);
+			buffers.resultsSize = (indicesA.size() / 3) * sizeof(glm::vec4);
+
+			// Get alignment requirement
+			VkPhysicalDeviceProperties properties;
+			vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+			VkDeviceSize alignment = properties.limits.minStorageBufferOffsetAlignment;
+
+			// Calculate aligned offsets
+			buffers.meshA.vertexOffset = 0;
+			buffers.meshA.indexOffset = (buffers.meshA.vertexSize + alignment - 1) & ~(alignment - 1);
+			buffers.meshB.vertexOffset = buffers.meshA.indexOffset + (buffers.meshA.indexSize + alignment - 1) & ~(alignment - 1);
+			buffers.meshB.indexOffset = buffers.meshB.vertexOffset + (buffers.meshB.vertexSize + alignment - 1) & ~(alignment - 1);
+			buffers.resultsOffset = buffers.meshB.indexOffset + (buffers.meshB.indexSize + alignment - 1) & ~(alignment - 1);
+			buffers.totalSize = buffers.resultsOffset + buffers.resultsSize;
+
+			// Create single buffer
+			VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, buffers.totalSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_SHARING_MODE_EXCLUSIVE };
+			vkCreateBuffer(device, &bufferInfo, nullptr, &buffers.buffer);
+
+			// Allocate and bind memory
+			VkMemoryRequirements memRequirements;
+			vkGetBufferMemoryRequirements(device, buffers.buffer, &memRequirements);
+			VkPhysicalDeviceMemoryProperties memProperties;
+			vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+			uint32_t memoryTypeIndex = -1;
+			for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+				if ((memRequirements.memoryTypeBits & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
+					memoryTypeIndex = i;
+					break;
+				}
+			}
+			VkMemoryAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, memRequirements.size, memoryTypeIndex };
+			vkAllocateMemory(device, &allocInfo, nullptr, &buffers.memory);
+			vkBindBufferMemory(device, buffers.buffer, buffers.memory, 0);
+
+			// Copy data to buffer
+			void* mappedData;
+			vkMapMemory(device, buffers.memory, 0, buffers.totalSize, 0, &mappedData);
+			memcpy((char*)mappedData + buffers.meshA.vertexOffset, verticesA.data(), buffers.meshA.vertexSize);
+			memcpy((char*)mappedData + buffers.meshA.indexOffset, indicesA.data(), buffers.meshA.indexSize);
+			memcpy((char*)mappedData + buffers.meshB.vertexOffset, verticesB.data(), buffers.meshB.vertexSize);
+			memcpy((char*)mappedData + buffers.meshB.indexOffset, indicesB.data(), buffers.meshB.indexSize);
+			// Results buffer is not initialized (output only)
+			vkUnmapMemory(device, buffers.memory);
+
+			return buffers;
 		}
 
 		static std::vector<glm::vec4> Run(VkDevice& device, VkPhysicalDevice& physicalDevice, RigidBody& bodyA, RigidBody& bodyB) {
@@ -4512,28 +4547,33 @@ namespace Engine {
 
 			if (a->_mesh._vertices.size() < b->_mesh._vertices.size()) { auto tmp = b; b = a; a = tmp; }
 
-			size_t sizeA_bytes = a->_mesh._vertices.size() * sizeof(glm::vec4);
-			size_t sizeB_bytes = b->_mesh._vertices.size() * sizeof(glm::vec4);
+			size_t verticesSizeA_bytes = a->_mesh._vertices.size() * sizeof(glm::vec4);
+			size_t verticesSizeB_bytes = b->_mesh._vertices.size() * sizeof(glm::vec4);
+			size_t faceIndicesSizeA_bytes = GetVectorSizeInBytes(a->_mesh._faceIndices);
+			size_t faceIndicesSizeB_bytes = GetVectorSizeInBytes(b->_mesh._faceIndices);
 			std::vector<glm::vec4> vectorInputBufferA(a->_mesh._vertices.size());
 			std::vector<glm::vec4> vectorInputBufferB(b->_mesh._vertices.size());
-			glm::vec4* dataInputBufferA = (glm::vec4*)malloc(sizeA_bytes);
-			glm::vec4* dataInputBufferB = (glm::vec4*)malloc(sizeB_bytes);
-			if (!dataInputBufferA || !dataInputBufferB) { std::cout << "Failed allocating buffers for input meshes" << std::endl; return {}; }
+			glm::vec4* verticesA = (glm::vec4*)malloc(verticesSizeA_bytes);
+			glm::vec4* verticesB = (glm::vec4*)malloc(verticesSizeB_bytes);
+			uint32_t* indicesA = (uint32_t*)malloc(faceIndicesSizeA_bytes);
+			uint32_t* indicesB = (uint32_t*)malloc(faceIndicesSizeB_bytes);
+			if (!verticesA || !verticesB) { std::cout << "Failed allocating buffers for input meshes" << std::endl; return {}; }
 
 			for (int i = 0; i < a->_mesh._vertices.size(); ++i) {
-				dataInputBufferA[i].x = a->_mesh._vertices[i]._position.x;
-				dataInputBufferA[i].y = a->_mesh._vertices[i]._position.y;
-				dataInputBufferA[i].z = a->_mesh._vertices[i]._position.z;
-				vectorInputBufferA[i] = glm::vec4(a->_mesh._vertices[i]._position.x, a->_mesh._vertices[i]._position.y, a->_mesh._vertices[i]._position.z, 0.0f);
-			}
-			for (int i = 0; i < b->_mesh._vertices.size(); ++i) {
-				dataInputBufferB[i].x = b->_mesh._vertices[i]._position.x;
-				dataInputBufferB[i].y = b->_mesh._vertices[i]._position.y;
-				dataInputBufferB[i].z = b->_mesh._vertices[i]._position.z;
-				vectorInputBufferB[i] = glm::vec4(b->_mesh._vertices[i]._position.x, b->_mesh._vertices[i]._position.y, b->_mesh._vertices[i]._position.z, 0.0f);
+				verticesA[i].x = a->_mesh._vertices[i]._position.x;
+				verticesA[i].y = a->_mesh._vertices[i]._position.y;
+				verticesA[i].z = a->_mesh._vertices[i]._position.z;
+				indicesA[i] = a->_mesh._faceIndices[i];
 			}
 
-			size_t threadCount = a->_mesh._vertices.size();
+			for (int i = 0; i < b->_mesh._vertices.size(); ++i) {
+				verticesB[i].x = b->_mesh._vertices[i]._position.x;
+				verticesB[i].y = b->_mesh._vertices[i]._position.y;
+				verticesB[i].z = b->_mesh._vertices[i]._position.z;
+				indicesB[i] = b->_mesh._faceIndices[i];
+			}
+
+			size_t threadCount = a->_mesh._vertices.size() / 3;
 			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, threadCount, { 256, 1, 1 });
 
 			//use default values if coalescedMemory = 0
@@ -4556,40 +4596,62 @@ namespace Engine {
 
 			// Create the input buffer.
 			VkResult res = VK_SUCCESS;
-			Buffer inputBufferA;
-			Buffer inputBufferB;
+			Buffer verticesInputBufferA;
+			Buffer faceIndicesInputBufferA;
+			Buffer verticesInputBufferB;
+			Buffer faceIndicesInputBufferB;
 			Buffer outputBuffer;
 
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
-				sizeA_bytes,
+				verticesSizeA_bytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				&inputBufferA._buffer,
-				&inputBufferA._gpuMemory);
+				&verticesInputBufferA._buffer,
+				&verticesInputBufferA._gpuMemory);
 
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
-				sizeB_bytes,
+				faceIndicesSizeA_bytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				&inputBufferB._buffer,
-				&inputBufferB._gpuMemory);
+				&faceIndicesInputBufferA._buffer,
+				&faceIndicesInputBufferA._gpuMemory);
 
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
-				sizeA_bytes,
+				verticesSizeB_bytes,
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				&verticesInputBufferB._buffer,
+				&verticesInputBufferB._gpuMemory);
+
+			VkHelper::CreateBuffer(ctx._logicalDevice,
+				ctx._physicalDevice,
+				faceIndicesSizeB_bytes,
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				&faceIndicesInputBufferB._buffer,
+				&faceIndicesInputBufferB._gpuMemory);
+
+			VkHelper::CreateBuffer(ctx._logicalDevice,
+				ctx._physicalDevice,
+				verticesSizeA_bytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				&outputBuffer._buffer,
 				&outputBuffer._gpuMemory);
 
 			// Transfer data to GPU staging buffer and thereafter sync the staging buffer with GPU local memory.
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, inputBufferA._buffer, dataInputBufferA, sizeA_bytes);
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, inputBufferB._buffer, dataInputBufferB, sizeB_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, verticesInputBufferA._buffer, verticesA, verticesSizeA_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, faceIndicesInputBufferA._buffer, indicesA, faceIndicesSizeA_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, verticesInputBufferB._buffer, verticesB, verticesSizeB_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, faceIndicesInputBufferB._buffer, indicesB, faceIndicesSizeB_bytes);
 
-			VkBuffer buffers[3] = { inputBufferA._buffer, inputBufferB._buffer, outputBuffer._buffer };
-			VkDeviceSize bufferSizes[3] = { sizeA_bytes, sizeB_bytes, sizeA_bytes };
+			CreateBuffers(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, verticesA, indicesA, verticesB, indicesB);
+
+			VkBuffer buffers[5] = { verticesInputBufferA._buffer, faceIndicesInputBufferA._buffer, verticesInputBufferB._buffer, faceIndicesInputBufferB._buffer, outputBuffer._buffer };
+			VkDeviceSize bufferSizes[5] = { verticesSizeA_bytes, faceIndicesSizeA_bytes, verticesSizeB_bytes, faceIndicesSizeB_bytes, verticesSizeA_bytes };
 
 			// Create 
 			//const char* shaderPath = "C:\\code\\vulkan-compute\\shaders\\Shader.spv";
@@ -4601,20 +4663,20 @@ namespace Engine {
 
 			std::vector<glm::vec4> vectorOutputBufferData(a->_mesh._vertices.size());
 
-			for (int i = 0; i < threadCount; ++i) {
-				ComputeIntersection(i, bodyA._pGameObject->GetWorldSpaceTransform()._matrix, bodyB._pGameObject->GetWorldSpaceTransform()._matrix, vectorInputBufferA, vectorInputBufferB, vectorOutputBufferData);
-			}
+			/*for (int i = 0; i < threadCount; ++i) {
+				ComputeIntersection(i, bodyA._pGameObject->GetWorldSpaceTransform()._matrix, bodyB._pGameObject->GetWorldSpaceTransform()._matrix, vectorInputBufferA, a->_mesh._faceIndices, vectorInputBufferB, b->_mesh._faceIndices, vectorOutputBufferData);
+			}*/
 
 			if (Dispatch(ctx, pipeline, layout, descriptorSet, workGroupCount, bodyA._pGameObject->GetWorldSpaceTransform()._matrix, bodyB._pGameObject->GetWorldSpaceTransform()._matrix) != VK_SUCCESS) {
 				std::cout << "Application run failed." << std::endl;
 			}
 
-			auto shaderOutputBufferData = (glm::vec4*)malloc(sizeA_bytes);
+			auto shaderOutputBufferData = (glm::vec4*)malloc(verticesSizeA_bytes);
 
 			res = vkGetFenceStatus(ctx._logicalDevice, ctx._queueFence);
 
 			//Transfer data from GPU using staging buffer, if needed
-			if (DownloadDataFromGPU(shaderOutputBufferData, sizeA_bytes, ctx, &outputBuffer._buffer) != VK_SUCCESS)
+			if (DownloadDataFromGPU(shaderOutputBufferData, verticesSizeA_bytes, ctx, &outputBuffer._buffer) != VK_SUCCESS)
 				std::cout << "Failed downloading data from GPU." << std::endl;
 			
 			// Print data for debugging.
@@ -5133,99 +5195,14 @@ namespace Engine {
 		return outCollisions;
 	}
 
-	void RemoveDuplicateVertices(std::vector<glm::vec4>& vertices, std::vector<uint32_t>& faceIndices, float tolerance = 0.001f) {
-		// Custom hash function for approximate position (ignoring w)
-		struct Vec4Hash {
-			float tolerance;
-			Vec4Hash(float tol) : tolerance(tol) {}
-
-			size_t operator()(const glm::vec4& v) const {
-				// Quantize only x, y, z coordinates based on tolerance
-				int x = static_cast<int>(v.x / tolerance);
-				int y = static_cast<int>(v.y / tolerance);
-				int z = static_cast<int>(v.z / tolerance);
-
-				size_t h1 = std::hash<int>{}(x);
-				size_t h2 = std::hash<int>{}(y);
-				size_t h3 = std::hash<int>{}(z);
-				return h1 ^ (h2 << 1) ^ (h3 << 2);
-			}
-		};
-
-		// Custom equality comparison with tolerance (ignoring w)
-		struct Vec4Equal {
-			float tolerance;
-			Vec4Equal(float tol) : tolerance(tol) {}
-
-			bool operator()(const glm::vec4& a, const glm::vec4& b) const {
-				// Compare only x, y, z components
-				return glm::length(glm::vec3(a.x, a.y, a.z) - glm::vec3(b.x, b.y, b.z)) <= tolerance;
-			}
-		};
-
-		// Create map with custom hash and equality functions
-		std::unordered_map<glm::vec4, uint32_t, Vec4Hash, Vec4Equal> vertexMap(
-			0, Vec4Hash(tolerance), Vec4Equal(tolerance)
-		);
-
-		std::vector<glm::vec4> newVertices;
-		std::vector<uint32_t> indexMap(vertices.size());
-
-		// First pass: identify unique vertices and build mapping
-		uint32_t newIndex = 0;
-		for (uint32_t i = 0; i < vertices.size(); ++i) {
-			const glm::vec4& v = vertices[i];
-			auto it = vertexMap.find(v);
-
-			if (it == vertexMap.end()) {
-				// New unique vertex (within tolerance, based on x, y, z)
-				vertexMap[v] = newIndex;
-				indexMap[i] = newIndex;
-				newVertices.push_back(v); // Keep the original vec4, including w
-				newIndex++;
-			}
-			else {
-				// Vertex within tolerance of existing vertex (based on x, y, z)
-				indexMap[i] = it->second;
-			}
-		}
-
-		// Second pass: update face indices
-		for (uint32_t& index : faceIndices) index = indexMap[index];
-		vertices = std::move(newVertices);
-	}
-
-	std::vector<uint32_t> PadFaceIndices(const std::vector<uint32_t>& faceIndices) {
-		constexpr uint32_t PADDING_VALUE = std::numeric_limits<uint32_t>::max(); // 0xFFFFFFFF
-		std::vector<uint32_t> paddedIndices;
-		paddedIndices.reserve(faceIndices.size() + faceIndices.size() / 3); // Pre-allocate for efficiency
-
-		for (size_t i = 0; i < faceIndices.size(); ++i) {
-			paddedIndices.push_back(faceIndices[i]); // Copy the index as-is
-			if ((i + 1) % 3 == 0 && i + 1 < faceIndices.size()) {
-				paddedIndices.push_back(PADDING_VALUE); // Add padding after every third element, except at the end
-			}
-		}
-
-		return paddedIndices;
-	}
-
-	void RigidBody::Initialize(GameObject* pGameObject, std::vector<glm::vec4> vertices, std::vector<uint32_t> faceIndices, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass) {
-		if (mass <= 0.001f || vertices.size() < 1 || faceIndices.size() < 1) return;
-
-		RemoveDuplicateVertices(vertices, faceIndices);
-
+	void RigidBody::Initialize(GameObject* pGameObject, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass) {
+		if (!pGameObject) return;
+		auto& mesh = pGameObject->_pMesh;
+		if (mass <= 0.001f || mesh->_vertices._vertexData.size() < 1 || mesh->_faceIndices._indexData.size() < 1) return;
 		_pGameObject = pGameObject;
 		_mass = mass;
 		_isCenterOfMassOverridden = overrideCenterOfMass;
 		_overriddenCenterOfMassLocalSpace = overriddenCenterOfMass;
-		_mesh._vertices.resize(vertices.size());
-		_mesh._faceIndices = faceIndices;
-
-		// TODO: Decide how you want to initialize your physics mesh.
-		for (int i = 0; i < vertices.size(); ++i) _mesh._vertices[i]._position = vertices[i];
-
-		memcpy(_mesh._faceIndices.data(), faceIndices.data(), GetVectorSizeInBytes(faceIndices));
 		_isInitialized = true;
 	}
 
@@ -5883,7 +5860,7 @@ namespace Engine {
 					delete(gameObject->_pMesh);
 					gameObject->_pMesh = nullptr;
 				}*/
-				currentNode->pGameObject->_body.Initialize(currentNode->pGameObject, v, fi);
+				currentNode->pGameObject->_body.Initialize(currentNode->pGameObject);
 
 				// Additional init
 				currentNode->pGameObject->_body._friction = (float)GetNumberProperty(gltfNode, "Friction");
