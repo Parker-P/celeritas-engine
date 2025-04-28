@@ -172,9 +172,7 @@ namespace Engine {
 	 * @return
 	 */
 	template <typename T>
-	inline size_t GetVectorSizeInBytes(std::vector<T> vector) {
-		return sizeof(decltype(vector)::value_type) * vector.size();
-	}
+	inline size_t GetVectorSizeInBytes(std::vector<T> vector) { return sizeof(decltype(vector)::value_type) * vector.size(); }
 
 	/**
 	 * @brief Used by implementing classes to mark themselves as a class that is meant to do work on each iteration of the main loop.
@@ -4246,55 +4244,117 @@ namespace Engine {
 			return res;
 		}
 
-		static VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilePath, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet) {
+		static VkResult CreateComputePipeline(VkBuffer shaderBuffer, VkDeviceSize bufferSize, const char* shaderFilePath, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet) {
 			VkDescriptorPool descriptorPool;
 			VkResult res = VK_SUCCESS;
-			uint32_t descriptorCount = 5;
 
-			VkDescriptorPoolSize descriptorPoolSize = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorCount };
+			// Single storage buffer descriptor
+			VkDescriptorPoolSize descriptorPoolSize = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 };
 
-			const VkDescriptorType descriptorTypes[5] = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER };
+			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {
+				VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+				nullptr,
+				0,
+				1, // One descriptor set
+				1, // One descriptor
+				&descriptorPoolSize
+			};
+			CheckResult(vkCreateDescriptorPool(ctx.Result(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, nullptr, &descriptorPool));
 
-			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0, 1, 1, &descriptorPoolSize };
-			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, nullptr, &descriptorPool));
-
-			VkDescriptorSetLayoutBinding* descriptorSetLayoutBindings = (VkDescriptorSetLayoutBinding*)malloc(descriptorCount * sizeof(VkDescriptorSetLayoutBinding));
-			for (uint32_t i = 0; i < descriptorCount; ++i) {
-				descriptorSetLayoutBindings[i].binding = i;
-				descriptorSetLayoutBindings[i].descriptorType = descriptorTypes[i];
-				descriptorSetLayoutBindings[i].descriptorCount = 1;
-				descriptorSetLayoutBindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-				descriptorSetLayoutBindings[i].pImmutableSamplers = nullptr;
-			}
+			// Single descriptor set layout binding for the Buffers buffer
+			VkDescriptorSetLayoutBinding descriptorSetLayoutBinding = {
+				.binding = 0,
+				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.descriptorCount = 1,
+				.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+				.pImmutableSamplers = nullptr
+			};
 
 			VkDescriptorSetLayout descriptorSetLayout;
-			VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0, descriptorCount, descriptorSetLayoutBindings };
+			VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
+				VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+				nullptr,
+				0,
+				1, // One binding
+				&descriptorSetLayoutBinding
+			};
 			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout));
-			free(descriptorSetLayoutBindings);
 
-			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr, descriptorPool, 1, &descriptorSetLayout };
+			// Allocate descriptor set
+			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+				VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+				nullptr,
+				descriptorPool,
+				1,
+				&descriptorSetLayout
+			};
 			VkDescriptorSet descriptorSet;
 			CheckResult(vkAllocateDescriptorSets(ctx._logicalDevice, &descriptorSetAllocateInfo, &descriptorSet));
 
-			for (uint32_t i = 0; i < descriptorCount; ++i) {
-				VkDescriptorBufferInfo descriptorBufferInfo = { shaderBuffersArray[i], 0, arrayOfSizesOfEachBuffer[i] };
-				VkWriteDescriptorSet writeDescriptorSet = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptorSet, i, 0, 1, descriptorTypes[i], nullptr, &descriptorBufferInfo, nullptr };
-				vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeDescriptorSet, 0, nullptr);
-			}
+			// Update descriptor set with buffer info
+			VkDescriptorBufferInfo descriptorBufferInfo = {
+				shaderBuffer,
+				0,
+				bufferSize
+			};
+			VkWriteDescriptorSet writeDescriptorSet = {
+				VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				nullptr,
+				descriptorSet,
+				0, // Binding 0
+				0,
+				1,
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				nullptr,
+				&descriptorBufferInfo,
+				nullptr
+			};
+			vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeDescriptorSet, 0, nullptr);
 
-			VkPushConstantRange range;
-			range.offset = 0;
-			range.size = sizeof(glm::mat4) * 2;
-			range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+			// Push constant range (unchanged)
+			VkPushConstantRange range = {
+				.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+				.offset = 0,
+				.size = sizeof(glm::mat4) * 2
+			};
 
+			// Pipeline layout
 			VkPipelineLayout pipelineLayout;
-			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr, 0, 1, &descriptorSetLayout, 1, &range };
+			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
+				VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+				nullptr,
+				0,
+				1,
+				&descriptorSetLayout,
+				1,
+				&range
+			};
 			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 
+			// Shader module
 			VkShaderModule shaderModule = VkHelper::CreateShaderModule(ctx._logicalDevice, shaderFilePath);
 
-			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_COMPUTE_BIT, shaderModule, "main", nullptr };
-			VkComputePipelineCreateInfo computePipelineCreateInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0, pipelineShaderStageCreateInfo, pipelineLayout, VK_NULL_HANDLE, 0 };
+			// Pipeline shader stage
+			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = {
+				VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+				nullptr,
+				0,
+				VK_SHADER_STAGE_COMPUTE_BIT,
+				shaderModule,
+				"main",
+				nullptr
+			};
+
+			// Compute pipeline
+			VkComputePipelineCreateInfo computePipelineCreateInfo = {
+				VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+				nullptr,
+				0,
+				pipelineShaderStageCreateInfo,
+				pipelineLayout,
+				VK_NULL_HANDLE,
+				0
+			};
 
 			VkPipeline pipeline;
 			res = vkCreateComputePipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &pipeline);
@@ -4306,8 +4366,10 @@ namespace Engine {
 				return res;
 			}
 
+			// Cleanup shader module
 			vkDestroyShaderModule(ctx._logicalDevice, shaderModule, nullptr);
 
+			// Output results
 			outPipeline = pipeline;
 			outLayout = pipelineLayout;
 			outDescriptorSet = descriptorSet;
@@ -4542,38 +4604,38 @@ namespace Engine {
 
 			// Calculate how many workgroups and the size of each workgroup we are going to use.
 			// We want one GPU thread to operate on a single value from the input buffer, so the required thread size is the input buffer size.
-			RigidBody* a = &bodyA;
-			RigidBody* b = &bodyB;
+			Mesh* a = bodyA._pGameObject->_pMesh;
+			Mesh* b = bodyB._pGameObject->_pMesh;
 
-			if (a->_mesh._vertices.size() < b->_mesh._vertices.size()) { auto tmp = b; b = a; a = tmp; }
+			if (a->_vertices._vertexData.size() < b->_vertices._vertexData.size()) { auto tmp = b; b = a; a = tmp; }
 
-			size_t verticesSizeA_bytes = a->_mesh._vertices.size() * sizeof(glm::vec4);
-			size_t verticesSizeB_bytes = b->_mesh._vertices.size() * sizeof(glm::vec4);
-			size_t faceIndicesSizeA_bytes = GetVectorSizeInBytes(a->_mesh._faceIndices);
-			size_t faceIndicesSizeB_bytes = GetVectorSizeInBytes(b->_mesh._faceIndices);
-			std::vector<glm::vec4> vectorInputBufferA(a->_mesh._vertices.size());
-			std::vector<glm::vec4> vectorInputBufferB(b->_mesh._vertices.size());
+			/*size_t verticesSizeA_bytes = a->_vertices._vertexData.size() * sizeof(glm::vec4);
+			size_t verticesSizeB_bytes = b->_vertices._vertexData.size() * sizeof(glm::vec4);
+			size_t faceIndicesSizeA_bytes = GetVectorSizeInBytes(a->_faceIndices._indexData);
+			size_t faceIndicesSizeB_bytes = GetVectorSizeInBytes(b->_faceIndices._indexData);
+			std::vector<glm::vec4> vectorInputBufferA(a->_vertices._vertexData.size());
+			std::vector<glm::vec4> vectorInputBufferB(b->_vertices._vertexData.size());
 			glm::vec4* verticesA = (glm::vec4*)malloc(verticesSizeA_bytes);
 			glm::vec4* verticesB = (glm::vec4*)malloc(verticesSizeB_bytes);
 			uint32_t* indicesA = (uint32_t*)malloc(faceIndicesSizeA_bytes);
 			uint32_t* indicesB = (uint32_t*)malloc(faceIndicesSizeB_bytes);
 			if (!verticesA || !verticesB) { std::cout << "Failed allocating buffers for input meshes" << std::endl; return {}; }
 
-			for (int i = 0; i < a->_mesh._vertices.size(); ++i) {
-				verticesA[i].x = a->_mesh._vertices[i]._position.x;
-				verticesA[i].y = a->_mesh._vertices[i]._position.y;
-				verticesA[i].z = a->_mesh._vertices[i]._position.z;
-				indicesA[i] = a->_mesh._faceIndices[i];
+			for (int i = 0; i < a->_vertices._vertexData.size(); ++i) {
+				verticesA[i].x = a->_vertices._vertexData[i]._position.x;
+				verticesA[i].y = a->_vertices._vertexData[i]._position.y;
+				verticesA[i].z = a->_vertices._vertexData[i]._position.z;
+				indicesA[i] = a->_faceIndices._indexData[i];
 			}
 
-			for (int i = 0; i < b->_mesh._vertices.size(); ++i) {
-				verticesB[i].x = b->_mesh._vertices[i]._position.x;
-				verticesB[i].y = b->_mesh._vertices[i]._position.y;
-				verticesB[i].z = b->_mesh._vertices[i]._position.z;
-				indicesB[i] = b->_mesh._faceIndices[i];
-			}
+			for (int i = 0; i < b->_vertices._vertexData.size(); ++i) {
+				verticesB[i].x = b->_vertices._vertexData[i]._position.x;
+				verticesB[i].y = b->_vertices._vertexData[i]._position.y;
+				verticesB[i].z = b->_vertices._vertexData[i]._position.z;
+				indicesB[i] = b->_faceIndices._indexData[i];
+			}*/
 
-			size_t threadCount = a->_mesh._vertices.size() / 3;
+			size_t threadCount = a->_vertices._vertexData.size() / 3;
 			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, threadCount, { 256, 1, 1 });
 
 			//use default values if coalescedMemory = 0
@@ -4602,9 +4664,19 @@ namespace Engine {
 			Buffer faceIndicesInputBufferB;
 			Buffer outputBuffer;
 
+			auto& aVertices = a->_vertices._vertexData;
+			auto& aIndices = a->_faceIndices._indexData;
+			auto& bVertices = b->_vertices._vertexData;
+			auto& bIndices = b->_faceIndices._indexData;
+			auto aVerticesSizeBytes = GetVectorSizeInBytes(aVertices);
+			auto aIndicesSizeBytes = GetVectorSizeInBytes(aIndices);
+			auto bVerticesSizeBytes = GetVectorSizeInBytes(bVertices);
+			auto bIndicesSizeBytes = GetVectorSizeInBytes(bIndices);
+			auto outputBufferSizeBytes = sizeof(glm::vec4) * aVertices.size();
+
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
-				verticesSizeA_bytes,
+				aVerticesSizeBytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				&verticesInputBufferA._buffer,
@@ -4612,7 +4684,7 @@ namespace Engine {
 
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
-				faceIndicesSizeA_bytes,
+				aIndicesSizeBytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				&faceIndicesInputBufferA._buffer,
@@ -4620,7 +4692,7 @@ namespace Engine {
 
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
-				verticesSizeB_bytes,
+				bVerticesSizeBytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				&verticesInputBufferB._buffer,
@@ -4628,7 +4700,7 @@ namespace Engine {
 
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
-				faceIndicesSizeB_bytes,
+				bIndicesSizeBytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				&faceIndicesInputBufferB._buffer,
@@ -4636,22 +4708,22 @@ namespace Engine {
 
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
-				verticesSizeA_bytes,
+				outputBufferSizeBytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				&outputBuffer._buffer,
 				&outputBuffer._gpuMemory);
 
 			// Transfer data to GPU staging buffer and thereafter sync the staging buffer with GPU local memory.
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, verticesInputBufferA._buffer, verticesA, verticesSizeA_bytes);
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, faceIndicesInputBufferA._buffer, indicesA, faceIndicesSizeA_bytes);
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, verticesInputBufferB._buffer, verticesB, verticesSizeB_bytes);
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, faceIndicesInputBufferB._buffer, indicesB, faceIndicesSizeB_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, verticesInputBufferA._buffer, aVertices.data(), aVerticesSizeBytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, faceIndicesInputBufferA._buffer, aIndices.data(), aIndicesSizeBytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, verticesInputBufferB._buffer, bVertices.data(), bVerticesSizeBytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, faceIndicesInputBufferB._buffer, bIndices.data(), bIndicesSizeBytes);
 
-			CreateBuffers(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, verticesA, indicesA, verticesB, indicesB);
+			//CreateBuffers(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, verticesABytes, indicesA, verticesB, indicesB);
 
 			VkBuffer buffers[5] = { verticesInputBufferA._buffer, faceIndicesInputBufferA._buffer, verticesInputBufferB._buffer, faceIndicesInputBufferB._buffer, outputBuffer._buffer };
-			VkDeviceSize bufferSizes[5] = { verticesSizeA_bytes, faceIndicesSizeA_bytes, verticesSizeB_bytes, faceIndicesSizeB_bytes, verticesSizeA_bytes };
+			VkDeviceSize bufferSizes[5] = { aVerticesSizeBytes, aIndicesSizeBytes, bVerticesSizeBytes, bIndicesSizeBytes, outputBufferSizeBytes };
 
 			// Create 
 			//const char* shaderPath = "C:\\code\\vulkan-compute\\shaders\\Shader.spv";
@@ -4661,7 +4733,7 @@ namespace Engine {
 				std::cout << "Application creation failed." << std::endl;
 			}
 
-			std::vector<glm::vec4> vectorOutputBufferData(a->_mesh._vertices.size());
+			//std::vector<glm::vec4> vectorOutputBufferData(a->_vertices.size());
 
 			/*for (int i = 0; i < threadCount; ++i) {
 				ComputeIntersection(i, bodyA._pGameObject->GetWorldSpaceTransform()._matrix, bodyB._pGameObject->GetWorldSpaceTransform()._matrix, vectorInputBufferA, a->_mesh._faceIndices, vectorInputBufferB, b->_mesh._faceIndices, vectorOutputBufferData);
@@ -4671,12 +4743,12 @@ namespace Engine {
 				std::cout << "Application run failed." << std::endl;
 			}
 
-			auto shaderOutputBufferData = (glm::vec4*)malloc(verticesSizeA_bytes);
+			auto shaderOutputBufferData = (glm::vec4*)malloc(outputBufferSizeBytes);
 
 			res = vkGetFenceStatus(ctx._logicalDevice, ctx._queueFence);
 
 			//Transfer data from GPU using staging buffer, if needed
-			if (DownloadDataFromGPU(shaderOutputBufferData, verticesSizeA_bytes, ctx, &outputBuffer._buffer) != VK_SUCCESS)
+			if (DownloadDataFromGPU(shaderOutputBufferData, outputBufferSizeBytes, ctx, &outputBuffer._buffer) != VK_SUCCESS)
 				std::cout << "Failed downloading data from GPU." << std::endl;
 			
 			// Print data for debugging.
@@ -5051,7 +5123,7 @@ namespace Engine {
 		auto worldSpaceTransform = _pGameObject->GetWorldSpaceTransform()._matrix;
 		if (_isCenterOfMassOverridden) return worldSpace ? glm::vec3(worldSpaceTransform * glm::vec4(_overriddenCenterOfMassLocalSpace, 1.0f)) : _overriddenCenterOfMassLocalSpace;
 
-		auto& vertices = _mesh._vertices;
+		auto& vertices = _pGameObject->_pMesh->_vertices._vertexData;
 		int vertexCount = (int)vertices.size();
 		float totalX = 0.0f;
 		float totalY = 0.0f;
@@ -5187,7 +5259,8 @@ namespace Engine {
 
 		std::vector<CollisionContext> outCollisions;
 		for (int i = 0; i < otherGameObjects.size(); ++i) {
-			if (otherGameObjects[i]->_body._mesh._vertices.size() < 1) continue;
+			if (!otherGameObjects[i]->_pMesh) continue;
+			if (otherGameObjects[i]->_pMesh->_vertices._vertexData.size() < 1) continue;
 			//auto collision = DetectCollision(otherGameObjects[i]->_body);
 			CollisionDetector::Run(ctx._logicalDevice, ctx._physicalDevice, *this, otherGameObjects[i]->_body);
 			//if (collision._collisionPositions.size() > 0) outCollisions.push_back(collision);
