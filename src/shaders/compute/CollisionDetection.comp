@@ -1,32 +1,36 @@
 #version 450
 #extension GL_EXT_nonuniform_qualifier : enable
-
-struct Vertex {
-        glm::vec3 _position;
-		glm::vec3 _normal;
-		glm::vec2 _uvCoord;
-}
-
-struct Mesh {
-    Vertex vertices[];
-};
-
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 layout(push_constant) uniform PushConstants {
-    mat4 localToWorldA;  // Transform matrix for object A
-    mat4 localToWorldB;  // Transform matrix for object B
+    mat4 localToWorldA;
+    mat4 localToWorldB;
 } pc;
 
-// Single buffer containing all input and output data
-layout(std430, binding = 0) buffer Buffers {
-    
-    Mesh meshA;
-    uint meshAIndices[];
-    Mesh meshB;
-    uint meshBIndices[];
-    vec4 intersectionPoints[];
-} bufferData;
+// Vertex buffer for object A (e.g., ray edges)
+layout(binding = 0) buffer VertexBufferA {
+    vec3 vertices[];
+} vertexBufferA;
+
+// Index buffer for object A (triplets define triangle faces)
+layout(binding = 1) buffer IndexBufferA {
+    uint indices[];
+} indexBufferA;
+
+// Vertex buffer for object B (triangles)
+layout(binding = 2) buffer VertexBufferB {
+    vec3 vertices[];
+} vertexBufferB;
+
+// Index buffer for object B
+layout(binding = 3) buffer IndexBufferB {
+    uint indices[];
+} indexBufferB;
+
+// Output buffer
+layout(binding = 4) buffer Results {
+    vec3 intersectionPoints[];
+} results;
 
 bool RayTriangleIntersect(vec3 ro, vec3 rd, vec3 v0, vec3 v1, vec3 v2, out vec3 intersection) {
     vec3 e1 = v1 - v0;
@@ -53,58 +57,56 @@ bool RayTriangleIntersect(vec3 ro, vec3 rd, vec3 v0, vec3 v1, vec3 v2, out vec3 
 }
 
 void main() {
-    uint idx = gl_GlobalInvocationID.x;
-    
-    // Check if index is valid (meshAIndices contains triplets of indices)
-    if (idx * 3 >= bufferData.meshAIndices.length()) return;
+    uint triIdxA = gl_GlobalInvocationID.x;
 
-    // Initialize output to -1
-    bufferData.intersectionPoints[idx] = vec4(-1.0, -1.0, -1.0, -1.0);
+    uint idxA = triIdxA * 3;
+    if (idxA + 2 >= indexBufferA.indices.length()) return;
 
-    // Get triangle vertices from bufferData.meshAIndices and transform to world space
-    uint aIdx0 = bufferData.meshAIndices[idx * 3 + 0];
-    uint aIdx1 = bufferData.meshAIndices[idx * 3 + 1];
-    uint aIdx2 = bufferData.meshAIndices[idx * 3 + 2];
-    vec4 a0_full = pc.localToWorldA * bufferData.meshA.vertices[aIdx0];
-    vec4 a1_full = pc.localToWorldA * bufferData.meshA.vertices[aIdx1];
-    vec4 a2_full = pc.localToWorldA * bufferData.meshA.vertices[aIdx2];
-    vec3 a0 = a0_full.xyz;
-    vec3 a1 = a1_full.xyz;
-    vec3 a2 = a2_full.xyz;
+    // Initialize output
+    results.intersectionPoints[triIdxA] = vec3(-1.0, -1.0, -1.0);
+
+    // Get indices for triangle A
+    uint i0 = indexBufferA.indices[idxA + 0];
+    uint i1 = indexBufferA.indices[idxA + 1];
+    uint i2 = indexBufferA.indices[idxA + 2];
+
+    // Load vertices and transform to world space
+    vec3 a0 = (pc.localToWorldA * vec4(vertexBufferA.vertices[i0], 1.0)).xyz;
+    vec3 a1 = (pc.localToWorldA * vec4(vertexBufferA.vertices[i1], 1.0)).xyz;
+    vec3 a2 = (pc.localToWorldA * vec4(vertexBufferA.vertices[i2], 1.0)).xyz;
 
     vec3 intersection;
     bool intersectionFound = false;
 
-    // Number of faces in meshB
-    uint faceCountB = bufferData.meshBIndices.length() / 3;
+    uint faceCountB = indexBufferB.indices.length() / 3;
 
-    // Check each edge from meshA against all faces in meshB
     for (uint faceIdx = 0; faceIdx < faceCountB && !intersectionFound; faceIdx++) {
-        // Get triangle vertices from bufferData.meshBIndices and transform to world space
-        uint bIdx0 = bufferData.meshBIndices[faceIdx * 3 + 0];
-        uint bIdx1 = bufferData.meshBIndices[faceIdx * 3 + 1];
-        uint bIdx2 = bufferData.meshBIndices[faceIdx * 3 + 2];
-        vec4 b0_full = pc.localToWorldB * bufferData.meshB.vertices[bIdx0];
-        vec4 b1_full = pc.localToWorldB * bufferData.meshB.vertices[bIdx1];
-        vec4 b2_full = pc.localToWorldB * bufferData.meshB.vertices[bIdx2];
-        vec3 b0 = b0_full.xyz;
-        vec3 b1 = b1_full.xyz;
-        vec3 b2 = b2_full.xyz;
+        uint idxB = faceIdx * 3;
 
-        // Check edges from meshA triangle against meshB triangle
+        // Bounds check for safety
+        if (idxB + 2 >= indexBufferB.indices.length()) break;
+
+        uint j0 = indexBufferB.indices[idxB + 0];
+        uint j1 = indexBufferB.indices[idxB + 1];
+        uint j2 = indexBufferB.indices[idxB + 2];
+
+        vec3 b0 = (pc.localToWorldB * vec4(vertexBufferB.vertices[j0], 1.0)).xyz;
+        vec3 b1 = (pc.localToWorldB * vec4(vertexBufferB.vertices[j1], 1.0)).xyz;
+        vec3 b2 = (pc.localToWorldB * vec4(vertexBufferB.vertices[j2], 1.0)).xyz;
+
+        // Edge-based ray tests
         if (RayTriangleIntersect(a0, a1 - a0, b0, b1, b2, intersection) ||
             RayTriangleIntersect(a1, a2 - a1, b0, b1, b2, intersection) ||
             RayTriangleIntersect(a2, a0 - a2, b0, b1, b2, intersection)) {
-            bufferData.intersectionPoints[idx] = vec4(intersection, 1.0);
+            results.intersectionPoints[triIdxA] = intersection;
             intersectionFound = true;
         }
 
-        // If no intersection found, check edges from meshB triangle against meshA triangle
         if (!intersectionFound) {
             if (RayTriangleIntersect(b0, b1 - b0, a0, a1, a2, intersection) ||
                 RayTriangleIntersect(b1, b2 - b1, a0, a1, a2, intersection) ||
                 RayTriangleIntersect(b2, b0 - b2, a0, a1, a2, intersection)) {
-                bufferData.intersectionPoints[idx] = vec4(intersection, 1.0);
+                results.intersectionPoints[triIdxA] = intersection;
                 intersectionFound = true;
             }
         }

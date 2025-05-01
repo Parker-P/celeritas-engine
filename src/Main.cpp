@@ -4238,71 +4238,80 @@ namespace Engine {
 		static VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilePath, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet) {
 			VkDescriptorPool descriptorPool;
 			VkResult res = VK_SUCCESS;
-			uint32_t descriptorCount = 3;
+
+			// We now have 5 buffers: vertexA, indexA, vertexB, indexB, result
+			uint32_t descriptorCount = 5;
 
 			VkDescriptorPoolSize descriptorPoolSize = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorCount };
 
-			const VkDescriptorType descriptorTypes[3] = {
-				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+			const VkDescriptorType descriptorTypes[5] = {
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, // vertex A
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, // index A
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, // vertex B
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, // index B
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER  // output
 			};
 
-			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, 0, 0, 1, 1, &descriptorPoolSize };
-			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, 0, &descriptorPool));
+			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {
+				VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0, 1, 1, &descriptorPoolSize
+			};
+			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, nullptr, &descriptorPool));
 
-			// Allocate and set up bindings for all descriptors
 			VkDescriptorSetLayoutBinding* descriptorSetLayoutBindings = (VkDescriptorSetLayoutBinding*)malloc(descriptorCount * sizeof(VkDescriptorSetLayoutBinding));
 			for (uint32_t i = 0; i < descriptorCount; ++i) {
 				descriptorSetLayoutBindings[i].binding = i;
 				descriptorSetLayoutBindings[i].descriptorType = descriptorTypes[i];
 				descriptorSetLayoutBindings[i].descriptorCount = 1;
 				descriptorSetLayoutBindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-				descriptorSetLayoutBindings[i].pImmutableSamplers = 0;
+				descriptorSetLayoutBindings[i].pImmutableSamplers = nullptr;
 			}
 
 			VkDescriptorSetLayout descriptorSetLayout;
-			VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, 0, 0, descriptorCount, descriptorSetLayoutBindings };
-			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &descriptorSetLayoutCreateInfo, 0, &descriptorSetLayout));
+			VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
+				VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, nullptr, 0, descriptorCount, descriptorSetLayoutBindings
+			};
+			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout));
 			free(descriptorSetLayoutBindings);
 
-			// Allocate descriptor set
-			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, 0, descriptorPool, 1, &descriptorSetLayout };
-			VkDescriptorSet descriptorSet;
-			CheckResult(vkAllocateDescriptorSets(ctx._logicalDevice, &descriptorSetAllocateInfo, &descriptorSet));
+			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+				VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr, descriptorPool, 1, &descriptorSetLayout
+			};
 
-			// Update all descriptors with buffer info
+			CheckResult(vkAllocateDescriptorSets(ctx._logicalDevice, &descriptorSetAllocateInfo, &outDescriptorSet));
+
 			for (uint32_t i = 0; i < descriptorCount; ++i) {
 				VkDescriptorBufferInfo descriptorBufferInfo = { shaderBuffersArray[i], 0, arrayOfSizesOfEachBuffer[i] };
-				VkWriteDescriptorSet writeDescriptorSet = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, 0, descriptorSet, i, 0, 1, descriptorTypes[i], 0, &descriptorBufferInfo, 0 };
-				vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeDescriptorSet, 0, 0);
+				VkWriteDescriptorSet writeDescriptorSet = {
+					VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, outDescriptorSet, i, 0, 1,
+					descriptorTypes[i], nullptr, &descriptorBufferInfo, nullptr
+				};
+				vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeDescriptorSet, 0, nullptr);
 			}
 
-			VkPushConstantRange range;
+			VkPushConstantRange range = {};
 			range.offset = 0;
 			range.size = sizeof(glm::mat4) * 2;
 			range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-			VkPipelineLayout pipelineLayout;
-			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, 0, 0, 1, &descriptorSetLayout, 1, &range };
-			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, 0, &pipelineLayout));
+			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
+				VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, nullptr, 0, 1, &descriptorSetLayout, 1, &range
+			};
+			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, nullptr, &outLayout));
 
-			std::ifstream file(shaderFilePath, std::ios::ate | std::ios::binary);
 			VkShaderModule shaderModule = VkHelper::CreateShaderModule(ctx._logicalDevice, shaderFilePath);
 
-			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, 0, 0, VK_SHADER_STAGE_COMPUTE_BIT, shaderModule, "main" };
-			VkComputePipelineCreateInfo computePipelineCreateInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, 0, 0, pipelineShaderStageCreateInfo, pipelineLayout, 0, 0 };
+			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = {
+				VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_COMPUTE_BIT,
+				shaderModule, "main", nullptr
+			};
 
-			VkPipeline pipeline;
-			res = vkCreateComputePipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, NULL, &pipeline);
-			if (res != VK_SUCCESS) return res;
+			VkComputePipelineCreateInfo computePipelineCreateInfo = {
+				VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+				pipelineShaderStageCreateInfo, outLayout, VK_NULL_HANDLE, 0
+			};
 
-			// Clean up and set output parameters
-			vkDestroyShaderModule(ctx._logicalDevice, pipelineShaderStageCreateInfo.module, NULL);
-
-			outPipeline = pipeline;
-			outLayout = pipelineLayout;
-			outDescriptorSet = descriptorSet;
+			res = vkCreateComputePipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &outPipeline);
+			vkDestroyShaderModule(ctx._logicalDevice, shaderModule, nullptr);
 
 			return res;
 		}
@@ -4387,11 +4396,15 @@ namespace Engine {
 			RigidBody* b = &bodyB;
 			auto& aVertices = a->_pGameObject->_pMesh->_vertices._vertexData;
 			auto& bVertices = b->_pGameObject->_pMesh->_vertices._vertexData;
+			auto& aIndices = a->_pGameObject->_pMesh->_faceIndices._indexData;
+			auto& bIndices = b->_pGameObject->_pMesh->_faceIndices._indexData;
 
 			if (aVertices.size() < bVertices.size()) { auto tmp = b; b = a; a = tmp; }
 
 			size_t sizeA_bytes = aVertices.size() * sizeof(glm::vec4);
 			size_t sizeB_bytes = bVertices.size() * sizeof(glm::vec4);
+			size_t sizeIndexA_bytes = aIndices.size() * sizeof(uint32_t);
+			size_t sizeIndexB_bytes = bIndices.size() * sizeof(uint32_t);
 			glm::vec4* dataInputBufferA = (glm::vec4*)malloc(sizeA_bytes);
 			glm::vec4* dataInputBufferB = (glm::vec4*)malloc(sizeB_bytes);
 			if (!dataInputBufferA || !dataInputBufferB) { std::cout << "Failed allocating buffers for input meshes" << std::endl; return {}; }
@@ -4432,25 +4445,33 @@ namespace Engine {
 
 			// Create the input buffer.
 			VkResult res = VK_SUCCESS;
-			Buffer inputBufferA;
-			Buffer inputBufferB;
-			Buffer outputBuffer;
-
+			Buffer vertexBufferA, indexBufferA, vertexBufferB, indexBufferB, outputBuffer;
+			
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
 				sizeA_bytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				&inputBufferA._buffer,
-				&inputBufferA._gpuMemory);
+				&vertexBufferA._buffer,
+				&vertexBufferA._gpuMemory);
+
+			VkHelper::CreateBuffer(ctx._logicalDevice, ctx._physicalDevice, sizeIndexA_bytes,
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				&indexBufferA._buffer, &indexBufferA._gpuMemory);
 
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
 				sizeB_bytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				&inputBufferB._buffer,
-				&inputBufferB._gpuMemory);
+				&vertexBufferB._buffer,
+				&vertexBufferB._gpuMemory);
+
+			VkHelper::CreateBuffer(ctx._logicalDevice, ctx._physicalDevice, sizeIndexB_bytes,
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				&indexBufferB._buffer, &indexBufferB._gpuMemory);
 
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
@@ -4461,11 +4482,25 @@ namespace Engine {
 				&outputBuffer._gpuMemory);
 
 			// Transfer data to GPU staging buffer and thereafter sync the staging buffer with GPU local memory.
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, inputBufferA._buffer, dataInputBufferA, sizeA_bytes);
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, inputBufferB._buffer, dataInputBufferB, sizeB_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, vertexBufferA._buffer, dataInputBufferA, sizeA_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, indexBufferA._buffer, aIndices.data(), sizeIndexA_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, vertexBufferB._buffer, dataInputBufferB, sizeB_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, indexBufferB._buffer, bIndices.data(), sizeIndexB_bytes);
 
-			VkBuffer buffers[3] = { inputBufferA._buffer, inputBufferB._buffer, outputBuffer._buffer };
-			VkDeviceSize bufferSizes[3] = { sizeA_bytes, sizeB_bytes, sizeA_bytes };
+			VkBuffer buffers[5] = {
+				vertexBufferA._buffer,
+				indexBufferA._buffer, 
+				vertexBufferB._buffer,
+				indexBufferB._buffer, 
+				outputBuffer._buffer	
+			};
+			VkDeviceSize bufferSizes[5] = {
+				sizeA_bytes,
+				sizeIndexA_bytes,
+				sizeB_bytes,
+				sizeIndexB_bytes,
+				sizeA_bytes // same size as input for simplicity
+			};
 
 			// Create 
 			//const char* shaderPath = "C:\\code\\vulkan-compute\\shaders\\Shader.spv";
