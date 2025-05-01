@@ -172,7 +172,9 @@ namespace Engine {
 	 * @return
 	 */
 	template <typename T>
-	inline size_t GetVectorSizeInBytes(std::vector<T> vector) { return sizeof(decltype(vector)::value_type) * vector.size(); }
+	inline size_t GetVectorSizeInBytes(std::vector<T> vector) {
+		return sizeof(decltype(vector)::value_type) * vector.size();
+	}
 
 	/**
 	 * @brief Used by implementing classes to mark themselves as a class that is meant to do work on each iteration of the main loop.
@@ -3851,6 +3853,11 @@ namespace Engine {
 		 */
 		GameObject* _pGameObject;
 
+		/**
+		 * @brief Map where the key is the index of a vertex in _pMesh, and the value is a list of vertex indices directly connected to the vertex represented by the key.
+		 */
+		 //std::map<unsigned int, std::vector<unsigned int>> _neighbors;
+
 		 /**
 		  * @brief Constructor.
 		  */
@@ -3886,7 +3893,7 @@ namespace Engine {
 		/**
 		 * @brief Basic init that guarantees the body's simulation.
 		 */
-		void Initialize(GameObject* pGameObject, const float& mass = 1.0f, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = { 0.0f, 0.0f, 0.0f });
+		void Initialize(GameObject* pGameObject, const float& mass = 1.0f, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = glm::vec3{});
 
 		void PhysicsUpdate(VkContext& ctx, EngineContext& eCtx);
 
@@ -3974,22 +3981,6 @@ namespace Engine {
 	};
 
 	struct CollisionDetector {
-		struct Buffers {
-			VkBuffer buffer;           // Single Vulkan buffer containing all data
-			VkDeviceMemory memory;     // Device memory for the buffer
-			VkDeviceSize totalSize;    // Total size of the buffer
-			struct Mesh {
-				VkDeviceSize vertexSize;  // Size of vertices
-				VkDeviceSize vertexOffset;// Offset of vertices in buffer
-				VkDeviceSize indexSize;   // Size of indices
-				VkDeviceSize indexOffset; // Offset of indices in buffer
-			};
-			Mesh meshA;               // Offsets and sizes for mesh A
-			Mesh meshB;               // Offsets and sizes for mesh B
-			VkDeviceSize resultsSize;  // Size of results
-			VkDeviceSize resultsOffset;// Offset of results in buffer
-		};
-
 		static int GetComputeQueueFamilyIndex(const VkPhysicalDevice& physicalDevice) {
 			//find a queue family for a selected GPU, select the first available for use
 			uint32_t queueFamilyCount;
@@ -4011,7 +4002,7 @@ namespace Engine {
 		static void CreateNewComputeDevice(VkDevice& device, VkPhysicalDevice& physicalDevice, VkDevice& outComputeDevice, VkQueue& outComputeQueue, uint32_t& outComputeQueueFamilyIndex) {
 			int computeFamilyIndex = GetComputeQueueFamilyIndex(physicalDevice);
 			if (computeFamilyIndex < 0) return;
-			
+
 			float queuePriorities = 1.0;
 			VkDeviceQueueCreateInfo deviceQueueCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, 0, (VkDeviceQueueCreateFlags)0, (uint32_t)computeFamilyIndex,(uint32_t)1, (const float*)&queuePriorities };
 
@@ -4244,132 +4235,71 @@ namespace Engine {
 			return res;
 		}
 
-		static VkResult CreateComputePipeline(VkBuffer shaderBuffer, VkDeviceSize bufferSize, const char* shaderFilePath, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet) {
+		static VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilePath, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet) {
 			VkDescriptorPool descriptorPool;
 			VkResult res = VK_SUCCESS;
+			uint32_t descriptorCount = 3;
 
-			// Single storage buffer descriptor
-			VkDescriptorPoolSize descriptorPoolSize = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 };
+			VkDescriptorPoolSize descriptorPoolSize = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorCount };
 
-			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {
-				VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-				nullptr,
-				0,
-				1, // One descriptor set
-				1, // One descriptor
-				&descriptorPoolSize
+			const VkDescriptorType descriptorTypes[3] = {
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
 			};
-			CheckResult(vkCreateDescriptorPool(ctx.Result(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, nullptr, &descriptorPool));
 
-			// Single descriptor set layout binding for the Buffers buffer
-			VkDescriptorSetLayoutBinding descriptorSetLayoutBinding = {
-				.binding = 0,
-				.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				.descriptorCount = 1,
-				.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-				.pImmutableSamplers = nullptr
-			};
+			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, 0, 0, 1, 1, &descriptorPoolSize };
+			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, 0, &descriptorPool));
+
+			// Allocate and set up bindings for all descriptors
+			VkDescriptorSetLayoutBinding* descriptorSetLayoutBindings = (VkDescriptorSetLayoutBinding*)malloc(descriptorCount * sizeof(VkDescriptorSetLayoutBinding));
+			for (uint32_t i = 0; i < descriptorCount; ++i) {
+				descriptorSetLayoutBindings[i].binding = i;
+				descriptorSetLayoutBindings[i].descriptorType = descriptorTypes[i];
+				descriptorSetLayoutBindings[i].descriptorCount = 1;
+				descriptorSetLayoutBindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+				descriptorSetLayoutBindings[i].pImmutableSamplers = 0;
+			}
 
 			VkDescriptorSetLayout descriptorSetLayout;
-			VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
-				VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-				nullptr,
-				0,
-				1, // One binding
-				&descriptorSetLayoutBinding
-			};
-			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout));
+			VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, 0, 0, descriptorCount, descriptorSetLayoutBindings };
+			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &descriptorSetLayoutCreateInfo, 0, &descriptorSetLayout));
+			free(descriptorSetLayoutBindings);
 
 			// Allocate descriptor set
-			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
-				VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-				nullptr,
-				descriptorPool,
-				1,
-				&descriptorSetLayout
-			};
+			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, 0, descriptorPool, 1, &descriptorSetLayout };
 			VkDescriptorSet descriptorSet;
 			CheckResult(vkAllocateDescriptorSets(ctx._logicalDevice, &descriptorSetAllocateInfo, &descriptorSet));
 
-			// Update descriptor set with buffer info
-			VkDescriptorBufferInfo descriptorBufferInfo = {
-				shaderBuffer,
-				0,
-				bufferSize
-			};
-			VkWriteDescriptorSet writeDescriptorSet = {
-				VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				nullptr,
-				descriptorSet,
-				0, // Binding 0
-				0,
-				1,
-				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-				nullptr,
-				&descriptorBufferInfo,
-				nullptr
-			};
-			vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeDescriptorSet, 0, nullptr);
-
-			// Push constant range (unchanged)
-			VkPushConstantRange range = {
-				.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-				.offset = 0,
-				.size = sizeof(glm::mat4) * 2
-			};
-
-			// Pipeline layout
-			VkPipelineLayout pipelineLayout;
-			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
-				VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-				nullptr,
-				0,
-				1,
-				&descriptorSetLayout,
-				1,
-				&range
-			};
-			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
-
-			// Shader module
-			VkShaderModule shaderModule = VkHelper::CreateShaderModule(ctx._logicalDevice, shaderFilePath);
-
-			// Pipeline shader stage
-			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = {
-				VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-				nullptr,
-				0,
-				VK_SHADER_STAGE_COMPUTE_BIT,
-				shaderModule,
-				"main",
-				nullptr
-			};
-
-			// Compute pipeline
-			VkComputePipelineCreateInfo computePipelineCreateInfo = {
-				VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-				nullptr,
-				0,
-				pipelineShaderStageCreateInfo,
-				pipelineLayout,
-				VK_NULL_HANDLE,
-				0
-			};
-
-			VkPipeline pipeline;
-			res = vkCreateComputePipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &pipeline);
-			if (res != VK_SUCCESS) {
-				vkDestroyShaderModule(ctx._logicalDevice, shaderModule, nullptr);
-				vkDestroyDescriptorPool(ctx._logicalDevice, descriptorPool, nullptr);
-				vkDestroyDescriptorSetLayout(ctx._logicalDevice, descriptorSetLayout, nullptr);
-				vkDestroyPipelineLayout(ctx._logicalDevice, pipelineLayout, nullptr);
-				return res;
+			// Update all descriptors with buffer info
+			for (uint32_t i = 0; i < descriptorCount; ++i) {
+				VkDescriptorBufferInfo descriptorBufferInfo = { shaderBuffersArray[i], 0, arrayOfSizesOfEachBuffer[i] };
+				VkWriteDescriptorSet writeDescriptorSet = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, 0, descriptorSet, i, 0, 1, descriptorTypes[i], 0, &descriptorBufferInfo, 0 };
+				vkUpdateDescriptorSets(ctx._logicalDevice, 1, &writeDescriptorSet, 0, 0);
 			}
 
-			// Cleanup shader module
-			vkDestroyShaderModule(ctx._logicalDevice, shaderModule, nullptr);
+			VkPushConstantRange range;
+			range.offset = 0;
+			range.size = sizeof(glm::mat4) * 2;
+			range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-			// Output results
+			VkPipelineLayout pipelineLayout;
+			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, 0, 0, 1, &descriptorSetLayout, 1, &range };
+			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, 0, &pipelineLayout));
+
+			std::ifstream file(shaderFilePath, std::ios::ate | std::ios::binary);
+			VkShaderModule shaderModule = VkHelper::CreateShaderModule(ctx._logicalDevice, shaderFilePath);
+
+			VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, 0, 0, VK_SHADER_STAGE_COMPUTE_BIT, shaderModule, "main" };
+			VkComputePipelineCreateInfo computePipelineCreateInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, 0, 0, pipelineShaderStageCreateInfo, pipelineLayout, 0, 0 };
+
+			VkPipeline pipeline;
+			res = vkCreateComputePipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, NULL, &pipeline);
+			if (res != VK_SUCCESS) return res;
+
+			// Clean up and set output parameters
+			vkDestroyShaderModule(ctx._logicalDevice, pipelineShaderStageCreateInfo.module, NULL);
+
 			outPipeline = pipeline;
 			outLayout = pipelineLayout;
 			outDescriptorSet = descriptorSet;
@@ -4442,157 +4372,6 @@ namespace Engine {
 			return res;
 		}
 
-		static bool RayTriangleIntersect(
-			glm::vec3 ro, glm::vec3 rd, glm::vec3 v0, glm::vec3 v1, glm::vec3 v2,
-			glm::vec3& intersection)
-		{
-			glm::vec3 e1 = v1 - v0;
-			glm::vec3 e2 = v2 - v0;
-			glm::vec3 h = glm::cross(rd, e2);
-			float a = glm::dot(e1, h);
-			if (std::abs(a) < 0.0001f) return false;
-
-			float f = 1.0f / a;
-			glm::vec3 s = ro - v0;
-			float u = f * glm::dot(s, h);
-			if (u < 0.0f || u > 1.0f) return false;
-
-			glm::vec3 q = glm::cross(s, e1);
-			float v = f * glm::dot(rd, q);
-			if (v < 0.0f || u + v > 1.0f) return false;
-
-			float t = f * glm::dot(e2, q);
-			if (t > 0.0f && t < 1.0f) {
-				intersection = ro + rd * t;
-				return true;
-			}
-			return false;
-		}
-
-		static void ComputeIntersection(
-			uint32_t globalInvocationID,                      // Equivalent to gl_GlobalInvocationID.x
-			const glm::mat4& localToWorldA,                   // Transform matrix for object A
-			const glm::mat4& localToWorldB,                   // Transform matrix for object B
-			const std::vector<glm::vec4>& verticesA,          // Buffer containing vertices for mesh A
-			const std::vector<uint32_t>& faceIndicesA,        // Face indices for mesh A (triplets)
-			const std::vector<glm::vec4>& verticesB,          // Buffer containing vertices for mesh B
-			const std::vector<uint32_t>& faceIndicesB,        // Face indices for mesh B (triplets)
-			std::vector<glm::vec4>& intersectionPoints)       // Output buffer for intersection points
-		{
-			uint32_t idx = globalInvocationID;
-
-			// Check if index is valid (faceIndicesA contains triplets of indices)
-			if (idx * 3 >= faceIndicesA.size()) return;
-
-			// Initialize output to -1 (including w component)
-			intersectionPoints[idx] = glm::vec4(-1.0f, -1.0f, -1.0f, -1.0f);
-
-			// Get triangle vertices from faceIndicesA and transform to world space
-			uint32_t aIdx0 = faceIndicesA[idx * 3 + 0];
-			uint32_t aIdx1 = faceIndicesA[idx * 3 + 1];
-			uint32_t aIdx2 = faceIndicesA[idx * 3 + 2];
-			glm::vec4 a0_full = localToWorldA * verticesA[aIdx0];
-			glm::vec4 a1_full = localToWorldA * verticesA[aIdx1];
-			glm::vec4 a2_full = localToWorldA * verticesA[aIdx2];
-			glm::vec3 a0 = glm::vec3(a0_full);
-			glm::vec3 a1 = glm::vec3(a1_full);
-			glm::vec3 a2 = glm::vec3(a2_full);
-
-			glm::vec3 intersection;
-			bool intersectionFound = false;
-
-			// Number of faces in faceIndicesB
-			uint32_t faceCountB = faceIndicesB.size() / 3;
-
-			// Check each edge from faceIndicesA against all faces in faceIndicesB
-			for (uint32_t faceIdx = 0; faceIdx < faceCountB && !intersectionFound; faceIdx+=3) {
-				// Get triangle vertices from faceIndicesB and transform to world space
-				uint32_t bIdx0 = faceIndicesB[faceIdx + 0];
-				uint32_t bIdx1 = faceIndicesB[faceIdx + 1];
-				uint32_t bIdx2 = faceIndicesB[faceIdx + 2];
-				glm::vec4 b0_full = localToWorldB * verticesB[bIdx0];
-				glm::vec4 b1_full = localToWorldB * verticesB[bIdx1];
-				glm::vec4 b2_full = localToWorldB * verticesB[bIdx2];
-				glm::vec3 b0 = glm::vec3(b0_full);
-				glm::vec3 b1 = glm::vec3(b1_full);
-				glm::vec3 b2 = glm::vec3(b2_full);
-
-				// Check edges from faceIndicesA triangle against faceIndicesB triangle
-				if (RayTriangleIntersect(a0, a1 - a0, b0, b1, b2, intersection) ||
-					RayTriangleIntersect(a1, a2 - a1, b0, b1, b2, intersection) ||
-					RayTriangleIntersect(a2, a0 - a2, b0, b1, b2, intersection)) {
-					intersectionPoints[idx] = glm::vec4(intersection, 1.0f); // Convert vec3 to vec4
-					intersectionFound = true;
-				}
-
-				// If no intersection found, check edges from faceIndicesB triangle against faceIndicesA triangle
-				if (!intersectionFound) {
-					if (RayTriangleIntersect(b0, b1 - b0, a0, a1, a2, intersection) ||
-						RayTriangleIntersect(b1, b2 - b1, a0, a1, a2, intersection) ||
-						RayTriangleIntersect(b2, b0 - b2, a0, a1, a2, intersection)) {
-						intersectionPoints[idx] = glm::vec4(intersection, 1.0f); // Convert vec3 to vec4
-						intersectionFound = true;
-					}
-				}
-			}
-		}
-
-		static Buffers CreateBuffers(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue queue, const std::vector<Vertex>& verticesA, const std::vector<uint32_t>& indicesA, const std::vector<Vertex>& verticesB, const std::vector<uint32_t>& indicesB) {
-			Buffers buffers;
-
-			// Calculate sizes
-			buffers.meshA.vertexSize = verticesA.size() * sizeof(Vertex);
-			buffers.meshA.indexSize = indicesA.size() * sizeof(uint32_t);
-			buffers.meshB.vertexSize = verticesB.size() * sizeof(Vertex);
-			buffers.meshB.indexSize = indicesB.size() * sizeof(uint32_t);
-			buffers.resultsSize = (indicesA.size() / 3) * sizeof(glm::vec4);
-
-			// Get alignment requirement
-			VkPhysicalDeviceProperties properties;
-			vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-			VkDeviceSize alignment = properties.limits.minStorageBufferOffsetAlignment;
-
-			// Calculate aligned offsets
-			buffers.meshA.vertexOffset = 0;
-			buffers.meshA.indexOffset = (buffers.meshA.vertexSize + alignment - 1) & ~(alignment - 1);
-			buffers.meshB.vertexOffset = buffers.meshA.indexOffset + (buffers.meshA.indexSize + alignment - 1) & ~(alignment - 1);
-			buffers.meshB.indexOffset = buffers.meshB.vertexOffset + (buffers.meshB.vertexSize + alignment - 1) & ~(alignment - 1);
-			buffers.resultsOffset = buffers.meshB.indexOffset + (buffers.meshB.indexSize + alignment - 1) & ~(alignment - 1);
-			buffers.totalSize = buffers.resultsOffset + buffers.resultsSize;
-
-			// Create single buffer
-			VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, buffers.totalSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_SHARING_MODE_EXCLUSIVE };
-			vkCreateBuffer(device, &bufferInfo, nullptr, &buffers.buffer);
-
-			// Allocate and bind memory
-			VkMemoryRequirements memRequirements;
-			vkGetBufferMemoryRequirements(device, buffers.buffer, &memRequirements);
-			VkPhysicalDeviceMemoryProperties memProperties;
-			vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
-			uint32_t memoryTypeIndex = -1;
-			for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-				if ((memRequirements.memoryTypeBits & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
-					memoryTypeIndex = i;
-					break;
-				}
-			}
-			VkMemoryAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, memRequirements.size, memoryTypeIndex };
-			vkAllocateMemory(device, &allocInfo, nullptr, &buffers.memory);
-			vkBindBufferMemory(device, buffers.buffer, buffers.memory, 0);
-
-			// Copy data to buffer
-			void* mappedData;
-			vkMapMemory(device, buffers.memory, 0, buffers.totalSize, 0, &mappedData);
-			memcpy((char*)mappedData + buffers.meshA.vertexOffset, verticesA.data(), buffers.meshA.vertexSize);
-			memcpy((char*)mappedData + buffers.meshA.indexOffset, indicesA.data(), buffers.meshA.indexSize);
-			memcpy((char*)mappedData + buffers.meshB.vertexOffset, verticesB.data(), buffers.meshB.vertexSize);
-			memcpy((char*)mappedData + buffers.meshB.indexOffset, indicesB.data(), buffers.meshB.indexSize);
-			// Results buffer is not initialized (output only)
-			vkUnmapMemory(device, buffers.memory);
-
-			return buffers;
-		}
-
 		static std::vector<glm::vec4> Run(VkDevice& device, VkPhysicalDevice& physicalDevice, RigidBody& bodyA, RigidBody& bodyB) {
 			VkContext ctx = InitializeVulkan(device, physicalDevice);
 
@@ -4604,38 +4383,33 @@ namespace Engine {
 
 			// Calculate how many workgroups and the size of each workgroup we are going to use.
 			// We want one GPU thread to operate on a single value from the input buffer, so the required thread size is the input buffer size.
-			Mesh* a = bodyA._pGameObject->_pMesh;
-			Mesh* b = bodyB._pGameObject->_pMesh;
+			RigidBody* a = &bodyA;
+			RigidBody* b = &bodyB;
+			auto& aVertices = a->_pGameObject->_pMesh->_vertices._vertexData;
+			auto& bVertices = b->_pGameObject->_pMesh->_vertices._vertexData;
 
-			if (a->_vertices._vertexData.size() < b->_vertices._vertexData.size()) { auto tmp = b; b = a; a = tmp; }
+			if (aVertices.size() < bVertices.size()) { auto tmp = b; b = a; a = tmp; }
 
-			/*size_t verticesSizeA_bytes = a->_vertices._vertexData.size() * sizeof(glm::vec4);
-			size_t verticesSizeB_bytes = b->_vertices._vertexData.size() * sizeof(glm::vec4);
-			size_t faceIndicesSizeA_bytes = GetVectorSizeInBytes(a->_faceIndices._indexData);
-			size_t faceIndicesSizeB_bytes = GetVectorSizeInBytes(b->_faceIndices._indexData);
-			std::vector<glm::vec4> vectorInputBufferA(a->_vertices._vertexData.size());
-			std::vector<glm::vec4> vectorInputBufferB(b->_vertices._vertexData.size());
-			glm::vec4* verticesA = (glm::vec4*)malloc(verticesSizeA_bytes);
-			glm::vec4* verticesB = (glm::vec4*)malloc(verticesSizeB_bytes);
-			uint32_t* indicesA = (uint32_t*)malloc(faceIndicesSizeA_bytes);
-			uint32_t* indicesB = (uint32_t*)malloc(faceIndicesSizeB_bytes);
-			if (!verticesA || !verticesB) { std::cout << "Failed allocating buffers for input meshes" << std::endl; return {}; }
+			size_t sizeA_bytes = aVertices.size() * sizeof(glm::vec4);
+			size_t sizeB_bytes = bVertices.size() * sizeof(glm::vec4);
+			glm::vec4* dataInputBufferA = (glm::vec4*)malloc(sizeA_bytes);
+			glm::vec4* dataInputBufferB = (glm::vec4*)malloc(sizeB_bytes);
+			if (!dataInputBufferA || !dataInputBufferB) { std::cout << "Failed allocating buffers for input meshes" << std::endl; return {}; }
 
-			for (int i = 0; i < a->_vertices._vertexData.size(); ++i) {
-				verticesA[i].x = a->_vertices._vertexData[i]._position.x;
-				verticesA[i].y = a->_vertices._vertexData[i]._position.y;
-				verticesA[i].z = a->_vertices._vertexData[i]._position.z;
-				indicesA[i] = a->_faceIndices._indexData[i];
+			for (int i = 0; i < aVertices.size(); ++i) {
+				dataInputBufferA[i].x = aVertices[i]._position.x;
+				dataInputBufferA[i].y = aVertices[i]._position.y;
+				dataInputBufferA[i].z = aVertices[i]._position.z;
+				dataInputBufferA[i].w = 1.0f;
+			}
+			for (int i = 0; i < bVertices.size(); ++i) {
+				dataInputBufferB[i].x = bVertices[i]._position.x;
+				dataInputBufferB[i].y = bVertices[i]._position.y;
+				dataInputBufferB[i].z = bVertices[i]._position.z;
+				dataInputBufferB[i].w = 1.0f;
 			}
 
-			for (int i = 0; i < b->_vertices._vertexData.size(); ++i) {
-				verticesB[i].x = b->_vertices._vertexData[i]._position.x;
-				verticesB[i].y = b->_vertices._vertexData[i]._position.y;
-				verticesB[i].z = b->_vertices._vertexData[i]._position.z;
-				indicesB[i] = b->_faceIndices._indexData[i];
-			}*/
-
-			size_t threadCount = a->_vertices._vertexData.size() / 3;
+			size_t threadCount = aVertices.size();
 			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, threadCount, { 256, 1, 1 });
 
 			//use default values if coalescedMemory = 0
@@ -4658,72 +4432,40 @@ namespace Engine {
 
 			// Create the input buffer.
 			VkResult res = VK_SUCCESS;
-			Buffer verticesInputBufferA;
-			Buffer faceIndicesInputBufferA;
-			Buffer verticesInputBufferB;
-			Buffer faceIndicesInputBufferB;
+			Buffer inputBufferA;
+			Buffer inputBufferB;
 			Buffer outputBuffer;
 
-			auto& aVertices = a->_vertices._vertexData;
-			auto& aIndices = a->_faceIndices._indexData;
-			auto& bVertices = b->_vertices._vertexData;
-			auto& bIndices = b->_faceIndices._indexData;
-			auto aVerticesSizeBytes = GetVectorSizeInBytes(aVertices);
-			auto aIndicesSizeBytes = GetVectorSizeInBytes(aIndices);
-			auto bVerticesSizeBytes = GetVectorSizeInBytes(bVertices);
-			auto bIndicesSizeBytes = GetVectorSizeInBytes(bIndices);
-			auto outputBufferSizeBytes = sizeof(glm::vec4) * aVertices.size();
-
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
-				aVerticesSizeBytes,
+				sizeA_bytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				&verticesInputBufferA._buffer,
-				&verticesInputBufferA._gpuMemory);
+				&inputBufferA._buffer,
+				&inputBufferA._gpuMemory);
 
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
-				aIndicesSizeBytes,
+				sizeB_bytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				&faceIndicesInputBufferA._buffer,
-				&faceIndicesInputBufferA._gpuMemory);
+				&inputBufferB._buffer,
+				&inputBufferB._gpuMemory);
 
 			VkHelper::CreateBuffer(ctx._logicalDevice,
 				ctx._physicalDevice,
-				bVerticesSizeBytes,
-				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				&verticesInputBufferB._buffer,
-				&verticesInputBufferB._gpuMemory);
-
-			VkHelper::CreateBuffer(ctx._logicalDevice,
-				ctx._physicalDevice,
-				bIndicesSizeBytes,
-				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				&faceIndicesInputBufferB._buffer,
-				&faceIndicesInputBufferB._gpuMemory);
-
-			VkHelper::CreateBuffer(ctx._logicalDevice,
-				ctx._physicalDevice,
-				outputBufferSizeBytes,
+				sizeA_bytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				&outputBuffer._buffer,
 				&outputBuffer._gpuMemory);
 
 			// Transfer data to GPU staging buffer and thereafter sync the staging buffer with GPU local memory.
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, verticesInputBufferA._buffer, aVertices.data(), aVerticesSizeBytes);
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, faceIndicesInputBufferA._buffer, aIndices.data(), aIndicesSizeBytes);
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, verticesInputBufferB._buffer, bVertices.data(), bVerticesSizeBytes);
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, faceIndicesInputBufferB._buffer, bIndices.data(), bIndicesSizeBytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, inputBufferA._buffer, dataInputBufferA, sizeA_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, inputBufferB._buffer, dataInputBufferB, sizeB_bytes);
 
-			//CreateBuffers(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, verticesABytes, indicesA, verticesB, indicesB);
-
-			VkBuffer buffers[5] = { verticesInputBufferA._buffer, faceIndicesInputBufferA._buffer, verticesInputBufferB._buffer, faceIndicesInputBufferB._buffer, outputBuffer._buffer };
-			VkDeviceSize bufferSizes[5] = { aVerticesSizeBytes, aIndicesSizeBytes, bVerticesSizeBytes, bIndicesSizeBytes, outputBufferSizeBytes };
+			VkBuffer buffers[3] = { inputBufferA._buffer, inputBufferB._buffer, outputBuffer._buffer };
+			VkDeviceSize bufferSizes[3] = { sizeA_bytes, sizeB_bytes, sizeA_bytes };
 
 			// Create 
 			//const char* shaderPath = "C:\\code\\vulkan-compute\\shaders\\Shader.spv";
@@ -4733,24 +4475,21 @@ namespace Engine {
 				std::cout << "Application creation failed." << std::endl;
 			}
 
-			//std::vector<glm::vec4> vectorOutputBufferData(a->_vertices.size());
+			auto aTransform = a->_pGameObject->GetWorldSpaceTransform()._matrix;
+			auto bTransform = b->_pGameObject->GetWorldSpaceTransform()._matrix;
 
-			/*for (int i = 0; i < threadCount; ++i) {
-				ComputeIntersection(i, bodyA._pGameObject->GetWorldSpaceTransform()._matrix, bodyB._pGameObject->GetWorldSpaceTransform()._matrix, vectorInputBufferA, a->_mesh._faceIndices, vectorInputBufferB, b->_mesh._faceIndices, vectorOutputBufferData);
-			}*/
-
-			if (Dispatch(ctx, pipeline, layout, descriptorSet, workGroupCount, bodyA._pGameObject->GetWorldSpaceTransform()._matrix, bodyB._pGameObject->GetWorldSpaceTransform()._matrix) != VK_SUCCESS) {
+			if (Dispatch(ctx, pipeline, layout, descriptorSet, workGroupCount, aTransform, bTransform) != VK_SUCCESS) {
 				std::cout << "Application run failed." << std::endl;
 			}
 
-			auto shaderOutputBufferData = (glm::vec4*)malloc(outputBufferSizeBytes);
+			auto shaderOutputBufferData = (glm::vec4*)malloc(sizeA_bytes);
 
 			res = vkGetFenceStatus(ctx._logicalDevice, ctx._queueFence);
 
 			//Transfer data from GPU using staging buffer, if needed
-			if (DownloadDataFromGPU(shaderOutputBufferData, outputBufferSizeBytes, ctx, &outputBuffer._buffer) != VK_SUCCESS)
+			if (DownloadDataFromGPU(shaderOutputBufferData, sizeA_bytes, ctx, &outputBuffer._buffer) != VK_SUCCESS)
 				std::cout << "Failed downloading data from GPU." << std::endl;
-			
+
 			// Print data for debugging.
 			/*printf("Output buffer result: [");
 			uint32_t startAndEndSize = 50;
@@ -5240,6 +4979,8 @@ namespace Engine {
 
 	std::vector<GameObject*> RigidBody::GetGameObjects(GameObject* pRoot, std::vector<GameObject*> excludedObjects) {
 		std::vector<GameObject*> outGameObjects;
+		if (!pRoot->_pMesh) goto searchChildren;
+		if (pRoot->_pMesh->_vertices._vertexData.size() < 1) goto searchChildren;
 		for (int i = 0; i < excludedObjects.size(); ++i) if (excludedObjects[i] == pRoot) goto searchChildren;
 		outGameObjects.push_back(pRoot);
 
@@ -5259,7 +5000,6 @@ namespace Engine {
 
 		std::vector<CollisionContext> outCollisions;
 		for (int i = 0; i < otherGameObjects.size(); ++i) {
-			if (!otherGameObjects[i]->_pMesh) continue;
 			if (otherGameObjects[i]->_pMesh->_vertices._vertexData.size() < 1) continue;
 			//auto collision = DetectCollision(otherGameObjects[i]->_body);
 			CollisionDetector::Run(ctx._logicalDevice, ctx._physicalDevice, *this, otherGameObjects[i]->_body);
@@ -5270,8 +5010,10 @@ namespace Engine {
 
 	void RigidBody::Initialize(GameObject* pGameObject, const float& mass, const bool& overrideCenterOfMass, const glm::vec3& overriddenCenterOfMass) {
 		if (!pGameObject) return;
-		auto& mesh = pGameObject->_pMesh;
-		if (mass <= 0.001f || mesh->_vertices._vertexData.size() < 1 || mesh->_faceIndices._indexData.size() < 1) return;
+		if (!pGameObject->_pMesh) return;
+		if (pGameObject->_pMesh->_vertices._vertexData.size() < 1) return;
+		if (mass <= 0.001f) return;
+
 		_pGameObject = pGameObject;
 		_mass = mass;
 		_isCenterOfMassOverridden = overrideCenterOfMass;
@@ -5742,7 +5484,7 @@ namespace Engine {
 			return outMaterials;
 		}
 
-		static Mesh* ProcessMesh(tinygltf::Mesh& gltfMesh, tinygltf::Model& gltfScene, Scene& scene, VkContext& ctx) {
+		static Mesh* ProcessMesh(tinygltf::Mesh& gltfMesh, tinygltf::Model& gltfScene, Scene& scene, Transform localTransform, VkContext& ctx) {
 			if (gltfMesh.primitives.size() < 1) return nullptr;
 
 			auto& gltfPrimitive = gltfMesh.primitives[0];
@@ -5836,7 +5578,7 @@ namespace Engine {
 				// Set the vertex attributes.
 				/*v._position = glm::vec3(position);
 				v._normal = glm::vec3(normal);*/
-				v._position = vertexPositions[i];
+				v._position = glm::vec3(localTransform._matrix * glm::vec4(vertexPositions[i], 1.0f));
 				v._normal = vertexNormals[i];
 				v._uvCoord = uvCoords0[i];
 				vertices[i] = v;
@@ -5957,12 +5699,12 @@ namespace Engine {
 			auto& gltfNode = gltfScene.nodes[node->gltfSceneIndex];
 			auto gameObject = new GameObject(gltfNode.name, &scene);
 			auto gltfNodeTransform = GetGltfNodeTransform(gltfNode);
-			gameObject->_localTransform = gltfNodeTransform._matrix;
+			gameObject->_localTransform = glm::mat4(1.0f);
 
 			if (gltfNode.mesh < 0) return gameObject;
 
 			auto gltfMesh = gltfScene.meshes[gltfNode.mesh];
-			gameObject->_pMesh = ProcessMesh(gltfMesh, gltfScene, scene, ctx);
+			gameObject->_pMesh = ProcessMesh(gltfMesh, gltfScene, scene, gltfNodeTransform, ctx);
 			gameObject->_pMesh->_pGameObject = gameObject;
 
 			return gameObject;
