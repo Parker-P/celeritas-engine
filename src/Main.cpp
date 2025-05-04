@@ -3655,7 +3655,7 @@ namespace Engine {
 		/**
 		 * @brief Function called on implementing classes in each iteration of the main loop.
 		 */
-		virtual void PhysicsUpdate(VkContext& ctx, EngineContext& eCtx) = 0;
+		virtual void PhysicsUpdate(VkContext& ctx, VkContext& collisionCtx, EngineContext& eCtx) = 0;
 	};
 
 	class Time : public Singleton<Time>, public IUpdatable, public IPhysicsUpdatable {
@@ -3715,7 +3715,7 @@ namespace Engine {
 		/**
 		 * @brief See IPhysicsUpdatable.
 		 */
-		void PhysicsUpdate(VkContext& ctx, EngineContext& eCtx) {
+		void PhysicsUpdate(VkContext& ctx, VkContext& collisionCtx, EngineContext& eCtx) {
 			auto now = std::chrono::high_resolution_clock::now();
 			_physicsDeltaTime = (now - _lastPhysicsUpdateTime).count() * 0.000001;
 			_lastPhysicsUpdateTime = now;
@@ -3888,14 +3888,14 @@ namespace Engine {
 
 		std::vector< GameObject*> GetGameObjects(GameObject* pRoot, std::vector<GameObject*> excludedObjects = {});
 
-		std::vector<CollisionContext> DetectCollisions(VkContext& ctx, std::vector<RigidBody*> bodiesToExclude = {});
+		std::vector<CollisionContext> DetectCollisions(VkContext& ctx, VkContext& collisionCtx, std::vector<RigidBody*> bodiesToExclude = {});
 
 		/**
 		 * @brief Basic init that guarantees the body's simulation.
 		 */
 		void Initialize(GameObject* pGameObject, const float& mass = 1.0f, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = glm::vec3{});
 
-		void PhysicsUpdate(VkContext& ctx, EngineContext& eCtx);
+		void PhysicsUpdate(VkContext& ctx, VkContext& collisionCtx, EngineContext& eCtx);
 
 		bool IsRotationLocked();
 
@@ -3975,12 +3975,12 @@ namespace Engine {
 		ShaderResources CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts);
 		Transform GetWorldSpaceTransform();
 		void UpdateShaderResources();
-		void PhysicsUpdate(VkContext& ctx, EngineContext& eCtx);
+		void PhysicsUpdate(VkContext& ctx, VkContext& collisionCtx, EngineContext& eCtx);
 		void Update(VkContext& vkContext);
 		void Draw(VkPipelineLayout& pipelineLayout, VkCommandBuffer& drawCommandBuffer);
 	};
 
-	struct CollisionDetector {
+	struct GpuCollisionDetector {
 		static int GetComputeQueueFamilyIndex(const VkPhysicalDevice& physicalDevice) {
 			//find a queue family for a selected GPU, select the first available for use
 			uint32_t queueFamilyCount;
@@ -4044,7 +4044,7 @@ namespace Engine {
 			return ctx;
 		}
 
-		static std::vector<uint32_t> CalculateWorkGroupCount(VkPhysicalDeviceProperties& gpuProperties, int minimumThreadCount, const std::vector<uint32_t>& workGroupSize) {
+		static std::vector<uint32_t> CalculateWorkGroupCount(VkPhysicalDeviceProperties& gpuProperties, uint32_t minimumThreadCount, const std::vector<uint32_t>& workGroupSize) {
 			// Prepare variables.
 			uint32_t maxWorkGroupInvocations = gpuProperties.limits.maxComputeWorkGroupInvocations;
 			uint32_t* maxWorkGroupSize = gpuProperties.limits.maxComputeWorkGroupSize;
@@ -4381,14 +4381,12 @@ namespace Engine {
 			return res;
 		}
 
-		static std::vector<glm::vec4> Run(VkDevice& device, VkPhysicalDevice& physicalDevice, RigidBody& bodyA, RigidBody& bodyB) {
-			VkContext ctx = InitializeVulkan(device, physicalDevice);
-
+		static std::vector<glm::vec4> Run(VkContext& collisionCtx, RigidBody& bodyA, RigidBody& bodyB) {
 			// Get device properties and memory properties, if needed.
 			VkPhysicalDeviceProperties gpuProperties;
 			VkPhysicalDeviceMemoryProperties gpuMemoryProperties;
-			vkGetPhysicalDeviceProperties(physicalDevice, &gpuProperties);
-			vkGetPhysicalDeviceMemoryProperties(physicalDevice, &gpuMemoryProperties);
+			vkGetPhysicalDeviceProperties(collisionCtx._physicalDevice, &gpuProperties);
+			vkGetPhysicalDeviceMemoryProperties(collisionCtx._physicalDevice, &gpuMemoryProperties);
 
 			// Calculate how many workgroups and the size of each workgroup we are going to use.
 			// We want one GPU thread to operate on a single value from the input buffer, so the required thread size is the input buffer size.
@@ -4405,6 +4403,7 @@ namespace Engine {
 			size_t sizeB_bytes = bVertices.size() * sizeof(glm::vec4);
 			size_t sizeIndexA_bytes = aIndices.size() * sizeof(uint32_t);
 			size_t sizeIndexB_bytes = bIndices.size() * sizeof(uint32_t);
+			size_t sizeOutputBytes = sizeA_bytes * 2;
 			glm::vec4* dataInputBufferA = (glm::vec4*)malloc(sizeA_bytes);
 			glm::vec4* dataInputBufferB = (glm::vec4*)malloc(sizeB_bytes);
 			if (!dataInputBufferA || !dataInputBufferB) { std::cout << "Failed allocating buffers for input meshes" << std::endl; return {}; }
@@ -4422,8 +4421,8 @@ namespace Engine {
 				dataInputBufferB[i].w = 1.0f;
 			}
 
-			size_t threadCount = aVertices.size();
-			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, threadCount, { 256, 1, 1 });
+			auto threadCount = aVertices.size();
+			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, (uint32_t)threadCount, { 256, 1, 1 });
 
 			//use default values if coalescedMemory = 0
 			//if (_coalescedMemory == 0) {
@@ -4446,99 +4445,84 @@ namespace Engine {
 			// Create the input buffer.
 			VkResult res = VK_SUCCESS;
 			Buffer vertexBufferA, indexBufferA, vertexBufferB, indexBufferB, outputBuffer;
-			
-			VkHelper::CreateBuffer(ctx._logicalDevice,
-				ctx._physicalDevice,
+
+			VkHelper::CreateBuffer(collisionCtx._logicalDevice,
+				collisionCtx._physicalDevice,
 				sizeA_bytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				&vertexBufferA._buffer,
 				&vertexBufferA._gpuMemory);
 
-			VkHelper::CreateBuffer(ctx._logicalDevice, ctx._physicalDevice, sizeIndexA_bytes,
+			VkHelper::CreateBuffer(collisionCtx._logicalDevice, collisionCtx._physicalDevice, sizeIndexA_bytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				&indexBufferA._buffer, &indexBufferA._gpuMemory);
 
-			VkHelper::CreateBuffer(ctx._logicalDevice,
-				ctx._physicalDevice,
+			VkHelper::CreateBuffer(collisionCtx._logicalDevice,
+				collisionCtx._physicalDevice,
 				sizeB_bytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				&vertexBufferB._buffer,
 				&vertexBufferB._gpuMemory);
 
-			VkHelper::CreateBuffer(ctx._logicalDevice, ctx._physicalDevice, sizeIndexB_bytes,
+			VkHelper::CreateBuffer(collisionCtx._logicalDevice, collisionCtx._physicalDevice, sizeIndexB_bytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				&indexBufferB._buffer, &indexBufferB._gpuMemory);
 
-			VkHelper::CreateBuffer(ctx._logicalDevice,
-				ctx._physicalDevice,
-				sizeA_bytes,
+			VkHelper::CreateBuffer(collisionCtx._logicalDevice,
+				collisionCtx._physicalDevice,
+				sizeOutputBytes,
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				&outputBuffer._buffer,
 				&outputBuffer._gpuMemory);
 
 			// Transfer data to GPU staging buffer and thereafter sync the staging buffer with GPU local memory.
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, vertexBufferA._buffer, dataInputBufferA, sizeA_bytes);
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, indexBufferA._buffer, aIndices.data(), sizeIndexA_bytes);
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, vertexBufferB._buffer, dataInputBufferB, sizeB_bytes);
-			VkHelper::CopyBufferDataToDeviceMemory(ctx._logicalDevice, ctx._physicalDevice, ctx._commandPool, ctx._queue, indexBufferB._buffer, bIndices.data(), sizeIndexB_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(collisionCtx._logicalDevice, collisionCtx._physicalDevice, collisionCtx._commandPool, collisionCtx._queue, vertexBufferA._buffer, dataInputBufferA, sizeA_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(collisionCtx._logicalDevice, collisionCtx._physicalDevice, collisionCtx._commandPool, collisionCtx._queue, indexBufferA._buffer, aIndices.data(), sizeIndexA_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(collisionCtx._logicalDevice, collisionCtx._physicalDevice, collisionCtx._commandPool, collisionCtx._queue, vertexBufferB._buffer, dataInputBufferB, sizeB_bytes);
+			VkHelper::CopyBufferDataToDeviceMemory(collisionCtx._logicalDevice, collisionCtx._physicalDevice, collisionCtx._commandPool, collisionCtx._queue, indexBufferB._buffer, bIndices.data(), sizeIndexB_bytes);
 
 			VkBuffer buffers[5] = {
 				vertexBufferA._buffer,
-				indexBufferA._buffer, 
+				indexBufferA._buffer,
 				vertexBufferB._buffer,
-				indexBufferB._buffer, 
-				outputBuffer._buffer	
+				indexBufferB._buffer,
+				outputBuffer._buffer
 			};
 			VkDeviceSize bufferSizes[5] = {
 				sizeA_bytes,
 				sizeIndexA_bytes,
 				sizeB_bytes,
 				sizeIndexB_bytes,
-				sizeA_bytes // same size as input for simplicity
+				sizeOutputBytes // same size as input for simplicity
 			};
 
 			// Create 
 			//const char* shaderPath = "C:\\code\\vulkan-compute\\shaders\\Shader.spv";
 			auto shaderPath = Paths::ShadersPath() /= L"compute\\CollisionDetection.spv";
 			VkPipeline pipeline; VkPipelineLayout layout; VkDescriptorSet descriptorSet;
-			if (CreateComputePipeline(buffers, bufferSizes, shaderPath.string().c_str(), ctx, pipeline, layout, descriptorSet) != VK_SUCCESS) {
+			if (CreateComputePipeline(buffers, bufferSizes, shaderPath.string().c_str(), collisionCtx, pipeline, layout, descriptorSet) != VK_SUCCESS) {
 				std::cout << "Application creation failed." << std::endl;
 			}
 
 			auto aTransform = a->_pGameObject->GetWorldSpaceTransform()._matrix;
 			auto bTransform = b->_pGameObject->GetWorldSpaceTransform()._matrix;
 
-			if (Dispatch(ctx, pipeline, layout, descriptorSet, workGroupCount, aTransform, bTransform) != VK_SUCCESS) {
+			if (Dispatch(collisionCtx, pipeline, layout, descriptorSet, workGroupCount, aTransform, bTransform) != VK_SUCCESS) {
 				std::cout << "Application run failed." << std::endl;
 			}
 
-			auto shaderOutputBufferData = (glm::vec4*)malloc(sizeA_bytes);
+			auto shaderOutputBufferData = (glm::vec4*)malloc(sizeOutputBytes);
 
-			res = vkGetFenceStatus(ctx._logicalDevice, ctx._queueFence);
+			res = vkGetFenceStatus(collisionCtx._logicalDevice, collisionCtx._queueFence);
 
 			//Transfer data from GPU using staging buffer, if needed
-			if (DownloadDataFromGPU(shaderOutputBufferData, sizeA_bytes, ctx, &outputBuffer._buffer) != VK_SUCCESS)
+			if (DownloadDataFromGPU(shaderOutputBufferData, sizeOutputBytes, collisionCtx, &outputBuffer._buffer) != VK_SUCCESS)
 				std::cout << "Failed downloading data from GPU." << std::endl;
-
-			// Print data for debugging.
-			/*printf("Output buffer result: [");
-			uint32_t startAndEndSize = 50;
-			uint32_t i = 0;
-			for (; i < outputBufferCount - 1 && i < startAndEndSize; ++i) {
-				printf("%d, ", shaderOutputBufferData[i]);
-			}
-			if (i >= startAndEndSize) {
-				printf("..., ");
-				i = outputBufferCount - startAndEndSize + 1;
-				for (; i < outputBufferCount - 1; ++i)
-					printf("%d, ", shaderOutputBufferData[i]);
-			}
-			printf("%d]\n", shaderOutputBufferData[outputBufferCount - 1]);*/
 
 			// Free resources.
 			//vkDestroyBuffer(ctx._logicalDevice, inputBuffer._buffer, nullptr);
@@ -4546,11 +4530,13 @@ namespace Engine {
 			//vkDestroyBuffer(ctx._logicalDevice, outputBuffer._buffer, nullptr);
 			//vkFreeMemory(ctx._logicalDevice, outputBuffer._gpuMemory, nullptr);
 
-			for (int i = 0; i < threadCount; ++i) {
-				if (shaderOutputBufferData[i].x > 0.1f || shaderOutputBufferData[i].y > 0.1f || shaderOutputBufferData[i].z > 0.1f) DebugBreak();
-			}
+			for (int i = 0; i < threadCount * 2; ++i)
+				if (shaderOutputBufferData[i].x > 0.1f || shaderOutputBufferData[i].y > 0.1f || shaderOutputBufferData[i].z > 0.1f)
+					DebugBreak();
 
-			return {};
+			std::vector<glm::vec4> outCollisionPoints(threadCount*2);
+			memcpy(outCollisionPoints.data(), shaderOutputBufferData, sizeOutputBytes);
+			return outCollisionPoints;
 		}
 	};
 
@@ -4598,9 +4584,9 @@ namespace Engine {
 			return _materials[0];
 		}
 
-		void PhysicsUpdate(VkContext& ctx, EngineContext& eCtx) {
+		void PhysicsUpdate(VkContext& ctx, VkContext& collisionCtx, EngineContext& eCtx) {
 			for (auto& gameObject : _pRootGameObject->_children)
-				gameObject->PhysicsUpdate(ctx, eCtx);
+				gameObject->PhysicsUpdate(ctx, collisionCtx, eCtx);
 		}
 
 		void Update(VkContext& vkContext) {
@@ -4724,8 +4710,8 @@ namespace Engine {
 		memcpy(_buffers[0]._cpuMemory, &_gameObjectData, sizeof(_gameObjectData));
 	}
 
-	void GameObject::PhysicsUpdate(VkContext& ctx, EngineContext& eCtx) {
-		_body.PhysicsUpdate(ctx, eCtx);
+	void GameObject::PhysicsUpdate(VkContext& ctx, VkContext& collisionCtx, EngineContext& eCtx) {
+		_body.PhysicsUpdate(ctx, collisionCtx, eCtx);
 	}
 
 	void GameObject::Update(VkContext& vkContext) {
@@ -5027,7 +5013,7 @@ namespace Engine {
 		return outGameObjects;
 	}
 
-	std::vector<CollisionContext> RigidBody::DetectCollisions(VkContext& ctx, std::vector<RigidBody*> bodiesToExclude) {
+	std::vector<CollisionContext> RigidBody::DetectCollisions(VkContext& ctx, VkContext& collisionCtx, std::vector<RigidBody*> bodiesToExclude) {
 		std::vector<GameObject*> gameObjectsToExclude;
 		gameObjectsToExclude.push_back(_pGameObject);
 		for (int i = 1; i < gameObjectsToExclude.size(); ++i) gameObjectsToExclude[i] = bodiesToExclude[i - 1]->_pGameObject;
@@ -5037,7 +5023,7 @@ namespace Engine {
 		for (int i = 0; i < otherGameObjects.size(); ++i) {
 			if (otherGameObjects[i]->_pMesh->_vertices._vertexData.size() < 1) continue;
 			//auto collision = DetectCollision(otherGameObjects[i]->_body);
-			CollisionDetector::Run(ctx._logicalDevice, ctx._physicalDevice, *this, otherGameObjects[i]->_body);
+			GpuCollisionDetector::Run(collisionCtx, *this, otherGameObjects[i]->_body);
 			//if (collision._collisionPositions.size() > 0) outCollisions.push_back(collision);
 		}
 		return outCollisions;
@@ -5307,7 +5293,7 @@ namespace Engine {
 	//	}
 	//}
 
-	void RigidBody::PhysicsUpdate(VkContext& ctx, EngineContext& eCtx) {
+	void RigidBody::PhysicsUpdate(VkContext& ctx, VkContext& collisionCtx, EngineContext& eCtx) {
 		float deltaTimeSeconds = (float)eCtx._time._physicsDeltaTime * 0.001f;
 		if (IsRotationLocked() && IsTranslationLocked()) return;
 		if (_isColliding && glm::length(_velocity) < 0.1f) return;
@@ -5323,7 +5309,7 @@ namespace Engine {
 		// Resolve collisions.
 		do {
 			if (!_isCollidable) break;
-			auto collisions = DetectCollisions(ctx);
+			auto collisions = DetectCollisions(ctx, collisionCtx);
 
 			// Detect continuous collision
 			bool isOverCollisionThreshold = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - _lastTimeCollided).count() > _continuousCollisionThresholdMilliseconds;
@@ -6944,7 +6930,6 @@ namespace Engine {
 			layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 			layoutCreateInfo.bindingCount = 2;
 			layoutCreateInfo.pBindings = setLayoutBindings;
-			VkDescriptorSetLayout setLayout;
 			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &layoutCreateInfo, NULL, &uiDescriptorSetLayout._layout));
 
 			VkDescriptorPoolSize poolSizes[2];
@@ -7012,7 +6997,6 @@ namespace Engine {
 			pipelineLayoutCreateInfo.pSetLayouts = &outRenderCtx->_uiPipeline._shaderResources._data.begin()->first._layout;
 			pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
 			pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
-			VkPipelineLayout pipelineLayout;
 			CheckResult(vkCreatePipelineLayout(ctx._logicalDevice, &pipelineLayoutCreateInfo, nullptr, &outRenderCtx->_uiPipeline._layout));
 		}
 
@@ -7407,9 +7391,11 @@ namespace Engine {
 
 	void PhysicsUpdate(GLFWwindow* pWindow, VkContext* ctx, EngineContext* eCtx) {
 		auto& time = Time::Instance();
-		time.PhysicsUpdate(*ctx, *eCtx);
+		VkContext collisionCtx = GpuCollisionDetector::InitializeVulkan(ctx->_logicalDevice, ctx->_physicalDevice);
+		time.PhysicsUpdate(*ctx, collisionCtx, *eCtx);
 
 		GameObject* mp5k = nullptr;
+		
 
 		for (int i = 0; i < eCtx->_scene._pRootGameObject->_children.size(); ++i) {
 			if (eCtx->_scene._pRootGameObject->_children[i]->_name == "MP5KCollision") mp5k = eCtx->_scene._pRootGameObject->_children[i];
@@ -7417,8 +7403,8 @@ namespace Engine {
 
 		while (!glfwWindowShouldClose(pWindow)) {
 			auto timePhysicsUpdateStart = std::chrono::high_resolution_clock::now();
-			time.PhysicsUpdate(*ctx, *eCtx);
-			eCtx->_scene.PhysicsUpdate(*ctx, *eCtx);
+			time.PhysicsUpdate(*ctx, collisionCtx, *eCtx);
+			eCtx->_scene.PhysicsUpdate(*ctx, collisionCtx, *eCtx);
 
 			float deltaTimeSeconds = (float)Time::Instance()._physicsDeltaTime * 0.001f;
 
