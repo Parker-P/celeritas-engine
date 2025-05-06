@@ -4542,9 +4542,9 @@ namespace Engine {
 			// Convert GPU results into collision context info
 			CollisionContext outCollisionCtx;
 			for (int i = 0; i < faceCount; ++i) {
-				if (shaderOutputBufferData[i].x == 3.402823466e+38f && 
-					shaderOutputBufferData[i].y == 3.402823466e+38f && 
-					shaderOutputBufferData[i].z == 3.402823466e+38f && 
+				if (shaderOutputBufferData[i].x == 3.402823466e+38f &&
+					shaderOutputBufferData[i].y == 3.402823466e+38f &&
+					shaderOutputBufferData[i].z == 3.402823466e+38f &&
 					shaderOutputBufferData[i].w == 3.402823466e+38f &&
 					shaderOutputBufferData[i + faceCount].x == 3.402823466e+38f &&
 					shaderOutputBufferData[i + faceCount].y == 3.402823466e+38f &&
@@ -4557,6 +4557,12 @@ namespace Engine {
 				outCollisionCtx._collisionNormals.push_back(shaderOutputBufferData[i + faceCount]);
 				outCollisionCtx._collisionObjects.push_back(shaderOutputBufferData[i].w == 0.0f ? a : b);
 			}
+
+			vkDestroyBuffer(collisionCtx._logicalDevice, vertexBufferA._buffer, nullptr);
+			vkDestroyBuffer(collisionCtx._logicalDevice, indexBufferA._buffer, nullptr);
+			vkDestroyBuffer(collisionCtx._logicalDevice, vertexBufferB._buffer, nullptr);
+			vkDestroyBuffer(collisionCtx._logicalDevice, indexBufferB._buffer, nullptr);
+			vkDestroyBuffer(collisionCtx._logicalDevice, outputBuffer._buffer, nullptr);
 
 			if (!outCollided) return outCollisionCtx;
 
@@ -5048,7 +5054,23 @@ namespace Engine {
 			if (otherGameObjects[i]->_pMesh->_vertices._vertexData.size() < 1) continue;
 			//auto collision = DetectCollision(otherGameObjects[i]->_body);
 			bool hasCollided = false;
+
+
+			// Mark the start time
+			auto start = std::chrono::high_resolution_clock::now();
+
 			auto collision = GpuCollisionDetector::Run(collisionCtx, *this, otherGameObjects[i]->_body, hasCollided);
+			
+			// Mark the end time
+			auto end = std::chrono::high_resolution_clock::now();
+
+			// Calculate the duration
+			auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+			// Output in seconds
+			std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+
+
 			if (!hasCollided) continue;
 			outCollisions.push_back(collision);
 			//if (collision._collisionPositions.size() > 0) outCollisions.push_back(collision);
