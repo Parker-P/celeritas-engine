@@ -4411,7 +4411,8 @@ namespace Engine {
 			size_t sizeIndexA_bytes = aIndices.size() * sizeof(uint32_t);
 			size_t sizeIndexB_bytes = bIndices.size() * sizeof(uint32_t);
 
-			auto outputCount = (aIndices.size() / 3) * 2;
+			auto faceCount = aIndices.size() / 3;
+			auto outputCount = faceCount * 2;
 			size_t sizeOutputBytes = sizeof(glm::vec4) * outputCount;
 			glm::vec4* dataInputBufferA = (glm::vec4*)malloc(sizeA_bytes);
 			glm::vec4* dataInputBufferB = (glm::vec4*)malloc(sizeB_bytes);
@@ -4538,25 +4539,27 @@ namespace Engine {
 			//vkDestroyBuffer(ctx._logicalDevice, outputBuffer._buffer, nullptr);
 			//vkFreeMemory(ctx._logicalDevice, outputBuffer._gpuMemory, nullptr);
 
-			for (int i = 0; i < outputCount; ++i) {
-				if (shaderOutputBufferData[i].x == 3.402823466e+38f && shaderOutputBufferData[i].y == 3.402823466e+38f && shaderOutputBufferData[i].z == 3.402823466e+38f && shaderOutputBufferData[i].w == 3.402823466e+38f)
-					continue;
-				outCollided = true;
-			}
-
 			// Convert GPU results into collision context info
 			CollisionContext outCollisionCtx;
+			for (int i = 0; i < faceCount; ++i) {
+				if (shaderOutputBufferData[i].x == 3.402823466e+38f && 
+					shaderOutputBufferData[i].y == 3.402823466e+38f && 
+					shaderOutputBufferData[i].z == 3.402823466e+38f && 
+					shaderOutputBufferData[i].w == 3.402823466e+38f &&
+					shaderOutputBufferData[i + faceCount].x == 3.402823466e+38f &&
+					shaderOutputBufferData[i + faceCount].y == 3.402823466e+38f &&
+					shaderOutputBufferData[i + faceCount].z == 3.402823466e+38f &&
+					shaderOutputBufferData[i + faceCount].w == 3.402823466e+38f)
+					continue;
+				outCollided = true;
+				outCollisionCtx._collidee = shaderOutputBufferData[i].w == 0.0f ? a : b;
+				outCollisionCtx._collisionPositions.push_back(shaderOutputBufferData[i]);
+				outCollisionCtx._collisionNormals.push_back(shaderOutputBufferData[i + faceCount]);
+				outCollisionCtx._collisionObjects.push_back(shaderOutputBufferData[i].w == 0.0f ? a : b);
+			}
+
 			if (!outCollided) return outCollisionCtx;
 
-			int outCount = outputCount * 0.5f;
-			int s = sizeof(glm::vec4) * outCount;
-			outCollisionCtx._collisionPositions.resize(outCount);
-			outCollisionCtx._collisionNormals.resize(outCount);
-			outCollisionCtx._collisionObjects.resize(outCount);
-			memcpy(outCollisionCtx._collisionPositions.data(), shaderOutputBufferData, s);
-			memcpy(outCollisionCtx._collisionNormals.data(), shaderOutputBufferData + s, s);
-			for (int i = 0; i < outputCount; ++i)
-				outCollisionCtx._collisionObjects[i] = shaderOutputBufferData[i].w == 0.0f ? a : b;
 			return outCollisionCtx;
 		}
 	};
