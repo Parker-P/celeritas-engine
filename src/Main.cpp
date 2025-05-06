@@ -188,7 +188,7 @@ namespace Engine {
 		virtual void Update() = 0;
 	};
 
-	struct Helper {
+	struct Helpers {
 
 		/**
 		 * @brief Convert values. Returns the converted value.
@@ -287,6 +287,12 @@ namespace Engine {
 				vector.y >= -tolerance && vector.y <= tolerance &&
 				vector.z >= -tolerance && vector.z <= tolerance);
 		}
+
+		static bool IsPositionValid(const glm::vec3& position) {
+			return glm::isinf(position.x) && glm::isnan(position.x) &&
+				glm::isinf(position.y) && glm::isnan(position.y) &&
+				glm::isinf(position.z) && glm::isnan(position.z);
+		}
 	};
 
 	class GlobalSettings : public Singleton<GlobalSettings> {
@@ -339,14 +345,14 @@ namespace Engine {
 		 */
 		void Load(const std::filesystem::path& absolutePathToJson) {
 			// Read the json file and parse it.
-			auto text = Helper::GetFileText(absolutePathToJson);
+			auto text = Helpers::GetFileText(absolutePathToJson);
 
 			sjson::parsing::parse_results json = sjson::parsing::parse(text.data());
 			sjson::jobject rootObj = sjson::jobject::parse(json.value);
 
 			// Get the values from the parsed result.
 			auto evlJson = rootObj.get("EnableValidationLayers");
-			_enableValidationLayers = Helper::Convert<std::string, bool>(TrimEnds(evlJson));
+			_enableValidationLayers = Helpers::Convert<std::string, bool>(TrimEnds(evlJson));
 
 			auto validationLayers = sjson::jobject::parse(rootObj.get("ValidationLayers"));
 			_pValidationLayers.resize(validationLayers.size());
@@ -363,16 +369,16 @@ namespace Engine {
 			auto windowSize = sjson::jobject::parse(rootObj.get("WindowSize"));
 			auto width = windowSize.get("Width");
 			auto height = windowSize.get("Height");
-			_windowWidth = Helper::Convert<std::string, int>(width);
-			_windowHeight = Helper::Convert<std::string, int>(height);
+			_windowWidth = Helpers::Convert<std::string, int>(width);
+			_windowHeight = Helpers::Convert<std::string, int>(height);
 
 			auto input = sjson::jobject::parse(rootObj.get("Input"));
 			auto sens = input.get("MouseSensitivity");
-			_mouseSensitivity = Helper::Convert<std::string, float>(sens);
+			_mouseSensitivity = Helpers::Convert<std::string, float>(sens);
 
 			auto graphics = sjson::jobject::parse(rootObj.get("Graphics"));
 			auto gc = graphics.get("GammaCorrection");
-			_gammaCorrection = Helper::Convert<std::string, float>(gc);
+			_gammaCorrection = Helpers::Convert<std::string, float>(gc);
 		}
 	};
 
@@ -3627,10 +3633,11 @@ namespace Engine {
 
 	struct CollisionContext {
 		RigidBody* _collidee; // Collision receiver.
-		std::vector<glm::vec3> _collisionPositions; // List of points where a collision was detected in world space.
-		std::vector<glm::vec3> _collisionNormals; // List of normals for each collision position.
-		glm::vec3 _averagePosition;
-		glm::vec3 _averageNormal;
+		std::vector<glm::vec4> _collisionPositions; // List of points where a collision was detected in world space. W component discarded, only there for efficiency reasons, only there for efficiency reasons with CPU-GPU interop.
+		std::vector<glm::vec4> _collisionNormals; // List of normals for each collision position. W component discarded, only there for efficiency reasons with CPU-GPU interop.
+		std::vector<RigidBody*> _collisionObjects; // List of objects for which the collision was detected.
+		glm::vec4 _averagePosition;
+		glm::vec4 _averageNormal;
 
 		void CalculateAverages() {
 			auto count = _collisionPositions.size();
@@ -4381,7 +4388,7 @@ namespace Engine {
 			return res;
 		}
 
-		static std::vector<glm::vec4> Run(VkContext& collisionCtx, RigidBody& bodyA, RigidBody& bodyB) {
+		static CollisionContext Run(VkContext& collisionCtx, RigidBody& bodyA, RigidBody& bodyB, bool& outCollided) {
 			// Get device properties and memory properties, if needed.
 			VkPhysicalDeviceProperties gpuProperties;
 			VkPhysicalDeviceMemoryProperties gpuMemoryProperties;
@@ -4403,7 +4410,9 @@ namespace Engine {
 			size_t sizeB_bytes = bVertices.size() * sizeof(glm::vec4);
 			size_t sizeIndexA_bytes = aIndices.size() * sizeof(uint32_t);
 			size_t sizeIndexB_bytes = bIndices.size() * sizeof(uint32_t);
-			size_t sizeOutputBytes = sizeA_bytes * 2;
+
+			auto outputCount = (aIndices.size() / 3) * 2;
+			size_t sizeOutputBytes = sizeof(glm::vec4) * outputCount;
 			glm::vec4* dataInputBufferA = (glm::vec4*)malloc(sizeA_bytes);
 			glm::vec4* dataInputBufferB = (glm::vec4*)malloc(sizeB_bytes);
 			if (!dataInputBufferA || !dataInputBufferB) { std::cout << "Failed allocating buffers for input meshes" << std::endl; return {}; }
@@ -4421,8 +4430,7 @@ namespace Engine {
 				dataInputBufferB[i].w = 1.0f;
 			}
 
-			auto threadCount = aVertices.size();
-			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, (uint32_t)threadCount, { 256, 1, 1 });
+			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, (uint32_t)outputCount, { 256, 1, 1 });
 
 			//use default values if coalescedMemory = 0
 			//if (_coalescedMemory == 0) {
@@ -4530,13 +4538,26 @@ namespace Engine {
 			//vkDestroyBuffer(ctx._logicalDevice, outputBuffer._buffer, nullptr);
 			//vkFreeMemory(ctx._logicalDevice, outputBuffer._gpuMemory, nullptr);
 
-			for (int i = 0; i < threadCount * 2; ++i)
-				if (shaderOutputBufferData[i].x > 0.1f || shaderOutputBufferData[i].y > 0.1f || shaderOutputBufferData[i].z > 0.1f)
-					DebugBreak();
+			for (int i = 0; i < outputCount; ++i) {
+				if (shaderOutputBufferData[i].x == 3.402823466e+38f && shaderOutputBufferData[i].y == 3.402823466e+38f && shaderOutputBufferData[i].z == 3.402823466e+38f && shaderOutputBufferData[i].w == 3.402823466e+38f)
+					continue;
+				outCollided = true;
+			}
 
-			std::vector<glm::vec4> outCollisionPoints(threadCount*2);
-			memcpy(outCollisionPoints.data(), shaderOutputBufferData, sizeOutputBytes);
-			return outCollisionPoints;
+			// Convert GPU results into collision context info
+			CollisionContext outCollisionCtx;
+			if (!outCollided) return outCollisionCtx;
+
+			int outCount = outputCount * 0.5f;
+			int s = sizeof(glm::vec4) * outCount;
+			outCollisionCtx._collisionPositions.resize(outCount);
+			outCollisionCtx._collisionNormals.resize(outCount);
+			outCollisionCtx._collisionObjects.resize(outCount);
+			memcpy(outCollisionCtx._collisionPositions.data(), shaderOutputBufferData, s);
+			memcpy(outCollisionCtx._collisionNormals.data(), shaderOutputBufferData + s, s);
+			for (int i = 0; i < outputCount; ++i)
+				outCollisionCtx._collisionObjects[i] = shaderOutputBufferData[i].w == 0.0f ? a : b;
+			return outCollisionCtx;
 		}
 	};
 
@@ -4873,7 +4894,7 @@ namespace Engine {
 
 	// Rigidbody
 	glm::vec3 RigidBody::CalculateTransmittedForce(const glm::vec3& transmitterPosition, const glm::vec3& force, const glm::vec3& receiverPosition) {
-		if (Helper::IsVectorZero(receiverPosition - transmitterPosition, 0.001f)) return force;
+		if (Helpers::IsVectorZero(receiverPosition - transmitterPosition, 0.001f)) return force;
 		auto effectiveForce = glm::normalize(receiverPosition - transmitterPosition);
 		auto scaleFactor = glm::dot(effectiveForce, force);
 		return effectiveForce * scaleFactor;
@@ -4901,7 +4922,7 @@ namespace Engine {
 
 	glm::vec3 RigidBody::GetVelocityAtPosition(const glm::vec3& positionWorldSpace) {
 		glm::vec3 linearVelocityContributionFromAngularVelocityAtPosition;
-		if (!Helper::IsVectorZero(_angularVelocity)) {
+		if (!Helpers::IsVectorZero(_angularVelocity)) {
 			auto rotationAxis = glm::normalize(_angularVelocity);
 			auto worldSpaceCom = GetCenterOfMass(true);
 			auto posToCom = worldSpaceCom - positionWorldSpace;
@@ -4929,7 +4950,7 @@ namespace Engine {
 
 		// Now calculate the rotation component.
 		auto positionToCom = worldSpaceCom - worldSpacePointOfApplication;
-		if (Helper::IsVectorZero(positionToCom, 0.001f)) return;
+		if (Helpers::IsVectorZero(positionToCom, 0.001f)) return;
 
 		auto rotationAxis = -glm::normalize(glm::cross(positionToCom, worldSpaceForce));
 		if (glm::isnan(rotationAxis.x) || glm::isnan(rotationAxis.y) || glm::isnan(rotationAxis.x)) return;
@@ -5023,7 +5044,10 @@ namespace Engine {
 		for (int i = 0; i < otherGameObjects.size(); ++i) {
 			if (otherGameObjects[i]->_pMesh->_vertices._vertexData.size() < 1) continue;
 			//auto collision = DetectCollision(otherGameObjects[i]->_body);
-			GpuCollisionDetector::Run(collisionCtx, *this, otherGameObjects[i]->_body);
+			bool hasCollided = false;
+			auto collision = GpuCollisionDetector::Run(collisionCtx, *this, otherGameObjects[i]->_body, hasCollided);
+			if (!hasCollided) continue;
+			outCollisions.push_back(collision);
 			//if (collision._collisionPositions.size() > 0) outCollisions.push_back(collision);
 		}
 		return outCollisions;
@@ -5168,7 +5192,7 @@ namespace Engine {
 
 			_cameraData.worldToCamera = _view._matrix;
 			_cameraData.tanHalfHorizontalFov = tan(glm::radians(_horizontalFov / 2.0f));
-			_cameraData.aspectRatio = Helper::Convert<uint32_t, float>(globalSettings._windowWidth) / Helper::Convert<uint32_t, float>(globalSettings._windowHeight);
+			_cameraData.aspectRatio = Helpers::Convert<uint32_t, float>(globalSettings._windowWidth) / Helpers::Convert<uint32_t, float>(globalSettings._windowHeight);
 			_cameraData.nearClipDistance = _nearClippingDistance;
 			_cameraData.farClipDistance = _farClippingDistance;
 			_cameraData.transform = _localTransform.Position();
@@ -5322,8 +5346,8 @@ namespace Engine {
 			for (int i = 0; i < collisions.size(); ++i) {
 				auto physicsDeltaTime = (float)eCtx._time._physicsDeltaTime;
 				collisions[i].CalculateAverages();
-				glm::vec3& averageCollisionPosition = collisions[i]._averagePosition;
-				glm::vec3& averageCollisionNormal = collisions[i]._averageNormal;
+				glm::vec3 averageCollisionPosition = glm::vec3(collisions[i]._averagePosition);
+				glm::vec3 averageCollisionNormal = glm::vec3(collisions[i]._averageNormal);
 
 				auto velocityAtPosition = GetVelocityAtPosition(averageCollisionPosition);
 				auto velocityLength = glm::length(velocityAtPosition);
@@ -5350,8 +5374,8 @@ namespace Engine {
 				}
 
 				auto frictionForceDirection = glm::cross(glm::cross(velocityAtPosition, averageCollisionNormal), averageCollisionNormal);
-				if (!Helper::IsVectorZero(frictionForceDirection)) frictionForceDirection = glm::normalize(frictionForceDirection);
-				auto frictionComponent = !Helper::IsVectorZero(frictionForceDirection)
+				if (!Helpers::IsVectorZero(frictionForceDirection)) frictionForceDirection = glm::normalize(frictionForceDirection);
+				auto frictionComponent = !Helpers::IsVectorZero(frictionForceDirection)
 					? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeSeconds
 					: glm::vec3(0.0f, 0.0f, 0.0f);
 
@@ -6070,8 +6094,8 @@ namespace Engine {
 			VkViewport viewport = {};
 			viewport.x = 0.0f;
 			viewport.y = 0.0f;
-			viewport.width = Helper::Convert<uint32_t, float>(rCtx._swapchain._framebufferSize.width);
-			viewport.height = Helper::Convert<uint32_t, float>(rCtx._swapchain._framebufferSize.height);
+			viewport.width = Helpers::Convert<uint32_t, float>(rCtx._swapchain._framebufferSize.width);
+			viewport.height = Helpers::Convert<uint32_t, float>(rCtx._swapchain._framebufferSize.height);
 			viewport.minDepth = 0.0f;
 			viewport.maxDepth = 1.0f;
 
@@ -6240,8 +6264,8 @@ namespace Engine {
 			VkViewport viewport = {};
 			viewport.x = 0.0f;
 			viewport.y = 0.0f;
-			viewport.width = Helper::Convert<uint32_t, float>(rCtx._swapchain._framebufferSize.width);
-			viewport.height = Helper::Convert<uint32_t, float>(rCtx._swapchain._framebufferSize.height);
+			viewport.width = Helpers::Convert<uint32_t, float>(rCtx._swapchain._framebufferSize.width);
+			viewport.height = Helpers::Convert<uint32_t, float>(rCtx._swapchain._framebufferSize.height);
 			viewport.minDepth = 0.0f;
 			viewport.maxDepth = 1.0f;
 
@@ -7395,7 +7419,7 @@ namespace Engine {
 		time.PhysicsUpdate(*ctx, collisionCtx, *eCtx);
 
 		GameObject* mp5k = nullptr;
-		
+
 
 		for (int i = 0; i < eCtx->_scene._pRootGameObject->_children.size(); ++i) {
 			if (eCtx->_scene._pRootGameObject->_children[i]->_name == "MP5KCollision") mp5k = eCtx->_scene._pRootGameObject->_children[i];
