@@ -3891,7 +3891,7 @@ namespace Engine {
 
 		void AddTorque(const glm::vec3& torqueWorldSpaceAxis, const float& deltaTimeSeconds, const bool& ignoreMass = false);
 
-		//CollisionContext DetectCollision(RigidBody& other);
+		CollisionContext DetectCollision(RigidBody& other);
 
 		std::vector< GameObject*> GetGameObjects(GameObject* pRoot, std::vector<GameObject*> excludedObjects = {});
 
@@ -4563,6 +4563,9 @@ namespace Engine {
 			vkDestroyBuffer(collisionCtx._logicalDevice, vertexBufferB._buffer, nullptr);
 			vkDestroyBuffer(collisionCtx._logicalDevice, indexBufferB._buffer, nullptr);
 			vkDestroyBuffer(collisionCtx._logicalDevice, outputBuffer._buffer, nullptr);
+			free(shaderOutputBufferData);
+			free(dataInputBufferA);
+			free(dataInputBufferB);
 
 			if (!outCollided) return outCollisionCtx;
 
@@ -4989,44 +4992,46 @@ namespace Engine {
 		_angularVelocity += rotationDelta;
 	}
 
-	//CollisionContext RigidBody::DetectCollision(RigidBody& other) {
-	//	CollisionContext outCtx;
-	//	outCtx._collidee = &other;
-	//	auto worldSpaceOther = other._pGameObject->GetWorldSpaceTransform();
-	//	auto worldSpaceCurrent = _pGameObject->GetWorldSpaceTransform();
+	CollisionContext RigidBody::DetectCollision(RigidBody& other) {
+		CollisionContext outCtx;
+		outCtx._collidee = &other;
+		auto worldSpaceOther = other._pGameObject->GetWorldSpaceTransform();
+		auto worldSpaceCurrent = _pGameObject->GetWorldSpaceTransform();
+		auto& otherMesh = other._pGameObject->_pMesh;
+		auto& mesh = _pGameObject->_pMesh;
 
-	//	for (int i = 0; i < other._mesh._faceIndices.size(); i += 3) {
-	//		for (int j = 0; j < _mesh._faceIndices.size(); j += 3) {
+		for (int i = 0; i < otherMesh->_faceIndices._indexData.size(); i += 3) {
+			for (int j = 0; j < otherMesh->_faceIndices._indexData.size(); j += 3) {
 
-	//			auto v1Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i]]._position, 1.0f));
-	//			auto v2Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i + 1]]._position, 1.0f));
-	//			auto v3Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(other._mesh._vertices[other._mesh._faceIndices[i + 2]]._position, 1.0f));
+				auto v1Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(otherMesh->_vertices._vertexData[otherMesh->_faceIndices._indexData[i]]._position, 1.0f));
+				auto v2Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(otherMesh->_vertices._vertexData[otherMesh->_faceIndices._indexData[i + 1]]._position, 1.0f));
+				auto v3Other = glm::vec3(worldSpaceOther._matrix * glm::vec4(otherMesh->_vertices._vertexData[otherMesh->_faceIndices._indexData[i + 2]]._position, 1.0f));
 
-	//			auto v1 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j]]._position, 1.0f));
-	//			auto v2 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j + 1]]._position, 1.0f));
-	//			auto v3 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(_mesh._vertices[_mesh._faceIndices[j + 2]]._position, 1.0f));
+				auto v1 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(mesh->_vertices._vertexData[otherMesh->_faceIndices._indexData[j]]._position, 1.0f));
+				auto v2 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(mesh->_vertices._vertexData[otherMesh->_faceIndices._indexData[j + 1]]._position, 1.0f));
+				auto v3 = glm::vec3(worldSpaceCurrent._matrix * glm::vec4(mesh->_vertices._vertexData[otherMesh->_faceIndices._indexData[j + 2]]._position, 1.0f));
 
-	//			glm::vec3 intersectionPoint1, intersectionPoint2, intersectionPoint3;
-	//			auto edge1 = v2Other - v1Other;
-	//			auto edge2 = v3Other - v1Other;
-	//			auto edge3 = v2Other - v3Other;
-	//			glm::vec3 normal = -glm::normalize(glm::cross(edge1, edge2));
+				glm::vec3 intersectionPoint1, intersectionPoint2, intersectionPoint3;
+				auto edge1 = v2Other - v1Other;
+				auto edge2 = v3Other - v1Other;
+				auto edge3 = v2Other - v3Other;
+				glm::vec3 normal = -glm::normalize(glm::cross(edge1, edge2));
 
-	//			// Check collision by testing this body's edges as segments against the other body's face.
-	//			if (IsSegmentIntersectingTriangle(v1, v2 - v1, v1Other, v2Other, v3Other, intersectionPoint1)) { outCtx._collisionPositions.push_back(intersectionPoint1); outCtx._collisionNormals.push_back(normal); }
-	//			if (IsSegmentIntersectingTriangle(v1, v3 - v1, v1Other, v2Other, v3Other, intersectionPoint2)) { outCtx._collisionPositions.push_back(intersectionPoint2); outCtx._collisionNormals.push_back(normal); }
-	//			if (IsSegmentIntersectingTriangle(v3, v2 - v3, v1Other, v2Other, v3Other, intersectionPoint3)) { outCtx._collisionPositions.push_back(intersectionPoint3); outCtx._collisionNormals.push_back(normal); }
-	//			//if (!IsVectorZero(intersectionPoint1) || !IsVectorZero(intersectionPoint2) || !IsVectorZero(intersectionPoint3)) return outCtx;
+				// Check collision by testing this body's edges as segments against the other body's face.
+				if (IsSegmentIntersectingTriangle(v1, v2 - v1, v1Other, v2Other, v3Other, intersectionPoint1)) { outCtx._collisionPositions.push_back(glm::vec4(intersectionPoint1, 1.0f)); outCtx._collisionNormals.push_back(glm::vec4(normal, 1.0f)); }
+				if (IsSegmentIntersectingTriangle(v1, v3 - v1, v1Other, v2Other, v3Other, intersectionPoint2)) { outCtx._collisionPositions.push_back(glm::vec4(intersectionPoint2, 1.0f)); outCtx._collisionNormals.push_back(glm::vec4(normal, 1.0f)); }
+				if (IsSegmentIntersectingTriangle(v3, v2 - v3, v1Other, v2Other, v3Other, intersectionPoint3)) { outCtx._collisionPositions.push_back(glm::vec4(intersectionPoint3, 1.0f)); outCtx._collisionNormals.push_back(glm::vec4(normal, 1.0f)); }
+				//if (!IsVectorZero(intersectionPoint1) || !IsVectorZero(intersectionPoint2) || !IsVectorZero(intersectionPoint3)) return outCtx;
 
-	//			// Check collision by testing the other body's edges as segments against the current body's face.
-	//			if (IsSegmentIntersectingTriangle(v1Other, edge1, v1, v2, v3, intersectionPoint1)) { outCtx._collisionPositions.push_back(intersectionPoint1); outCtx._collisionNormals.push_back(normal); }
-	//			if (IsSegmentIntersectingTriangle(v1Other, edge2, v1, v2, v3, intersectionPoint2)) { outCtx._collisionPositions.push_back(intersectionPoint2); outCtx._collisionNormals.push_back(normal); }
-	//			if (IsSegmentIntersectingTriangle(v3Other, edge3, v1, v2, v3, intersectionPoint3)) { outCtx._collisionPositions.push_back(intersectionPoint3); outCtx._collisionNormals.push_back(normal); }
-	//		}
-	//	}
+				// Check collision by testing the other body's edges as segments against the current body's face.
+				if (IsSegmentIntersectingTriangle(v1Other, edge1, v1, v2, v3, intersectionPoint1)) { outCtx._collisionPositions.push_back(glm::vec4(intersectionPoint1, 1.0f)); outCtx._collisionNormals.push_back(glm::vec4(normal, 1.0f)); }
+				if (IsSegmentIntersectingTriangle(v1Other, edge2, v1, v2, v3, intersectionPoint2)) { outCtx._collisionPositions.push_back(glm::vec4(intersectionPoint2, 1.0f)); outCtx._collisionNormals.push_back(glm::vec4(normal, 1.0f)); }
+				if (IsSegmentIntersectingTriangle(v3Other, edge3, v1, v2, v3, intersectionPoint3)) { outCtx._collisionPositions.push_back(glm::vec4(intersectionPoint3, 1.0f)); outCtx._collisionNormals.push_back(glm::vec4(normal, 1.0f)); }
+			}
+		}
 
-	//	return outCtx;
-	//}
+		return outCtx;
+	}
 
 	std::vector<GameObject*> RigidBody::GetGameObjects(GameObject* pRoot, std::vector<GameObject*> excludedObjects) {
 		std::vector<GameObject*> outGameObjects;
@@ -5053,24 +5058,14 @@ namespace Engine {
 		for (int i = 0; i < otherGameObjects.size(); ++i) {
 			if (otherGameObjects[i]->_pMesh->_vertices._vertexData.size() < 1) continue;
 			//auto collision = DetectCollision(otherGameObjects[i]->_body);
+			//bool hasCollided = collision._collisionPositions.size() > 0;
 			bool hasCollided = false;
 
-
-			// Mark the start time
-			auto start = std::chrono::high_resolution_clock::now();
-
+			//auto start = std::chrono::high_resolution_clock::now();
 			auto collision = GpuCollisionDetector::Run(collisionCtx, *this, otherGameObjects[i]->_body, hasCollided);
-			
-			// Mark the end time
-			auto end = std::chrono::high_resolution_clock::now();
-
-			// Calculate the duration
-			auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-
-			// Output in seconds
-			std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
-
-
+			//auto end = std::chrono::high_resolution_clock::now();
+			//auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+			//std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
 			if (!hasCollided) continue;
 			outCollisions.push_back(collision);
 			//if (collision._collisionPositions.size() > 0) outCollisions.push_back(collision);
@@ -5358,6 +5353,7 @@ namespace Engine {
 		// Resolve collisions.
 		do {
 			if (!_isCollidable) break;
+
 			auto collisions = DetectCollisions(ctx, collisionCtx);
 
 			// Detect continuous collision
@@ -5386,33 +5382,36 @@ namespace Engine {
 				}
 
 				if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) continue;
-				if (glm::dot(velocityAtPosition, averageCollisionNormal) > 0) continue;
+				//if () continue;
 
 				CollisionContext collisionCtx = collisions[i];
 				// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
 				// and make the collision detection seem more accurate.
 				auto translationDelta = velocityLength * physicsDeltaTime * 0.001f;
-				for (int i = 0; !collisionCtx._collisionPositions.empty() && i < 10 && !IsRotationLocked(); ++i) {
-					// TODO: make this more accurate by also rotating the object backwards by its angular velocity.
-					_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
+				for (int j = 0; j < 20; ++j) {
+					if (glm::dot(velocityAtPosition, averageCollisionNormal) > 0) break;
+					//_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
 					//collisionCtx = DetectCollision(*collisionCtx._collidee);
+					auto f = (averageCollisionNormal * glm::dot(-velocityAtPosition, averageCollisionNormal)) + (averageCollisionNormal * 0.2f);
+					AddForceAtPosition(f, averageCollisionPosition, 1.0f, true, true, true);
+					collisions[i]._collidee->AddForceAtPosition(-f, averageCollisionPosition, 1.0f);
+					velocityAtPosition = GetVelocityAtPosition(averageCollisionPosition);
 				}
 
 				auto frictionForceDirection = glm::cross(glm::cross(velocityAtPosition, averageCollisionNormal), averageCollisionNormal);
 				if (!Helpers::IsVectorZero(frictionForceDirection)) frictionForceDirection = glm::normalize(frictionForceDirection);
+
 				auto frictionComponent = !Helpers::IsVectorZero(frictionForceDirection)
 					? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeSeconds
 					: glm::vec3(0.0f, 0.0f, 0.0f);
-
-				auto f = averageCollisionNormal * glm::dot(-velocityAtPosition, averageCollisionNormal) * 0.5f;
-				AddForceAtPosition(f, averageCollisionPosition, 1.0f, true, true, true);
-				collisions[i]._collidee->AddForceAtPosition(-f, averageCollisionPosition, 1.0f);
 				AddForceAtPosition(-frictionComponent * 4.0f, averageCollisionPosition, 1.0f);
 			}
 		} while (false);
 
 		_pGameObject->_localTransform.RotateAroundPosition(wscom, glm::normalize(_angularVelocity), glm::length(_angularVelocity) * deltaTimeSeconds);
 		_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
+
+		std::cout << "Physics delta time: " << eCtx._time._physicsDeltaTime << "\n";
 	}
 
 	bool RigidBody::IsRotationLocked() { return _lockRotationX && _lockRotationY && _lockRotationZ; }

@@ -8,7 +8,7 @@
     "Height": 720
   },
   "Input": {
-    "MouseSensitivity": 0.03
+    "MouseSensitivity": 0.1
   },
   "Graphics": {
     "GammaCorrection": 0.7
