@@ -4399,12 +4399,17 @@ namespace Engine {
 			// We want one GPU thread to operate on a single value from the input buffer, so the required thread size is the input buffer size.
 			RigidBody* a = &bodyA;
 			RigidBody* b = &bodyB;
+			
+			if (a->_pGameObject->_pMesh->_vertices._vertexData.size() < b->_pGameObject->_pMesh->_vertices._vertexData.size()) {
+				auto tmp = b; 
+				b = a; 
+				a = tmp; 
+			}
+
 			auto& aVertices = a->_pGameObject->_pMesh->_vertices._vertexData;
 			auto& bVertices = b->_pGameObject->_pMesh->_vertices._vertexData;
 			auto& aIndices = a->_pGameObject->_pMesh->_faceIndices._indexData;
 			auto& bIndices = b->_pGameObject->_pMesh->_faceIndices._indexData;
-
-			if (aVertices.size() < bVertices.size()) { auto tmp = b; b = a; a = tmp; }
 
 			size_t sizeA_bytes = aVertices.size() * sizeof(glm::vec4);
 			size_t sizeB_bytes = bVertices.size() * sizeof(glm::vec4);
