@@ -3902,6 +3902,13 @@ namespace Engine {
 		 */
 		void Initialize(GameObject* pGameObject, const float& mass = 1.0f, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = glm::vec3{});
 
+		glm::vec3 CalculateForceToStopVelocityAtPosition(
+			const glm::vec3& pointOfApplication,
+			const float& deltaTimeSeconds,
+			bool isApplicationPointWorldSpace,
+			bool returnForceInWorldSpace,
+			const bool& ignoreMass);
+
 		void PhysicsUpdate(VkContext& ctx, VkContext& collisionCtx, EngineContext& eCtx);
 
 		bool IsRotationLocked();
@@ -5517,6 +5524,82 @@ namespace Engine {
 	//	}
 	//}
 
+	glm::vec3 RigidBody::CalculateForceToStopVelocityAtPosition(
+		const glm::vec3& pointOfApplication,
+		const float& deltaTimeSeconds,
+		bool isApplicationPointWorldSpace,
+		bool returnForceInWorldSpace,
+		const bool& ignoreMass)
+	{
+		// Get world-space transform and center of mass
+		auto worldSpaceTransform = _pGameObject->GetWorldSpaceTransform()._matrix;
+		auto worldSpaceCom = GetCenterOfMass(true);
+		auto worldSpacePointOfApplication = isApplicationPointWorldSpace
+			? pointOfApplication
+			: glm::vec3(worldSpaceTransform * glm::vec4(pointOfApplication, 1.0f));
+
+		// Calculate the velocity at the point of application
+		glm::vec3 r = worldSpacePointOfApplication - worldSpaceCom;
+		glm::vec3 tangentialVelocity = glm::cross(_angularVelocity, r);
+		glm::vec3 totalVelocityAtPoint = _velocity + tangentialVelocity;
+
+		// If velocity is already zero, no force is needed
+		if (Helpers::IsVectorZero(totalVelocityAtPoint, 0.001f)) {
+			return glm::vec3(0.0f);
+		}
+
+		// Step 1: Calculate force to cancel linear velocity
+		// Required delta velocity: -_velocity
+		glm::vec3 requiredLinearDeltaV = -_velocity;
+		requiredLinearDeltaV.x = _lockTranslationX ? 0.0f : requiredLinearDeltaV.x;
+		requiredLinearDeltaV.y = _lockTranslationY ? 0.0f : requiredLinearDeltaV.y;
+		requiredLinearDeltaV.z = _lockTranslationZ ? 0.0f : requiredLinearDeltaV.z;
+
+		// Force = mass * (deltaV / deltaTime) (F = m * a, a = deltaV / deltaTime)
+		float massFactor = ignoreMass ? 1.0f : _mass;
+		glm::vec3 linearForce = (requiredLinearDeltaV / deltaTimeSeconds) * massFactor;
+
+		// Step 2: Calculate force to cancel tangential velocity
+		// Tangential velocity = w x r
+		// We need to apply a torque to cancel _angularVelocity's contribution
+		// Torque = I * angularAcceleration, angularAcceleration = deltaOmega / deltaTime
+		glm::vec3 requiredDeltaOmega = -_angularVelocity;
+
+		// Approximate moment of inertia: I = m * ||r||^2
+		float rotationalInertia = ignoreMass ? glm::length(r) * glm::length(r) : _mass * glm::length(r) * glm::length(r);
+		if (rotationalInertia < 0.001f) {
+			// If point is at COM, no torque can be applied; rely on linear force only
+			return returnForceInWorldSpace
+				? linearForce
+				: glm::vec3(glm::inverse(worldSpaceTransform) * glm::vec4(linearForce, 1.0f));
+		}
+
+		// Torque = I * (deltaOmega / deltaTime)
+		glm::vec3 requiredTorque = (requiredDeltaOmega / deltaTimeSeconds) * rotationalInertia;
+
+		// Convert torque to force: t = r x F => F = (t x r) / ||r||^2
+		glm::vec3 forceDirection = glm::cross(requiredTorque, r);
+		float rSquared = glm::length(r) * glm::length(r);
+		glm::vec3 rotationalForce = forceDirection / rSquared;
+
+		// Total force combines linear and rotational components
+		glm::vec3 totalForce = linearForce + rotationalForce;
+
+		// Respect locked axes for the force
+		totalForce.x = _lockTranslationX ? 0.0f : totalForce.x;
+		totalForce.y = _lockTranslationY ? 0.0f : totalForce.y;
+		totalForce.z = _lockTranslationZ ? 0.0f : totalForce.z;
+
+		// Return force in the requested coordinate system
+		if (returnForceInWorldSpace) {
+			return totalForce;
+		}
+		else {
+			// Convert to local space
+			return glm::vec3(glm::inverse(worldSpaceTransform) * glm::vec4(totalForce, 1.0f));
+		}
+	}
+
 	void RigidBody::PhysicsUpdate(VkContext& ctx, VkContext& collisionCtx, EngineContext& eCtx) {
 		float deltaTimeSeconds = (float)eCtx._time._physicsDeltaTime * 0.001f;
 		auto speed = glm::length(_velocity);
@@ -5570,14 +5653,16 @@ namespace Engine {
 				auto translationDelta = velocityLength * physicsDeltaTime * 0.001f;
 				_pGameObject->_localTransform.Translate(averageCollisionNormal * 0.01f);
 
-				for (int j = 0; j < 20; ++j) {
-					if (glm::dot(velocityAtPosition, averageCollisionNormal) > 0) break;
-					//_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
-					//collisionCtx = DetectCollision(*collisionCtx._collidee);
-					AddForceAtPosition(averageCollisionNormal, averageCollisionPosition, 1.0f, true, true, true);
-					collisions[i]._collidee->AddForceAtPosition(-averageCollisionNormal, averageCollisionPosition, 1.0f);
-					velocityAtPosition = GetVelocityAtPosition(averageCollisionPosition);
-				}
+				auto f = averageCollisionNormal * 0.05f;
+				auto velBefore = glm::dot(velocityAtPosition, averageCollisionNormal);
+				AddForceAtPosition(f, averageCollisionPosition, 1.0f, true, true, true);
+				auto velAfter = glm::dot(GetVelocityAtPosition(averageCollisionPosition), averageCollisionNormal);
+				auto deltaVel = velBefore - velAfter;
+				auto newf = f * (velAfter / deltaVel);
+				AddForceAtPosition(newf, averageCollisionPosition, 1.0f, true, true, true);
+
+				collisions[i]._collidee->AddForceAtPosition(-f, averageCollisionPosition, 1.0f);
+				velocityAtPosition = GetVelocityAtPosition(averageCollisionPosition);
 
 				auto frictionForceDirection = glm::cross(glm::cross(velocityAtPosition, averageCollisionNormal), averageCollisionNormal);
 				if (!Helpers::IsVectorZero(frictionForceDirection)) frictionForceDirection = glm::normalize(frictionForceDirection);
