@@ -5519,8 +5519,9 @@ namespace Engine {
 
 	void RigidBody::PhysicsUpdate(VkContext& ctx, VkContext& collisionCtx, EngineContext& eCtx) {
 		float deltaTimeSeconds = (float)eCtx._time._physicsDeltaTime * 0.001f;
+		auto speed = glm::length(_velocity);
 		if (IsRotationLocked() && IsTranslationLocked()) return;
-		if (_isColliding && glm::length(_velocity) < 0.1f) return;
+		if (_isColliding && speed < 0.1f) return;
 		if (_isAffectedByGravity) AddForce(gGravity, deltaTimeSeconds, true);
 
 		// Approximate air resistance/rotational friction.
@@ -5529,6 +5530,13 @@ namespace Engine {
 		AddForce(_velocity * frictionMultiplier, deltaTimeSeconds);
 		AddTorque(_angularVelocity * frictionMultiplier, deltaTimeSeconds);
 		auto wscom = GetCenterOfMass(true);
+
+		// Clamp angular velocity
+		if (glm::length(_angularVelocity) > 5.0f) {
+			glm::vec3 nrm; nrm.x = _angularVelocity.x; nrm.y = _angularVelocity.y; nrm.z = _angularVelocity.z;
+			nrm = glm::normalize(nrm);
+			_angularVelocity = nrm * 5.0f;
+		}
 
 		// Resolve collisions.
 		do {
@@ -5554,26 +5562,18 @@ namespace Engine {
 				auto velocityLength = glm::length(velocityAtPosition);
 				auto velocityDirection = velocityAtPosition; glm::normalize(velocityDirection);
 
-				// Clamp angular velocity
-				if (glm::length(_angularVelocity) > 5.0f) {
-					glm::vec3 nrm; nrm.x = _angularVelocity.x; nrm.y = _angularVelocity.y; nrm.z = _angularVelocity.z;
-					nrm = glm::normalize(nrm);
-					_angularVelocity = nrm * 5.0f;
-				}
-
 				if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) continue;
-				//if () continue;
 
 				CollisionContext collisionCtx = collisions[i];
 				// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
 				// and make the collision detection seem more accurate.
 				auto translationDelta = velocityLength * physicsDeltaTime * 0.001f;
 				_pGameObject->_localTransform.Translate(averageCollisionNormal * 0.01f);
+
 				for (int j = 0; j < 20; ++j) {
 					if (glm::dot(velocityAtPosition, averageCollisionNormal) > 0) break;
 					//_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
 					//collisionCtx = DetectCollision(*collisionCtx._collidee);
-					std::cout << _velocity << std::endl;
 					AddForceAtPosition(averageCollisionNormal, averageCollisionPosition, 1.0f, true, true, true);
 					collisions[i]._collidee->AddForceAtPosition(-averageCollisionNormal, averageCollisionPosition, 1.0f);
 					velocityAtPosition = GetVelocityAtPosition(averageCollisionPosition);
