@@ -4297,7 +4297,7 @@ namespace Engine {
 
 			VkPushConstantRange range = {};
 			range.offset = 0;
-			range.size = sizeof(glm::mat4) * 2;
+			range.size = 144;
 			range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
 			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
@@ -4325,7 +4325,7 @@ namespace Engine {
 
 		static VkResult Dispatch(VkContext& ctx, VkPipeline pipeline, VkPipelineLayout pipelineLayout,
 			VkDescriptorSet descriptorSet, std::vector<uint32_t>& workGroupCount,
-			const glm::mat4x4& objectToWorldA, const glm::mat4x4& objectToWorldB) {
+			const glm::mat4x4& objectToWorldA, const glm::mat4x4& objectToWorldB, uint32_t& objectAnormal) {
 			VkResult res = VK_SUCCESS;
 			VkCommandBuffer commandBuffer = { 0 };
 
@@ -4349,9 +4349,11 @@ namespace Engine {
 			struct PushConstants {
 				glm::mat4x4 localToWorldA;
 				glm::mat4x4 localToWorldB;
+				uint32_t objectAnormal;
 			} pushConstants;
 			pushConstants.localToWorldA = objectToWorldA;
 			pushConstants.localToWorldB = objectToWorldB;
+			pushConstants.objectAnormal = objectAnormal;
 
 			// Bind pipeline and push constants
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
@@ -4388,6 +4390,149 @@ namespace Engine {
 			return res;
 		}
 
+		// Push constants structure
+		struct PushConstants {
+			glm::mat4 localToWorldA;
+			glm::mat4 localToWorldB;
+			uint32_t objectAnormal;
+		};
+
+		// Buffer structures (mimicking shader storage buffers)
+		struct VertexBufferA {
+			glm::vec4* vertices;
+			int count;
+		};
+
+		struct IndexBufferA {
+			uint32_t* indices;
+			int count;
+		};
+
+		struct VertexBufferB {
+			glm::vec4* vertices;
+			int count;
+		};
+
+		struct IndexBufferB {
+			uint32_t* indices;
+			int count;
+		};
+
+		struct Results {
+			std::vector<glm::vec4> intersectionInfo; // Stores intersection positions and normals
+		};
+
+		// Ray-Triangle intersection function
+		static bool RayTriangleIntersect(const glm::vec3& ro, const glm::vec3& rd,
+			const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2,
+			glm::vec3& intersection) {
+			glm::vec3 e1 = v1 - v0;
+			glm::vec3 e2 = v2 - v0;
+			glm::vec3 h = glm::cross(rd, e2);
+			float a = glm::dot(e1, h);
+			if (std::abs(a) < 0.0001f) return false;
+
+			float f = 1.0f / a;
+			glm::vec3 s = ro - v0;
+			float u = f * glm::dot(s, h);
+			if (u < 0.0f || u > 1.0f) return false;
+
+			glm::vec3 q = glm::cross(s, e1);
+			float v = f * glm::dot(rd, q);
+			if (v < 0.0f || u + v > 1.0f) return false;
+
+			float t = f * glm::dot(e2, q);
+			if (t > 0.0f && t < 1.0f) {
+				intersection = ro + rd * t;
+				return true;
+			}
+			return false;
+		}
+
+		// Main compute function
+		static void ComputeIntersection(const PushConstants& pc,
+			const VertexBufferA& vertexBufferA,
+			const IndexBufferA& indexBufferA,
+			const VertexBufferB& vertexBufferB,
+			const IndexBufferB& indexBufferB,
+			Results& results,
+			uint32_t triIdxA) {
+			// Calculate face count for object A
+			uint32_t faceCountA = static_cast<uint32_t>(indexBufferA.count / 3);
+
+			// Initialize output buffer
+			if (results.intersectionInfo.size() < 2 * faceCountA) {
+				results.intersectionInfo.resize(2 * faceCountA, glm::vec4(std::numeric_limits<float>::max()));
+			}
+
+			// Default values
+			results.intersectionInfo[triIdxA] = glm::vec4(std::numeric_limits<float>::max()); // Position default
+			results.intersectionInfo[triIdxA + faceCountA] = glm::vec4(std::numeric_limits<float>::max()); // Normal default, w = no hit
+
+			// Get indices for triangle A
+			uint32_t idxA = triIdxA * 3;
+			if (idxA + 2 >= indexBufferA.count) return;
+
+			uint32_t i0 = indexBufferA.indices[idxA + 0];
+			uint32_t i1 = indexBufferA.indices[idxA + 1];
+			uint32_t i2 = indexBufferA.indices[idxA + 2];
+
+			// Load vertices and transform to world space
+			glm::vec3 a0 = glm::vec3(pc.localToWorldA * vertexBufferA.vertices[i0]);
+			glm::vec3 a1 = glm::vec3(pc.localToWorldA * vertexBufferA.vertices[i1]);
+			glm::vec3 a2 = glm::vec3(pc.localToWorldA * vertexBufferA.vertices[i2]);
+
+			glm::vec3 intersection;
+			bool intersectionFound = false;
+
+			// Calculate face count for object B
+			uint32_t faceCountB = static_cast<uint32_t>(indexBufferB.count / 3);
+
+			glm::vec3 normalA = -normalize(cross(a1 - a0, a2 - a0));
+
+			// Iterate over triangles in object B
+			for (uint32_t faceIdx = 0; faceIdx < faceCountB && !intersectionFound; ++faceIdx) {
+				uint32_t idxB = faceIdx * 3;
+
+				// Bounds check
+				if (idxB + 2 >= indexBufferB.count) break;
+
+				uint32_t j0 = indexBufferB.indices[idxB + 0];
+				uint32_t j1 = indexBufferB.indices[idxB + 1];
+				uint32_t j2 = indexBufferB.indices[idxB + 2];
+
+				glm::vec3 b0 = glm::vec3(pc.localToWorldB * vertexBufferB.vertices[j0]);
+				glm::vec3 b1 = glm::vec3(pc.localToWorldB * vertexBufferB.vertices[j1]);
+				glm::vec3 b2 = glm::vec3(pc.localToWorldB * vertexBufferB.vertices[j2]);
+
+				glm::vec3 normalB = -normalize(cross(b1 - b0, b2 - b0));
+				glm::vec4 normal = pc.objectAnormal ? glm::vec4(normalA, 1.0) : glm::vec4(normalB, 1.0);
+
+				// Test rays from triangle A against triangle B
+				if (RayTriangleIntersect(a0, a1 - a0, b0, b1, b2, intersection) ||
+					RayTriangleIntersect(a1, a2 - a1, b0, b1, b2, intersection) ||
+					RayTriangleIntersect(a2, a0 - a2, b0, b1, b2, intersection)) {
+
+					results.intersectionInfo[triIdxA] = glm::vec4(intersection, 1.0f); // Position, w = 1.0 indicates normal from object B
+					results.intersectionInfo[triIdxA + faceCountA] = normal; // Normal, w = 1.0
+					DebugBreak();
+					intersectionFound = true;
+				}
+
+				// Test rays from triangle B against triangle A
+				if (!intersectionFound) {
+					if (RayTriangleIntersect(b0, b1 - b0, a0, a1, a2, intersection) ||
+						RayTriangleIntersect(b1, b2 - b1, a0, a1, a2, intersection) ||
+						RayTriangleIntersect(b2, b0 - b2, a0, a1, a2, intersection)) {
+
+						DebugBreak();
+						results.intersectionInfo[triIdxA] = glm::vec4(intersection, 0.0f); // Position, w = 0.0 indicates normal from object A
+						results.intersectionInfo[triIdxA + faceCountA] = normal; // Normal, w = 0.0
+					}
+				}
+			}
+		}
+
 		static CollisionContext Run(VkContext& collisionCtx, RigidBody& bodyA, RigidBody& bodyB, bool& outCollided) {
 			// Get device properties and memory properties, if needed.
 			VkPhysicalDeviceProperties gpuProperties;
@@ -4399,11 +4544,13 @@ namespace Engine {
 			// We want one GPU thread to operate on a single value from the input buffer, so the required thread size is the input buffer size.
 			RigidBody* a = &bodyA;
 			RigidBody* b = &bodyB;
-			
+			uint32_t objectAnormal = 0;
+
 			if (a->_pGameObject->_pMesh->_vertices._vertexData.size() < b->_pGameObject->_pMesh->_vertices._vertexData.size()) {
-				auto tmp = b; 
-				b = a; 
-				a = tmp; 
+				auto tmp = b;
+				b = a;
+				a = tmp;
+				objectAnormal = 1;
 			}
 
 			auto& aVertices = a->_pGameObject->_pMesh->_vertices._vertexData;
@@ -4456,7 +4603,7 @@ namespace Engine {
 			//	}
 			//}
 
-			// Create the input buffer.
+			// Create all the buffers.
 			VkResult res = VK_SUCCESS;
 			Buffer vertexBufferA, indexBufferA, vertexBufferB, indexBufferB, outputBuffer;
 
@@ -4526,7 +4673,35 @@ namespace Engine {
 			auto aTransform = a->_pGameObject->GetWorldSpaceTransform()._matrix;
 			auto bTransform = b->_pGameObject->GetWorldSpaceTransform()._matrix;
 
-			if (Dispatch(collisionCtx, pipeline, layout, descriptorSet, workGroupCount, aTransform, bTransform) != VK_SUCCESS) {
+			PushConstants pc;
+			pc.localToWorldA = aTransform;
+			pc.localToWorldB = bTransform;
+			pc.objectAnormal = objectAnormal;
+
+			VertexBufferA vba;
+			vba.vertices = dataInputBufferA;
+			vba.count = aVertices.size();
+
+			IndexBufferA iba;
+			iba.indices = aIndices.data();
+			iba.count = aIndices.size();
+
+			VertexBufferB vbb;
+			vbb.vertices = dataInputBufferB;
+			vbb.count = bVertices.size();
+
+			IndexBufferB ibb;
+			ibb.indices = bIndices.data();
+			ibb.count = bIndices.size();
+
+			Results resu;
+			resu.intersectionInfo = std::vector<glm::vec4>(aVertices.size());
+
+			for (int i = 0; i < aVertices.size(); ++i) {
+				ComputeIntersection(pc, vba, iba, vbb, ibb, resu, i);
+			}
+
+			if (Dispatch(collisionCtx, pipeline, layout, descriptorSet, workGroupCount, aTransform, bTransform, objectAnormal) != VK_SUCCESS) {
 				std::cout << "Application run failed." << std::endl;
 			}
 
@@ -5389,6 +5564,8 @@ namespace Engine {
 				if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) continue;
 				//if () continue;
 
+				std::cout << averageCollisionNormal << std::endl;
+
 				CollisionContext collisionCtx = collisions[i];
 				// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
 				// and make the collision detection seem more accurate.
@@ -5397,7 +5574,8 @@ namespace Engine {
 					if (glm::dot(velocityAtPosition, averageCollisionNormal) > 0) break;
 					//_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
 					//collisionCtx = DetectCollision(*collisionCtx._collidee);
-					auto f = (averageCollisionNormal * glm::dot(-velocityAtPosition, averageCollisionNormal)) + (averageCollisionNormal * 0.2f);
+					_pGameObject->_localTransform.Translate(averageCollisionNormal * 0.01f);
+					auto f = averageCollisionNormal * glm::dot(-velocityAtPosition, averageCollisionNormal);
 					AddForceAtPosition(f, averageCollisionPosition, 1.0f, true, true, true);
 					collisions[i]._collidee->AddForceAtPosition(-f, averageCollisionPosition, 1.0f);
 					velocityAtPosition = GetVelocityAtPosition(averageCollisionPosition);
@@ -5415,8 +5593,6 @@ namespace Engine {
 
 		_pGameObject->_localTransform.RotateAroundPosition(wscom, glm::normalize(_angularVelocity), glm::length(_angularVelocity) * deltaTimeSeconds);
 		_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
-
-		std::cout << "Physics delta time: " << eCtx._time._physicsDeltaTime << "\n";
 	}
 
 	bool RigidBody::IsRotationLocked() { return _lockRotationX && _lockRotationY && _lockRotationZ; }
