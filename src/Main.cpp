@@ -4697,9 +4697,9 @@ namespace Engine {
 			Results resu;
 			resu.intersectionInfo = std::vector<glm::vec4>(aVertices.size());
 
-			for (int i = 0; i < aVertices.size(); ++i) {
+			/*for (int i = 0; i < aVertices.size(); ++i) {
 				ComputeIntersection(pc, vba, iba, vbb, ibb, resu, i);
-			}
+			}*/
 
 			if (Dispatch(collisionCtx, pipeline, layout, descriptorSet, workGroupCount, aTransform, bTransform, objectAnormal) != VK_SUCCESS) {
 				std::cout << "Application run failed." << std::endl;
@@ -4732,7 +4732,7 @@ namespace Engine {
 					shaderOutputBufferData[i + faceCount].w == 3.402823466e+38f)
 					continue;
 				outCollided = true;
-				outCollisionCtx._collidee = shaderOutputBufferData[i].w == 0.0f ? a : b;
+				outCollisionCtx._collidee = &bodyB;
 				outCollisionCtx._collisionPositions.push_back(shaderOutputBufferData[i]);
 				outCollisionCtx._collisionNormals.push_back(shaderOutputBufferData[i + faceCount]);
 				outCollisionCtx._collisionObjects.push_back(shaderOutputBufferData[i].w == 0.0f ? a : b);
@@ -5564,20 +5564,18 @@ namespace Engine {
 				if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) continue;
 				//if () continue;
 
-				std::cout << averageCollisionNormal << std::endl;
-
 				CollisionContext collisionCtx = collisions[i];
 				// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
 				// and make the collision detection seem more accurate.
 				auto translationDelta = velocityLength * physicsDeltaTime * 0.001f;
+				_pGameObject->_localTransform.Translate(averageCollisionNormal * 0.01f);
 				for (int j = 0; j < 20; ++j) {
 					if (glm::dot(velocityAtPosition, averageCollisionNormal) > 0) break;
 					//_pGameObject->_localTransform.Translate(averageCollisionNormal * translationDelta);
 					//collisionCtx = DetectCollision(*collisionCtx._collidee);
-					_pGameObject->_localTransform.Translate(averageCollisionNormal * 0.01f);
-					auto f = averageCollisionNormal * glm::dot(-velocityAtPosition, averageCollisionNormal);
-					AddForceAtPosition(f, averageCollisionPosition, 1.0f, true, true, true);
-					collisions[i]._collidee->AddForceAtPosition(-f, averageCollisionPosition, 1.0f);
+					std::cout << _velocity << std::endl;
+					AddForceAtPosition(averageCollisionNormal, averageCollisionPosition, 1.0f, true, true, true);
+					collisions[i]._collidee->AddForceAtPosition(-averageCollisionNormal, averageCollisionPosition, 1.0f);
 					velocityAtPosition = GetVelocityAtPosition(averageCollisionPosition);
 				}
 
@@ -6061,10 +6059,10 @@ namespace Engine {
 		const char* pMsg,
 		void* pUserData) {
 		if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
-			Logger::Log("ERROR: [" + std::string(pLayerPrefix) + "] Code " + std::to_string(msgCode) + " : " + pMsg);
+			//Logger::Log("ERROR: [" + std::string(pLayerPrefix) + "] Code " + std::to_string(msgCode) + " : " + pMsg);
 		}
 		else if (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT) {
-			Logger::Log("WARNING: [" + std::string(pLayerPrefix) + "] Code " + std::to_string(msgCode) + " : " + pMsg);
+			//Logger::Log("WARNING: [" + std::string(pLayerPrefix) + "] Code " + std::to_string(msgCode) + " : " + pMsg);
 		}
 
 		return VK_FALSE;
