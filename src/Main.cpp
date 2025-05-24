@@ -3779,6 +3779,8 @@ namespace Engine {
 		 */
 		glm::vec3 _angularVelocity = glm::vec3(0.0f, 0.0f, 0.0f);
 
+		glm::vec3 _lastAngularVelocity = glm::vec3(0.0f, 0.0f, 0.0f);
+
 		/**
 		 * @brief Mass in kg.
 		 */
@@ -3841,9 +3843,30 @@ namespace Engine {
 		 */
 		int _continuousCollisionThresholdMilliseconds = 100;
 
+		/**
+		 * @brief The maximum time allowed between an angular velocity oscillation and another. If an oscillation happens quicker than this time, it is considered twitching.
+		 */
+		int _twitchingDetectionThresholdMilliseconds = 150;
+
 		std::chrono::high_resolution_clock::time_point _lastTimeCollided;
 
-		float _clampAngularVelocity = 2.0f;
+		/**
+		 * @brief Last time an angular velocity oscillation was detected.
+		 */
+		std::chrono::high_resolution_clock::time_point _lastTimeTwitched;
+
+		/**
+		 * @brief Number of times twitching was detected, increased when an angular velocity oscillation is detected and happens within the twitching time threshold from the last oscillation.
+		 */
+		int _twitchCount;
+
+		/**
+		 * @brief Twitch count threshold. If the twitch count is above this number, the angular velocity and the velocity are both set to zero, as it is assumed that the
+		 * object is at a resting position, and keeps chaning angular velocity really quickly due to collision detection and response inaccuracies.
+		 */
+		int _twitchCountThreshold = 3;
+
+		float _maxAgularVelocity = 5.0f;
 
 		/**
 		 * @brief True if the body has been colliding for longer than the continuous collision threshold, and false if it has not been colliding for longer than said threshold.
@@ -5604,7 +5627,7 @@ namespace Engine {
 		float deltaTimeSeconds = (float)eCtx._time._physicsDeltaTime * 0.001f;
 		auto speed = glm::length(_velocity);
 		if (IsRotationLocked() && IsTranslationLocked()) return;
-		if (_isColliding && speed < 0.1f) return;
+		if (_isColliding && speed < 0.05f) return;
 		if (_isAffectedByGravity) AddForce(gGravity, deltaTimeSeconds, true);
 
 		// Approximate air resistance/rotational friction.
@@ -5615,7 +5638,7 @@ namespace Engine {
 		auto wscom = GetCenterOfMass(true);
 
 		// Clamp angular velocity
-		if (glm::length(_angularVelocity) > 5.0f) {
+		if (glm::length(_angularVelocity) > _maxAgularVelocity) {
 			glm::vec3 nrm; nrm.x = _angularVelocity.x; nrm.y = _angularVelocity.y; nrm.z = _angularVelocity.z;
 			nrm = glm::normalize(nrm);
 			_angularVelocity = nrm * 5.0f;
@@ -5629,6 +5652,7 @@ namespace Engine {
 
 			// Detect continuous collision
 			bool isOverCollisionThreshold = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - _lastTimeCollided).count() > _continuousCollisionThresholdMilliseconds;
+
 			if (collisions.size() > 0) {
 				if (isOverCollisionThreshold) _isColliding = true;
 				_lastTimeCollided = std::chrono::high_resolution_clock::now();
@@ -5671,8 +5695,23 @@ namespace Engine {
 					? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeSeconds
 					: glm::vec3(0.0f, 0.0f, 0.0f);
 				AddForceAtPosition(-frictionComponent * 4.0f, averageCollisionPosition, 1.0f);
+
+
+				// Detect twitching (fast angular velocity oscillations when an object is almost at its resting position)
+				if (glm::dot(_lastAngularVelocity, _angularVelocity) < 0.0f && _isColliding) {
+					auto isOverTwitchingThreshold = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - _lastTimeTwitched).count() > _twitchingDetectionThresholdMilliseconds;
+					_lastTimeTwitched = std::chrono::high_resolution_clock::now();
+					if (isOverTwitchingThreshold) { _twitchCount = 0; continue; }
+					++_twitchCount;
+					if (_twitchCount < 3) continue;
+					_velocity *= 0.0f;
+					_angularVelocity *= 0.0f;
+					return;
+				}
 			}
 		} while (false);
+
+		_lastAngularVelocity = _angularVelocity;
 
 		_pGameObject->_localTransform.RotateAroundPosition(wscom, glm::normalize(_angularVelocity), glm::length(_angularVelocity) * deltaTimeSeconds);
 		_pGameObject->_localTransform.Translate(_velocity * deltaTimeSeconds);
