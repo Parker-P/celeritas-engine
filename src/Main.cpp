@@ -998,6 +998,12 @@ namespace Engine {
 
 			return shaderModule;
 		}
+
+		static void DesktroyBuffer(VkDevice& logicalDevice, VkBuffer& buffer, VkDeviceMemory& gpuMemory) {
+			vkDestroyBuffer(logicalDevice, buffer, nullptr);
+			if (gpuMemory)
+				vkFreeMemory(logicalDevice, gpuMemory, nullptr);
+		}
 	};
 
 	struct Buffer {
@@ -4768,20 +4774,11 @@ namespace Engine {
 				outCollisionCtx._collisionObjects.push_back(shaderOutputBufferData[i].w == 0.0f ? a : b);
 			}
 
-			vkDestroyBuffer(collisionCtx._logicalDevice, vertexBufferA._buffer, nullptr);
-			vkFreeMemory(collisionCtx._logicalDevice, vertexBufferA._gpuMemory, nullptr);
-
-			vkDestroyBuffer(collisionCtx._logicalDevice, indexBufferA._buffer, nullptr);
-			vkFreeMemory(collisionCtx._logicalDevice, indexBufferA._gpuMemory, nullptr);
-
-			vkDestroyBuffer(collisionCtx._logicalDevice, vertexBufferB._buffer, nullptr);
-			vkFreeMemory(collisionCtx._logicalDevice, vertexBufferB._gpuMemory, nullptr);
-
-			vkDestroyBuffer(collisionCtx._logicalDevice, indexBufferB._buffer, nullptr);
-			vkFreeMemory(collisionCtx._logicalDevice, indexBufferB._gpuMemory, nullptr);
-
-			vkDestroyBuffer(collisionCtx._logicalDevice, outputBuffer._buffer, nullptr);
-			vkFreeMemory(collisionCtx._logicalDevice, outputBuffer._gpuMemory, nullptr);
+			VkHelper::DesktroyBuffer(collisionCtx._logicalDevice, vertexBufferA._buffer, vertexBufferA._gpuMemory);
+			VkHelper::DesktroyBuffer(collisionCtx._logicalDevice, indexBufferA._buffer, indexBufferA._gpuMemory);
+			VkHelper::DesktroyBuffer(collisionCtx._logicalDevice, vertexBufferB._buffer, vertexBufferB._gpuMemory);
+			VkHelper::DesktroyBuffer(collisionCtx._logicalDevice, indexBufferB._buffer, indexBufferB._gpuMemory);
+			VkHelper::DesktroyBuffer(collisionCtx._logicalDevice, outputBuffer._buffer, outputBuffer._gpuMemory);
 
 			free(shaderOutputBufferData);
 			free(dataInputBufferA);
@@ -6193,10 +6190,10 @@ namespace Engine {
 		const char* pMsg,
 		void* pUserData) {
 		if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) {
-			//Logger::Log("ERROR: [" + std::string(pLayerPrefix) + "] Code " + std::to_string(msgCode) + " : " + pMsg);
+			Logger::Log("ERROR: [" + std::string(pLayerPrefix) + "] Code " + std::to_string(msgCode) + " : " + pMsg);
 		}
 		else if (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT) {
-			//Logger::Log("WARNING: [" + std::string(pLayerPrefix) + "] Code " + std::to_string(msgCode) + " : " + pMsg);
+			Logger::Log("WARNING: [" + std::string(pLayerPrefix) + "] Code " + std::to_string(msgCode) + " : " + pMsg);
 		}
 
 		return VK_FALSE;
