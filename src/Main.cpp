@@ -4096,10 +4096,12 @@ namespace Engine {
 			if (totalWorkGroupSize < minimumThreadCount) {
 				for (int i = 0; i < 3; ++i) {
 					for (; outWorkGroupCount[i] < maxWorkGroupCount[i]; ++outWorkGroupCount[i]) {
-						if (((outWorkGroupCount[0] * outWorkGroupCount[1] * outWorkGroupCount[2]) * totalWorkGroupSize) >= minimumThreadCount) { break; }
+						if (((outWorkGroupCount[0] * outWorkGroupCount[1] * outWorkGroupCount[2]) * totalWorkGroupSize) >= minimumThreadCount) { return outWorkGroupCount; }
 					}
 				}
 			}
+
+			return { 0,0,0 };
 		}
 
 		static VkResult AllocateGPUOnlyBuffer(VkBufferUsageFlags bufferUsageFlags, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize bufferSizeBytes, VkContext& ctx, VkBuffer* outBuffer, VkDeviceMemory* outDeviceMemory) {
@@ -4767,10 +4769,20 @@ namespace Engine {
 			}
 
 			vkDestroyBuffer(collisionCtx._logicalDevice, vertexBufferA._buffer, nullptr);
+			vkFreeMemory(collisionCtx._logicalDevice, vertexBufferA._gpuMemory, nullptr);
+
 			vkDestroyBuffer(collisionCtx._logicalDevice, indexBufferA._buffer, nullptr);
+			vkFreeMemory(collisionCtx._logicalDevice, indexBufferA._gpuMemory, nullptr);
+
 			vkDestroyBuffer(collisionCtx._logicalDevice, vertexBufferB._buffer, nullptr);
+			vkFreeMemory(collisionCtx._logicalDevice, vertexBufferB._gpuMemory, nullptr);
+
 			vkDestroyBuffer(collisionCtx._logicalDevice, indexBufferB._buffer, nullptr);
+			vkFreeMemory(collisionCtx._logicalDevice, indexBufferB._gpuMemory, nullptr);
+
 			vkDestroyBuffer(collisionCtx._logicalDevice, outputBuffer._buffer, nullptr);
+			vkFreeMemory(collisionCtx._logicalDevice, outputBuffer._gpuMemory, nullptr);
+
 			free(shaderOutputBufferData);
 			free(dataInputBufferA);
 			free(dataInputBufferB);
