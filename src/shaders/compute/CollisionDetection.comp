@@ -1,3 +1,13 @@
+// Primary Goal:
+// To determine if there is a collision (intersection) between triangles in object A and object B — with object A typically represented as edges, and object B as solid triangle geometry. The shader outputs:
+// - The intersection point.
+// - The collision surface normal.
+// - A flag indicating which object the normal belongs to.
+// 
+// Each compute shader invocation (per thread) handles one triangle face from object A (based on its index in the index buffer).
+// It checks whether any edge of that triangle intersects any triangle in object B.
+// It also checks the reverse: whether any triangle from B intersects the triangle from A.
+
 #version 450
 #extension GL_EXT_nonuniform_qualifier : enable
 

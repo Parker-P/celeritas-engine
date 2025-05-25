@@ -4570,8 +4570,6 @@ namespace Engine {
 			vkGetPhysicalDeviceProperties(collisionCtx._physicalDevice, &gpuProperties);
 			vkGetPhysicalDeviceMemoryProperties(collisionCtx._physicalDevice, &gpuMemoryProperties);
 
-			// Calculate how many workgroups and the size of each workgroup we are going to use.
-			// We want one GPU thread to operate on a single value from the input buffer, so the required thread size is the input buffer size.
 			RigidBody* a = &bodyA;
 			RigidBody* b = &bodyB;
 			uint32_t objectAnormal = 0;
