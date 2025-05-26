@@ -977,8 +977,7 @@ namespace Engine {
 			VkHelper::ExecuteCommands(copyCommandBuffer, queue);
 
 			vkFreeCommandBuffers(logicalDevice, commandPool, 1, &copyCommandBuffer);
-			vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
-			vkFreeMemory(logicalDevice, bufferGpuMemory, nullptr);
+			VkHelper::DesktroyBuffer(logicalDevice, stagingBuffer, bufferGpuMemory);
 		}
 
 		static VkShaderModule CreateShaderModule(VkDevice logicalDevice, const char* absolutePath) {
@@ -3932,13 +3931,6 @@ namespace Engine {
 		 */
 		void Initialize(GameObject* pGameObject, const float& mass = 1.0f, const bool& overrideCenterOfMass = false, const glm::vec3& overriddenCenterOfMass = glm::vec3{});
 
-		glm::vec3 CalculateForceToStopVelocityAtPosition(
-			const glm::vec3& pointOfApplication,
-			const float& deltaTimeSeconds,
-			bool isApplicationPointWorldSpace,
-			bool returnForceInWorldSpace,
-			const bool& ignoreMass);
-
 		void PhysicsUpdate(VkContext& ctx, VkContext& collisionCtx, EngineContext& eCtx);
 
 		bool IsRotationLocked();
@@ -4424,149 +4416,6 @@ namespace Engine {
 			return res;
 		}
 
-		// Push constants structure
-		struct PushConstants {
-			glm::mat4 localToWorldA;
-			glm::mat4 localToWorldB;
-			uint32_t objectAnormal;
-		};
-
-		// Buffer structures (mimicking shader storage buffers)
-		struct VertexBufferA {
-			glm::vec4* vertices;
-			int count;
-		};
-
-		struct IndexBufferA {
-			uint32_t* indices;
-			int count;
-		};
-
-		struct VertexBufferB {
-			glm::vec4* vertices;
-			int count;
-		};
-
-		struct IndexBufferB {
-			uint32_t* indices;
-			int count;
-		};
-
-		struct Results {
-			std::vector<glm::vec4> intersectionInfo; // Stores intersection positions and normals
-		};
-
-		// Ray-Triangle intersection function
-		static bool RayTriangleIntersect(const glm::vec3& ro, const glm::vec3& rd,
-			const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2,
-			glm::vec3& intersection) {
-			glm::vec3 e1 = v1 - v0;
-			glm::vec3 e2 = v2 - v0;
-			glm::vec3 h = glm::cross(rd, e2);
-			float a = glm::dot(e1, h);
-			if (std::abs(a) < 0.0001f) return false;
-
-			float f = 1.0f / a;
-			glm::vec3 s = ro - v0;
-			float u = f * glm::dot(s, h);
-			if (u < 0.0f || u > 1.0f) return false;
-
-			glm::vec3 q = glm::cross(s, e1);
-			float v = f * glm::dot(rd, q);
-			if (v < 0.0f || u + v > 1.0f) return false;
-
-			float t = f * glm::dot(e2, q);
-			if (t > 0.0f && t < 1.0f) {
-				intersection = ro + rd * t;
-				return true;
-			}
-			return false;
-		}
-
-		// Main compute function
-		static void ComputeIntersection(const PushConstants& pc,
-			const VertexBufferA& vertexBufferA,
-			const IndexBufferA& indexBufferA,
-			const VertexBufferB& vertexBufferB,
-			const IndexBufferB& indexBufferB,
-			Results& results,
-			uint32_t triIdxA) {
-			// Calculate face count for object A
-			uint32_t faceCountA = static_cast<uint32_t>(indexBufferA.count / 3);
-
-			// Initialize output buffer
-			if (results.intersectionInfo.size() < 2 * faceCountA) {
-				results.intersectionInfo.resize(2 * faceCountA, glm::vec4(std::numeric_limits<float>::max()));
-			}
-
-			// Default values
-			results.intersectionInfo[triIdxA] = glm::vec4(std::numeric_limits<float>::max()); // Position default
-			results.intersectionInfo[triIdxA + faceCountA] = glm::vec4(std::numeric_limits<float>::max()); // Normal default, w = no hit
-
-			// Get indices for triangle A
-			uint32_t idxA = triIdxA * 3;
-			if (idxA + 2 >= indexBufferA.count) return;
-
-			uint32_t i0 = indexBufferA.indices[idxA + 0];
-			uint32_t i1 = indexBufferA.indices[idxA + 1];
-			uint32_t i2 = indexBufferA.indices[idxA + 2];
-
-			// Load vertices and transform to world space
-			glm::vec3 a0 = glm::vec3(pc.localToWorldA * vertexBufferA.vertices[i0]);
-			glm::vec3 a1 = glm::vec3(pc.localToWorldA * vertexBufferA.vertices[i1]);
-			glm::vec3 a2 = glm::vec3(pc.localToWorldA * vertexBufferA.vertices[i2]);
-
-			glm::vec3 intersection;
-			bool intersectionFound = false;
-
-			// Calculate face count for object B
-			uint32_t faceCountB = static_cast<uint32_t>(indexBufferB.count / 3);
-
-			glm::vec3 normalA = -normalize(cross(a1 - a0, a2 - a0));
-
-			// Iterate over triangles in object B
-			for (uint32_t faceIdx = 0; faceIdx < faceCountB && !intersectionFound; ++faceIdx) {
-				uint32_t idxB = faceIdx * 3;
-
-				// Bounds check
-				if (idxB + 2 >= indexBufferB.count) break;
-
-				uint32_t j0 = indexBufferB.indices[idxB + 0];
-				uint32_t j1 = indexBufferB.indices[idxB + 1];
-				uint32_t j2 = indexBufferB.indices[idxB + 2];
-
-				glm::vec3 b0 = glm::vec3(pc.localToWorldB * vertexBufferB.vertices[j0]);
-				glm::vec3 b1 = glm::vec3(pc.localToWorldB * vertexBufferB.vertices[j1]);
-				glm::vec3 b2 = glm::vec3(pc.localToWorldB * vertexBufferB.vertices[j2]);
-
-				glm::vec3 normalB = -normalize(cross(b1 - b0, b2 - b0));
-				glm::vec4 normal = pc.objectAnormal ? glm::vec4(normalA, 1.0) : glm::vec4(normalB, 1.0);
-
-				// Test rays from triangle A against triangle B
-				if (RayTriangleIntersect(a0, a1 - a0, b0, b1, b2, intersection) ||
-					RayTriangleIntersect(a1, a2 - a1, b0, b1, b2, intersection) ||
-					RayTriangleIntersect(a2, a0 - a2, b0, b1, b2, intersection)) {
-
-					results.intersectionInfo[triIdxA] = glm::vec4(intersection, 1.0f); // Position, w = 1.0 indicates normal from object B
-					results.intersectionInfo[triIdxA + faceCountA] = normal; // Normal, w = 1.0
-					DebugBreak();
-					intersectionFound = true;
-				}
-
-				// Test rays from triangle B against triangle A
-				if (!intersectionFound) {
-					if (RayTriangleIntersect(b0, b1 - b0, a0, a1, a2, intersection) ||
-						RayTriangleIntersect(b1, b2 - b1, a0, a1, a2, intersection) ||
-						RayTriangleIntersect(b2, b0 - b2, a0, a1, a2, intersection)) {
-
-						DebugBreak();
-						results.intersectionInfo[triIdxA] = glm::vec4(intersection, 0.0f); // Position, w = 0.0 indicates normal from object A
-						results.intersectionInfo[triIdxA + faceCountA] = normal; // Normal, w = 0.0
-					}
-				}
-			}
-		}
-
 		static CollisionContext Run(VkContext& collisionCtx, RigidBody& bodyA, RigidBody& bodyB, bool& outCollided) {
 			// Get device properties and memory properties, if needed.
 			VkPhysicalDeviceProperties gpuProperties;
@@ -4686,34 +4535,6 @@ namespace Engine {
 
 			auto aTransform = a->_pGameObject->GetWorldSpaceTransform()._matrix;
 			auto bTransform = b->_pGameObject->GetWorldSpaceTransform()._matrix;
-
-			//PushConstants pc;
-			//pc.localToWorldA = aTransform;
-			//pc.localToWorldB = bTransform;
-			//pc.objectAnormal = objectAnormal;
-
-			//VertexBufferA vba;
-			//vba.vertices = dataInputBufferA;
-			//vba.count = aVertices.size();
-
-			//IndexBufferA iba;
-			//iba.indices = aIndices.data();
-			//iba.count = aIndices.size();
-
-			//VertexBufferB vbb;
-			//vbb.vertices = dataInputBufferB;
-			//vbb.count = bVertices.size();
-
-			//IndexBufferB ibb;
-			//ibb.indices = bIndices.data();
-			//ibb.count = bIndices.size();
-
-			//Results resu;
-			//resu.intersectionInfo = std::vector<glm::vec4>(aVertices.size());
-
-			//for (int i = 0; i < aVertices.size(); ++i) {
-			//	ComputeIntersection(pc, vba, iba, vbb, ibb, resu, i);
-			//}
 
 			if (Dispatch(collisionCtx, pipeline, layout, descriptorSet, workGroupCount, aTransform, bTransform, objectAnormal) != VK_SUCCESS) {
 				std::cout << "Application run failed." << std::endl;
@@ -5528,82 +5349,6 @@ namespace Engine {
 	//		consideredBodies.push_back(collisions[i]._collidee);
 	//	}
 	//}
-
-	glm::vec3 RigidBody::CalculateForceToStopVelocityAtPosition(
-		const glm::vec3& pointOfApplication,
-		const float& deltaTimeSeconds,
-		bool isApplicationPointWorldSpace,
-		bool returnForceInWorldSpace,
-		const bool& ignoreMass)
-	{
-		// Get world-space transform and center of mass
-		auto worldSpaceTransform = _pGameObject->GetWorldSpaceTransform()._matrix;
-		auto worldSpaceCom = GetCenterOfMass(true);
-		auto worldSpacePointOfApplication = isApplicationPointWorldSpace
-			? pointOfApplication
-			: glm::vec3(worldSpaceTransform * glm::vec4(pointOfApplication, 1.0f));
-
-		// Calculate the velocity at the point of application
-		glm::vec3 r = worldSpacePointOfApplication - worldSpaceCom;
-		glm::vec3 tangentialVelocity = glm::cross(_angularVelocity, r);
-		glm::vec3 totalVelocityAtPoint = _velocity + tangentialVelocity;
-
-		// If velocity is already zero, no force is needed
-		if (Helpers::IsVectorZero(totalVelocityAtPoint, 0.001f)) {
-			return glm::vec3(0.0f);
-		}
-
-		// Step 1: Calculate force to cancel linear velocity
-		// Required delta velocity: -_velocity
-		glm::vec3 requiredLinearDeltaV = -_velocity;
-		requiredLinearDeltaV.x = _lockTranslationX ? 0.0f : requiredLinearDeltaV.x;
-		requiredLinearDeltaV.y = _lockTranslationY ? 0.0f : requiredLinearDeltaV.y;
-		requiredLinearDeltaV.z = _lockTranslationZ ? 0.0f : requiredLinearDeltaV.z;
-
-		// Force = mass * (deltaV / deltaTime) (F = m * a, a = deltaV / deltaTime)
-		float massFactor = ignoreMass ? 1.0f : _mass;
-		glm::vec3 linearForce = (requiredLinearDeltaV / deltaTimeSeconds) * massFactor;
-
-		// Step 2: Calculate force to cancel tangential velocity
-		// Tangential velocity = w x r
-		// We need to apply a torque to cancel _angularVelocity's contribution
-		// Torque = I * angularAcceleration, angularAcceleration = deltaOmega / deltaTime
-		glm::vec3 requiredDeltaOmega = -_angularVelocity;
-
-		// Approximate moment of inertia: I = m * ||r||^2
-		float rotationalInertia = ignoreMass ? glm::length(r) * glm::length(r) : _mass * glm::length(r) * glm::length(r);
-		if (rotationalInertia < 0.001f) {
-			// If point is at COM, no torque can be applied; rely on linear force only
-			return returnForceInWorldSpace
-				? linearForce
-				: glm::vec3(glm::inverse(worldSpaceTransform) * glm::vec4(linearForce, 1.0f));
-		}
-
-		// Torque = I * (deltaOmega / deltaTime)
-		glm::vec3 requiredTorque = (requiredDeltaOmega / deltaTimeSeconds) * rotationalInertia;
-
-		// Convert torque to force: t = r x F => F = (t x r) / ||r||^2
-		glm::vec3 forceDirection = glm::cross(requiredTorque, r);
-		float rSquared = glm::length(r) * glm::length(r);
-		glm::vec3 rotationalForce = forceDirection / rSquared;
-
-		// Total force combines linear and rotational components
-		glm::vec3 totalForce = linearForce + rotationalForce;
-
-		// Respect locked axes for the force
-		totalForce.x = _lockTranslationX ? 0.0f : totalForce.x;
-		totalForce.y = _lockTranslationY ? 0.0f : totalForce.y;
-		totalForce.z = _lockTranslationZ ? 0.0f : totalForce.z;
-
-		// Return force in the requested coordinate system
-		if (returnForceInWorldSpace) {
-			return totalForce;
-		}
-		else {
-			// Convert to local space
-			return glm::vec3(glm::inverse(worldSpaceTransform) * glm::vec4(totalForce, 1.0f));
-		}
-	}
 
 	void RigidBody::PhysicsUpdate(VkContext& ctx, VkContext& collisionCtx, EngineContext& eCtx) {
 		float deltaTimeSeconds = (float)eCtx._time._physicsDeltaTime * 0.001f;
