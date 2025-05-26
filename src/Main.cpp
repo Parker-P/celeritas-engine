@@ -5251,11 +5251,13 @@ namespace Engine {
 			//bool hasCollided = collision._collisionPositions.size() > 0;
 			bool hasCollided = false;
 
-			//auto start = std::chrono::high_resolution_clock::now();
+			auto start = std::chrono::high_resolution_clock::now();
 			auto collision = GpuCollisionDetector::Run(collisionCtx, *this, otherGameObjects[i]->_body, hasCollided);
-			//auto end = std::chrono::high_resolution_clock::now();
-			//auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-			//std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+			auto end = std::chrono::high_resolution_clock::now();
+			auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+			if (elapsed.count() > 10)
+				std::cout << "Elapsed time: " << elapsed.count() << " milliseconds" << std::endl;
+
 			if (!hasCollided) continue;
 			outCollisions.push_back(collision);
 			//if (collision._collisionPositions.size() > 0) outCollisions.push_back(collision);
