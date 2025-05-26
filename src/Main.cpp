@@ -978,6 +978,7 @@ namespace Engine {
 
 			vkFreeCommandBuffers(logicalDevice, commandPool, 1, &copyCommandBuffer);
 			vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
+			vkFreeMemory(logicalDevice, bufferGpuMemory, nullptr);
 		}
 
 		static VkShaderModule CreateShaderModule(VkDevice logicalDevice, const char* absolutePath) {
@@ -4719,8 +4720,6 @@ namespace Engine {
 			}
 
 			auto shaderOutputBufferData = (glm::vec4*)malloc(sizeOutputBytes);
-
-			CheckResult(vkGetFenceStatus(collisionCtx._logicalDevice, collisionCtx._queueFence));
 
 			//Transfer data from GPU using staging buffer, if needed
 			if (DownloadDataFromGPU(shaderOutputBufferData, sizeOutputBytes, collisionCtx, &outputBuffer._buffer) != VK_SUCCESS)
