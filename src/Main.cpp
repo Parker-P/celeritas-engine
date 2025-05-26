@@ -4280,8 +4280,7 @@ namespace Engine {
 			return res;
 		}
 
-		static VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilePath, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet) {
-			VkDescriptorPool descriptorPool;
+		static VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilePath, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet, VkDescriptorPool& outDescriptorPool) {
 			VkResult res = VK_SUCCESS;
 
 			// We now have 5 buffers: vertexA, indexA, vertexB, indexB, result
@@ -4297,10 +4296,8 @@ namespace Engine {
 				VK_DESCRIPTOR_TYPE_STORAGE_BUFFER  // output
 			};
 
-			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {
-				VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0, 1, 1, &descriptorPoolSize
-			};
-			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, nullptr, &descriptorPool));
+			VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, nullptr, 0, 1, 1, &descriptorPoolSize };
+			CheckResult(vkCreateDescriptorPool(ctx._logicalDevice, &descriptorPoolCreateInfo, nullptr, &outDescriptorPool));
 
 			VkDescriptorSetLayoutBinding* descriptorSetLayoutBindings = (VkDescriptorSetLayoutBinding*)malloc(descriptorCount * sizeof(VkDescriptorSetLayoutBinding));
 			for (uint32_t i = 0; i < descriptorCount; ++i) {
@@ -4318,9 +4315,7 @@ namespace Engine {
 			CheckResult(vkCreateDescriptorSetLayout(ctx._logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout));
 			free(descriptorSetLayoutBindings);
 
-			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
-				VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr, descriptorPool, 1, &descriptorSetLayout
-			};
+			VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, nullptr, outDescriptorPool, 1, &descriptorSetLayout };
 
 			CheckResult(vkAllocateDescriptorSets(ctx._logicalDevice, &descriptorSetAllocateInfo, &outDescriptorSet));
 
@@ -4357,7 +4352,7 @@ namespace Engine {
 
 			res = vkCreateComputePipelines(ctx._logicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &outPipeline);
 			vkDestroyShaderModule(ctx._logicalDevice, shaderModule, nullptr);
-
+			vkDestroyDescriptorSetLayout(ctx._logicalDevice, descriptorSetLayout, nullptr);
 			return res;
 		}
 
@@ -4621,24 +4616,6 @@ namespace Engine {
 
 			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, (uint32_t)outputCount, { 256, 1, 1 });
 
-			//use default values if coalescedMemory = 0
-			//if (_coalescedMemory == 0) {
-			//	switch (_physicalDeviceProperties.vendorID) {
-			//	case 0x10DE://NVIDIA - change to 128 before Pascal
-			//		_coalescedMemory = 32;
-			//		break;
-			//	case 0x8086://INTEL
-			//		_coalescedMemory = 64;
-			//		break;
-			//	case 0x13B5://AMD
-			//		_coalescedMemory = 64;
-			//		break;
-			//	default:
-			//		_coalescedMemory = 64;
-			//		break;
-			//	}
-			//}
-
 			// Create all the buffers.
 			VkResult res = VK_SUCCESS;
 			Buffer vertexBufferA, indexBufferA, vertexBufferB, indexBufferB, outputBuffer;
@@ -4695,47 +4672,47 @@ namespace Engine {
 				sizeIndexA_bytes,
 				sizeB_bytes,
 				sizeIndexB_bytes,
-				sizeOutputBytes // same size as input for simplicity
+				sizeOutputBytes
 			};
 
 			// Create 
 			//const char* shaderPath = "C:\\code\\vulkan-compute\\shaders\\Shader.spv";
 			auto shaderPath = Paths::ShadersPath() /= L"compute\\CollisionDetection.spv";
-			VkPipeline pipeline; VkPipelineLayout layout; VkDescriptorSet descriptorSet;
-			if (CreateComputePipeline(buffers, bufferSizes, shaderPath.string().c_str(), collisionCtx, pipeline, layout, descriptorSet) != VK_SUCCESS) {
+			VkPipeline pipeline; VkPipelineLayout layout; VkDescriptorSet descriptorSet; VkDescriptorPool descriptorPool;
+			if (CreateComputePipeline(buffers, bufferSizes, shaderPath.string().c_str(), collisionCtx, pipeline, layout, descriptorSet, descriptorPool) != VK_SUCCESS) {
 				std::cout << "Application creation failed." << std::endl;
 			}
 
 			auto aTransform = a->_pGameObject->GetWorldSpaceTransform()._matrix;
 			auto bTransform = b->_pGameObject->GetWorldSpaceTransform()._matrix;
 
-			PushConstants pc;
-			pc.localToWorldA = aTransform;
-			pc.localToWorldB = bTransform;
-			pc.objectAnormal = objectAnormal;
+			//PushConstants pc;
+			//pc.localToWorldA = aTransform;
+			//pc.localToWorldB = bTransform;
+			//pc.objectAnormal = objectAnormal;
 
-			VertexBufferA vba;
-			vba.vertices = dataInputBufferA;
-			vba.count = aVertices.size();
+			//VertexBufferA vba;
+			//vba.vertices = dataInputBufferA;
+			//vba.count = aVertices.size();
 
-			IndexBufferA iba;
-			iba.indices = aIndices.data();
-			iba.count = aIndices.size();
+			//IndexBufferA iba;
+			//iba.indices = aIndices.data();
+			//iba.count = aIndices.size();
 
-			VertexBufferB vbb;
-			vbb.vertices = dataInputBufferB;
-			vbb.count = bVertices.size();
+			//VertexBufferB vbb;
+			//vbb.vertices = dataInputBufferB;
+			//vbb.count = bVertices.size();
 
-			IndexBufferB ibb;
-			ibb.indices = bIndices.data();
-			ibb.count = bIndices.size();
+			//IndexBufferB ibb;
+			//ibb.indices = bIndices.data();
+			//ibb.count = bIndices.size();
 
-			Results resu;
-			resu.intersectionInfo = std::vector<glm::vec4>(aVertices.size());
+			//Results resu;
+			//resu.intersectionInfo = std::vector<glm::vec4>(aVertices.size());
 
-			/*for (int i = 0; i < aVertices.size(); ++i) {
-				ComputeIntersection(pc, vba, iba, vbb, ibb, resu, i);
-			}*/
+			//for (int i = 0; i < aVertices.size(); ++i) {
+			//	ComputeIntersection(pc, vba, iba, vbb, ibb, resu, i);
+			//}
 
 			if (Dispatch(collisionCtx, pipeline, layout, descriptorSet, workGroupCount, aTransform, bTransform, objectAnormal) != VK_SUCCESS) {
 				std::cout << "Application run failed." << std::endl;
@@ -4743,17 +4720,11 @@ namespace Engine {
 
 			auto shaderOutputBufferData = (glm::vec4*)malloc(sizeOutputBytes);
 
-			res = vkGetFenceStatus(collisionCtx._logicalDevice, collisionCtx._queueFence);
+			CheckResult(vkGetFenceStatus(collisionCtx._logicalDevice, collisionCtx._queueFence));
 
 			//Transfer data from GPU using staging buffer, if needed
 			if (DownloadDataFromGPU(shaderOutputBufferData, sizeOutputBytes, collisionCtx, &outputBuffer._buffer) != VK_SUCCESS)
 				std::cout << "Failed downloading data from GPU." << std::endl;
-
-			// Free resources.
-			//vkDestroyBuffer(ctx._logicalDevice, inputBuffer._buffer, nullptr);
-			//vkFreeMemory(ctx._logicalDevice, inputBuffer._gpuMemory, nullptr);
-			//vkDestroyBuffer(ctx._logicalDevice, outputBuffer._buffer, nullptr);
-			//vkFreeMemory(ctx._logicalDevice, outputBuffer._gpuMemory, nullptr);
 
 			// Convert GPU results into collision context info
 			CollisionContext outCollisionCtx;
@@ -4774,6 +4745,11 @@ namespace Engine {
 				outCollisionCtx._collisionObjects.push_back(shaderOutputBufferData[i].w == 0.0f ? a : b);
 			}
 
+			// Clean up
+			vkDestroyPipeline(collisionCtx._logicalDevice, pipeline, nullptr);
+			vkDestroyPipelineLayout(collisionCtx._logicalDevice, layout, nullptr);
+			vkDestroyDescriptorPool(collisionCtx._logicalDevice, descriptorPool, nullptr);
+
 			VkHelper::DesktroyBuffer(collisionCtx._logicalDevice, vertexBufferA._buffer, vertexBufferA._gpuMemory);
 			VkHelper::DesktroyBuffer(collisionCtx._logicalDevice, indexBufferA._buffer, indexBufferA._gpuMemory);
 			VkHelper::DesktroyBuffer(collisionCtx._logicalDevice, vertexBufferB._buffer, vertexBufferB._gpuMemory);
@@ -4783,8 +4759,6 @@ namespace Engine {
 			free(shaderOutputBufferData);
 			free(dataInputBufferA);
 			free(dataInputBufferB);
-
-			if (!outCollided) return outCollisionCtx;
 
 			return outCollisionCtx;
 		}
