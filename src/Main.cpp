@@ -3872,7 +3872,7 @@ namespace Engine {
 		 */
 		int _twitchCountThreshold = 3;
 
-		float _maxAgularVelocity = 5.0f;
+		float _maxAngularSpeed = 5.0f;
 
 		/**
 		 * @brief True if the body has been colliding for longer than the continuous collision threshold, and false if it has not been colliding for longer than said threshold.
@@ -5334,25 +5334,10 @@ namespace Engine {
 		GlobalSettings& _globalSettings = Engine::GlobalSettings::Instance();
 	};
 
-	//void CalculateTransmittedForceRecursively(RigidBody* transmitter, RigidBody* receiver, glm::vec3 transmitterVelocity, glm::vec3& collisionPosition, glm::vec3& collisionNormal, glm::vec3& outForce, std::vector<RigidBody*> consideredBodies) {
-	//	//if (transmitter->_pGameObject->_name == "StationaryCube" && receiver->_pGameObject->_name == "FreeCube") DebugBreak();
-	//	if (receiver->IsRotationLocked() && receiver->IsTranslationLocked()) { outForce = glm::vec3(0.0f, 0.0f, 0.0f); return; }
-	//	auto normalizedForce = outForce; glm::normalize(normalizedForce);
-	//	//outForce = RigidBody::CalculateTransmittedForce(collisionPosition, normalizedForce * glm::dot(transmitter->_mass * transmitterVelocity, collisionNormal), receiver->GetCenterOfMass(true));
-	//	auto scaleFactor = abs(glm::dot(transmitter->_mass * transmitterVelocity, collisionNormal));
-	//	if (scaleFactor > 0.0f) outForce *= scaleFactor;
-	//	consideredBodies.push_back(receiver);
-	//	auto collisions = receiver->DetectCollisions(consideredBodies);
-	//	for (int i = 0; i < collisions.size(); ++i) {
-	//		collisions[i].CalculateAverages();
-	//		CalculateTransmittedForceRecursively(receiver, collisions[i]._collidee, receiver->GetVelocityAtPosition(collisions[i]._averagePosition), collisions[i]._averagePosition, collisions[i]._averageNormal, outForce, consideredBodies);
-	//		consideredBodies.push_back(collisions[i]._collidee);
-	//	}
-	//}
-
 	void RigidBody::PhysicsUpdate(VkContext& ctx, VkContext& collisionCtx, EngineContext& eCtx) {
 		float deltaTimeSeconds = (float)eCtx._time._physicsDeltaTime * 0.001f;
 		auto speed = glm::length(_velocity);
+		auto angularSpeed = glm::length(_angularVelocity);
 		if (IsRotationLocked() && IsTranslationLocked()) return;
 		if (_isColliding && speed < 0.05f) return;
 		if (_isAffectedByGravity) AddForce(gGravity, deltaTimeSeconds, true);
@@ -5365,11 +5350,7 @@ namespace Engine {
 		auto wscom = GetCenterOfMass(true);
 
 		// Clamp angular velocity
-		if (glm::length(_angularVelocity) > _maxAgularVelocity) {
-			glm::vec3 nrm; nrm.x = _angularVelocity.x; nrm.y = _angularVelocity.y; nrm.z = _angularVelocity.z;
-			nrm = glm::normalize(nrm);
-			_angularVelocity = nrm * 5.0f;
-		}
+		if (angularSpeed > _maxAngularSpeed) _angularVelocity *= _maxAngularSpeed / angularSpeed;
 
 		// Resolve collisions.
 		do {
@@ -5396,12 +5377,12 @@ namespace Engine {
 				auto velocityLength = glm::length(velocityAtPosition);
 				auto velocityDirection = velocityAtPosition; glm::normalize(velocityDirection);
 
+				// If the object is moving slower than the collidee, don't do anything.
 				if (velocityLength < glm::length(collisions[i]._collidee->GetVelocityAtPosition(averageCollisionPosition))) continue;
 
 				CollisionContext collisionCtx = collisions[i];
 				// Correct the body's position by moving the object backwards along the collision normal until there are no more collisions, to reduce object penetration
 				// and make the collision detection seem more accurate.
-				auto translationDelta = velocityLength * physicsDeltaTime * 0.001f;
 				_pGameObject->_localTransform.Translate(averageCollisionNormal * 0.01f);
 
 				auto f = averageCollisionNormal * 0.05f;
@@ -5412,7 +5393,6 @@ namespace Engine {
 				auto newf = f * (velAfter / deltaVel);
 				AddForceAtPosition(newf, averageCollisionPosition, 1.0f, true, true, true);
 
-				collisions[i]._collidee->AddForceAtPosition(-f, averageCollisionPosition, 1.0f);
 				velocityAtPosition = GetVelocityAtPosition(averageCollisionPosition);
 
 				auto frictionForceDirection = glm::cross(glm::cross(velocityAtPosition, averageCollisionNormal), averageCollisionNormal);
@@ -5422,6 +5402,8 @@ namespace Engine {
 					? frictionForceDirection * (glm::dot(velocityAtPosition, frictionForceDirection) * _mass * _friction) * deltaTimeSeconds
 					: glm::vec3(0.0f, 0.0f, 0.0f);
 				AddForceAtPosition(-frictionComponent * 4.0f, averageCollisionPosition, 1.0f);
+
+				collisions[i]._collidee->AddForceAtPosition(-f, averageCollisionPosition, 1.0f);
 
 
 				// Detect twitching (fast angular velocity oscillations when an object is almost at its resting position)
