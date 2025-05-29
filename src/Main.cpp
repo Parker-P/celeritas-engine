@@ -778,12 +778,6 @@ namespace Engine {
 			return commandBuffer;
 		}
 
-		static void UnmapAndDestroyStagingBuffer(VkDevice logicalDevice, VkDeviceMemory stagingMemory, VkBuffer stagingBuffer) {
-			vkUnmapMemory(logicalDevice, stagingMemory);
-			vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
-			vkFreeMemory(logicalDevice, stagingMemory, nullptr);
-		}
-
 		static void* DownloadImage(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue queue, VkImage image, uint32_t width, uint32_t height, VkDeviceMemory& outStagingMemory, VkBuffer& outStagingBuffer) {
 			CreateBuffer(logicalDevice, physicalDevice, 4 * width * height, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT /*| VK_MEMORY_PROPERTY_HOST_COHERENT_BIT*/,
@@ -945,39 +939,31 @@ namespace Engine {
 			if (imageView != nullptr) vkDestroySampler(logicalDevice, sampler, nullptr);
 		}
 
-		static void CopyBufferDataToDeviceMemory(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool commandPool, VkQueue queue, VkBuffer buffer, void* pData, size_t sizeBytes) {
+		static void UploadData(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice, VkCommandPool commandPool, VkQueue queue, VkBuffer buffer, void* pData, size_t sizeBytes) {
 			// Create a temporary buffer.
-			VkBufferCreateInfo createInfo{};
 			VkBuffer stagingBuffer;
-			createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-			createInfo.size = sizeBytes;
-			createInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-			vkCreateBuffer(logicalDevice, &createInfo, nullptr, &stagingBuffer);
-
-			// Allocate memory for the buffer.
-			VkDeviceMemory bufferGpuMemory;
-			VkMemoryRequirements requirements{};
-			vkGetBufferMemoryRequirements(logicalDevice, stagingBuffer, &requirements);
-			bufferGpuMemory = PhysicalDevice::AllocateMemory(physicalDevice, logicalDevice, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+			VkDeviceMemory stagingBufferGpuMemory;
+			CreateBuffer(logicalDevice, physicalDevice, sizeBytes, 
+				VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+				&stagingBuffer,
+				&stagingBufferGpuMemory);
 
 			// Map memory to the correct GPU and CPU ranges for the buffer.
 			void* cpuMemory;
-			vkBindBufferMemory(logicalDevice, stagingBuffer, bufferGpuMemory, 0);
-			vkMapMemory(logicalDevice, bufferGpuMemory, 0, sizeBytes, 0, &cpuMemory);
+			vkMapMemory(logicalDevice, stagingBufferGpuMemory, 0, sizeBytes, 0, &cpuMemory);
 			memcpy(cpuMemory, pData, sizeBytes);
 
-			auto copyCommandBuffer = VkHelper::CreateCommandBuffer(logicalDevice, commandPool);
-			VkHelper::StartRecording(copyCommandBuffer);
-
-			VkBufferCopy copyRegion = {};
-			copyRegion.size = sizeBytes;
+			VkBufferCopy copyRegion = {0,0,sizeBytes };
+			auto copyCommandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
+			StartRecording(copyCommandBuffer);
 			vkCmdCopyBuffer(copyCommandBuffer, stagingBuffer, buffer, 1, &copyRegion);
-
-			VkHelper::StopRecording(copyCommandBuffer);
-			VkHelper::ExecuteCommands(copyCommandBuffer, queue);
+			StopRecording(copyCommandBuffer);
+			
+			ExecuteCommands(copyCommandBuffer, queue);
 
 			vkFreeCommandBuffers(logicalDevice, commandPool, 1, &copyCommandBuffer);
-			VkHelper::DesktroyBuffer(logicalDevice, stagingBuffer, bufferGpuMemory);
+			DestroyBuffer(logicalDevice, stagingBuffer, stagingBufferGpuMemory, true);
 		}
 
 		static VkShaderModule CreateShaderModule(VkDevice logicalDevice, const char* absolutePath) {
@@ -999,10 +985,47 @@ namespace Engine {
 			return shaderModule;
 		}
 
-		static void DesktroyBuffer(VkDevice& logicalDevice, VkBuffer& buffer, VkDeviceMemory& gpuMemory) {
+		static void DestroyBuffer(VkDevice& logicalDevice, VkBuffer& buffer, VkDeviceMemory& gpuMemory, const bool& isMemoryMapped) {
 			vkDestroyBuffer(logicalDevice, buffer, nullptr);
+			if (isMemoryMapped)
+				vkUnmapMemory(logicalDevice, gpuMemory);
 			if (gpuMemory)
 				vkFreeMemory(logicalDevice, gpuMemory, nullptr);
+		}
+
+		// A function that transfers data from the GPU to the CPU using staging buffer, because GPU memory is not host-coherent (meaning it is
+		// not synced with the contents of CPU memory).
+		static void DownloadData(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkFence queueFence, VkQueue queue, int sizeOutputBytes, VkBuffer& srcBuffer, void* outDstData) {
+			// Create a temporary CPU-side vulkan buffer to store the data we want to download
+			VkBuffer stagingBuffer;
+			VkDeviceMemory stagingBufferGpuMemory;
+			CreateBuffer(logicalDevice,
+				physicalDevice,
+				sizeOutputBytes,
+				VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				&stagingBuffer,
+				&stagingBufferGpuMemory);
+
+			// Record commands to copy data to download from the input buffer to this temporary staging buffer
+			VkBufferCopy copyRegion = { 0, 0, sizeOutputBytes };
+			auto commandBuffer = CreateCommandBuffer(logicalDevice, commandPool);
+			StartRecording(commandBuffer);
+			vkCmdCopyBuffer(commandBuffer, srcBuffer, stagingBuffer, 1, &copyRegion);
+			StopRecording(commandBuffer);
+
+			// Execute the command above. We will then have the downloaded data in the staging buffer
+			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO, 0, 0, NULL, NULL, 1, &commandBuffer, 0, NULL };
+			CheckResult(vkQueueSubmit(queue, 1, &submitInfo, queueFence));
+			CheckResult(vkWaitForFences(logicalDevice, 1, &queueFence, VK_TRUE, 100000000000));
+			CheckResult(vkResetFences(logicalDevice, 1, &queueFence));
+
+			// Copy the data to actual CPU memory
+			void* stagingData;
+			CheckResult(vkMapMemory(logicalDevice, stagingBufferGpuMemory, 0, sizeOutputBytes, 0, &stagingData));
+			memcpy(outDstData, stagingData, sizeOutputBytes);
+			DestroyBuffer(logicalDevice, stagingBuffer, stagingBufferGpuMemory, true);
+			vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
 		}
 	};
 
@@ -4149,131 +4172,6 @@ namespace Engine {
 			return res;
 		}
 
-		static VkResult UploadDataToGPU(void* data, VkBuffer* outBuffer, VkDeviceSize bufferSizeBytes, VkContext& ctx) {
-			VkResult res = VK_SUCCESS;
-
-			// a function that transfers data from the CPU to the GPU using staging buffer,
-			// because the GPU memory is not host-coherent
-			VkDeviceSize stagingBufferSize = bufferSizeBytes;
-			VkBuffer stagingBuffer = { 0 };
-			VkDeviceMemory stagingBufferMemory = { 0 };
-			res = AllocateGPUOnlyBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				stagingBufferSize,
-				ctx,
-				&stagingBuffer,
-				&stagingBufferMemory);
-			if (res != VK_SUCCESS) return res;
-
-			void* stagingData;
-			res = vkMapMemory(ctx._logicalDevice, stagingBufferMemory, 0, stagingBufferSize, 0, &stagingData);
-			if (res != VK_SUCCESS) return res;
-			memcpy(stagingData, data, stagingBufferSize);
-			vkUnmapMemory(ctx._logicalDevice, stagingBufferMemory);
-
-			VkCommandBufferAllocateInfo commandBufferAllocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-												0,
-												(VkCommandPool)ctx._commandPool,
-												(VkCommandBufferLevel)VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-												(uint32_t)1 };
-			VkCommandBuffer commandBuffer = { 0 };
-			res = vkAllocateCommandBuffers(ctx._logicalDevice, &commandBufferAllocateInfo, &commandBuffer);
-			if (res != VK_SUCCESS) return res;
-
-
-
-			VkCommandBufferBeginInfo commandBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-											 0,
-											 (VkCommandBufferUsageFlags)VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-											 (const VkCommandBufferInheritanceInfo*)NULL };
-			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
-			if (res != VK_SUCCESS) return res;
-			VkBufferCopy copyRegion = { 0, 0, stagingBufferSize };
-			vkCmdCopyBuffer(commandBuffer, stagingBuffer, *outBuffer, 1, &copyRegion);
-			res = vkEndCommandBuffer(commandBuffer);
-			if (res != VK_SUCCESS) return res;
-
-			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO,
-								 0,
-								 (uint32_t)0,
-								 (const VkSemaphore*)NULL,
-								 (const VkPipelineStageFlags*)NULL,
-								 (uint32_t)1,
-								 (const VkCommandBuffer*)&commandBuffer,
-								 (uint32_t)0,
-								 (const VkSemaphore*)NULL };
-
-			res = vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
-			if (res != VK_SUCCESS) return res;
-
-
-			res = vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, 100000000000);
-			if (res != VK_SUCCESS) return res;
-
-			res = vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
-			if (res != VK_SUCCESS) return res;
-
-			vkFreeCommandBuffers(ctx._logicalDevice, ctx._commandPool, 1, &commandBuffer);
-			vkDestroyBuffer(ctx._logicalDevice, stagingBuffer, NULL);
-			vkFreeMemory(ctx._logicalDevice, stagingBufferMemory, NULL);
-			return res;
-		}
-
-		static VkResult DownloadDataFromGPU(void* data, VkDeviceSize bufferSize, VkContext& ctx, VkBuffer* outBuffer) {
-			VkResult res = VK_SUCCESS;
-			VkCommandBuffer commandBuffer = { 0 };
-
-			// A function that transfers data from the GPU to the CPU using staging buffer, because GPU memory is not host-coherent (meaning it is
-			// not synced with the contents of CPU memory).
-			VkDeviceSize stagingBufferSize = bufferSize;
-			VkBuffer stagingBuffer = { 0 };
-			VkDeviceMemory stagingBufferMemory = { 0 };
-			res = AllocateGPUOnlyBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				stagingBufferSize,
-				ctx,
-				&stagingBuffer,
-				&stagingBufferMemory);
-			if (res != VK_SUCCESS) return res;
-
-			VkCommandBufferAllocateInfo commandBufferAllocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, 0, ctx._commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1 };
-			res = vkAllocateCommandBuffers(ctx._logicalDevice, &commandBufferAllocateInfo, &commandBuffer);
-			if (res != VK_SUCCESS) return res;
-
-			VkCommandBufferBeginInfo commandBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, 0, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, NULL };
-			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
-			if (res != VK_SUCCESS) return res;
-
-			VkBufferCopy copyRegion = { (VkDeviceSize)0, (VkDeviceSize)0, (VkDeviceSize)stagingBufferSize };
-
-			vkCmdCopyBuffer(commandBuffer, outBuffer[0], stagingBuffer, 1, &copyRegion);
-			vkEndCommandBuffer(commandBuffer);
-
-			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO, 0, 0, NULL, NULL, 1, &commandBuffer, 0, NULL };
-
-			res = vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
-			if (res != VK_SUCCESS) return res;
-
-			res = vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, 100000000000);
-			if (res != VK_SUCCESS) return res;
-
-			res = vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
-			if (res != VK_SUCCESS) return res;
-
-			vkFreeCommandBuffers(ctx._logicalDevice, ctx._commandPool, 1, &commandBuffer);
-
-			void* stagingData;
-			res = vkMapMemory(ctx._logicalDevice, stagingBufferMemory, 0, stagingBufferSize, 0, &stagingData);
-			if (res != VK_SUCCESS) return res;
-
-			memcpy(data, stagingData, stagingBufferSize);
-			vkUnmapMemory(ctx._logicalDevice, stagingBufferMemory);
-
-			vkDestroyBuffer(ctx._logicalDevice, stagingBuffer, NULL);
-			vkFreeMemory(ctx._logicalDevice, stagingBufferMemory, NULL);
-			return res;
-		}
-
 		static VkResult CreateComputePipeline(VkBuffer* shaderBuffersArray, VkDeviceSize* arrayOfSizesOfEachBuffer, const char* shaderFilePath, VkContext& ctx, VkPipeline& outPipeline, VkPipelineLayout& outLayout, VkDescriptorSet& outDescriptorSet, VkDescriptorPool& outDescriptorPool) {
 			VkResult res = VK_SUCCESS;
 
@@ -4350,27 +4248,9 @@ namespace Engine {
 			return res;
 		}
 
-		static VkResult Dispatch(VkContext& ctx, VkPipeline pipeline, VkPipelineLayout pipelineLayout,
+		static void Dispatch(VkContext& ctx, VkPipeline pipeline, VkPipelineLayout pipelineLayout,
 			VkDescriptorSet descriptorSet, std::vector<uint32_t>& workGroupCount,
 			const glm::mat4x4& objectToWorldA, const glm::mat4x4& objectToWorldB, uint32_t& objectAnormal) {
-			VkResult res = VK_SUCCESS;
-			VkCommandBuffer commandBuffer = { 0 };
-
-			// Create a command buffer to be executed on the GPU
-			VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-			commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-			commandBufferAllocateInfo.commandPool = ctx._commandPool;
-			commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-			commandBufferAllocateInfo.commandBufferCount = 1;
-			res = vkAllocateCommandBuffers(ctx._logicalDevice, &commandBufferAllocateInfo, &commandBuffer);
-			if (res != VK_SUCCESS) return res;
-
-			// Begin command buffer recording
-			VkCommandBufferBeginInfo commandBufferBeginInfo = {};
-			commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-			commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-			res = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
-			if (res != VK_SUCCESS) return res;
 
 			// Define push constants structure matching the shader
 			struct PushConstants {
@@ -4382,15 +4262,14 @@ namespace Engine {
 			pushConstants.localToWorldB = objectToWorldB;
 			pushConstants.objectAnormal = objectAnormal;
 
-			// Bind pipeline and push constants
+			// Record compute shader pipeline commands
+			auto commandBuffer = VkHelper::CreateCommandBuffer(ctx._logicalDevice, ctx._commandPool);
+			VkHelper::StartRecording(commandBuffer);
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 			vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstants), &pushConstants);
 			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
 			vkCmdDispatch(commandBuffer, workGroupCount[0], workGroupCount[1], workGroupCount[2]);
-
-			// End command buffer recording
-			res = vkEndCommandBuffer(commandBuffer);
-			if (res != VK_SUCCESS) return res;
+			VkHelper::StopRecording(commandBuffer);
 
 			// Submit the command buffer
 			VkSubmitInfo submitInfo = {};
@@ -4398,23 +4277,12 @@ namespace Engine {
 			submitInfo.commandBufferCount = 1;
 			submitInfo.pCommandBuffers = &commandBuffer;
 			clock_t t = clock();
-			res = vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence);
-			if (res != VK_SUCCESS) return res;
-
-			// Wait for the fence
-			res = vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, 30000000000);
-			if (res != VK_SUCCESS) return res;
-
-			// Calculate execution time
-			t = clock() - t;
-			double time = ((double)t) / CLOCKS_PER_SEC * 1000;
+			CheckResult(vkQueueSubmit(ctx._queue, 1, &submitInfo, ctx._queueFence));
+			CheckResult(vkWaitForFences(ctx._logicalDevice, 1, &ctx._queueFence, VK_TRUE, 30000000000));
 
 			// Reset fence and free command buffer
-			res = vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence);
-			if (res != VK_SUCCESS) return res;
-
+			CheckResult(vkResetFences(ctx._logicalDevice, 1, &ctx._queueFence));
 			vkFreeCommandBuffers(ctx._logicalDevice, ctx._commandPool, 1, &commandBuffer);
-			return res;
 		}
 
 		static CollisionContext Run(VkContext& collisionCtx, RigidBody& bodyA, RigidBody& bodyB, bool& outCollided) {
@@ -4505,12 +4373,6 @@ namespace Engine {
 				&outputBuffer._buffer,
 				&outputBuffer._gpuMemory);
 
-			// Transfer data to GPU staging buffer and thereafter sync the staging buffer with GPU local memory.
-			VkHelper::CopyBufferDataToDeviceMemory(collisionCtx._logicalDevice, collisionCtx._physicalDevice, collisionCtx._commandPool, collisionCtx._queue, vertexBufferA._buffer, dataInputBufferA, sizeA_bytes);
-			VkHelper::CopyBufferDataToDeviceMemory(collisionCtx._logicalDevice, collisionCtx._physicalDevice, collisionCtx._commandPool, collisionCtx._queue, indexBufferA._buffer, aIndices.data(), sizeIndexA_bytes);
-			VkHelper::CopyBufferDataToDeviceMemory(collisionCtx._logicalDevice, collisionCtx._physicalDevice, collisionCtx._commandPool, collisionCtx._queue, vertexBufferB._buffer, dataInputBufferB, sizeB_bytes);
-			VkHelper::CopyBufferDataToDeviceMemory(collisionCtx._logicalDevice, collisionCtx._physicalDevice, collisionCtx._commandPool, collisionCtx._queue, indexBufferB._buffer, bIndices.data(), sizeIndexB_bytes);
-
 			VkBuffer buffers[5] = {
 				vertexBufferA._buffer,
 				indexBufferA._buffer,
@@ -4537,16 +4399,20 @@ namespace Engine {
 			auto aTransform = a->_pGameObject->GetWorldSpaceTransform()._matrix;
 			auto bTransform = b->_pGameObject->GetWorldSpaceTransform()._matrix;
 
-			if (Dispatch(collisionCtx, pipeline, layout, descriptorSet, workGroupCount, aTransform, bTransform, objectAnormal) != VK_SUCCESS) {
-				std::cout << "Application run failed." << std::endl;
-			}
+			// Transfer data to GPU staging buffer and thereafter sync the staging buffer with GPU local memory.
+			VkHelper::UploadData(collisionCtx._logicalDevice, collisionCtx._physicalDevice, collisionCtx._commandPool, collisionCtx._queue, vertexBufferA._buffer, dataInputBufferA, sizeA_bytes);
+			VkHelper::UploadData(collisionCtx._logicalDevice, collisionCtx._physicalDevice, collisionCtx._commandPool, collisionCtx._queue, indexBufferA._buffer, aIndices.data(), sizeIndexA_bytes);
+			VkHelper::UploadData(collisionCtx._logicalDevice, collisionCtx._physicalDevice, collisionCtx._commandPool, collisionCtx._queue, vertexBufferB._buffer, dataInputBufferB, sizeB_bytes);
+			VkHelper::UploadData(collisionCtx._logicalDevice, collisionCtx._physicalDevice, collisionCtx._commandPool, collisionCtx._queue, indexBufferB._buffer, bIndices.data(), sizeIndexB_bytes);
+
+			Dispatch(collisionCtx, pipeline, layout, descriptorSet, workGroupCount, aTransform, bTransform, objectAnormal);
 
 			auto shaderOutputBufferData = (glm::vec4*)malloc(sizeOutputBytes);
-
-			//Transfer data from GPU using staging buffer, if needed
-			if (DownloadDataFromGPU(shaderOutputBufferData, sizeOutputBytes, collisionCtx, &outputBuffer._buffer) != VK_SUCCESS)
-				std::cout << "Failed downloading data from GPU." << std::endl;
-
+			VkHelper::DownloadData(collisionCtx._logicalDevice, collisionCtx._physicalDevice, collisionCtx._commandPool, collisionCtx._queueFence, collisionCtx._queue,
+				sizeOutputBytes,
+				outputBuffer._buffer,
+				shaderOutputBufferData);
+			
 			// Convert GPU results into collision context info
 			CollisionContext outCollisionCtx;
 			for (int i = 0; i < faceCount; ++i) {
@@ -4571,11 +4437,11 @@ namespace Engine {
 			vkDestroyPipelineLayout(collisionCtx._logicalDevice, layout, nullptr);
 			vkDestroyDescriptorPool(collisionCtx._logicalDevice, descriptorPool, nullptr);
 
-			VkHelper::DesktroyBuffer(collisionCtx._logicalDevice, vertexBufferA._buffer, vertexBufferA._gpuMemory);
-			VkHelper::DesktroyBuffer(collisionCtx._logicalDevice, indexBufferA._buffer, indexBufferA._gpuMemory);
-			VkHelper::DesktroyBuffer(collisionCtx._logicalDevice, vertexBufferB._buffer, vertexBufferB._gpuMemory);
-			VkHelper::DesktroyBuffer(collisionCtx._logicalDevice, indexBufferB._buffer, indexBufferB._gpuMemory);
-			VkHelper::DesktroyBuffer(collisionCtx._logicalDevice, outputBuffer._buffer, outputBuffer._gpuMemory);
+			VkHelper::DestroyBuffer(collisionCtx._logicalDevice, vertexBufferA._buffer, vertexBufferA._gpuMemory, false);
+			VkHelper::DestroyBuffer(collisionCtx._logicalDevice, indexBufferA._buffer, indexBufferA._gpuMemory, false);
+			VkHelper::DestroyBuffer(collisionCtx._logicalDevice, vertexBufferB._buffer, vertexBufferB._gpuMemory, false);
+			VkHelper::DestroyBuffer(collisionCtx._logicalDevice, indexBufferB._buffer, indexBufferB._gpuMemory, false);
+			VkHelper::DestroyBuffer(collisionCtx._logicalDevice, outputBuffer._buffer, outputBuffer._gpuMemory, false);
 
 			free(shaderOutputBufferData);
 			free(dataInputBufferA);
@@ -7418,7 +7284,7 @@ namespace Engine {
 		VkBuffer stagingBuffer = nullptr;
 		auto imageData = VkHelper::DownloadImage(_logicalDevice, _physicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, _swapchain._framebufferSize.width, _swapchain._framebufferSize.height, stagingMemory, stagingBuffer);
 		Helper::SaveImageAsPng(Paths::TexturesPath() / "ui.png", imageData, _swapchain._framebufferSize.width, _swapchain._framebufferSize.height);
-		VkHelper::UnmapAndDestroyStagingBuffer(_logicalDevice, stagingMemory, stagingBuffer);
+		VkHelper::DestroyBuffer(_logicalDevice, stagingMemory, stagingBuffer);
 		VkHelper::TransitionImageLayout(_logicalDevice, _commandPool, _queue, _uiCtx._overlayImages[imageIndex]._image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);*/
 
 		// Wait for image to be available and draw.
