@@ -3995,7 +3995,7 @@ namespace Engine {
 		/**
 		 * @brief Body for physics simulation.
 		 */
-		RigidBody _body;
+		RigidBody* _pBody;
 
 		/**
 		 * @brief Transform relative to the parent gameobject.
@@ -4008,6 +4008,7 @@ namespace Engine {
 
 		GameObject() = default;
 		GameObject(const std::string& name, Scene* pScene);
+		~GameObject();
 		ShaderResources CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts);
 		Transform GetWorldSpaceTransform();
 		void UpdateShaderResources();
@@ -4464,7 +4465,7 @@ namespace Engine {
 				dataInputBufferB[i].w = 1.0f;
 			}
 
-			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, (uint32_t)outputCount, { 256, 1, 1 });
+			std::vector <uint32_t> workGroupCount = CalculateWorkGroupCount(gpuProperties, (uint32_t)faceCount, { 8, 8, 8 });
 
 			// Create all the buffers.
 			VkResult res = VK_SUCCESS;
@@ -4669,6 +4670,12 @@ namespace Engine {
 		_pScene = pScene;
 	}
 
+	GameObject::~GameObject()
+	{
+		if (_pBody)
+			delete _pBody;
+	}
+
 	ShaderResources GameObject::CreateDescriptorSets(VkContext& ctx, std::vector<DescriptorSetLayout>& layouts) {
 		auto descriptorSetID = 1;
 		auto globalTransform = GetWorldSpaceTransform();
@@ -4755,7 +4762,9 @@ namespace Engine {
 	}
 
 	void GameObject::PhysicsUpdate(VkContext& ctx, VkContext& collisionCtx, EngineContext& eCtx) {
-		_body.PhysicsUpdate(ctx, collisionCtx, eCtx);
+		if (!_pBody) return;
+		if (!_pBody->_isCollidable || (_pBody->IsTranslationLocked() && _pBody->IsRotationLocked())) return;
+		_pBody->PhysicsUpdate(ctx, collisionCtx, eCtx);
 	}
 
 	void GameObject::Update(VkContext& vkContext) {
@@ -5068,12 +5077,13 @@ namespace Engine {
 		std::vector<CollisionContext> outCollisions;
 		for (int i = 0; i < otherGameObjects.size(); ++i) {
 			if (otherGameObjects[i]->_pMesh->_vertices._vertexData.size() < 1) continue;
+			if (!otherGameObjects[i]->_pBody) continue;
 			//auto collision = DetectCollision(otherGameObjects[i]->_body);
 			//bool hasCollided = collision._collisionPositions.size() > 0;
 			bool hasCollided = false;
 
 			auto start = std::chrono::high_resolution_clock::now();
-			auto collision = GpuCollisionDetector::Run(collisionCtx, *this, otherGameObjects[i]->_body, hasCollided);
+			auto collision = GpuCollisionDetector::Run(collisionCtx, *this, *otherGameObjects[i]->_pBody, hasCollided);
 			auto end = std::chrono::high_resolution_clock::now();
 			auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 			if (elapsed.count() > 10)
@@ -5747,28 +5757,26 @@ namespace Engine {
 
 				auto gameObject = FindGameObject(rootNode, collisionMeshName);
 				if (!gameObject) break;
+				if (!gameObject->_pMesh) break;
 
-				std::vector<glm::vec4> v;
-				std::vector<unsigned int> fi;
-				for (int i = 0; i < gameObject->_pMesh->_vertices._vertexData.size(); ++i) v.push_back(glm::vec4(gameObject->_pMesh->_vertices._vertexData[i]._position, 0.0f));
-				for (int i = 0; i < gameObject->_pMesh->_faceIndices._indexData.size(); ++i) fi.push_back(gameObject->_pMesh->_faceIndices._indexData[i]);
 				/*if (gameObject->_name != currentNode->name) {
 					delete(gameObject->_pMesh);
 					gameObject->_pMesh = nullptr;
 				}*/
-				currentNode->pGameObject->_body.Initialize(currentNode->pGameObject);
+				currentNode->pGameObject->_pBody = new RigidBody();
+				currentNode->pGameObject->_pBody->Initialize(currentNode->pGameObject);
 
 				// Additional init
-				currentNode->pGameObject->_body._friction = (float)GetNumberProperty(gltfNode, "Friction");
-				currentNode->pGameObject->_body._mass = (float)GetNumberProperty(gltfNode, "Mass");
-				currentNode->pGameObject->_body._isAffectedByGravity = GetBoolProperty(gltfNode, "EnableGravity");
-				currentNode->pGameObject->_body._isCollidable = GetBoolProperty(gltfNode, "IsCollidable");
-				currentNode->pGameObject->_body._lockRotationX = GetBoolProperty(gltfNode, "LockRotationX");
-				currentNode->pGameObject->_body._lockRotationY = GetBoolProperty(gltfNode, "LockRotationY");
-				currentNode->pGameObject->_body._lockRotationZ = GetBoolProperty(gltfNode, "LockRotationZ");
-				currentNode->pGameObject->_body._lockTranslationX = GetBoolProperty(gltfNode, "LockTranslationX");
-				currentNode->pGameObject->_body._lockTranslationY = GetBoolProperty(gltfNode, "LockTranslationY");
-				currentNode->pGameObject->_body._lockTranslationZ = GetBoolProperty(gltfNode, "LockTranslationZ");
+				currentNode->pGameObject->_pBody->_friction = (float)GetNumberProperty(gltfNode, "Friction");
+				currentNode->pGameObject->_pBody->_mass = (float)GetNumberProperty(gltfNode, "Mass");
+				currentNode->pGameObject->_pBody->_isAffectedByGravity = GetBoolProperty(gltfNode, "EnableGravity");
+				currentNode->pGameObject->_pBody->_isCollidable = GetBoolProperty(gltfNode, "IsCollidable");
+				currentNode->pGameObject->_pBody->_lockRotationX = GetBoolProperty(gltfNode, "LockRotationX");
+				currentNode->pGameObject->_pBody->_lockRotationY = GetBoolProperty(gltfNode, "LockRotationY");
+				currentNode->pGameObject->_pBody->_lockRotationZ = GetBoolProperty(gltfNode, "LockRotationZ");
+				currentNode->pGameObject->_pBody->_lockTranslationX = GetBoolProperty(gltfNode, "LockTranslationX");
+				currentNode->pGameObject->_pBody->_lockTranslationY = GetBoolProperty(gltfNode, "LockTranslationY");
+				currentNode->pGameObject->_pBody->_lockTranslationZ = GetBoolProperty(gltfNode, "LockTranslationZ");
 			} while (false);
 
 			for (int i = 0; i < currentNode->children.size(); ++i) {
@@ -5999,7 +6007,8 @@ namespace Engine {
 
 	Scene LoadScene(VkContext& ctx) {
 		//auto scenePath = Paths::ModelsPath() /= "MaterialSphere.glb";
-		auto scenePath = Paths::ModelsPath() /= "cubes.glb";
+		auto scenePath = Paths::ModelsPath() /= "ShootingRange.glb";
+		//auto scenePath = Paths::ModelsPath() /= "cubes.glb";
 		//auto scenePath = Paths::ModelsPath() /= "directions.glb";
 		//auto scenePath = Paths::ModelsPath() /= "f.glb";
 		//auto scenePath = Paths::ModelsPath() /= "fr.glb";
@@ -7491,12 +7500,12 @@ namespace Engine {
 
 			//if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_SHIFT)) mp5k->_body.AddTorque(right, deltaTimeSeconds, true);
 			//if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_ALT)) mp5k->_body.AddTorque(-right, deltaTimeSeconds, true);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_SHIFT)) mp5k->_body.AddForce(up, deltaTimeSeconds, true);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_ALT)) mp5k->_body.AddForce(-up, deltaTimeSeconds, true);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_RIGHT)) mp5k->_body.AddForce(right, deltaTimeSeconds, true);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT)) mp5k->_body.AddForce(-right, deltaTimeSeconds, true);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_DOWN)) mp5k->_body.AddForce(-forward, deltaTimeSeconds, true);
-			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) mp5k->_body.AddForce(forward, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_SHIFT)) mp5k->_pBody->AddForce(up, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT_ALT)) mp5k->_pBody->AddForce(-up, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_RIGHT)) mp5k->_pBody->AddForce(right, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_LEFT)) mp5k->_pBody->AddForce(-right, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_DOWN)) mp5k->_pBody->AddForce(-forward, deltaTimeSeconds, true);
+			if (eCtx->_input.IsKeyHeldDown(GLFW_KEY_UP)) mp5k->_pBody->AddForce(forward, deltaTimeSeconds, true);
 		}
 	}
 

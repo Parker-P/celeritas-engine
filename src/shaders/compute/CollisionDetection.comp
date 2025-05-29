@@ -13,7 +13,7 @@
 
 const float MAX_FLOAT = 3.402823466e+38;
 
-layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
 layout(push_constant) uniform PushConstants {
     mat4 localToWorldA;
@@ -71,13 +71,18 @@ bool RayTriangleIntersect(vec3 ro, vec3 rd, vec3 v0, vec3 v1, vec3 v2, out vec3 
 }
 
 void main() {
-    uint triIdxA = gl_GlobalInvocationID.x;
-    uint faceCountA = indexBufferA.indices.length() / 3;
+    uvec3 totalSize = uvec3(gl_NumWorkGroups.x, gl_NumWorkGroups.y, gl_NumWorkGroups.z) * uvec3(8, 8, 8);
+    uint triIdxA = gl_GlobalInvocationID.x + 
+                   gl_GlobalInvocationID.y * totalSize.x + 
+                   gl_GlobalInvocationID.z * totalSize.x * totalSize.y;
+
+    uint indicesCount = indexBufferA.indices.length();
+    uint faceCountA = indicesCount / 3;
     results.intersectionInfo[triIdxA] = vec4(MAX_FLOAT); // position default
     results.intersectionInfo[triIdxA + faceCountA] = vec4(MAX_FLOAT); // normal default, w = no hit
 
     uint idxA = triIdxA * 3;
-    if (idxA + 2 >= indexBufferA.indices.length()) return;
+    if (idxA + 2 >= indicesCount) return;
 
     // Get indices for triangle A
     uint i0 = indexBufferA.indices[idxA + 0];
